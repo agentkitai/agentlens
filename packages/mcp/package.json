@@ -24,6 +24,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentlens/core": "workspace:*"
+    "@agentlens/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.25.76"
   }
 }

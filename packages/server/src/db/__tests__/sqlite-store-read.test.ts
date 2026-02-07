@@ -33,7 +33,9 @@ function makeEvent(overrides: Partial<AgentLensEvent> = {}): AgentLensEvent {
     sessionId: base.sessionId,
     agentId: base.agentId,
     eventType: base.eventType,
+    severity: base.severity,
     payload: base.payload,
+    metadata: base.metadata,
     prevHash: base.prevHash,
   });
   return { ...base, hash } as AgentLensEvent;
@@ -65,7 +67,9 @@ function makeChain(overridesList: Array<Partial<AgentLensEvent>>, startPrevHash:
       sessionId: base.sessionId,
       agentId: base.agentId,
       eventType: base.eventType,
+      severity: base.severity,
       payload: base.payload,
+      metadata: base.metadata,
       prevHash: base.prevHash,
     });
     const event = { ...base, hash } as AgentLensEvent;

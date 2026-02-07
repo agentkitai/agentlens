@@ -1,0 +1,86 @@
+/**
+ * Session Endpoints (Story 4.6)
+ *
+ * GET /api/sessions            — list sessions with filters + pagination
+ * GET /api/sessions/:id        — session detail with aggregates
+ * GET /api/sessions/:id/timeline — all events ascending + chainValid
+ */
+
+import { Hono } from 'hono';
+import { verifyChain, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentlens/core';
+import type { SessionQuery, SessionStatus } from '@agentlens/core';
+import type { IEventStore } from '@agentlens/core';
+import type { AuthVariables } from '../middleware/auth.js';
+
+export function sessionsRoutes(store: IEventStore) {
+  const app = new Hono<{ Variables: AuthVariables }>();
+
+  // GET /api/sessions — list sessions
+  app.get('/', async (c) => {
+    const query: SessionQuery = {};
+
+    const agentId = c.req.query('agentId');
+    if (agentId) query.agentId = agentId;
+
+    const status = c.req.query('status');
+    if (status) query.status = status as SessionStatus;
+
+    const from = c.req.query('from');
+    if (from) query.from = from;
+
+    const to = c.req.query('to');
+    if (to) query.to = to;
+
+    const tags = c.req.query('tags');
+    if (tags) query.tags = tags.split(',');
+
+    const limitStr = c.req.query('limit');
+    query.limit = limitStr ? Math.min(parseInt(limitStr, 10) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) : DEFAULT_PAGE_SIZE;
+
+    const offsetStr = c.req.query('offset');
+    query.offset = offsetStr ? parseInt(offsetStr, 10) || 0 : 0;
+
+    const result = await store.querySessions(query);
+
+    return c.json({
+      sessions: result.sessions,
+      total: result.total,
+      hasMore: (query.offset ?? 0) + result.sessions.length < result.total,
+    });
+  });
+
+  // GET /api/sessions/:id — session detail
+  app.get('/:id', async (c) => {
+    const id = c.req.param('id');
+
+    // Check for /timeline path  — Hono routes "/:id" will also match,
+    // but we have a separate route for /:id/timeline below.
+
+    const session = await store.getSession(id);
+    if (!session) {
+      return c.json({ error: 'Session not found', status: 404 }, 404);
+    }
+
+    return c.json(session);
+  });
+
+  // GET /api/sessions/:id/timeline — all events ascending + chain verification
+  app.get('/:id/timeline', async (c) => {
+    const id = c.req.param('id');
+
+    const session = await store.getSession(id);
+    if (!session) {
+      return c.json({ error: 'Session not found', status: 404 }, 404);
+    }
+
+    const timeline = await store.getSessionTimeline(id);
+    const chainResult = verifyChain(timeline);
+
+    return c.json({
+      events: timeline,
+      chainValid: chainResult.valid,
+    });
+  });
+
+  return app;
+}

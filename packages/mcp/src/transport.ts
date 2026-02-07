@@ -1,0 +1,182 @@
+/**
+ * @agentlens/mcp — HTTP Transport Layer (Story 5.6)
+ *
+ * HTTP client wrapping native fetch() for communicating with the AgentLens API server.
+ * Includes an in-memory event buffer with automatic flush and graceful shutdown.
+ */
+
+export interface TransportConfig {
+  /** Base URL for the AgentLens API server */
+  baseUrl: string;
+  /** API key for authentication */
+  apiKey?: string;
+}
+
+export interface BufferedEvent {
+  sessionId: string;
+  agentId: string;
+  eventType: string;
+  severity?: string;
+  payload: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  timestamp?: string;
+}
+
+export interface QueryEventsParams {
+  sessionId: string;
+  limit?: number;
+  eventType?: string;
+}
+
+/** Maximum number of events to buffer before forcing a flush */
+const MAX_BUFFER_COUNT = 10_000;
+/** Maximum buffer size in bytes before forcing a flush (~10MB) */
+const MAX_BUFFER_BYTES = 10 * 1024 * 1024;
+
+export class AgentLensTransport {
+  private readonly baseUrl: string;
+  private readonly apiKey?: string;
+  private buffer: BufferedEvent[] = [];
+  private bufferBytes = 0;
+  private flushing = false;
+  private shutdownHandlersInstalled = false;
+
+  constructor(config: TransportConfig) {
+    this.baseUrl = config.baseUrl.replace(/\/+$/, '');
+    this.apiKey = config.apiKey;
+  }
+
+  /**
+   * Install SIGTERM/SIGINT handlers for graceful shutdown.
+   * Safe to call multiple times — only installs once.
+   */
+  installShutdownHandlers(): void {
+    if (this.shutdownHandlersInstalled) return;
+    this.shutdownHandlersInstalled = true;
+
+    const handler = async () => {
+      await this.flush();
+      process.exit(0);
+    };
+
+    process.on('SIGTERM', handler);
+    process.on('SIGINT', handler);
+  }
+
+  /**
+   * Send events to the API server. Events are buffered and flushed
+   * when the buffer exceeds capacity or when flush() is called explicitly.
+   */
+  async sendEvents(events: BufferedEvent[]): Promise<void> {
+    for (const event of events) {
+      const size = JSON.stringify(event).length;
+      this.buffer.push(event);
+      this.bufferBytes += size;
+    }
+
+    if (this.buffer.length >= MAX_BUFFER_COUNT || this.bufferBytes >= MAX_BUFFER_BYTES) {
+      await this.flush();
+    }
+  }
+
+  /**
+   * Send a single event immediately (no buffering).
+   * Used for critical events like session_start/session_end.
+   */
+  async sendEventImmediate(event: BufferedEvent): Promise<Response> {
+    const url = `${this.baseUrl}/api/events`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(event),
+    });
+    return response;
+  }
+
+  /**
+   * Query events from the API server.
+   */
+  async queryEvents(params: QueryEventsParams): Promise<Response> {
+    const searchParams = new URLSearchParams();
+    searchParams.set('sessionId', params.sessionId);
+    if (params.limit !== undefined) {
+      searchParams.set('limit', String(params.limit));
+    }
+    if (params.eventType) {
+      searchParams.set('eventType', params.eventType);
+    }
+
+    const url = `${this.baseUrl}/api/events?${searchParams.toString()}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+    return response;
+  }
+
+  /**
+   * Flush all buffered events to the API server.
+   */
+  async flush(): Promise<void> {
+    if (this.buffer.length === 0 || this.flushing) return;
+
+    this.flushing = true;
+    const eventsToFlush = [...this.buffer];
+    this.buffer = [];
+    this.bufferBytes = 0;
+
+    try {
+      // Send events in batches to the API server
+      const url = `${this.baseUrl}/api/events/batch`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({ events: eventsToFlush }),
+      });
+
+      if (!response.ok) {
+        // Re-buffer events on failure (up to capacity)
+        const remaining = MAX_BUFFER_COUNT - this.buffer.length;
+        const requeue = eventsToFlush.slice(0, remaining);
+        this.buffer.unshift(...requeue);
+        for (const event of requeue) {
+          this.bufferBytes += JSON.stringify(event).length;
+        }
+      }
+    } catch {
+      // Re-buffer events on network failure
+      const remaining = MAX_BUFFER_COUNT - this.buffer.length;
+      const requeue = eventsToFlush.slice(0, remaining);
+      this.buffer.unshift(...requeue);
+      for (const event of requeue) {
+        this.bufferBytes += JSON.stringify(event).length;
+      }
+    } finally {
+      this.flushing = false;
+    }
+  }
+
+  /**
+   * Get the current number of buffered events (for testing/monitoring).
+   */
+  get bufferedCount(): number {
+    return this.buffer.length;
+  }
+
+  /**
+   * Get the current buffer size in bytes (for testing/monitoring).
+   */
+  get bufferedBytes(): number {
+    return this.bufferBytes;
+  }
+
+  private buildHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+    return headers;
+  }
+}

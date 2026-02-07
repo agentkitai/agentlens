@@ -28,7 +28,9 @@ function makeEvent(overrides: Partial<AgentLensEvent> & { prevHash?: string | nu
     sessionId: base.sessionId,
     agentId: base.agentId,
     eventType: base.eventType,
+    severity: base.severity,
     payload: base.payload,
+    metadata: base.metadata,
     prevHash: base.prevHash,
   });
   return { ...base, hash } as AgentLensEvent;

@@ -104,7 +104,9 @@ export class SqliteEventStore implements IEventStore {
           sessionId: event.sessionId,
           agentId: event.agentId,
           eventType: event.eventType,
+          severity: event.severity,
           payload: event.payload,
+          metadata: event.metadata,
           prevHash: event.prevHash,
         });
 
