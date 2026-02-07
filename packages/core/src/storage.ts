@@ -80,9 +80,7 @@ export interface IEventStore {
   /** Upsert session (materialized from events) */
   upsertSession(session: Partial<Session> & { id: string }): Promise<void>;
   /** Query sessions */
-  querySessions(
-    query: SessionQuery,
-  ): Promise<{ sessions: Session[]; total: number }>;
+  querySessions(query: SessionQuery): Promise<{ sessions: Session[]; total: number }>;
   /** Get a single session by ID */
   getSession(id: string): Promise<Session | null>;
 
