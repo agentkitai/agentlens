@@ -19,7 +19,6 @@ import type {
   AlertTriggeredPayload,
   AlertResolvedPayload,
   CustomPayload,
-  EventPayload,
 } from '../types.js';
 import { EVENT_TYPES, EVENT_SEVERITIES } from '../types.js';
 

@@ -4,21 +4,30 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc -b",
-    "dev": "tsc -b --watch",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@agentlens/core": "workspace:*"
+    "@agentlens/core": "workspace:*",
+    "drizzle-orm": "^0.44.2",
+    "better-sqlite3": "^11.9.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.4",
+    "vitest": "^3.2.3"
   }
 }

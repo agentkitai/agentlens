@@ -5,7 +5,9 @@
   "bin": {
     "agentlens": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -b",
     "dev": "tsc -b --watch",
