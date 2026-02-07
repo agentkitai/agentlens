@@ -4,13 +4,31 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsc -b",
-    "dev": "tsc -b --watch",
+    "dev": "vite",
+    "build": "vite build",
     "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentlens/core": "workspace:*"
+    "@agentlens/core": "workspace:*",
+    "recharts": "^2.15.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-virtual": "^3.13.18",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-json-view-lite": "^2.5.0",
+    "react-router-dom": "^6.30.3",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^6.4.1",
+    "vitest": "^2.1.8"
   }
 }

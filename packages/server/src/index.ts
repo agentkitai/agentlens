@@ -10,6 +10,10 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { IEventStore } from '@agentlens/core';
 import { getConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';
@@ -37,6 +41,56 @@ export { createDb, createTestDb } from './db/index.js';
 export type { SqliteDb } from './db/index.js';
 export { runMigrations } from './db/migrate.js';
 
+// ─── Dashboard SPA helpers ───────────────────────────────────
+
+/**
+ * Resolve the dashboard dist/ directory path.
+ * Looks for the built dashboard relative to this file's package:
+ *   ../dashboard/dist/   (monorepo sibling)
+ *
+ * Returns relative path suitable for serveStatic root, or null if not found.
+ */
+function getDashboardRoot(): string | null {
+  const candidates = [
+    // When running from packages/server/dist/ or packages/server/src/
+    resolve(dirname(fileURLToPath(import.meta.url)), '../../dashboard/dist'),
+    // Fallback: env var override
+    process.env['DASHBOARD_PATH'] ?? '',
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (existsSync(resolve(candidate, 'index.html'))) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/**
+ * Read the dashboard index.html for SPA fallback (non-API routes).
+ * Cached after first read.
+ */
+let cachedIndexHtml: string | null | undefined;
+
+function getDashboardIndexHtml(): string | null {
+  if (cachedIndexHtml !== undefined) return cachedIndexHtml;
+
+  const root = getDashboardRoot();
+  if (!root) {
+    cachedIndexHtml = null;
+    return null;
+  }
+
+  const indexPath = resolve(root, 'index.html');
+  try {
+    cachedIndexHtml = readFileSync(indexPath, 'utf-8');
+    return cachedIndexHtml;
+  } catch {
+    cachedIndexHtml = null;
+    return null;
+  }
+}
+
 /**
  * Create a configured Hono app with all routes and middleware.
  *
@@ -61,8 +115,17 @@ export function createApp(
     );
   });
 
-  // ─── 404 handler ───────────────────────────────────────
+  // ─── 404 handler — API routes return JSON, others get SPA fallback ──
   app.notFound((c) => {
+    const path = new URL(c.req.url).pathname;
+    if (path.startsWith('/api/')) {
+      return c.json({ error: 'Not found', status: 404 }, 404);
+    }
+    // SPA fallback: serve index.html for client-side routing
+    const indexHtml = getDashboardIndexHtml();
+    if (indexHtml) {
+      return c.html(indexHtml);
+    }
     return c.json({ error: 'Not found', status: 404 }, 404);
   });
 
@@ -100,6 +163,15 @@ export function createApp(
   app.route('/api/sessions', sessionsRoutes(store));
   app.route('/api/agents', agentsRoutes(store));
   app.route('/api/stats', statsRoutes(store));
+
+  // ─── Dashboard SPA static assets ──────────────────────
+  const dashboardRoot = getDashboardRoot();
+  if (dashboardRoot) {
+    app.use(
+      '/*',
+      serveStatic({ root: dashboardRoot }),
+    );
+  }
 
   return app;
 }
