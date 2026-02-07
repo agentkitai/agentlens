@@ -10,7 +10,6 @@ import type {
   AlertRule,
   AlertCondition,
   AlertHistory,
-  AgentLensEvent,
 } from '../types.js';
 
 describe('Story 2.2: Session, Agent, and Query Types', () => {
