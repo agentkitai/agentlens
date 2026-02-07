@@ -5,13 +5,7 @@
  * All indexes per Architecture §6.2.
  */
 
-import {
-  sqliteTable,
-  text,
-  integer,
-  real,
-  index,
-} from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
 
 // ─── Events Table ──────────────────────────────────────────
 export const events = sqliteTable(
@@ -35,11 +29,7 @@ export const events = sqliteTable(
     index('idx_events_type').on(table.eventType),
     index('idx_events_session_ts').on(table.sessionId, table.timestamp),
     // Composite index for dashboard query: "recent events for agent X of type Y"
-    index('idx_events_agent_type_ts').on(
-      table.agentId,
-      table.eventType,
-      table.timestamp,
-    ),
+    index('idx_events_agent_type_ts').on(table.agentId, table.eventType, table.timestamp),
   ],
 );
 

@@ -21,6 +21,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "ulid": "^3.0.2",
     "zod": "^3.25.76"
   }
 }

@@ -13,3 +13,9 @@ export * from './schemas.js';
 
 // Re-export hash chain utilities
 export * from './hash.js';
+
+// Re-export event creation helpers
+export * from './events.js';
+
+// Re-export constants
+export * from './constants.js';
