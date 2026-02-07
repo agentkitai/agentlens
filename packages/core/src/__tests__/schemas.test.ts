@@ -123,9 +123,7 @@ describe('Story 2.3: Zod Validation Schemas', () => {
       const result = ingestEventSchema.safeParse(input);
       expect(result.success).toBe(false);
       if (!result.success) {
-        const sessionIdError = result.error.issues.find(
-          (i) => i.path.includes('sessionId')
-        );
+        const sessionIdError = result.error.issues.find((i) => i.path.includes('sessionId'));
         expect(sessionIdError).toBeDefined();
       }
     });
@@ -140,9 +138,7 @@ describe('Story 2.3: Zod Validation Schemas', () => {
       const result = ingestEventSchema.safeParse(input);
       expect(result.success).toBe(false);
       if (!result.success) {
-        const agentIdError = result.error.issues.find(
-          (i) => i.path.includes('agentId')
-        );
+        const agentIdError = result.error.issues.find((i) => i.path.includes('agentId'));
         expect(agentIdError).toBeDefined();
       }
     });
@@ -158,9 +154,7 @@ describe('Story 2.3: Zod Validation Schemas', () => {
       const result = ingestEventSchema.safeParse(input);
       expect(result.success).toBe(false);
       if (!result.success) {
-        const sessionIdError = result.error.issues.find(
-          (i) => i.path.includes('sessionId')
-        );
+        const sessionIdError = result.error.issues.find((i) => i.path.includes('sessionId'));
         expect(sessionIdError).toBeDefined();
         expect(sessionIdError!.message).toBe('sessionId is required');
       }
@@ -177,9 +171,7 @@ describe('Story 2.3: Zod Validation Schemas', () => {
       const result = ingestEventSchema.safeParse(input);
       expect(result.success).toBe(false);
       if (!result.success) {
-        const agentIdError = result.error.issues.find(
-          (i) => i.path.includes('agentId')
-        );
+        const agentIdError = result.error.issues.find((i) => i.path.includes('agentId'));
         expect(agentIdError).toBeDefined();
         expect(agentIdError!.message).toBe('agentId is required');
       }
