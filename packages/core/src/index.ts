@@ -1,4 +1,26 @@
 /**
- * @agentlens/core — Shared types, validation schemas, and utilities
+ * @agentlens/core — Public API
  */
-export const PACKAGE_NAME = '@agentlens/core' as const;
+
+// Types
+export type {
+  EventId,
+  Timestamp,
+  EventType,
+  EventSeverity,
+  AgentLensEvent,
+  Session,
+  Agent,
+  EventQuery,
+  EventQueryResult,
+  SessionQuery,
+  AlertCondition,
+  AlertRule,
+} from './types.js';
+
+// Storage interface
+export type {
+  IEventStore,
+  AnalyticsResult,
+  StorageStats,
+} from './storage.js';
