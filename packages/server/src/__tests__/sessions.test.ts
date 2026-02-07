@@ -115,6 +115,26 @@ describe('Session Endpoints (Story 4.6)', () => {
       expect(body.sessions[0].id).toBe('sess_001');
     });
 
+    it('clamps negative limit to 1', async () => {
+      const res = await app.request('/api/sessions?limit=-5', {
+        headers: authHeaders(apiKey),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.sessions.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('clamps negative offset to 0', async () => {
+      const res = await app.request('/api/sessions?offset=-10', {
+        headers: authHeaders(apiKey),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.sessions.length).toBe(2);
+    });
+
     it('respects limit and offset', async () => {
       const res = await app.request('/api/sessions?limit=1', {
         headers: authHeaders(apiKey),

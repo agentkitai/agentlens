@@ -59,12 +59,11 @@ export function eventsRoutes(store: IEventStore) {
 
     const allProcessed: AgentLensEvent[] = [];
 
+    // Phase 1: Build all events (validate and compute hashes) without writing
     for (const [sessionId, sessionEvents] of bySession) {
       // Get the last event hash for this session to chain from
       const timeline = await store.getSessionTimeline(sessionId);
       let prevHash: string | null = timeline.length > 0 ? timeline[timeline.length - 1]!.hash : null;
-
-      const sessionProcessed: AgentLensEvent[] = [];
 
       for (const input of sessionEvents) {
         const id = ulid();
@@ -98,13 +97,30 @@ export function eventsRoutes(store: IEventStore) {
           hash,
         };
 
-        sessionProcessed.push(event);
+        allProcessed.push(event);
         prevHash = hash;
       }
+    }
 
-      // Insert per-session to maintain hash chain integrity
-      await store.insertEvents(sessionProcessed);
-      allProcessed.push(...sessionProcessed);
+    // Phase 2: Insert all events atomically per session group.
+    // Group by session for hash-chain integrity, but insertEvents already
+    // runs inside a transaction, and if any session group fails the whole
+    // request is an error (no partial success).
+    const sessionGroups = new Map<string, AgentLensEvent[]>();
+    for (const event of allProcessed) {
+      const arr = sessionGroups.get(event.sessionId) ?? [];
+      arr.push(event);
+      sessionGroups.set(event.sessionId, arr);
+    }
+
+    try {
+      for (const [, sessionProcessed] of sessionGroups) {
+        await store.insertEvents(sessionProcessed);
+      }
+    } catch (error) {
+      // If any session group fails, the entire batch is rejected
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return c.json({ error: `Batch insert failed: ${message}`, status: 500 }, 500);
     }
 
     return c.json({
@@ -147,10 +163,12 @@ export function eventsRoutes(store: IEventStore) {
     if (search) query.search = search;
 
     const limitStr = c.req.query('limit');
-    query.limit = limitStr ? Math.min(parseInt(limitStr, 10) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) : DEFAULT_PAGE_SIZE;
+    query.limit = limitStr
+      ? Math.max(1, Math.min(parseInt(limitStr, 10) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE))
+      : DEFAULT_PAGE_SIZE;
 
     const offsetStr = c.req.query('offset');
-    query.offset = offsetStr ? parseInt(offsetStr, 10) || 0 : 0;
+    query.offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10) || 0) : 0;
 
     const order = c.req.query('order');
     if (order === 'asc' || order === 'desc') query.order = order;

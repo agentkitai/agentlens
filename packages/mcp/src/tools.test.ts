@@ -108,7 +108,7 @@ describe('agentlens_session_start (Story 5.2)', () => {
     expect(parsed.sessionId).toMatch(/^ses_/);
   });
 
-  it('sends session_started event to API server', async () => {
+  it('sends session_started event to API server in batch format', async () => {
     mockFetch.mockResolvedValue(okResponse());
     const { client } = await createTestSetup();
 
@@ -121,9 +121,15 @@ describe('agentlens_session_start (Story 5.2)', () => {
       'http://localhost:3400/api/events',
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"session_started"'),
+        body: expect.stringContaining('"events"'),
       }),
     );
+    // Verify the body contains session_started in the events array
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string) as {
+      events: Array<{ eventType: string }>;
+    };
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0].eventType).toBe('session_started');
   });
 
   it('returns error when server is unreachable', async () => {
@@ -152,6 +158,81 @@ describe('agentlens_session_start (Story 5.2)', () => {
     expect(result.isError).toBe(true);
     const content = result.content as Array<{ type: string; text: string }>;
     expect(content[0].text).toContain('500');
+  });
+});
+
+describe('agentId propagation (Issue 3)', () => {
+  it('session_start stores agentId, log_event uses it', async () => {
+    mockFetch.mockResolvedValue(okResponse());
+    const { client } = await createTestSetup();
+
+    // Start session
+    const startResult = await client.callTool({
+      name: 'agentlens_session_start',
+      arguments: { agentId: 'my-agent' },
+    });
+    const content = startResult.content as Array<{ type: string; text: string }>;
+    const { sessionId } = JSON.parse(content[0].text) as { sessionId: string };
+
+    // Log event
+    await client.callTool({
+      name: 'agentlens_log_event',
+      arguments: {
+        sessionId,
+        eventType: 'custom',
+        payload: { type: 'test', data: {} },
+      },
+    });
+
+    // Check that the log_event call used the correct agentId
+    const logBody = JSON.parse(mockFetch.mock.calls[1][1].body as string) as {
+      events: Array<{ agentId: string }>;
+    };
+    expect(logBody.events[0].agentId).toBe('my-agent');
+  });
+
+  it('session_end uses stored agentId and cleans up mapping', async () => {
+    mockFetch.mockResolvedValue(okResponse());
+    const { client } = await createTestSetup();
+
+    // Start session
+    const startResult = await client.callTool({
+      name: 'agentlens_session_start',
+      arguments: { agentId: 'my-agent' },
+    });
+    const content = startResult.content as Array<{ type: string; text: string }>;
+    const { sessionId } = JSON.parse(content[0].text) as { sessionId: string };
+
+    // End session
+    await client.callTool({
+      name: 'agentlens_session_end',
+      arguments: { sessionId, reason: 'completed' },
+    });
+
+    // Check that session_end used the correct agentId
+    const endBody = JSON.parse(mockFetch.mock.calls[1][1].body as string) as {
+      events: Array<{ agentId: string }>;
+    };
+    expect(endBody.events[0].agentId).toBe('my-agent');
+  });
+
+  it('log_event falls back to empty string for unknown session', async () => {
+    mockFetch.mockResolvedValue(okResponse());
+    const { client } = await createTestSetup();
+
+    await client.callTool({
+      name: 'agentlens_log_event',
+      arguments: {
+        sessionId: 'unknown-session',
+        eventType: 'custom',
+        payload: { type: 'test', data: {} },
+      },
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string) as {
+      events: Array<{ agentId: string }>;
+    };
+    expect(body.events[0].agentId).toBe('');
   });
 });
 
@@ -263,11 +344,14 @@ describe('agentlens_session_end (Story 5.4)', () => {
       },
     });
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string) as {
-      eventType: string;
-      severity: string;
-      payload: { reason: string };
+    const wrapper = JSON.parse(mockFetch.mock.calls[0][1].body as string) as {
+      events: Array<{
+        eventType: string;
+        severity: string;
+        payload: { reason: string };
+      }>;
     };
+    const body = wrapper.events[0];
     expect(body.eventType).toBe('session_ended');
     expect(body.payload.reason).toBe('error');
     expect(body.severity).toBe('error');
@@ -282,8 +366,10 @@ describe('agentlens_session_end (Story 5.4)', () => {
       arguments: { sessionId: 'ses_123', reason: 'error' },
     });
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string) as { severity: string };
-    expect(body.severity).toBe('error');
+    const wrapper = JSON.parse(mockFetch.mock.calls[0][1].body as string) as {
+      events: Array<{ severity: string }>;
+    };
+    expect(wrapper.events[0].severity).toBe('error');
   });
 
   it('handles server errors', async () => {

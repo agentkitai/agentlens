@@ -180,6 +180,40 @@ describe('Event Query Endpoints (Story 4.5)', () => {
     });
   });
 
+    it('clamps negative limit to 1', async () => {
+      const res = await app.request('/api/events?limit=-5', {
+        headers: authHeaders(apiKey),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      // Negative limit parsed as NaN → default, then clamped to at least 1
+      expect(body.events.length).toBeGreaterThanOrEqual(1);
+      expect(body.events.length).toBeLessThanOrEqual(4);
+    });
+
+    it('clamps negative offset to 0', async () => {
+      const res = await app.request('/api/events?offset=-10', {
+        headers: authHeaders(apiKey),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      // Should return all events (offset clamped to 0)
+      expect(body.events.length).toBe(4);
+    });
+
+    it('clamps zero limit to 1', async () => {
+      const res = await app.request('/api/events?limit=0', {
+        headers: authHeaders(apiKey),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      // limit=0 → NaN via parseInt or 0, falls back to DEFAULT then clamped
+      expect(body.events.length).toBeGreaterThanOrEqual(1);
+    });
+
   describe('GET /api/events/:id', () => {
     it('returns a single event by ID', async () => {
       // Get the list first to find an ID

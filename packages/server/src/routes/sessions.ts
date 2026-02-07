@@ -35,10 +35,12 @@ export function sessionsRoutes(store: IEventStore) {
     if (tags) query.tags = tags.split(',');
 
     const limitStr = c.req.query('limit');
-    query.limit = limitStr ? Math.min(parseInt(limitStr, 10) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE) : DEFAULT_PAGE_SIZE;
+    query.limit = limitStr
+      ? Math.max(1, Math.min(parseInt(limitStr, 10) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE))
+      : DEFAULT_PAGE_SIZE;
 
     const offsetStr = c.req.query('offset');
-    query.offset = offsetStr ? parseInt(offsetStr, 10) || 0 : 0;
+    query.offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10) || 0) : 0;
 
     const result = await store.querySessions(query);
 

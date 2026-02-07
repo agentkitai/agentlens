@@ -25,6 +25,9 @@ export function getConfig(): ServerConfig {
     corsOrigin: process.env['CORS_ORIGIN'] ?? '*',
     authDisabled: process.env['AUTH_DISABLED'] === 'true',
     dbPath: process.env['DB_PATH'] ?? process.env['DATABASE_PATH'] ?? './agentlens.db',
-    retentionDays: parseInt(process.env['RETENTION_DAYS'] ?? '90', 10) || 90,
+    retentionDays: (() => {
+      const parsed = parseInt(process.env['RETENTION_DAYS'] ?? '90', 10);
+      return isNaN(parsed) ? 90 : parsed;
+    })(),
   };
 }

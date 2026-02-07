@@ -47,7 +47,7 @@ describe('AgentLensTransport', () => {
   });
 
   describe('sendEventImmediate', () => {
-    it('sends a POST to /api/events with correct headers', async () => {
+    it('sends a POST to /api/events with correct headers and wraps event in batch format', async () => {
       mockFetch.mockResolvedValue(okResponse({ id: 'evt_1' }));
 
       const t = new AgentLensTransport({
@@ -71,7 +71,7 @@ describe('AgentLensTransport', () => {
           'Content-Type': 'application/json',
           Authorization: 'Bearer test-key',
         },
-        body: JSON.stringify(event),
+        body: JSON.stringify({ events: [event] }),
       });
     });
 
@@ -118,6 +118,26 @@ describe('AgentLensTransport', () => {
     });
   });
 
+  describe('session-agent mapping', () => {
+    it('stores and retrieves agentId for a session', () => {
+      const t = new AgentLensTransport({ baseUrl: 'http://localhost:3400' });
+      t.setSessionAgent('ses_123', 'agent-1');
+      expect(t.getSessionAgent('ses_123')).toBe('agent-1');
+    });
+
+    it('returns empty string for unknown sessions', () => {
+      const t = new AgentLensTransport({ baseUrl: 'http://localhost:3400' });
+      expect(t.getSessionAgent('unknown')).toBe('');
+    });
+
+    it('clears session mapping', () => {
+      const t = new AgentLensTransport({ baseUrl: 'http://localhost:3400' });
+      t.setSessionAgent('ses_123', 'agent-1');
+      t.clearSessionAgent('ses_123');
+      expect(t.getSessionAgent('ses_123')).toBe('');
+    });
+  });
+
   describe('buffering and flush', () => {
     it('buffers events via sendEvents', async () => {
       const t = new AgentLensTransport({ baseUrl: 'http://localhost:3400' });
@@ -132,7 +152,7 @@ describe('AgentLensTransport', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('flushes buffered events to /api/events/batch', async () => {
+    it('flushes buffered events to /api/events', async () => {
       mockFetch.mockResolvedValue(okResponse());
 
       const t = new AgentLensTransport({ baseUrl: 'http://localhost:3400', apiKey: 'key' });
@@ -144,7 +164,7 @@ describe('AgentLensTransport', () => {
       await t.flush();
 
       expect(mockFetch).toHaveBeenCalledOnce();
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3400/api/events/batch', {
+      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3400/api/events', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

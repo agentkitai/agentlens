@@ -41,6 +41,12 @@ export class AgentLensTransport {
   private flushing = false;
   private shutdownHandlersInstalled = false;
 
+  /**
+   * Maps sessionId → agentId for sessions started via this transport.
+   * Populated by session_start, used by log_event and session_end.
+   */
+  private sessionAgentMap = new Map<string, string>();
+
   constructor(config: TransportConfig) {
     this.baseUrl = config.baseUrl.replace(/\/+$/, '');
     this.apiKey = config.apiKey;
@@ -82,13 +88,14 @@ export class AgentLensTransport {
   /**
    * Send a single event immediately (no buffering).
    * Used for critical events like session_start/session_end.
+   * Wraps the event in the { events: [...] } batch format expected by the server.
    */
   async sendEventImmediate(event: BufferedEvent): Promise<Response> {
     const url = `${this.baseUrl}/api/events`;
     const response = await fetch(url, {
       method: 'POST',
       headers: this.buildHeaders(),
-      body: JSON.stringify(event),
+      body: JSON.stringify({ events: [event] }),
     });
     return response;
   }
@@ -126,8 +133,8 @@ export class AgentLensTransport {
     this.bufferBytes = 0;
 
     try {
-      // Send events in batches to the API server
-      const url = `${this.baseUrl}/api/events/batch`;
+      // Send events in batches to the API server (same endpoint as immediate)
+      const url = `${this.baseUrl}/api/events`;
       const response = await fetch(url, {
         method: 'POST',
         headers: this.buildHeaders(),
@@ -168,6 +175,27 @@ export class AgentLensTransport {
    */
   get bufferedBytes(): number {
     return this.bufferBytes;
+  }
+
+  /**
+   * Register an agentId for a session (called when session_start succeeds).
+   */
+  setSessionAgent(sessionId: string, agentId: string): void {
+    this.sessionAgentMap.set(sessionId, agentId);
+  }
+
+  /**
+   * Retrieve the agentId for a session (returns empty string if unknown).
+   */
+  getSessionAgent(sessionId: string): string {
+    return this.sessionAgentMap.get(sessionId) ?? '';
+  }
+
+  /**
+   * Remove a session's agentId mapping (called when session_end succeeds).
+   */
+  clearSessionAgent(sessionId: string): void {
+    this.sessionAgentMap.delete(sessionId);
   }
 
   private buildHeaders(): Record<string, string> {

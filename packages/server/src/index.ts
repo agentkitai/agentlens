@@ -78,6 +78,12 @@ export function createApp(
   // ─── Auth middleware on protected routes ───────────────
   // We need the db reference for auth key lookup
   const db = config?.db;
+  if (!db && !resolvedConfig.authDisabled) {
+    throw new Error(
+      'createApp() requires a `db` option when auth is enabled. ' +
+      'Either provide a database or set authDisabled: true.',
+    );
+  }
   if (db) {
     app.use('/api/keys/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/events/*', authMiddleware(db, resolvedConfig.authDisabled));

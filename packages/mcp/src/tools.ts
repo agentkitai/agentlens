@@ -65,6 +65,9 @@ function registerSessionStart(server: McpServer, transport: AgentLensTransport):
           };
         }
 
+        // Store agentId for this session so log_event and session_end can use it
+        transport.setSessionAgent(sessionId, agentId);
+
         return {
           content: [
             {
@@ -113,7 +116,7 @@ function registerLogEvent(server: McpServer, transport: AgentLensTransport): voi
       try {
         const event = {
           sessionId,
-          agentId: '', // Server will infer from session
+          agentId: transport.getSessionAgent(sessionId),
           eventType,
           severity: severity ?? 'info',
           payload,
@@ -176,7 +179,7 @@ function registerSessionEnd(server: McpServer, transport: AgentLensTransport): v
       try {
         const event = {
           sessionId,
-          agentId: '', // Server will infer from session
+          agentId: transport.getSessionAgent(sessionId),
           eventType: 'session_ended' as const,
           severity: reason === 'error' ? ('error' as const) : ('info' as const),
           payload: {
@@ -203,6 +206,9 @@ function registerSessionEnd(server: McpServer, transport: AgentLensTransport): v
             isError: true,
           };
         }
+
+        // Clean up the session-agent mapping
+        transport.clearSessionAgent(sessionId);
 
         return {
           content: [

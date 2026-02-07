@@ -57,8 +57,23 @@ async function main(): Promise<void> {
   process.stderr.write('AgentLens MCP server running\n');
 }
 
-// Run when executed directly
-main().catch((error: unknown) => {
-  process.stderr.write(`Fatal error: ${error instanceof Error ? error.message : String(error)}\n`);
-  process.exit(1);
-});
+// Run only when executed directly (not when imported as a library)
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+
+const isDirectExecution = (() => {
+  try {
+    const thisFile = fileURLToPath(import.meta.url);
+    const entryFile = process.argv[1] ? resolve(process.argv[1]) : '';
+    return thisFile === entryFile;
+  } catch {
+    return false;
+  }
+})();
+
+if (isDirectExecution) {
+  main().catch((error: unknown) => {
+    process.stderr.write(`Fatal error: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(1);
+  });
+}
