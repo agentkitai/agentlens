@@ -6,6 +6,12 @@
 import { createHash } from 'node:crypto';
 
 /**
+ * Hash format version. Bump when changing hash input structure
+ * to distinguish old vs new hashes.
+ */
+export const HASH_VERSION = 2;
+
+/**
  * Input type for computing event hash.
  * Includes all fields that contribute to the hash.
  */
@@ -15,7 +21,9 @@ export interface HashableEvent {
   sessionId: string;
   agentId: string;
   eventType: string;
+  severity: string;
   payload: unknown;
+  metadata: Record<string, unknown>;
   prevHash: string | null;
 }
 
@@ -30,12 +38,15 @@ export interface HashableEvent {
  */
 export function computeEventHash(event: HashableEvent): string {
   const canonical = JSON.stringify({
+    v: HASH_VERSION,
     id: event.id,
     timestamp: event.timestamp,
     sessionId: event.sessionId,
     agentId: event.agentId,
     eventType: event.eventType,
+    severity: event.severity,
     payload: event.payload,
+    metadata: event.metadata,
     prevHash: event.prevHash,
   });
   return createHash('sha256').update(canonical).digest('hex');
@@ -43,36 +54,69 @@ export function computeEventHash(event: HashableEvent): string {
 
 /**
  * Interface for events in chain verification.
+ * Must include all hashable fields so hashes can be recomputed.
  */
-export interface ChainEvent {
+export interface ChainEvent extends HashableEvent {
   hash: string;
-  prevHash: string | null;
+}
+
+/**
+ * Detailed result from chain verification.
+ */
+export interface ChainVerificationResult {
+  valid: boolean;
+  /** Index of the first event that failed verification, or -1 if valid */
+  failedAtIndex: number;
+  /** Human-readable reason for the failure, or null if valid */
+  reason: string | null;
 }
 
 /**
  * Verify the integrity of a hash chain.
  *
- * Checks that each event's prevHash matches the previous event's hash.
+ * For each event:
+ * 1. Recomputes the hash from event contents and verifies it matches event.hash
+ * 2. Checks that prevHash matches the previous event's hash
+ *
  * The first event in a chain should have prevHash = null.
  *
- * @param events - Ordered array of events to verify
- * @returns true if the chain is valid, false if any link is broken
+ * @param events - Ordered array of full events to verify
+ * @returns ChainVerificationResult with details on any failure
  */
-export function verifyChain(events: ChainEvent[]): boolean {
+export function verifyChain(events: ChainEvent[]): ChainVerificationResult {
   if (events.length === 0) {
-    return true;
+    return { valid: true, failedAtIndex: -1, reason: null };
   }
 
   // First event should have prevHash = null
   if (events[0].prevHash !== null) {
-    return false;
+    return {
+      valid: false,
+      failedAtIndex: 0,
+      reason: 'First event must have prevHash = null',
+    };
   }
 
-  for (let i = 1; i < events.length; i++) {
-    if (events[i].prevHash !== events[i - 1].hash) {
-      return false;
+  for (let i = 0; i < events.length; i++) {
+    // Recompute hash from contents
+    const recomputed = computeEventHash(events[i]);
+    if (recomputed !== events[i].hash) {
+      return {
+        valid: false,
+        failedAtIndex: i,
+        reason: `Event ${i} hash mismatch: expected ${recomputed}, got ${events[i].hash}`,
+      };
+    }
+
+    // Verify prevHash chain continuity (skip first event, already checked prevHash === null)
+    if (i > 0 && events[i].prevHash !== events[i - 1].hash) {
+      return {
+        valid: false,
+        failedAtIndex: i,
+        reason: `Event ${i} prevHash does not match previous event's hash`,
+      };
     }
   }
 
-  return true;
+  return { valid: true, failedAtIndex: -1, reason: null };
 }

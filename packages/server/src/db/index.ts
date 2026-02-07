@@ -48,6 +48,7 @@ export function createDb(options: CreateDbOptions = {}): SqliteDb {
   sqlite.pragma('synchronous = NORMAL');
   sqlite.pragma('cache_size = -64000');
   sqlite.pragma('busy_timeout = 5000');
+  sqlite.pragma('foreign_keys = ON');
 
   return drizzle(sqlite, { schema });
 }

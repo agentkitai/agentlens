@@ -15,6 +15,7 @@ describe('Story 2.5: Index barrel re-exports', () => {
     // Hash utilities
     expect(core.computeEventHash).toBeDefined();
     expect(core.verifyChain).toBeDefined();
+    expect(core.HASH_VERSION).toBe(2);
 
     // Event helpers
     expect(core.createEvent).toBeDefined();

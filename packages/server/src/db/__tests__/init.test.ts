@@ -83,4 +83,9 @@ describe('Database Initialization (Story 3.3)', () => {
       createTestDb(),
     ).not.toThrow();
   });
+
+  it('should have foreign_keys enabled (HIGH 3)', () => {
+    const pragmas = verifyPragmas(db);
+    expect(pragmas.foreignKeys).toBe(true);
+  });
 });

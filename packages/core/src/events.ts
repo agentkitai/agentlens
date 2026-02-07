@@ -53,7 +53,9 @@ export function createEvent(options: CreateEventOptions): AgentLensEvent {
     sessionId: options.sessionId,
     agentId: options.agentId,
     eventType: options.eventType,
+    severity,
     payload,
+    metadata,
     prevHash,
   });
 
@@ -82,7 +84,8 @@ export function createEvent(options: CreateEventOptions): AgentLensEvent {
  */
 export function truncatePayload(payload: EventPayload): EventPayload {
   const serialized = JSON.stringify(payload);
-  if (serialized.length <= MAX_PAYLOAD_SIZE) {
+  const byteLength = Buffer.byteLength(serialized, 'utf8');
+  if (byteLength <= MAX_PAYLOAD_SIZE) {
     return payload;
   }
 
@@ -90,7 +93,7 @@ export function truncatePayload(payload: EventPayload): EventPayload {
     type: '_truncated',
     data: {
       _truncated: true,
-      originalSize: serialized.length,
+      originalSize: byteLength,
       maxSize: MAX_PAYLOAD_SIZE,
       preview: serialized.slice(0, 200) + '...',
     },

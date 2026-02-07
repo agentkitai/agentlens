@@ -124,6 +124,7 @@ export function verifyPragmas(db: SqliteDb): {
   synchronous: string;
   cacheSize: number;
   busyTimeout: number;
+  foreignKeys: boolean;
 } {
   const journalMode =
     db.get<{ journal_mode: string }>(sql`PRAGMA journal_mode`)?.journal_mode ?? '';
@@ -131,6 +132,8 @@ export function verifyPragmas(db: SqliteDb): {
   const cacheSize = db.get<{ cache_size: number }>(sql`PRAGMA cache_size`)?.cache_size ?? 0;
   // SQLite returns { timeout: N } for PRAGMA busy_timeout
   const busyTimeout = db.get<{ timeout: number }>(sql`PRAGMA busy_timeout`)?.timeout ?? 0;
+  const foreignKeys =
+    db.get<{ foreign_keys: number }>(sql`PRAGMA foreign_keys`)?.foreign_keys === 1;
 
   // synchronous: 0=OFF, 1=NORMAL, 2=FULL, 3=EXTRA
   const syncNames: Record<number, string> = { 0: 'OFF', 1: 'NORMAL', 2: 'FULL', 3: 'EXTRA' };
@@ -140,5 +143,6 @@ export function verifyPragmas(db: SqliteDb): {
     synchronous: syncNames[synchronous] ?? String(synchronous),
     cacheSize,
     busyTimeout,
+    foreignKeys,
   };
 }

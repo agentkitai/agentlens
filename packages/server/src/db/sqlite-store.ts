@@ -15,6 +15,7 @@
  */
 
 import { eq, and, gte, lte, inArray, desc, asc, sql, like, count as drizzleCount } from 'drizzle-orm';
+import { computeEventHash } from '@agentlens/core';
 import type {
   AgentLensEvent,
   EventQuery,
@@ -27,6 +28,20 @@ import type {
 import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlens/core';
 import type { SqliteDb } from './index.js';
 import { events, sessions, agents, alertRules } from './schema.sqlite.js';
+import { HashChainError, NotFoundError } from './errors.js';
+
+// ─── Helpers ───────────────────────────────────────────────
+
+/**
+ * Safe JSON.parse that returns a fallback on any error instead of throwing.
+ */
+export function safeJsonParse<T>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export class SqliteEventStore implements IEventStore {
   constructor(private db: SqliteDb) {}
@@ -38,8 +53,70 @@ export class SqliteEventStore implements IEventStore {
 
     // Batch insert in a single transaction for atomicity and performance
     this.db.transaction((tx) => {
+      // CRITICAL 3: Validate hash chain before inserting
+      const firstEvent = eventList[0]!;
+
+      // Check if the first event already exists (idempotent re-insert)
+      const existingFirst = tx
+        .select({ id: events.id })
+        .from(events)
+        .where(eq(events.id, firstEvent.id))
+        .get();
+
+      if (!existingFirst) {
+        // Fresh insert — validate chain continuity against stored events
+        const lastStoredEvent = tx
+          .select({ hash: events.hash })
+          .from(events)
+          .where(eq(events.sessionId, firstEvent.sessionId))
+          .orderBy(desc(events.timestamp), desc(events.id))
+          .limit(1)
+          .get();
+
+        const lastStoredHash = lastStoredEvent?.hash ?? null;
+
+        // Validate that the first event's prevHash matches the latest stored hash
+        if (firstEvent.prevHash !== lastStoredHash) {
+          throw new HashChainError(
+            `Chain continuity broken: event ${firstEvent.id} has prevHash=${firstEvent.prevHash} but last stored hash is ${lastStoredHash}`,
+          );
+        }
+      }
+
+      // Validate each event's hash and intra-batch chain links
+      for (let i = 0; i < eventList.length; i++) {
+        const event = eventList[i]!;
+
+        // Verify intra-batch chain continuity (for events after the first)
+        if (i > 0) {
+          const prevEvent = eventList[i - 1]!;
+          if (event.prevHash !== prevEvent.hash) {
+            throw new HashChainError(
+              `Chain continuity broken within batch: event ${event.id} has prevHash=${event.prevHash} but previous event hash is ${prevEvent.hash}`,
+            );
+          }
+        }
+
+        // Recompute hash server-side and verify
+        const recomputedHash = computeEventHash({
+          id: event.id,
+          timestamp: event.timestamp,
+          sessionId: event.sessionId,
+          agentId: event.agentId,
+          eventType: event.eventType,
+          payload: event.payload,
+          prevHash: event.prevHash,
+        });
+
+        if (event.hash !== recomputedHash) {
+          throw new HashChainError(
+            `Hash mismatch for event ${event.id}: supplied=${event.hash}, computed=${recomputedHash}`,
+          );
+        }
+      }
+
       for (const event of eventList) {
-        // Insert the event
+        // CRITICAL 4: Idempotent event insertion — ON CONFLICT DO NOTHING
         tx.insert(events)
           .values({
             id: event.id,
@@ -53,6 +130,7 @@ export class SqliteEventStore implements IEventStore {
             prevHash: event.prevHash,
             hash: event.hash,
           })
+          .onConflictDoNothing({ target: events.id })
           .run();
 
         // Handle session management
@@ -68,64 +146,54 @@ export class SqliteEventStore implements IEventStore {
     tx: Parameters<Parameters<SqliteDb['transaction']>[0]>[0],
     event: AgentLensEvent,
   ): void {
-    const existingSession = tx
-      .select()
-      .from(sessions)
-      .where(eq(sessions.id, event.sessionId))
-      .get();
-
     if (event.eventType === 'session_started') {
       // Create new session
       const payload = event.payload as Record<string, unknown>;
       const tags = (payload.tags as string[]) ?? [];
       const agentName = (payload.agentName as string) ?? undefined;
 
-      if (existingSession) {
-        // Update existing session (e.g., re-start)
-        tx.update(sessions)
-          .set({
-            agentName: agentName ?? existingSession.agentName,
-            status: 'active',
-            eventCount: existingSession.eventCount + 1,
-            tags: JSON.stringify(tags.length > 0 ? tags : JSON.parse(existingSession.tags)),
-          })
-          .where(eq(sessions.id, event.sessionId))
-          .run();
-      } else {
-        tx.insert(sessions)
-          .values({
-            id: event.sessionId,
-            agentId: event.agentId,
-            agentName: agentName,
-            startedAt: event.timestamp,
-            status: 'active',
-            eventCount: 1,
-            toolCallCount: 0,
-            errorCount: 0,
-            totalCostUsd: 0,
-            tags: JSON.stringify(tags),
-          })
-          .run();
-      }
-      return;
-    }
-
-    if (!existingSession) {
-      // Auto-create session if it doesn't exist yet (event arrived before session_started)
+      // CRITICAL 4: Use INSERT ... ON CONFLICT DO UPDATE for sessions
       tx.insert(sessions)
         .values({
           id: event.sessionId,
           agentId: event.agentId,
+          agentName: agentName,
           startedAt: event.timestamp,
           status: 'active',
-          eventCount: 0,
+          eventCount: 1,
           toolCallCount: 0,
           errorCount: 0,
           totalCostUsd: 0,
-          tags: '[]',
+          tags: JSON.stringify(tags),
+        })
+        .onConflictDoUpdate({
+          target: sessions.id,
+          set: {
+            agentName: agentName ?? sql`coalesce(${sessions.agentName}, NULL)`,
+            status: 'active',
+            eventCount: sql`${sessions.eventCount} + 1`,
+            tags: tags.length > 0 ? JSON.stringify(tags) : sql`${sessions.tags}`,
+          },
         })
         .run();
+      return;
     }
+
+    // For non-session_started events, ensure a session exists first (upsert)
+    tx.insert(sessions)
+      .values({
+        id: event.sessionId,
+        agentId: event.agentId,
+        startedAt: event.timestamp,
+        status: 'active',
+        eventCount: 0,
+        toolCallCount: 0,
+        errorCount: 0,
+        totalCostUsd: 0,
+        tags: '[]',
+      })
+      .onConflictDoNothing({ target: sessions.id })
+      .run();
 
     // Build incremental updates
     const isToolCall = event.eventType === 'tool_call';
@@ -178,39 +246,30 @@ export class SqliteEventStore implements IEventStore {
     tx: Parameters<Parameters<SqliteDb['transaction']>[0]>[0],
     event: AgentLensEvent,
   ): void {
-    const existingAgent = tx
-      .select()
-      .from(agents)
-      .where(eq(agents.id, event.agentId))
-      .get();
+    // CRITICAL 4: Use INSERT ... ON CONFLICT DO UPDATE for agents
+    const payload = event.payload as Record<string, unknown>;
+    const agentName =
+      (payload.agentName as string) ?? event.agentId;
 
-    if (existingAgent) {
-      tx.update(agents)
-        .set({
+    tx.insert(agents)
+      .values({
+        id: event.agentId,
+        name: agentName,
+        firstSeenAt: event.timestamp,
+        lastSeenAt: event.timestamp,
+        sessionCount: event.eventType === 'session_started' ? 1 : 0,
+      })
+      .onConflictDoUpdate({
+        target: agents.id,
+        set: {
           lastSeenAt: event.timestamp,
           sessionCount:
             event.eventType === 'session_started'
               ? sql`${agents.sessionCount} + 1`
               : agents.sessionCount,
-        })
-        .where(eq(agents.id, event.agentId))
-        .run();
-    } else {
-      // Auto-create agent on first event
-      const payload = event.payload as Record<string, unknown>;
-      const agentName =
-        (payload.agentName as string) ?? event.agentId;
-
-      tx.insert(agents)
-        .values({
-          id: event.agentId,
-          name: agentName,
-          firstSeenAt: event.timestamp,
-          lastSeenAt: event.timestamp,
-          sessionCount: event.eventType === 'session_started' ? 1 : 0,
-        })
-        .run();
-    }
+        },
+      })
+      .run();
   }
 
   // ─── Sessions — Write ──────────────────────────────────────
@@ -438,13 +497,13 @@ export class SqliteEventStore implements IEventStore {
     agentId?: string;
     granularity: 'hour' | 'day' | 'week';
   }): Promise<AnalyticsResult> {
-    // Build the time-bucket format string for SQLite strftime
+    // HIGH 5: Build the time-bucket format string for SQLite strftime
     const formatStr =
       params.granularity === 'hour'
         ? '%Y-%m-%dT%H:00:00Z'
         : params.granularity === 'day'
           ? '%Y-%m-%dT00:00:00Z'
-          : '%Y-%m-%dT00:00:00Z'; // week — group by day, aggregate in app
+          : '%Y-%W'; // week — true ISO week bucketing
 
     const conditions = [
       gte(events.timestamp, params.from),
@@ -454,6 +513,7 @@ export class SqliteEventStore implements IEventStore {
       conditions.push(eq(events.agentId, params.agentId));
     }
 
+    // HIGH 6: Compute avgLatencyMs and totalCostUsd from payload JSON
     // Bucketed query
     const bucketRows = this.db
       .all<{
@@ -462,6 +522,8 @@ export class SqliteEventStore implements IEventStore {
         toolCallCount: number;
         errorCount: number;
         uniqueSessions: number;
+        avgLatencyMs: number;
+        totalCostUsd: number;
       }>(
         sql`
           SELECT
@@ -469,7 +531,9 @@ export class SqliteEventStore implements IEventStore {
             COUNT(*) as eventCount,
             SUM(CASE WHEN event_type = 'tool_call' THEN 1 ELSE 0 END) as toolCallCount,
             SUM(CASE WHEN severity IN ('error', 'critical') OR event_type = 'tool_error' THEN 1 ELSE 0 END) as errorCount,
-            COUNT(DISTINCT session_id) as uniqueSessions
+            COUNT(DISTINCT session_id) as uniqueSessions,
+            COALESCE(AVG(CASE WHEN event_type = 'tool_response' THEN json_extract(payload, '$.durationMs') ELSE NULL END), 0) as avgLatencyMs,
+            COALESCE(SUM(CASE WHEN event_type = 'cost_tracked' THEN json_extract(payload, '$.costUsd') ELSE 0 END), 0) as totalCostUsd
           FROM events
           WHERE timestamp >= ${params.from}
             AND timestamp <= ${params.to}
@@ -486,6 +550,8 @@ export class SqliteEventStore implements IEventStore {
       errorCount: number;
       uniqueSessions: number;
       uniqueAgents: number;
+      avgLatencyMs: number;
+      totalCostUsd: number;
     }>(
       sql`
         SELECT
@@ -493,7 +559,9 @@ export class SqliteEventStore implements IEventStore {
           SUM(CASE WHEN event_type = 'tool_call' THEN 1 ELSE 0 END) as toolCallCount,
           SUM(CASE WHEN severity IN ('error', 'critical') OR event_type = 'tool_error' THEN 1 ELSE 0 END) as errorCount,
           COUNT(DISTINCT session_id) as uniqueSessions,
-          COUNT(DISTINCT agent_id) as uniqueAgents
+          COUNT(DISTINCT agent_id) as uniqueAgents,
+          COALESCE(AVG(CASE WHEN event_type = 'tool_response' THEN json_extract(payload, '$.durationMs') ELSE NULL END), 0) as avgLatencyMs,
+          COALESCE(SUM(CASE WHEN event_type = 'cost_tracked' THEN json_extract(payload, '$.costUsd') ELSE 0 END), 0) as totalCostUsd
         FROM events
         WHERE timestamp >= ${params.from}
           AND timestamp <= ${params.to}
@@ -507,16 +575,16 @@ export class SqliteEventStore implements IEventStore {
         eventCount: Number(row.eventCount),
         toolCallCount: Number(row.toolCallCount),
         errorCount: Number(row.errorCount),
-        avgLatencyMs: 0, // Computed from tool_response payloads in future
-        totalCostUsd: 0, // Computed from cost_tracked events in future
+        avgLatencyMs: Number(row.avgLatencyMs),
+        totalCostUsd: Number(row.totalCostUsd),
         uniqueSessions: Number(row.uniqueSessions),
       })),
       totals: {
         eventCount: Number(totalsRow?.eventCount ?? 0),
         toolCallCount: Number(totalsRow?.toolCallCount ?? 0),
         errorCount: Number(totalsRow?.errorCount ?? 0),
-        avgLatencyMs: 0,
-        totalCostUsd: 0,
+        avgLatencyMs: Number(totalsRow?.avgLatencyMs ?? 0),
+        totalCostUsd: Number(totalsRow?.totalCostUsd ?? 0),
         uniqueSessions: Number(totalsRow?.uniqueSessions ?? 0),
         uniqueAgents: Number(totalsRow?.uniqueAgents ?? 0),
       },
@@ -543,6 +611,7 @@ export class SqliteEventStore implements IEventStore {
       .run();
   }
 
+  // HIGH 8: Check affected row count and throw NotFoundError when zero
   async updateAlertRule(
     id: string,
     updates: Partial<AlertRule>,
@@ -557,17 +626,35 @@ export class SqliteEventStore implements IEventStore {
     if (updates.notifyChannels !== undefined) setValues.notifyChannels = JSON.stringify(updates.notifyChannels);
     if (updates.updatedAt !== undefined) setValues.updatedAt = updates.updatedAt;
 
-    if (Object.keys(setValues).length > 0) {
-      this.db
-        .update(alertRules)
-        .set(setValues)
+    if (Object.keys(setValues).length === 0) {
+      // Even with no actual updates, verify the rule exists
+      const existing = this.db
+        .select({ id: alertRules.id })
+        .from(alertRules)
         .where(eq(alertRules.id, id))
-        .run();
+        .get();
+      if (!existing) {
+        throw new NotFoundError(`Alert rule not found: ${id}`);
+      }
+      return;
+    }
+
+    const result = this.db
+      .update(alertRules)
+      .set(setValues)
+      .where(eq(alertRules.id, id))
+      .run();
+
+    if (result.changes === 0) {
+      throw new NotFoundError(`Alert rule not found: ${id}`);
     }
   }
 
   async deleteAlertRule(id: string): Promise<void> {
-    this.db.delete(alertRules).where(eq(alertRules.id, id)).run();
+    const result = this.db.delete(alertRules).where(eq(alertRules.id, id)).run();
+    if (result.changes === 0) {
+      throw new NotFoundError(`Alert rule not found: ${id}`);
+    }
   }
 
   async listAlertRules(): Promise<AlertRule[]> {
@@ -702,6 +789,7 @@ export class SqliteEventStore implements IEventStore {
     return conditions;
   }
 
+  // HIGH 4: Use json_each() for exact tag matching with OR semantics
   private _buildSessionConditions(query: SessionQuery) {
     const conditions = [];
 
@@ -718,18 +806,21 @@ export class SqliteEventStore implements IEventStore {
       conditions.push(lte(sessions.startedAt, query.to));
     }
     if (query.tags && query.tags.length > 0) {
-      // Filter sessions that contain any of the specified tags
-      // Use JSON functions to check tag array
-      for (const tag of query.tags) {
-        conditions.push(
-          sql`json_array_length(${sessions.tags}) > 0 AND ${sessions.tags} LIKE ${`%"${tag}"%`}`,
-        );
-      }
+      // Use json_each for exact tag matching with OR semantics
+      // A session matches if it contains ANY of the specified tags
+      const tagPlaceholders = query.tags.map((tag) => sql`${tag}`);
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM json_each(${sessions.tags}) AS je
+          WHERE je.value IN (${sql.join(tagPlaceholders, sql`, `)})
+        )`,
+      );
     }
 
     return conditions;
   }
 
+  // HIGH 7: Use safeJsonParse everywhere
   private _mapEventRow(row: typeof events.$inferSelect): AgentLensEvent {
     return {
       id: row.id,
@@ -738,8 +829,8 @@ export class SqliteEventStore implements IEventStore {
       agentId: row.agentId,
       eventType: row.eventType as AgentLensEvent['eventType'],
       severity: row.severity as AgentLensEvent['severity'],
-      payload: JSON.parse(row.payload) as Record<string, unknown>,
-      metadata: JSON.parse(row.metadata) as Record<string, unknown>,
+      payload: safeJsonParse(row.payload, {} as Record<string, unknown>),
+      metadata: safeJsonParse(row.metadata, {} as Record<string, unknown>),
       prevHash: row.prevHash,
       hash: row.hash,
     };
@@ -757,7 +848,7 @@ export class SqliteEventStore implements IEventStore {
       toolCallCount: row.toolCallCount,
       errorCount: row.errorCount,
       totalCostUsd: row.totalCostUsd,
-      tags: JSON.parse(row.tags) as string[],
+      tags: safeJsonParse(row.tags, [] as string[]),
     };
   }
 
@@ -780,8 +871,8 @@ export class SqliteEventStore implements IEventStore {
       condition: row.condition as AlertRule['condition'],
       threshold: row.threshold,
       windowMinutes: row.windowMinutes,
-      scope: JSON.parse(row.scope) as AlertRule['scope'],
-      notifyChannels: JSON.parse(row.notifyChannels) as string[],
+      scope: safeJsonParse(row.scope, {} as AlertRule['scope']),
+      notifyChannels: safeJsonParse(row.notifyChannels, [] as string[]),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

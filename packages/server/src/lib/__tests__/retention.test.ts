@@ -1,27 +1,48 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { AgentLensEvent } from '@agentlens/core';
+import { computeEventHash } from '@agentlens/core';
 import { createTestDb, type SqliteDb } from '../../db/index.js';
 import { runMigrations } from '../../db/migrate.js';
 import { SqliteEventStore } from '../../db/sqlite-store.js';
 import { applyRetention } from '../retention.js';
 
 let counter = 0;
-function makeEvent(overrides: Partial<AgentLensEvent> = {}): AgentLensEvent {
+
+function makeEvent(overrides: Partial<AgentLensEvent> & { prevHash?: string | null } = {}): AgentLensEvent {
   counter++;
-  const id = `evt_${String(counter).padStart(6, '0')}`;
-  return {
+  const id = overrides.id ?? `evt_${String(counter).padStart(6, '0')}`;
+  const base = {
     id,
-    timestamp: new Date().toISOString(),
-    sessionId: 'sess_001',
-    agentId: 'agent_001',
-    eventType: 'custom',
-    severity: 'info',
-    payload: { type: 'test', data: {} },
-    metadata: {},
-    prevHash: null,
-    hash: `hash_${id}`,
-    ...overrides,
+    timestamp: overrides.timestamp ?? new Date().toISOString(),
+    sessionId: overrides.sessionId ?? 'sess_001',
+    agentId: overrides.agentId ?? 'agent_001',
+    eventType: overrides.eventType ?? 'custom',
+    severity: overrides.severity ?? 'info',
+    payload: overrides.payload ?? { type: 'test', data: {} },
+    metadata: overrides.metadata ?? {},
+    prevHash: overrides.prevHash ?? null,
   };
+  const hash = computeEventHash({
+    id: base.id,
+    timestamp: base.timestamp,
+    sessionId: base.sessionId,
+    agentId: base.agentId,
+    eventType: base.eventType,
+    payload: base.payload,
+    prevHash: base.prevHash,
+  });
+  return { ...base, hash } as AgentLensEvent;
+}
+
+function makeChain(overridesList: Array<Partial<AgentLensEvent>>): AgentLensEvent[] {
+  const chain: AgentLensEvent[] = [];
+  let prevHash: string | null = null;
+  for (const overrides of overridesList) {
+    const event = makeEvent({ ...overrides, prevHash });
+    chain.push(event);
+    prevHash = event.hash;
+  }
+  return chain;
 }
 
 function daysAgo(days: number): string {
@@ -43,45 +64,50 @@ describe('Retention Policy Engine (Story 3.6)', () => {
 
   describe('applyRetention()', () => {
     it('should delete events older than configured retention days', async () => {
-      await store.insertEvents([
-        makeEvent({
+      // Old session chain
+      const oldChain = makeChain([
+        {
           id: 'old_1',
           sessionId: 'sess_old',
           timestamp: daysAgo(100),
           eventType: 'session_started',
           payload: { tags: [] },
-        }),
-        makeEvent({
+        },
+        {
           id: 'old_2',
           sessionId: 'sess_old',
           timestamp: daysAgo(95),
-        }),
-        makeEvent({
+        },
+      ]);
+      // Recent session chain
+      const recentChain = makeChain([
+        {
           id: 'recent_1',
           sessionId: 'sess_new',
           timestamp: daysAgo(10),
           eventType: 'session_started',
           payload: { tags: [] },
-        }),
-        makeEvent({
+        },
+        {
           id: 'recent_2',
           sessionId: 'sess_new',
           timestamp: daysAgo(5),
-        }),
+        },
       ]);
+
+      await store.insertEvents(oldChain);
+      await store.insertEvents(recentChain);
 
       const result = await applyRetention(store, { retentionDays: 90 });
 
       expect(result.deletedCount).toBe(2);
       expect(result.skipped).toBe(false);
 
-      // Verify old events are gone
       const old1 = await store.getEvent('old_1');
       expect(old1).toBeNull();
       const old2 = await store.getEvent('old_2');
       expect(old2).toBeNull();
 
-      // Verify recent events remain
       const recent1 = await store.getEvent('recent_1');
       expect(recent1).not.toBeNull();
       const recent2 = await store.getEvent('recent_2');
@@ -89,30 +115,33 @@ describe('Retention Policy Engine (Story 3.6)', () => {
     });
 
     it('should clean up sessions with no remaining events', async () => {
-      await store.insertEvents([
-        makeEvent({
+      const oldChain = makeChain([
+        {
           id: 'old_evt',
           sessionId: 'sess_old',
           timestamp: daysAgo(100),
           eventType: 'session_started',
           payload: { tags: [] },
-        }),
-        makeEvent({
+        },
+      ]);
+      const newChain = makeChain([
+        {
           id: 'new_evt',
           sessionId: 'sess_new',
           timestamp: daysAgo(5),
           eventType: 'session_started',
           payload: { tags: [] },
-        }),
+        },
       ]);
 
-      // Before retention: 2 sessions
+      await store.insertEvents(oldChain);
+      await store.insertEvents(newChain);
+
       const beforeStats = await store.getStats();
       expect(beforeStats.totalSessions).toBe(2);
 
       await applyRetention(store, { retentionDays: 90 });
 
-      // After retention: only sess_new remains
       const afterStats = await store.getStats();
       expect(afterStats.totalSessions).toBe(1);
 
@@ -124,14 +153,16 @@ describe('Retention Policy Engine (Story 3.6)', () => {
     });
 
     it('should return deletedCount of 0 when no events are old enough', async () => {
-      await store.insertEvents([
-        makeEvent({
+      const chain = makeChain([
+        {
           timestamp: daysAgo(10),
           eventType: 'session_started',
           payload: { tags: [] },
-        }),
-        makeEvent({ timestamp: daysAgo(5) }),
+        },
+        { timestamp: daysAgo(5) },
       ]);
+
+      await store.insertEvents(chain);
 
       const result = await applyRetention(store, { retentionDays: 90 });
       expect(result.deletedCount).toBe(0);
@@ -142,14 +173,16 @@ describe('Retention Policy Engine (Story 3.6)', () => {
     });
 
     it('should skip deletion when RETENTION_DAYS=0 (keep forever)', async () => {
-      await store.insertEvents([
-        makeEvent({
+      const chain = makeChain([
+        {
           timestamp: daysAgo(365),
           eventType: 'session_started',
           payload: { tags: [] },
-        }),
-        makeEvent({ timestamp: daysAgo(300) }),
+        },
+        { timestamp: daysAgo(300) },
       ]);
+
+      await store.insertEvents(chain);
 
       const result = await applyRetention(store, { retentionDays: 0 });
       expect(result.deletedCount).toBe(0);
@@ -174,41 +207,42 @@ describe('Retention Policy Engine (Story 3.6)', () => {
     });
 
     it('should handle mixed-age events correctly (partial deletion)', async () => {
-      // 5 events: 3 old, 2 recent
-      await store.insertEvents([
-        makeEvent({ id: 'e1', sessionId: 'sA', timestamp: daysAgo(200), eventType: 'session_started', payload: { tags: [] } }),
-        makeEvent({ id: 'e2', sessionId: 'sA', timestamp: daysAgo(150) }),
-        makeEvent({ id: 'e3', sessionId: 'sA', timestamp: daysAgo(100) }),
-        makeEvent({ id: 'e4', sessionId: 'sA', timestamp: daysAgo(30) }),
-        makeEvent({ id: 'e5', sessionId: 'sA', timestamp: daysAgo(1) }),
+      const chain = makeChain([
+        { id: 'e1', sessionId: 'sA', timestamp: daysAgo(200), eventType: 'session_started', payload: { tags: [] } },
+        { id: 'e2', sessionId: 'sA', timestamp: daysAgo(150) },
+        { id: 'e3', sessionId: 'sA', timestamp: daysAgo(100) },
+        { id: 'e4', sessionId: 'sA', timestamp: daysAgo(30) },
+        { id: 'e5', sessionId: 'sA', timestamp: daysAgo(1) },
       ]);
+
+      await store.insertEvents(chain);
 
       const result = await applyRetention(store, { retentionDays: 90 });
       expect(result.deletedCount).toBe(3);
 
       const stats = await store.getStats();
       expect(stats.totalEvents).toBe(2);
-      // Session still exists because it has remaining events
       expect(stats.totalSessions).toBe(1);
     });
 
     it('should work with the IEventStore.applyRetention() directly', async () => {
-      await store.insertEvents([
-        makeEvent({
+      const chain = makeChain([
+        {
           id: 'old',
           sessionId: 'sess_direct',
           timestamp: '2020-01-01T00:00:00Z',
           eventType: 'session_started',
           payload: { tags: [] },
-        }),
-        makeEvent({
+        },
+        {
           id: 'new',
           sessionId: 'sess_direct',
           timestamp: new Date().toISOString(),
-        }),
+        },
       ]);
 
-      // Call the store method directly with an explicit cutoff
+      await store.insertEvents(chain);
+
       const result = await store.applyRetention('2023-01-01T00:00:00Z');
       expect(result.deletedCount).toBe(1);
     });
@@ -220,11 +254,17 @@ describe('Retention Policy Engine (Story 3.6)', () => {
     });
 
     it('should delete all events when all are old enough', async () => {
-      await store.insertEvents([
-        makeEvent({ id: 'e1', sessionId: 's1', timestamp: daysAgo(365), eventType: 'session_started', payload: { tags: [] } }),
-        makeEvent({ id: 'e2', sessionId: 's1', timestamp: daysAgo(200) }),
-        makeEvent({ id: 'e3', sessionId: 's2', timestamp: daysAgo(100), eventType: 'session_started', payload: { tags: [] } }),
+      // Each session is its own chain
+      const chain1 = makeChain([
+        { id: 'e1', sessionId: 's1', timestamp: daysAgo(365), eventType: 'session_started', payload: { tags: [] } },
+        { id: 'e2', sessionId: 's1', timestamp: daysAgo(200) },
       ]);
+      const chain2 = makeChain([
+        { id: 'e3', sessionId: 's2', timestamp: daysAgo(100), eventType: 'session_started', payload: { tags: [] } },
+      ]);
+
+      await store.insertEvents(chain1);
+      await store.insertEvents(chain2);
 
       const result = await applyRetention(store, { retentionDays: 90 });
       expect(result.deletedCount).toBe(3);
