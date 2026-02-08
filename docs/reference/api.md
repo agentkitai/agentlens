@@ -106,7 +106,20 @@ All errors follow this format:
 | `DELETE` | `/api/lessons/:id` | Delete (archive) a lesson |
 | `GET` | `/api/reflect` | Pattern analysis (errors, costs, tools, performance) |
 | `GET` | `/api/context` | Cross-session context retrieval |
+| `GET` | `/api/agents/:id/health` | Agent health score with dimensions |
+| `GET` | `/api/health/overview` | Health overview for all agents |
+| `GET` | `/api/health/history` | Historical health snapshots |
+| `GET` | `/api/config/health-weights` | Current health scoring weights |
+| `PUT` | `/api/config/health-weights` | Update health weights (501 placeholder) |
+| `GET` | `/api/optimize/recommendations` | Cost optimization recommendations |
+| `GET` | `/api/sessions/:id/replay` | Session replay with context reconstruction |
+| `POST` | `/api/benchmarks` | Create a benchmark |
+| `GET` | `/api/benchmarks` | List benchmarks |
+| `GET` | `/api/benchmarks/:id` | Get benchmark detail |
+| `PUT` | `/api/benchmarks/:id/status` | Transition benchmark status |
+| `GET` | `/api/benchmarks/:id/results` | Get benchmark comparison results |
+| `DELETE` | `/api/benchmarks/:id` | Delete a benchmark |
 | `GET` | `/api/config` | Get configuration |
 | `PUT` | `/api/config` | Update configuration |
 
-Detailed documentation for each group: [Events](/reference/events) · [Sessions](/reference/sessions) · [Analytics](/reference/analytics) · [Recall](/reference/recall) · [Lessons](/reference/lessons) · [Reflect](/reference/reflect) · [Context](/reference/context) · [Alerts](/reference/alerts) · [Integrations](/reference/integrations) · [API Keys](/reference/api-keys)
+Detailed documentation for each group: [Events](/reference/events) · [Sessions](/reference/sessions) · [Analytics](/reference/analytics) · [Recall](/reference/recall) · [Lessons](/reference/lessons) · [Reflect](/reference/reflect) · [Context](/reference/context) · [Alerts](/reference/alerts) · [Health](/reference/health) · [Optimize](/reference/optimize) · [Replay](/reference/replay) · [Benchmarks](/reference/benchmarks) · [Integrations](/reference/integrations) · [API Keys](/reference/api-keys)

@@ -64,6 +64,43 @@ Configure and manage alert rules:
 - **Alert history:** View triggered and resolved alerts with timestamps
 - **Notification channels:** Webhook URLs for external notifications
 
+### Health Overview
+
+A dedicated view for agent reliability monitoring:
+
+- **Agent list** — every agent with their overall health score (0–100), trend arrow, and session count
+- **Dimension breakdown** — click any agent to see the 5-dimension radar: error rate, cost efficiency, tool success, latency, completion rate
+- **Historical chart** — sparkline of daily health snapshots showing the trend over time
+- **Color coding** — scores are green (≥75), yellow (50–74), or red (<50)
+
+### Cost Optimization
+
+Actionable recommendations for reducing LLM costs:
+
+- **Recommendation cards** — each shows current model → recommended model, complexity tier, projected monthly savings, and confidence level
+- **Summary metrics** — total potential savings, analyzed calls, analysis period
+- **Success rate comparison** — current vs. recommended success rates to assess risk
+- **Agent filter** — narrow recommendations to a specific agent
+
+### Session Replay
+
+Step-through debugger for past sessions:
+
+- **Timeline scrubber** — drag or click to jump to any step in the session
+- **Step list** — numbered, timestamped events with type icons (🤖 LLM, 🔧 tool, ⚠️ error)
+- **Context panel** — at each step shows: cumulative cost, LLM conversation history, tool results, pending approvals, error count, warnings
+- **Event type filter** — focus on specific interaction types
+- **Playback controls** — play/pause, step forward/back, speed adjustment
+
+### Benchmarks
+
+A/B experiment management:
+
+- **Benchmark list** — all benchmarks with status badges (📝 draft, 🏃 running, ✅ completed, ❌ cancelled)
+- **Create form** — define name, description, variants (name + tag), metrics, and optional time range
+- **Detail view** — per-variant session counts, progress toward minimum sessions, lifecycle action buttons
+- **Results view** — statistical comparison table with p-values, confidence stars, winner indication, and distribution charts per metric
+
 ### Settings
 
 Configure integration secrets and server settings:
