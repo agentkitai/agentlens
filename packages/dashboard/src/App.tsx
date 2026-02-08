@@ -18,6 +18,7 @@ import { CostOptimization } from './pages/CostOptimization';
 import { SessionReplay } from './pages/SessionReplay';
 import { Benchmarks } from './pages/Benchmarks';
 import { BenchmarkNew } from './pages/BenchmarkNew';
+import { BenchmarkDetail } from './pages/BenchmarkDetail';
 
 export function App(): React.ReactElement {
   return (
@@ -35,6 +36,7 @@ export function App(): React.ReactElement {
         <Route path="cost-optimization" element={<CostOptimization />} />
         <Route path="benchmarks" element={<Benchmarks />} />
         <Route path="benchmarks/new" element={<BenchmarkNew />} />
+        <Route path="benchmarks/:id" element={<BenchmarkDetail />} />
         <Route path="lessons" element={<Lessons />} />
         <Route path="search" element={<Search />} />
         <Route path="insights" element={<Insights />} />

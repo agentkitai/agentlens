@@ -709,19 +709,29 @@ export interface CreateBenchmarkData {
   endDate?: string;
 }
 
+export interface BenchmarkVariantResult {
+  variantId: string;
+  variantName: string;
+  mean: number;
+  median: number;
+  stdDev: number;
+  sampleSize: number;
+  ci95: [number, number];
+  /** Raw values for distribution charts (only when includeDistributions=true) */
+  values?: number[];
+}
+
 export interface BenchmarkMetricResult {
   metric: string;
-  variantResults: {
-    variantId: string;
-    variantName: string;
-    mean: number;
-    median: number;
-    stdDev: number;
-    sampleSize: number;
-    ci95: [number, number];
-  }[];
+  variantResults: BenchmarkVariantResult[];
   pValue?: number;
   significant?: boolean;
+  /** Percentage difference between first two variants */
+  diffPercent?: number;
+  /** Confidence level: 3=★★★ (p<0.001), 2=★★ (p<0.01), 1=★ (p<0.05), 0=not significant */
+  confidenceLevel?: number;
+  /** Which variant won for this metric (variantId) */
+  winnerId?: string;
 }
 
 export interface BenchmarkResultsData {
@@ -729,8 +739,11 @@ export interface BenchmarkResultsData {
   metrics: BenchmarkMetricResult[];
   summary?: {
     winner?: string;
+    winnerName?: string;
     confidence: number;
     recommendation: string;
+    /** Per-metric summary lines */
+    details?: string[];
   };
 }
 
