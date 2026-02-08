@@ -103,34 +103,35 @@ describe('AlertEngine.evaluate()', () => {
       updatedAt: now,
     });
 
-    // Insert events: 8 normal + 2 errors = 20% error rate
-    let prevHash: string | null = null;
+    // Insert events as a single batch: 1 start + 8 normal + 2 errors = ~18% error rate
     const sessionId = 'test-session';
     const agentId = 'test-agent';
+    const batch: AgentLensEvent[] = [];
 
-    // First, create the session
     const startEvent = makeEvent(
       { sessionId, agentId, eventType: 'session_started', payload: { agentName: 'test' } },
       null,
     );
-    await store.insertEvents([startEvent]);
-    prevHash = startEvent.hash;
+    batch.push(startEvent);
+    let prevHash = startEvent.hash;
 
     for (let i = 0; i < 8; i++) {
       const ev = makeEvent({ sessionId, agentId }, prevHash);
-      await store.insertEvents([ev]);
+      batch.push(ev);
       prevHash = ev.hash;
     }
 
-    // Insert error events
+    // Error events
     for (let i = 0; i < 2; i++) {
       const ev = makeEvent(
         { sessionId, agentId, eventType: 'tool_error', severity: 'error', payload: { toolName: 'test', callId: ulid(), error: 'fail', durationMs: 100 } },
         prevHash,
       );
-      await store.insertEvents([ev]);
+      batch.push(ev);
       prevHash = ev.hash;
     }
+
+    await store.insertEvents(batch);
 
     // Track EventBus emission
     const emitted: unknown[] = [];
@@ -162,21 +163,21 @@ describe('AlertEngine.evaluate()', () => {
       updatedAt: now,
     });
 
-    // Insert 10 normal events, 1 error (10% error rate, below 50%)
-    let prevHash: string | null = null;
+    // Insert events as a single batch to avoid hash chain issues
     const sessionId = 'test-session';
     const agentId = 'test-agent';
+    const batch: AgentLensEvent[] = [];
 
     const startEvent = makeEvent(
       { sessionId, agentId, eventType: 'session_started', payload: { agentName: 'test' } },
       null,
     );
-    await store.insertEvents([startEvent]);
-    prevHash = startEvent.hash;
+    batch.push(startEvent);
+    let prevHash = startEvent.hash;
 
     for (let i = 0; i < 9; i++) {
       const ev = makeEvent({ sessionId, agentId }, prevHash);
-      await store.insertEvents([ev]);
+      batch.push(ev);
       prevHash = ev.hash;
     }
 
@@ -184,7 +185,9 @@ describe('AlertEngine.evaluate()', () => {
       { sessionId, agentId, eventType: 'tool_error', severity: 'error', payload: { toolName: 'test', callId: ulid(), error: 'fail', durationMs: 100 } },
       prevHash,
     );
-    await store.insertEvents([errEv]);
+    batch.push(errEv);
+
+    await store.insertEvents(batch);
 
     const triggered = await engine.evaluate();
     expect(triggered).toEqual([]);
@@ -206,23 +209,25 @@ describe('AlertEngine.evaluate()', () => {
       updatedAt: now,
     });
 
-    // Insert 5 events (>3 threshold)
-    let prevHash: string | null = null;
+    // Insert 5 events as a batch (>3 threshold)
     const sessionId = 'test-session';
     const agentId = 'test-agent';
+    const batch: AgentLensEvent[] = [];
 
     const startEvent = makeEvent(
       { sessionId, agentId, eventType: 'session_started', payload: { agentName: 'test' } },
       null,
     );
-    await store.insertEvents([startEvent]);
-    prevHash = startEvent.hash;
+    batch.push(startEvent);
+    let prevHash = startEvent.hash;
 
     for (let i = 0; i < 4; i++) {
       const ev = makeEvent({ sessionId, agentId }, prevHash);
-      await store.insertEvents([ev]);
+      batch.push(ev);
       prevHash = ev.hash;
     }
+
+    await store.insertEvents(batch);
 
     const triggered = await engine.evaluate();
     expect(triggered).toHaveLength(1);
