@@ -33,6 +33,8 @@ import { recallRoutes } from './routes/recall.js';
 import { contextRoutes } from './routes/context.js';
 import { optimizeRoutes } from './routes/optimize.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerReplayRoutes } from './routes/replay.js';
+import { benchmarkRoutes } from './routes/benchmarks.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -62,6 +64,7 @@ export { lessonsRoutes } from './routes/lessons.js';
 export { reflectRoutes } from './routes/reflect.js';
 export { recallRoutes } from './routes/recall.js';
 export { optimizeRoutes } from './routes/optimize.js';
+export { registerReplayRoutes } from './routes/replay.js';
 export { EmbeddingWorker } from './lib/embeddings/worker.js';
 export { EmbeddingStore } from './db/embedding-store.js';
 export { createSSEStream } from './lib/sse.js';
@@ -226,6 +229,8 @@ export function createApp(
     app.use('/api/context', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/optimize/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/optimize', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/benchmarks/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/benchmarks', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/health/overview', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/health/history', authMiddleware(db, resolvedConfig.authDisabled));
   }
@@ -238,6 +243,9 @@ export function createApp(
     embeddingWorker: config?.embeddingWorker ?? null,
     sessionSummaryStore: db ? new SessionSummaryStore(db) : null,
   }));
+  // Replay route registered directly on main app BEFORE sessions sub-app
+  // (otherwise the sessions sub-app catches /api/sessions/* first)
+  registerReplayRoutes(app, store);
   app.route('/api/sessions', sessionsRoutes(store));
   // Health routes registered directly on main app (before generic agents routes)
   registerHealthRoutes(app, store, db);
@@ -257,6 +265,11 @@ export function createApp(
 
   // ─── Optimize / Cost Recommendations ──────────────────
   app.route('/api/optimize', optimizeRoutes(store));
+
+  // ─── Benchmarks / A/B Testing ─────────────────────────
+  if (db) {
+    app.route('/api/benchmarks', benchmarkRoutes(store, db));
+  }
 
   // ─── Recall / Semantic Search ─────────────────────────
   {
