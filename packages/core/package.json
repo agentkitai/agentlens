@@ -1,6 +1,6 @@
 {
   "name": "@agentlensai/core",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Core types, schemas, and utilities for AgentLens — AI agent observability platform",
   "type": "module",
   "license": "MIT",
