@@ -10,7 +10,7 @@
 import { Hono } from 'hono';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ulid } from 'ulid';
-import { computeEventHash, truncatePayload } from '@agentlens/core';
+import { computeEventHash, truncatePayload } from '@agentlensai/core';
 import type {
   AgentLensEvent,
   EventType,
@@ -20,8 +20,8 @@ import type {
   FormExpiredPayload,
   ApprovalRequestedPayload,
   ApprovalDecisionPayload,
-} from '@agentlens/core';
-import type { IEventStore } from '@agentlens/core';
+} from '@agentlensai/core';
+import type { IEventStore } from '@agentlensai/core';
 import { eventBus } from '../lib/event-bus.js';
 
 // ─── Types ──────────────────────────────────────────────────────────

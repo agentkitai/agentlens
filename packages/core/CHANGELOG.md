@@ -1,4 +1,4 @@
-# @agentlens/core
+# @agentlensai/core
 
 ## 0.2.0
 

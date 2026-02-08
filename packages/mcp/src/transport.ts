@@ -1,5 +1,5 @@
 /**
- * @agentlens/mcp — HTTP Transport Layer (Story 5.6)
+ * @agentlensai/mcp — HTTP Transport Layer (Story 5.6)
  *
  * HTTP client wrapping native fetch() for communicating with the AgentLens API server.
  * Includes an in-memory event buffer with automatic flush and graceful shutdown.

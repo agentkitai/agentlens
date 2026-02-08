@@ -9,7 +9,7 @@ Mode: Strict acceptance-criteria verification against current codebase
 - `pnpm test`: PASS (exit 0)
 - `pnpm typecheck`: PASS (exit 0)
 - `pnpm lint`: PASS (exit 0)
-- `pnpm --filter @agentlens/core test`: PASS (exit 0)
+- `pnpm --filter @agentlensai/core test`: PASS (exit 0)
 - `pnpm format:check`: FAIL (exit 1; formatting issues in 6 files)
 
 Notes:

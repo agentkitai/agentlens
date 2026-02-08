@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // Stub out node:crypto to avoid bundling @agentlens/core hash utilities
+      // Stub out node:crypto to avoid bundling @agentlensai/core hash utilities
       // (dashboard only needs types + constant arrays from core)
       'node:crypto': path.resolve(__dirname, './src/stubs/crypto.ts'),
     },

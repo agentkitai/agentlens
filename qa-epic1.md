@@ -9,8 +9,8 @@ Mode: Strict acceptance-criteria verification against current repo state
 - `pnpm test`: PASS (exit 0)
 - `pnpm typecheck`: PASS (exit 0)
 - `pnpm lint`: PASS (exit 0)
-- `pnpm --filter @agentlens/core test`: PASS (exit 0)
-- `pnpm --filter @agentlens/server test`: PASS (exit 0)
+- `pnpm --filter @agentlensai/core test`: PASS (exit 0)
+- `pnpm --filter @agentlensai/server test`: PASS (exit 0)
 - `pnpm format:check`: FAIL (exit 1; formatting issues found)
 
 Notes:
@@ -40,7 +40,7 @@ Notes:
 | # | Acceptance Criterion | Status | Evidence / Missing |
 |---|---|---|---|
 | 1 | Given the packages directory, When I list contents, Then I see: `core`, `mcp`, `server`, `dashboard`, `sdk`, `cli` | PASS | `packages/` contains all six directories. |
-| 2 | Given each package, When I inspect `package.json`, Then it has correct name (`@agentlens/<name>`), version `0.0.0`, and entry point | FAIL | `packages/dashboard/package.json` lacks an explicit entry point field (`main`/`exports`/`bin`). |
+| 2 | Given each package, When I inspect `package.json`, Then it has correct name (`@agentlensai/<name>`), version `0.0.0`, and entry point | FAIL | `packages/dashboard/package.json` lacks an explicit entry point field (`main`/`exports`/`bin`). |
 | 3 | Given the dependency graph, When inspected, Then `core` has no internal deps; `mcp`, `server`, `dashboard`, `sdk` depend on `core`; `cli` depends on `sdk` | PASS | Dependency graph matches exactly in package manifests. |
 | 4 | Given each package, When it has a `src/index.ts`, Then it exports a placeholder (empty or comment) | FAIL | `packages/core/src/index.ts` is a full export surface, not a placeholder; non-core packages export constants rather than empty/comment placeholders. |
 
@@ -57,8 +57,8 @@ Notes:
 | # | Acceptance Criterion | Status | Evidence / Missing |
 |---|---|---|---|
 | 1 | Given the root, When I run `pnpm test`, Then Vitest runs tests across all packages | PASS | `pnpm test` ran package test scripts across workspace; all passed. |
-| 2 | Given a single package, When I run `pnpm --filter @agentlens/core test`, Then only that package's tests run | PASS | Command ran only `@agentlens/core` tests; passed. |
-| 3 | Given a test file, When it imports from `@agentlens/core`, Then workspace resolution works correctly | PASS | Server tests import `@agentlens/core` and pass (`pnpm --filter @agentlens/server test`). |
+| 2 | Given a single package, When I run `pnpm --filter @agentlensai/core test`, Then only that package's tests run | PASS | Command ran only `@agentlensai/core` tests; passed. |
+| 3 | Given a test file, When it imports from `@agentlensai/core`, Then workspace resolution works correctly | PASS | Server tests import `@agentlensai/core` and pass (`pnpm --filter @agentlensai/server test`). |
 | 4 | Given the Vitest config, When inspected, Then it includes coverage configuration (v8 provider) | PASS | Root `vitest.config.ts` sets coverage `provider: 'v8'`. |
 
 ## Story 1.6: Set Up Changesets for Versioning

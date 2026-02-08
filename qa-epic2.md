@@ -2,7 +2,7 @@
 
 Scope: `_bmad-output/planning-artifacts/epics.md` Epic 2 only.
 Code reviewed: `packages/core/src/*`.
-Test run: `pnpm --filter @agentlens/core test` -> PASS (`7` files, `96` tests).
+Test run: `pnpm --filter @agentlensai/core test` -> PASS (`7` files, `96` tests).
 
 ## Story 2.1: Define Core Event Types and Interfaces
 

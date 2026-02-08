@@ -10,8 +10,8 @@
  */
 
 import { ulid } from 'ulid';
-import type { IEventStore } from '@agentlens/core';
-import type { AlertRule, AlertHistory, AlertCondition } from '@agentlens/core';
+import type { IEventStore } from '@agentlensai/core';
+import type { AlertRule, AlertHistory, AlertCondition } from '@agentlensai/core';
 import { eventBus } from './event-bus.js';
 
 /** Default evaluation interval: 60 seconds */

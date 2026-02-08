@@ -20,7 +20,7 @@ PORT=3400 \
 DB_PATH=/var/data/agentlens.db \
 RETENTION_DAYS=180 \
 AUTH_DISABLED=false \
-npx @agentlens/server
+npx @agentlensai/server
 ```
 
 ## MCP Server Configuration
@@ -40,7 +40,7 @@ npx @agentlens/server
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlens/mcp"],
+      "args": ["@agentlensai/mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_abc123...",

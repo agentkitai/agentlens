@@ -14,7 +14,7 @@
  */
 
 import React, { useState } from 'react';
-import type { StorageStats } from '@agentlens/core';
+import type { StorageStats } from '@agentlensai/core';
 import {
   getKeys,
   createKey,

@@ -32,12 +32,12 @@ AI Agents (Claude, GPT, Custom)
        │ MCP Protocol (stdio/SSE)
        ▼
 ┌─────────────────────┐
-│  @agentlens/mcp     │  ← MCP server with 4 tools
+│  @agentlensai/mcp     │  ← MCP server with 4 tools
 └────────┬────────────┘
          │ HTTP
          ▼
 ┌─────────────────────┐
-│  @agentlens/server  │  ← Hono API + Dashboard
+│  @agentlensai/server  │  ← Hono API + Dashboard
 │  ┌───────────────┐  │
 │  │ SQLite / PG   │  │  ← Append-only event store
 │  └───────────────┘  │
@@ -62,9 +62,9 @@ AgentLens is a monorepo with six packages:
 
 | Package | npm | Description |
 |---|---|---|
-| `@agentlens/core` | [![npm](https://img.shields.io/npm/v/@agentlens/core)](https://npmjs.com/package/@agentlens/core) | Shared types, schemas, and utilities |
-| `@agentlens/server` | [![npm](https://img.shields.io/npm/v/@agentlens/server)](https://npmjs.com/package/@agentlens/server) | Hono API server + dashboard |
-| `@agentlens/mcp` | [![npm](https://img.shields.io/npm/v/@agentlens/mcp)](https://npmjs.com/package/@agentlens/mcp) | MCP server for agent instrumentation |
-| `@agentlens/dashboard` | — | React dashboard (bundled with server) |
-| `@agentlens/sdk` | [![npm](https://img.shields.io/npm/v/@agentlens/sdk)](https://npmjs.com/package/@agentlens/sdk) | Programmatic TypeScript client |
-| `@agentlens/cli` | [![npm](https://img.shields.io/npm/v/@agentlens/cli)](https://npmjs.com/package/@agentlens/cli) | Command-line interface |
+| `@agentlensai/core` | [![npm](https://img.shields.io/npm/v/@agentlensai/core)](https://npmjs.com/package/@agentlensai/core) | Shared types, schemas, and utilities |
+| `@agentlensai/server` | [![npm](https://img.shields.io/npm/v/@agentlensai/server)](https://npmjs.com/package/@agentlensai/server) | Hono API server + dashboard |
+| `@agentlensai/mcp` | [![npm](https://img.shields.io/npm/v/@agentlensai/mcp)](https://npmjs.com/package/@agentlensai/mcp) | MCP server for agent instrumentation |
+| `@agentlensai/dashboard` | — | React dashboard (bundled with server) |
+| `@agentlensai/sdk` | [![npm](https://img.shields.io/npm/v/@agentlensai/sdk)](https://npmjs.com/package/@agentlensai/sdk) | Programmatic TypeScript client |
+| `@agentlensai/cli` | [![npm](https://img.shields.io/npm/v/@agentlensai/cli)](https://npmjs.com/package/@agentlensai/cli) | Command-line interface |

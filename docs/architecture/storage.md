@@ -2,7 +2,7 @@
 
 ## Storage Interface
 
-All storage operations go through the `IEventStore` interface defined in `@agentlens/core`. This makes the storage backend pluggable — SQLite and PostgreSQL share the same contract.
+All storage operations go through the `IEventStore` interface defined in `@agentlensai/core`. This makes the storage backend pluggable — SQLite and PostgreSQL share the same contract.
 
 ```typescript
 interface IEventStore {

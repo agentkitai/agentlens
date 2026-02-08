@@ -12,7 +12,7 @@ Get AgentLens running and capturing agent events in under 5 minutes.
 The fastest way to start is with `npx`:
 
 ```bash
-npx @agentlens/server
+npx @agentlensai/server
 ```
 
 The server starts on **http://localhost:3400** with a SQLite database (no external dependencies).
@@ -29,9 +29,9 @@ You'll see:
 For production, install it as a dependency:
 
 ```bash
-npm install @agentlens/server
+npm install @agentlensai/server
 # or
-pnpm add @agentlens/server
+pnpm add @agentlensai/server
 ```
 :::
 
@@ -74,7 +74,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlens/mcp"],
+      "args": ["@agentlensai/mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_your_key_here",
@@ -94,7 +94,7 @@ Edit `.cursor/mcp.json` in your project root (or globally in `~/.cursor/mcp.json
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlens/mcp"],
+      "args": ["@agentlensai/mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_your_key_here",
@@ -114,7 +114,7 @@ If you're building your own agent with the MCP SDK:
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlens/mcp"],
+      "args": ["@agentlensai/mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_your_key_here",

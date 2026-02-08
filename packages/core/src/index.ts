@@ -1,5 +1,5 @@
 /**
- * @agentlens/core — Shared types, validation schemas, and utilities
+ * @agentlensai/core — Shared types, validation schemas, and utilities
  */
 
 // Re-export all types

@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Agent } from '@agentlens/core';
+import type { Agent } from '@agentlensai/core';
 import { getAgents } from '../api/client';
 import { useApi } from '../hooks/useApi';
 

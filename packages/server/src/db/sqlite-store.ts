@@ -15,7 +15,7 @@
  */
 
 import { eq, and, gte, lte, inArray, desc, asc, sql, count as drizzleCount } from 'drizzle-orm';
-import { computeEventHash } from '@agentlens/core';
+import { computeEventHash } from '@agentlensai/core';
 import type {
   AgentLensEvent,
   EventQuery,
@@ -25,8 +25,8 @@ import type {
   Agent,
   AlertRule,
   AlertHistory,
-} from '@agentlens/core';
-import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlens/core';
+} from '@agentlensai/core';
+import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlensai/core';
 import type { SqliteDb } from './index.js';
 import { events, sessions, agents, alertRules, alertHistory } from './schema.sqlite.js';
 import { HashChainError, NotFoundError } from './errors.js';

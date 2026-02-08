@@ -7,7 +7,7 @@
  *  - Cleans up on client disconnect
  */
 
-import type { AgentLensEvent } from '@agentlens/core';
+import type { AgentLensEvent } from '@agentlensai/core';
 import { eventBus } from './event-bus.js';
 import type {
   BusEvent,

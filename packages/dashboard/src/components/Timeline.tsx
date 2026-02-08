@@ -21,7 +21,7 @@ import type {
   FormSubmittedPayload,
   FormCompletedPayload,
   FormExpiredPayload,
-} from '@agentlens/core';
+} from '@agentlensai/core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 

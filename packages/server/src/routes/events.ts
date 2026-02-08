@@ -15,9 +15,9 @@ import {
   truncatePayload,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
-} from '@agentlens/core';
-import type { AgentLensEvent, EventQuery, EventType, EventSeverity } from '@agentlens/core';
-import type { IEventStore } from '@agentlens/core';
+} from '@agentlensai/core';
+import type { AgentLensEvent, EventQuery, EventType, EventSeverity } from '@agentlensai/core';
+import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { eventBus } from '../lib/event-bus.js';
 

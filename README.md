@@ -4,8 +4,8 @@
     <strong>Open-source observability & audit trail for AI agents</strong>
   </p>
   <p align="center">
-    <a href="https://www.npmjs.com/package/@agentlens/server"><img src="https://img.shields.io/npm/v/@agentlens/server?label=server" alt="npm server"></a>
-    <a href="https://www.npmjs.com/package/@agentlens/mcp"><img src="https://img.shields.io/npm/v/@agentlens/mcp?label=mcp" alt="npm mcp"></a>
+    <a href="https://www.npmjs.com/package/@agentlensai/server"><img src="https://img.shields.io/npm/v/@agentlensai/server?label=server" alt="npm server"></a>
+    <a href="https://www.npmjs.com/package/@agentlensai/mcp"><img src="https://img.shields.io/npm/v/@agentlensai/mcp?label=mcp" alt="npm mcp"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
     <a href="https://github.com/amitpaz/agentlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/amitpaz/agentlens/ci.yml?branch=main" alt="Build Status"></a>
   </p>
@@ -36,7 +36,7 @@ AgentLens is a **flight recorder for AI agents**. It captures every tool call, a
 │                        │ MCP Protocol (stdio)               │
 │                        ▼                                    │
 │  ┌──────────────────────────────────────┐                   │
-│  │       @agentlens/mcp                 │                   │
+│  │       @agentlensai/mcp                 │                   │
 │  │  Tools: session_start · log_event    │                   │
 │  │         session_end · query_events   │                   │
 │  └──────────────┬───────────────────────┘                   │
@@ -44,7 +44,7 @@ AgentLens is a **flight recorder for AI agents**. It captures every tool call, a
 └─────────────────┼───────────────────────────────────────────┘
                   ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              @agentlens/server                               │
+│              @agentlensai/server                               │
 │                                                              │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐               │
 │  │  Ingest    │ │   Query    │ │   Alert    │               │
@@ -70,7 +70,7 @@ AgentLens is a **flight recorder for AI agents**. It captures every tool call, a
 ### 1. Start the Server
 
 ```bash
-npx @agentlens/server
+npx @agentlensai/server
 ```
 
 Opens on **http://localhost:3400** with SQLite — zero config.
@@ -94,7 +94,7 @@ Save the `als_...` key from the response — it's shown only once.
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlens/mcp"],
+      "args": ["@agentlensai/mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_your_key_here"
@@ -111,7 +111,7 @@ Save the `als_...` key from the response — it's shown only once.
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlens/mcp"],
+      "args": ["@agentlensai/mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_your_key_here"
@@ -129,12 +129,12 @@ Navigate to **http://localhost:3400** — see sessions, timelines, analytics, an
 
 | Package | Description | npm |
 |---|---|---|
-| [`@agentlens/core`](./packages/core) | Shared types, schemas, hash chain utilities | [![npm](https://img.shields.io/npm/v/@agentlens/core)](https://npmjs.com/package/@agentlens/core) |
-| [`@agentlens/server`](./packages/server) | Hono API server + dashboard serving | [![npm](https://img.shields.io/npm/v/@agentlens/server)](https://npmjs.com/package/@agentlens/server) |
-| [`@agentlens/mcp`](./packages/mcp) | MCP server for agent instrumentation | [![npm](https://img.shields.io/npm/v/@agentlens/mcp)](https://npmjs.com/package/@agentlens/mcp) |
-| [`@agentlens/dashboard`](./packages/dashboard) | React web dashboard (bundled with server) | private |
-| [`@agentlens/sdk`](./packages/sdk) | Programmatic TypeScript client | [![npm](https://img.shields.io/npm/v/@agentlens/sdk)](https://npmjs.com/package/@agentlens/sdk) |
-| [`@agentlens/cli`](./packages/cli) | Command-line interface | [![npm](https://img.shields.io/npm/v/@agentlens/cli)](https://npmjs.com/package/@agentlens/cli) |
+| [`@agentlensai/core`](./packages/core) | Shared types, schemas, hash chain utilities | [![npm](https://img.shields.io/npm/v/@agentlensai/core)](https://npmjs.com/package/@agentlensai/core) |
+| [`@agentlensai/server`](./packages/server) | Hono API server + dashboard serving | [![npm](https://img.shields.io/npm/v/@agentlensai/server)](https://npmjs.com/package/@agentlensai/server) |
+| [`@agentlensai/mcp`](./packages/mcp) | MCP server for agent instrumentation | [![npm](https://img.shields.io/npm/v/@agentlensai/mcp)](https://npmjs.com/package/@agentlensai/mcp) |
+| [`@agentlensai/dashboard`](./packages/dashboard) | React web dashboard (bundled with server) | private |
+| [`@agentlensai/sdk`](./packages/sdk) | Programmatic TypeScript client | [![npm](https://img.shields.io/npm/v/@agentlensai/sdk)](https://npmjs.com/package/@agentlensai/sdk) |
+| [`@agentlensai/cli`](./packages/cli) | Command-line interface | [![npm](https://img.shields.io/npm/v/@agentlensai/cli)](https://npmjs.com/package/@agentlensai/cli) |
 
 ## 🔌 API Overview
 

@@ -7,9 +7,9 @@
  */
 
 import { Hono } from 'hono';
-import { verifyChain, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentlens/core';
-import type { SessionQuery, SessionStatus } from '@agentlens/core';
-import type { IEventStore } from '@agentlens/core';
+import { verifyChain, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentlensai/core';
+import type { SessionQuery, SessionStatus } from '@agentlensai/core';
+import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 
 export function sessionsRoutes(store: IEventStore) {

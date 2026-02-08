@@ -44,7 +44,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@agentlens/sdk':
+      '@agentlensai/sdk':
         specifier: workspace:*
         version: link:../sdk
 
@@ -59,7 +59,7 @@ importers:
 
   packages/dashboard:
     dependencies:
-      '@agentlens/core':
+      '@agentlensai/core':
         specifier: workspace:*
         version: link:../core
       recharts:
@@ -111,7 +111,7 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@agentlens/core':
+      '@agentlensai/core':
         specifier: workspace:*
         version: link:../core
       '@modelcontextprotocol/sdk':
@@ -123,13 +123,13 @@ importers:
 
   packages/sdk:
     dependencies:
-      '@agentlens/core':
+      '@agentlensai/core':
         specifier: workspace:*
         version: link:../core
 
   packages/server:
     dependencies:
-      '@agentlens/core':
+      '@agentlensai/core':
         specifier: workspace:*
         version: link:../core
       '@hono/node-server':

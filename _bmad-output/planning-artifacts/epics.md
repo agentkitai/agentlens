@@ -171,12 +171,12 @@ So that the package structure matches the architecture.
 
 **Acceptance Criteria:**
 - Given the packages directory, When I list contents, Then I see: `core`, `mcp`, `server`, `dashboard`, `sdk`, `cli`
-- Given each package, When I inspect `package.json`, Then it has correct name (`@agentlens/<name>`), version `0.0.0`, and entry point
+- Given each package, When I inspect `package.json`, Then it has correct name (`@agentlensai/<name>`), version `0.0.0`, and entry point
 - Given the dependency graph, When inspected, Then `core` has no internal deps; `mcp`, `server`, `dashboard`, `sdk` depend on `core`; `cli` depends on `sdk`
 - Given each package, When it has a `src/index.ts`, Then it exports a placeholder (empty or comment)
 
 **Technical Notes:**
-- Package names per Arch §3.2: `@agentlens/core`, `@agentlens/mcp`, `@agentlens/server`, `@agentlens/dashboard`, `@agentlens/sdk`, `@agentlens/cli`
+- Package names per Arch §3.2: `@agentlensai/core`, `@agentlensai/mcp`, `@agentlensai/server`, `@agentlensai/dashboard`, `@agentlensai/sdk`, `@agentlensai/cli`
 - Dependency graph per Arch ADR-005
 
 **Dependencies:** Story 1.1
@@ -207,8 +207,8 @@ So that I can run tests from root or per-package.
 
 **Acceptance Criteria:**
 - Given the root, When I run `pnpm test`, Then Vitest runs tests across all packages
-- Given a single package, When I run `pnpm --filter @agentlens/core test`, Then only that package's tests run
-- Given a test file, When it imports from `@agentlens/core`, Then workspace resolution works correctly
+- Given a single package, When I run `pnpm --filter @agentlensai/core test`, Then only that package's tests run
+- Given a test file, When it imports from `@agentlensai/core`, Then workspace resolution works correctly
 - Given the Vitest config, When inspected, Then it includes coverage configuration (v8 provider)
 
 **Technical Notes:**
@@ -243,7 +243,7 @@ So that package releases are consistent and documented.
 
 **Goal:** Define the shared type system, event schemas, validation logic, and utility functions that all packages depend on.
 
-**Delivers:** `@agentlens/core` package — the foundation for every other package.
+**Delivers:** `@agentlensai/core` package — the foundation for every other package.
 
 ### Story 2.1: Define Core Event Types and Interfaces
 
@@ -294,7 +294,7 @@ So that invalid data is rejected at the boundary with clear error messages.
 - Given `ingestEventSchema`, When validating with missing `sessionId`, Then it returns a descriptive error
 - Given `eventTypeSchema`, When validating an unknown type string, Then it fails validation
 - Given `severitySchema`, When used with `.default('info')`, Then missing severity defaults to `info`
-- Given all schemas, When imported from `@agentlens/core`, Then they are re-exported via `index.ts`
+- Given all schemas, When imported from `@agentlensai/core`, Then they are re-exported via `index.ts`
 
 **Technical Notes:**
 - File: `packages/core/src/schemas.ts`
@@ -560,7 +560,7 @@ So that MCP servers and webhooks can send events efficiently.
 
 **Technical Notes:**
 - File: `packages/server/src/routes/events.ts` (POST handler)
-- Validate each event via `ingestEventSchema` from `@agentlens/core`
+- Validate each event via `ingestEventSchema` from `@agentlensai/core`
 - Assign ULID via `ulid()`, compute hash chain per session
 - Call `store.insertEvents()` then emit to EventBus
 
@@ -634,11 +634,11 @@ So that the dashboard can show agent overviews and system health.
 
 **Goal:** Implement the MCP server that agents connect to for instrumentation, providing tools for session management, event logging, and querying.
 
-**Delivers:** `@agentlens/mcp` — a working MCP server that agents add to their config for automatic observability.
+**Delivers:** `@agentlensai/mcp` — a working MCP server that agents add to their config for automatic observability.
 
 ### Story 5.1: Implement MCP Server Entrypoint with Stdio Transport
 
-As a **developer**, I want an MCP server that starts via `npx @agentlens/mcp`,
+As a **developer**, I want an MCP server that starts via `npx @agentlensai/mcp`,
 So that agents can connect to AgentLens through standard MCP configuration.
 
 **Acceptance Criteria:**
@@ -771,9 +771,9 @@ As a **developer**, I want the dashboard project scaffolded with React, Vite, an
 So that development can begin on dashboard pages.
 
 **Acceptance Criteria:**
-- Given the dashboard package, When I run `pnpm --filter @agentlens/dashboard dev`, Then Vite dev server starts with HMR
+- Given the dashboard package, When I run `pnpm --filter @agentlensai/dashboard dev`, Then Vite dev server starts with HMR
 - Given the project, When inspected, Then it uses React 18, Vite 6, Tailwind CSS 3, React Router 6
-- Given a production build, When I run `pnpm --filter @agentlens/dashboard build`, Then static assets are output to `dist/`
+- Given a production build, When I run `pnpm --filter @agentlensai/dashboard build`, Then static assets are output to `dist/`
 - Given the build output, When served by the Hono server, Then the SPA loads correctly at the root URL
 
 **Technical Notes:**
@@ -818,7 +818,7 @@ So that all pages fetch data consistently with error handling.
 
 **Technical Notes:**
 - Files: `packages/dashboard/src/api/client.ts`, `packages/dashboard/src/hooks/useApi.ts`
-- Typed fetch wrappers using core types from `@agentlens/core`
+- Typed fetch wrappers using core types from `@agentlensai/core`
 - Base URL derived from `window.location.origin` (SPA served by same server)
 - Custom hook `useApi()` wrapping `useState`/`useEffect` for data fetching
 
@@ -1502,7 +1502,7 @@ So that I'm notified immediately when something needs attention.
 
 **Goal:** Build the programmatic TypeScript SDK and command-line interface for querying and managing AgentLens data.
 
-**Delivers:** `@agentlens/sdk` and `@agentlens/cli` — tools for developers who prefer code or terminal over the dashboard.
+**Delivers:** `@agentlensai/sdk` and `@agentlensai/cli` — tools for developers who prefer code or terminal over the dashboard.
 
 ### Story 13.1: Implement SDK HTTP Client
 
@@ -1519,7 +1519,7 @@ So that I can integrate AgentLens queries into my own tools and scripts.
 **Technical Notes:**
 - Files: `packages/sdk/src/client.ts`, `packages/sdk/src/errors.ts`, `packages/sdk/src/index.ts`
 - Package per Arch ADR-005 — thin wrapper over `fetch()`
-- Re-export core types from `@agentlens/core`
+- Re-export core types from `@agentlensai/core`
 - Works in Node.js and browser (uses native `fetch`)
 
 **Dependencies:** Story 2.1, Story 4.5
@@ -1531,7 +1531,7 @@ As a **developer**, I want a CLI tool (`agentlens`) for terminal-based querying,
 So that I can inspect agent data without opening a browser.
 
 **Acceptance Criteria:**
-- Given `npx @agentlens/cli`, When run with no args, Then help text is displayed with available commands
+- Given `npx @agentlensai/cli`, When run with no args, Then help text is displayed with available commands
 - Given `agentlens config set url http://localhost:3400`, When run, Then the URL is saved to `~/.agentlens/config.json`
 - Given `agentlens config set api-key als_xxx`, When run, Then the API key is saved to config
 - Given `agentlens config get`, When run, Then current configuration is displayed (with key partially masked)
@@ -1540,7 +1540,7 @@ So that I can inspect agent data without opening a browser.
 - Files: `packages/cli/src/index.ts`, `packages/cli/src/commands/config.ts`, `packages/cli/src/lib/config.ts`
 - Commander.js ^12.x per Arch §12.1
 - Config stored in `~/.agentlens/config.json`
-- Uses `@agentlens/sdk` for all API access per Arch ADR-005
+- Uses `@agentlensai/sdk` for all API access per Arch ADR-005
 
 **Dependencies:** Story 13.1
 **Estimate:** S
@@ -1729,7 +1729,7 @@ So that I can get AgentLens running in under 5 minutes.
 
 **Technical Notes:**
 - File: `docs/guide/getting-started.md`
-- Include: `npx @agentlens/server` for quick start
+- Include: `npx @agentlensai/server` for quick start
 - MCP config example per Arch §5.4
 
 **Dependencies:** Story 15.1, Story 5.1, Story 4.1
@@ -1762,8 +1762,8 @@ So that users can install AgentLens packages from npm.
 
 **Acceptance Criteria:**
 - Given each publishable package (core, mcp, server, sdk, cli), When `package.json` is inspected, Then it has: correct name, version, description, license (MIT), repository, keywords, files, main/types entries
-- Given the `@agentlens/mcp` package, When inspected, Then it has a `bin` entry for `agentlens-mcp`
-- Given the `@agentlens/cli` package, When inspected, Then it has a `bin` entry for `agentlens`
+- Given the `@agentlensai/mcp` package, When inspected, Then it has a `bin` entry for `agentlens-mcp`
+- Given the `@agentlensai/cli` package, When inspected, Then it has a `bin` entry for `agentlens`
 - Given `pnpm build`, When run, Then all packages compile and their dist directories contain the expected output
 
 **Technical Notes:**

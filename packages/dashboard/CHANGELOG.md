@@ -1,8 +1,8 @@
-# @agentlens/dashboard
+# @agentlensai/dashboard
 
 ## 0.1.1
 
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlens/core@0.2.0
+  - @agentlensai/core@0.2.0

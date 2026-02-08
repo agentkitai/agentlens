@@ -1,5 +1,5 @@
 /**
- * @agentlens/core — Alert-specific Zod validation schemas
+ * @agentlensai/core — Alert-specific Zod validation schemas
  *
  * Schemas for alert rule CRUD and alert history.
  */

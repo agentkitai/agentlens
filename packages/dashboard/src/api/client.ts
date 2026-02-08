@@ -13,7 +13,7 @@ import type {
   SessionQueryResult,
   Agent,
   StorageStats,
-} from '@agentlens/core';
+} from '@agentlensai/core';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 

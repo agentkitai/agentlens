@@ -1,5 +1,5 @@
 {
-  "name": "@agentlens/mcp",
+  "name": "@agentlensai/mcp",
   "version": "0.2.0",
   "description": "MCP server for AgentLens — instrument AI agents with zero code changes",
   "type": "module",
@@ -47,7 +47,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentlens/core": "workspace:*",
+    "@agentlensai/core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^3.25.76"
   }

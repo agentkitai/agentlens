@@ -1,5 +1,5 @@
 {
-  "name": "@agentlens/cli",
+  "name": "@agentlensai/cli",
   "version": "0.2.0",
   "description": "Command-line interface for AgentLens — query events, sessions, and manage your observability server",
   "type": "module",
@@ -44,6 +44,6 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentlens/sdk": "workspace:*"
+    "@agentlensai/sdk": "workspace:*"
   }
 }

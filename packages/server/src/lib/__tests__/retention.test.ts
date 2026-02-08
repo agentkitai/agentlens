@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { AgentLensEvent } from '@agentlens/core';
-import { computeEventHash } from '@agentlens/core';
+import type { AgentLensEvent } from '@agentlensai/core';
+import { computeEventHash } from '@agentlensai/core';
 import { createTestDb, type SqliteDb } from '../../db/index.js';
 import { runMigrations } from '../../db/migrate.js';
 import { SqliteEventStore } from '../../db/sqlite-store.js';

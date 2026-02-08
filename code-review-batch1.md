@@ -53,7 +53,7 @@
 
 | Severity | File and line range | What's wrong | How to fix |
 |---|---|---|---|
-| LOW | `packages/server/src/lib/retention.ts:18`, `packages/core/src/constants.ts:15` | `DEFAULT_RETENTION_DAYS` is duplicated across packages, risking drift. | Reuse `@agentlens/core` constant in server retention code. |
+| LOW | `packages/server/src/lib/retention.ts:18`, `packages/core/src/constants.ts:15` | `DEFAULT_RETENTION_DAYS` is duplicated across packages, risking drift. | Reuse `@agentlensai/core` constant in server retention code. |
 | LOW | `packages/server/src/db/sqlite-store.ts:308` | Comment says read operations are "stubs" but methods are implemented; comment is stale and misleading. | Update/remove stale comment. |
 | LOW | `packages/server/src/index.ts:1-4` | Package entrypoint is a placeholder constant only; no server bootstrap exports despite module docstring indicating HTTP server package surface. | Export actual public server bootstrap API (or correct the file-level docs if intentionally minimal). |
 

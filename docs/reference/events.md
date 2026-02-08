@@ -99,7 +99,7 @@ curl -X POST http://localhost:3400/api/events \
 ### SDK Example
 
 ```typescript
-import { AgentLensClient } from '@agentlens/sdk';
+import { AgentLensClient } from '@agentlensai/sdk';
 
 const client = new AgentLensClient({
   apiUrl: 'http://localhost:3400',

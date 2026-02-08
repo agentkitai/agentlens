@@ -4,7 +4,7 @@
 - Scope reviewed: all requested files under `packages/dashboard/src/`, plus SPA-serving changes in `packages/server/src/index.ts`.
 - Validation run:
   - `pnpm typecheck` ✅
-  - `pnpm --filter @agentlens/dashboard build` ✅ (bundle warning: main chunk ~692.60 kB minified)
+  - `pnpm --filter @agentlensai/dashboard build` ✅ (bundle warning: main chunk ~692.60 kB minified)
 - No CRITICAL security findings were identified, but there are several HIGH/MEDIUM correctness and accessibility issues that should be fixed before release.
 
 ## CRITICAL/HIGH/MEDIUM/LOW Issues
@@ -56,7 +56,7 @@
 
 - **[MEDIUM][Performance] Dashboard bundle is large with no route-level code splitting.**
   - Impact: Higher initial JS cost (build output shows ~692.60 kB minified main chunk).
-  - Evidence: build output from `pnpm --filter @agentlens/dashboard build`; static page imports in `packages/dashboard/src/App.tsx:3`.
+  - Evidence: build output from `pnpm --filter @agentlensai/dashboard build`; static page imports in `packages/dashboard/src/App.tsx:3`.
   - Fix: Lazy-load route pages (`React.lazy`/`Suspense`), especially heavy dependencies (charts/json viewers).
 
 ### LOW

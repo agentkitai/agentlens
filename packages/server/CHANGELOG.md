@@ -1,4 +1,4 @@
-# @agentlens/server
+# @agentlensai/server
 
 ## 0.2.0
 
@@ -16,4 +16,4 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlens/core@0.2.0
+  - @agentlensai/core@0.2.0

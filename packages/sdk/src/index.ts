@@ -1,5 +1,5 @@
 /**
- * @agentlens/sdk — Programmatic client for the AgentLens API
+ * @agentlensai/sdk — Programmatic client for the AgentLens API
  */
 
 // Client
@@ -31,4 +31,4 @@ export type {
   SessionQuery,
   SessionStatus,
   Agent,
-} from '@agentlens/core';
+} from '@agentlensai/core';

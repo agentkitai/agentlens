@@ -15,7 +15,7 @@ import type {
   StorageStats,
   EventQueryResult,
   SessionQueryResult,
-} from '@agentlens/core';
+} from '@agentlensai/core';
 import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';
 import { getStats, getEvents, getSessions } from '../api/client';

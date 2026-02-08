@@ -42,7 +42,7 @@
 │                      │ MCP Protocol (stdio/SSE)                             │
 │                      ▼                                                      │
 │  ┌──────────────────────────────────────────┐                               │
-│  │         @agentlens/mcp                    │                              │
+│  │         @agentlensai/mcp                    │                              │
 │  │   MCP Server (Dedicated Tools Approach)   │                              │
 │  │                                           │                              │
 │  │  Tools:                                   │                              │
@@ -56,7 +56,7 @@
                    │  HTTP POST (events)
                    ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                         @agentlens/server                                    │
+│                         @agentlensai/server                                    │
 │                      Hono HTTP API Server                                    │
 │                                                                              │
 │  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐                   │
@@ -70,7 +70,7 @@
 │          │                   │                   │                            │
 │          ▼                   ▼                   │                            │
 │  ┌─────────────────────────────────┐             │                           │
-│  │       @agentlens/core           │             │                           │
+│  │       @agentlensai/core           │             │                           │
 │  │    Storage Interface Layer      │             │                           │
 │  │                                 │             │                           │
 │  │  ┌───────────┐ ┌─────────────┐  │             │                           │
@@ -80,7 +80,7 @@
 │  └─────────────────────────────────┘             │                           │
 │                                                  │                           │
 │  ┌─────────────────────────────────────┐         │                           │
-│  │       @agentlens/dashboard          │◄────────┘                           │
+│  │       @agentlensai/dashboard          │◄────────┘                           │
 │  │     React SPA (Vite build)          │    SSE                              │
 │  │                                     │                                     │
 │  │  ┌──────────┐ ┌────────────────┐    │                                     │
@@ -113,7 +113,7 @@ Agent Action
 MCP Tool Call (agentlens_log_event)
      │
      ▼
-@agentlens/mcp ─── HTTP POST ──► @agentlens/server
+@agentlensai/mcp ─── HTTP POST ──► @agentlensai/server
                                        │
                          ┌─────────────┼──────────────┐
                          ▼             ▼              ▼
@@ -130,12 +130,12 @@ MCP Tool Call (agentlens_log_event)
 
 | Component | Depends On | Consumed By |
 |-----------|-----------|-------------|
-| `@agentlens/core` | — | All other packages |
-| `@agentlens/mcp` | `@agentlens/core` | AI agent hosts |
-| `@agentlens/server` | `@agentlens/core` | Dashboard, SDK, CLI, webhooks |
-| `@agentlens/dashboard` | `@agentlens/core` | Browser (human users) |
-| `@agentlens/sdk` | `@agentlens/core` | External applications |
-| `@agentlens/cli` | `@agentlens/sdk` | Developers (terminal) |
+| `@agentlensai/core` | — | All other packages |
+| `@agentlensai/mcp` | `@agentlensai/core` | AI agent hosts |
+| `@agentlensai/server` | `@agentlensai/core` | Dashboard, SDK, CLI, webhooks |
+| `@agentlensai/dashboard` | `@agentlensai/core` | Browser (human users) |
+| `@agentlensai/sdk` | `@agentlensai/core` | External applications |
+| `@agentlensai/cli` | `@agentlensai/sdk` | Developers (terminal) |
 
 ---
 
@@ -200,7 +200,7 @@ agentlens/
 ├── .changeset/               # Changesets for versioning
 │
 ├── packages/
-│   ├── core/                 # @agentlens/core
+│   ├── core/                 # @agentlensai/core
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -212,7 +212,7 @@ agentlens/
 │   │       ├── schemas.ts         # Zod validation schemas
 │   │       └── constants.ts       # Shared constants
 │   │
-│   ├── mcp/                  # @agentlens/mcp
+│   ├── mcp/                  # @agentlensai/mcp
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -221,7 +221,7 @@ agentlens/
 │   │       ├── session.ts         # Session management
 │   │       └── transport.ts       # HTTP client for server comm
 │   │
-│   ├── server/               # @agentlens/server
+│   ├── server/               # @agentlensai/server
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -252,7 +252,7 @@ agentlens/
 │   │       │   └── analytics.ts   # Aggregation queries
 │   │       └── bootstrap.ts       # DB init, migrations
 │   │
-│   ├── dashboard/            # @agentlens/dashboard
+│   ├── dashboard/            # @agentlensai/dashboard
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   ├── vite.config.ts
@@ -281,7 +281,7 @@ agentlens/
 │   │           ├── sse.ts         # SSE client
 │   │           └── format.ts      # Formatters (dates, durations, etc.)
 │   │
-│   ├── sdk/                  # @agentlens/sdk
+│   ├── sdk/                  # @agentlensai/sdk
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── src/
@@ -290,7 +290,7 @@ agentlens/
 │   │       ├── errors.ts         # Typed errors
 │   │       └── types.ts          # Re-exports from core
 │   │
-│   └── cli/                  # @agentlens/cli
+│   └── cli/                  # @agentlensai/cli
 │       ├── package.json
 │       ├── tsconfig.json
 │       └── src/
@@ -321,12 +321,12 @@ packages:
 ```
 
 ```
-@agentlens/core        →  (no internal deps)
-@agentlens/mcp         →  @agentlens/core
-@agentlens/server      →  @agentlens/core
-@agentlens/dashboard   →  @agentlens/core
-@agentlens/sdk         →  @agentlens/core
-@agentlens/cli         →  @agentlens/sdk
+@agentlensai/core        →  (no internal deps)
+@agentlensai/mcp         →  @agentlensai/core
+@agentlensai/server      →  @agentlensai/core
+@agentlensai/dashboard   →  @agentlensai/core
+@agentlensai/sdk         →  @agentlensai/core
+@agentlensai/cli         →  @agentlensai/sdk
 ```
 
 ### 3.3 Build Configuration
@@ -338,7 +338,7 @@ All packages use `tsc` for compilation (consistent with AgentGate), with the das
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
-    "dev": "pnpm --filter @agentlens/server --filter @agentlens/dashboard -r --parallel run dev",
+    "dev": "pnpm --filter @agentlensai/server --filter @agentlensai/dashboard -r --parallel run dev",
     "lint": "eslint .",
     "typecheck": "pnpm -r run typecheck",
     "docs:dev": "vitepress dev docs",
@@ -719,7 +719,7 @@ export function verifyChain(events: { hash: string; prevHash: string | null }[])
 
 ```
 ┌──────────┐     ┌──────────────┐     ┌────────────────────┐
-│  Agent   │────▶│ @agentlens/  │────▶│  @agentlens/server │
+│  Agent   │────▶│ @agentlensai/  │────▶│  @agentlensai/server │
 │  (MCP)   │     │    mcp       │     │                    │
 └──────────┘     └──────────────┘     │  1. Validate (Zod) │
                                       │  2. Assign ULID    │
@@ -920,7 +920,7 @@ main().catch(console.error);
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlens/mcp"],
+      "args": ["@agentlensai/mcp"],
       "env": {
         "AGENTLENS_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_xxxxxxxxxxxx"
@@ -1964,7 +1964,7 @@ export function createSSEStream(c: Context, filters: {
 | **Formatting** | Prettier | ^3.x | |
 | **Versioning** | Changesets | ^2.x | |
 | **Documentation** | VitePress | ^1.x | |
-| **CLI Framework** | Commander.js | ^12.x | For @agentlens/cli |
+| **CLI Framework** | Commander.js | ^12.x | For @agentlensai/cli |
 | **Charting** | Recharts (or lightweight alternative) | | For analytics page |
 
 ### 12.2 Development Tools
@@ -2070,7 +2070,7 @@ AgentLens needs a storage backend. The choice between SQLite-first and PostgreSQ
 **Decision:** **SQLite-first** with PostgreSQL as a supported alternative.
 
 **Rationale:**
-1. **Zero-dependency setup** — `npx @agentlens/server` should work with no external services. SQLite is embedded.
+1. **Zero-dependency setup** — `npx @agentlensai/server` should work with no external services. SQLite is embedded.
 2. **Consistent with AgentGate** — AgentGate uses the same dual-dialect approach with SQLite as default.
 3. **Performance** — SQLite in WAL mode handles 10K+ writes/sec, far exceeding our 1K events/sec target for single-node deployments.
 4. **Developer experience** — SQLite is a single file. Easy to inspect, backup, copy, and reset.
@@ -2156,18 +2156,18 @@ How should AgentLens be split into packages? Options range from a single package
 
 | Package | Ships to npm | Runtime | Responsibility |
 |---------|-------------|---------|----------------|
-| `@agentlens/core` | Yes | Node.js + Browser | Types, interfaces, validation, hash utilities. Zero runtime dependencies. |
-| `@agentlens/mcp` | Yes | Node.js (stdio) | MCP server binary. Connects to `@agentlens/server` via HTTP. |
-| `@agentlens/server` | Yes | Node.js | Hono HTTP server. Storage, API, SSE, alerts. Serves dashboard in production. |
-| `@agentlens/dashboard` | No (built into server) | Browser | React SPA. Built by Vite, output copied to server's `public/` directory. |
-| `@agentlens/sdk` | Yes | Node.js + Browser | Typed HTTP client for the AgentLens API. Thin wrapper over fetch. |
-| `@agentlens/cli` | Yes | Node.js | CLI binary. Uses `@agentlens/sdk` for all API access. |
+| `@agentlensai/core` | Yes | Node.js + Browser | Types, interfaces, validation, hash utilities. Zero runtime dependencies. |
+| `@agentlensai/mcp` | Yes | Node.js (stdio) | MCP server binary. Connects to `@agentlensai/server` via HTTP. |
+| `@agentlensai/server` | Yes | Node.js | Hono HTTP server. Storage, API, SSE, alerts. Serves dashboard in production. |
+| `@agentlensai/dashboard` | No (built into server) | Browser | React SPA. Built by Vite, output copied to server's `public/` directory. |
+| `@agentlensai/sdk` | Yes | Node.js + Browser | Typed HTTP client for the AgentLens API. Thin wrapper over fetch. |
+| `@agentlensai/cli` | Yes | Node.js | CLI binary. Uses `@agentlensai/sdk` for all API access. |
 
 **Rationale:**
 1. **Matches AgentGate** — Same package structure for developer familiarity.
 2. **Independent versioning** — MCP server and API server can evolve at different rates.
-3. **Minimal dependency trees** — `@agentlens/core` has zero deps. `@agentlens/mcp` only needs core + MCP SDK + fetch.
-4. **Clear npm distribution** — Users install only what they need: `@agentlens/mcp` for agent instrumentation, `@agentlens/server` for self-hosting, `@agentlens/sdk` for programmatic access.
+3. **Minimal dependency trees** — `@agentlensai/core` has zero deps. `@agentlensai/mcp` only needs core + MCP SDK + fetch.
+4. **Clear npm distribution** — Users install only what they need: `@agentlensai/mcp` for agent instrumentation, `@agentlensai/server` for self-hosting, `@agentlensai/sdk` for programmatic access.
 
 **Consequences:**
 - Build order matters: core → (mcp, server, sdk, dashboard) → cli

@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'node:events';
-import type { AgentLensEvent, AlertRule, AlertHistory, Session } from '@agentlens/core';
+import type { AgentLensEvent, AlertRule, AlertHistory, Session } from '@agentlensai/core';
 
 // ─── Bus Event Types ─────────────────────────────────────────────
 

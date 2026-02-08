@@ -1,5 +1,5 @@
 /**
- * @agentlens/core — Shared Constants
+ * @agentlensai/core — Shared Constants
  */
 
 /** Default number of results per page */

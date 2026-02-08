@@ -1,5 +1,5 @@
 {
-  "name": "@agentlens/core",
+  "name": "@agentlensai/core",
   "version": "0.2.0",
   "description": "Core types, schemas, and utilities for AgentLens — AI agent observability platform",
   "type": "module",

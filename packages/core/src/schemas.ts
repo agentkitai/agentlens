@@ -1,5 +1,5 @@
 /**
- * @agentlens/core — Zod Validation Schemas
+ * @agentlensai/core — Zod Validation Schemas
  *
  * Runtime validation schemas for all API inputs per Architecture §4.2
  */

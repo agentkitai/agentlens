@@ -11,9 +11,9 @@
 
 import { Hono } from 'hono';
 import { ulid } from 'ulid';
-import { createAlertRuleSchema, updateAlertRuleSchema } from '@agentlens/core';
-import type { AlertRule } from '@agentlens/core';
-import type { IEventStore } from '@agentlens/core';
+import { createAlertRuleSchema, updateAlertRuleSchema } from '@agentlensai/core';
+import type { AlertRule } from '@agentlensai/core';
+import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { NotFoundError } from '../db/errors.js';
 

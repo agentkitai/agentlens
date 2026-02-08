@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect } from 'react';
 import { JsonView, darkStyles, allExpanded, collapseAllNested } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
-import type { AgentLensEvent, EventSeverity } from '@agentlens/core';
+import type { AgentLensEvent, EventSeverity } from '@agentlensai/core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 

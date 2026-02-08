@@ -143,7 +143,7 @@ SELECT hash FROM events WHERE session_id = ? ORDER BY timestamp DESC, id DESC LI
 
 #### L2: Dashboard test suite exits with code 1 (no test files)
 
-**Issue:** `pnpm --filter @agentlens/dashboard test` exits with code 1 because there are no test files. This breaks the `pnpm -r run test` pipeline for the root workspace.
+**Issue:** `pnpm --filter @agentlensai/dashboard test` exits with code 1 because there are no test files. This breaks the `pnpm -r run test` pipeline for the root workspace.
 
 **Fix:** Either add at least one test file or configure Vitest with `passWithNoTests: true` in the dashboard's vitest config.
 

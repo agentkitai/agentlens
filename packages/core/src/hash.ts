@@ -1,5 +1,5 @@
 /**
- * @agentlens/core — Hash Chain Utilities
+ * @agentlensai/core — Hash Chain Utilities
  *
  * Cryptographic hash chain for tamper evidence per Architecture §4.3
  */

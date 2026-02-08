@@ -5,7 +5,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createTestApp, authHeaders } from './test-helpers.js';
 import { eventBus } from '../lib/event-bus.js';
-import type { AgentLensEvent, Session } from '@agentlens/core';
+import type { AgentLensEvent, Session } from '@agentlensai/core';
 
 // Helper to create a mock AgentLensEvent
 function mockEvent(overrides: Partial<AgentLensEvent> = {}): AgentLensEvent {

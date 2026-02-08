@@ -1,5 +1,5 @@
 /**
- * @agentlens/mcp — Tool Definitions and Handlers (Stories 5.2–5.5)
+ * @agentlensai/mcp — Tool Definitions and Handlers (Stories 5.2–5.5)
  *
  * Defines and registers the 4 MCP tools on an McpServer instance:
  *  - agentlens_session_start

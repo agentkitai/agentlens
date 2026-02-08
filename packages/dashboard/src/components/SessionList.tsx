@@ -6,7 +6,7 @@
  */
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import type { Session, SessionStatus } from '@agentlens/core';
+import type { Session, SessionStatus } from '@agentlensai/core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 

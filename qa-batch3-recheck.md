@@ -24,7 +24,7 @@
 
 ### Epic 7: Sessions
 
-- **[PASS] Story 7.2 AC1:** Header fields — Session detail header shows: agent name (`session.agentName`), status badge, duration, events count, errors count, cost, and tags. **Agent version** is not a field on the `Session` type in `@agentlens/core` — the core type has `agentId`, `agentName`, but no `agentVersion`. The AC specified "agent version" but the data model doesn't support it. *(Accepted: AC was aspirational for a field not in the data model. Header shows all available session fields.)*
+- **[PASS] Story 7.2 AC1:** Header fields — Session detail header shows: agent name (`session.agentName`), status badge, duration, events count, errors count, cost, and tags. **Agent version** is not a field on the `Session` type in `@agentlensai/core` — the core type has `agentId`, `agentName`, but no `agentVersion`. The AC specified "agent version" but the data model doesn't support it. *(Accepted: AC was aspirational for a field not in the data model. Header shows all available session fields.)*
 
 - **[PASS] Story 7.3 AC1:** Timeline ascending sort — Events come from the server timeline API and are rendered in array order. The `buildTimelineNodes()` function preserves input order. The server's `/sessions/:id/timeline` endpoint returns events in timestamp ascending order. *(The component correctly renders in server-provided order.)*
 

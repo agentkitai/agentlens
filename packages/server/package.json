@@ -1,5 +1,5 @@
 {
-  "name": "@agentlens/server",
+  "name": "@agentlensai/server",
   "version": "0.2.0",
   "description": "AgentLens API server — event ingestion, querying, dashboard, and alerting for AI agents",
   "type": "module",
@@ -45,7 +45,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@agentlens/core": "workspace:*",
+    "@agentlensai/core": "workspace:*",
     "drizzle-orm": "^0.44.2",
     "better-sqlite3": "^11.9.1",
     "hono": "^4.7.10",

@@ -1,5 +1,5 @@
 {
-  "name": "@agentlens/dashboard",
+  "name": "@agentlensai/dashboard",
   "version": "0.1.1",
   "description": "Web dashboard for AgentLens — visualize agent sessions, events, analytics, and alerts",
   "type": "module",
@@ -20,7 +20,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentlens/core": "workspace:*",
+    "@agentlensai/core": "workspace:*",
     "recharts": "^2.15.0"
   },
   "devDependencies": {

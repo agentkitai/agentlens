@@ -5,7 +5,7 @@
  */
 
 import { Hono } from 'hono';
-import type { IEventStore } from '@agentlens/core';
+import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 
 export function statsRoutes(store: IEventStore) {

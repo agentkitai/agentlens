@@ -16,8 +16,8 @@ import type {
   AgentLensEvent,
   EventQuery,
   Agent,
-} from '@agentlens/core';
-import { EVENT_TYPES, EVENT_SEVERITIES } from '@agentlens/core';
+} from '@agentlensai/core';
+import { EVENT_TYPES, EVENT_SEVERITIES } from '@agentlensai/core';
 import { getEvents, getAgents } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';

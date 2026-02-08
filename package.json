@@ -6,7 +6,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
-    "dev": "pnpm --filter @agentlens/server --filter @agentlens/dashboard -r --parallel run dev",
+    "dev": "pnpm --filter @agentlensai/server --filter @agentlensai/dashboard -r --parallel run dev",
     "lint": "eslint .",
     "typecheck": "pnpm -r run typecheck",
     "format": "prettier --write .",

@@ -43,7 +43,7 @@ Get AgentLens running in 60 seconds:
 
 ```bash
 # Install and start the server
-npx @agentlens/server
+npx @agentlensai/server
 
 # Create an API key
 curl -X POST http://localhost:3400/api/keys \
@@ -58,7 +58,7 @@ Then add AgentLens to your MCP agent config:
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlens/mcp"],
+      "args": ["@agentlensai/mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_your_key_here"

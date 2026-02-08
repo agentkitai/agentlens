@@ -2,7 +2,7 @@
 ## Story 6.1: Set Up React SPA with Vite and Tailwind
 - [FAIL] AC1: `packages/dashboard/src` does not prove dev server/HMR behavior.
 - [PASS] AC2: Source shows React app + Router usage (`main.tsx`, `App.tsx`) and Tailwind directives (`index.css`); build output confirms Vite 6.
-- [PASS] AC3: `pnpm --filter @agentlens/dashboard build` succeeds and outputs assets to `dist/`.
+- [PASS] AC3: `pnpm --filter @agentlensai/dashboard build` succeeds and outputs assets to `dist/`.
 - [FAIL] AC4: Serving from Hono root URL is not verifiable from `packages/dashboard/src`.
 
 ## Story 6.2: Implement Dashboard Layout with Sidebar Navigation

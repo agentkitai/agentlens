@@ -139,13 +139,13 @@ With only 12 repos in the `agent-observability` space globally and thousands of 
 #### Journey: Instrumenting an Agent
 
 ```
-1. Developer installs: npm install @agentlens/mcp-server
+1. Developer installs: npm install @agentlensai/mcp-server
 2. Adds AgentLens to MCP config:
    {
      "mcpServers": {
        "agentlens": {
          "command": "npx",
-         "args": ["@agentlens/mcp-server"],
+         "args": ["@agentlensai/mcp-server"],
          "env": { "AGENTLENS_API_URL": "http://localhost:3200" }
        }
      }
@@ -230,7 +230,7 @@ With only 12 repos in the `agent-observability` space globally and thousands of 
 
 #### FR-P0-1: MCP Server for Event Capture
 
-The system MUST provide an MCP server (`@agentlens/mcp-server`) that agents connect to for event instrumentation.
+The system MUST provide an MCP server (`@agentlensai/mcp-server`) that agents connect to for event instrumentation.
 
 | Requirement | Detail |
 |---|---|
@@ -434,7 +434,7 @@ agentlens/
 │   │   │   ├── events.ts        # Event type definitions and helpers
 │   │   │   ├── schemas.ts       # Zod validation schemas
 │   │   │   └── index.ts         # Public API
-│   │   └── package.json         # @agentlens/core
+│   │   └── package.json         # @agentlensai/core
 │   │
 │   ├── server/            # Hono API server + event storage
 │   │   ├── src/
@@ -444,7 +444,7 @@ agentlens/
 │   │   │   ├── routes/          # API route handlers
 │   │   │   ├── lib/             # Business logic
 │   │   │   └── integrations/    # Webhook receivers (AgentGate, FormBridge)
-│   │   └── package.json         # @agentlens/server
+│   │   └── package.json         # @agentlensai/server
 │   │
 │   ├── mcp-server/        # MCP server for agent instrumentation
 │   │   ├── src/
@@ -452,7 +452,7 @@ agentlens/
 │   │   │   ├── tools.ts         # MCP tool definitions
 │   │   │   ├── interceptor.ts   # Tool call interception logic
 │   │   │   └── buffer.ts        # Event buffering and flush
-│   │   └── package.json         # @agentlens/mcp-server
+│   │   └── package.json         # @agentlensai/mcp-server
 │   │
 │   ├── dashboard/         # React SPA
 │   │   ├── src/
@@ -460,13 +460,13 @@ agentlens/
 │   │   │   ├── components/      # Shared components
 │   │   │   ├── hooks/           # Data fetching hooks
 │   │   │   └── lib/             # Utilities
-│   │   └── package.json         # @agentlens/dashboard
+│   │   └── package.json         # @agentlensai/dashboard
 │   │
 │   └── sdk/               # Optional: programmatic client for non-MCP use
 │       ├── src/
 │       │   ├── client.ts        # HTTP client for AgentLens API
 │       │   └── index.ts
-│       └── package.json         # @agentlens/sdk
+│       └── package.json         # @agentlensai/sdk
 │
 ├── package.json           # Root workspace
 ├── pnpm-workspace.yaml
@@ -1259,10 +1259,10 @@ Query parameters:
 
 | Component | Scope |
 |---|---|
-| **@agentlens/core** | Event types, session types, Zod schemas, utility functions |
-| **@agentlens/mcp-server** | MCP server with 3 tools (start_session, log_event, end_session); batch buffering; stdio transport |
-| **@agentlens/server** | Hono API server; SQLite storage (Drizzle); event ingestion + query endpoints; session endpoints; API key auth; serves dashboard SPA |
-| **@agentlens/dashboard** | React SPA; Overview page (stats + charts); Sessions list page; Session detail page (timeline); Events page; Settings page (API keys) |
+| **@agentlensai/core** | Event types, session types, Zod schemas, utility functions |
+| **@agentlensai/mcp-server** | MCP server with 3 tools (start_session, log_event, end_session); batch buffering; stdio transport |
+| **@agentlensai/server** | Hono API server; SQLite storage (Drizzle); event ingestion + query endpoints; session endpoints; API key auth; serves dashboard SPA |
+| **@agentlensai/dashboard** | React SPA; Overview page (stats + charts); Sessions list page; Session detail page (timeline); Events page; Settings page (API keys) |
 
 **Explicitly out of scope for MVP:**
 - AgentGate/FormBridge integrations (P1)
@@ -1283,7 +1283,7 @@ Query parameters:
 | **Cost tracking** | Cost fields on events/sessions, cost analytics endpoint, cost charts on dashboard |
 | **Alerting (basic)** | Alert rule CRUD, webhook alert channel, alert history |
 | **Dashboard enhancements** | Agents page, cost charts, integration events in timeline, SSE for live updates |
-| **SDK package** | `@agentlens/sdk` — programmatic TypeScript client for the API |
+| **SDK package** | `@agentlensai/sdk` — programmatic TypeScript client for the API |
 
 ### v0.3.0+ — Scale & Teams (Future)
 

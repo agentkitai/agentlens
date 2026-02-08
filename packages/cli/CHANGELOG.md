@@ -1,4 +1,4 @@
-# @agentlens/cli
+# @agentlensai/cli
 
 ## 0.2.0
 
@@ -16,4 +16,4 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlens/sdk@0.2.0
+  - @agentlensai/sdk@0.2.0

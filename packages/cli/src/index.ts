@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @agentlens/cli — Command-line interface for AgentLens
+ * @agentlensai/cli — Command-line interface for AgentLens
  *
  * Uses node:util parseArgs for lightweight argument parsing.
  */

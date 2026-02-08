@@ -1,5 +1,5 @@
 /**
- * @agentlens/server — Hono HTTP API server and event storage
+ * @agentlensai/server — Hono HTTP API server and event storage
  *
  * Exports:
  * - createApp(store, config?) — factory that returns a configured Hono app
@@ -14,7 +14,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { IEventStore } from '@agentlens/core';
+import type { IEventStore } from '@agentlensai/core';
 import { getConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';
 import { apiKeysRoutes } from './routes/api-keys.js';

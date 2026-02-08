@@ -1,5 +1,5 @@
 /**
- * @agentlens/sdk — AgentLensClient
+ * @agentlensai/sdk — AgentLensClient
  *
  * Typed HTTP client for the AgentLens REST API.
  * Uses native fetch — works in Node.js ≥ 18 and browsers.
@@ -11,7 +11,7 @@ import type {
   AgentLensEvent,
   Session,
   SessionQuery,
-} from '@agentlens/core';
+} from '@agentlensai/core';
 import {
   AgentLensError,
   AuthenticationError,

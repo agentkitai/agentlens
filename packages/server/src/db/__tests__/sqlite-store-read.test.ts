@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { AgentLensEvent } from '@agentlens/core';
-import { computeEventHash } from '@agentlens/core';
+import type { AgentLensEvent } from '@agentlensai/core';
+import { computeEventHash } from '@agentlensai/core';
 import { sql } from 'drizzle-orm';
 import { createTestDb, type SqliteDb } from '../index.js';
 import { runMigrations } from '../migrate.js';

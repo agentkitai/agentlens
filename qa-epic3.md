@@ -3,7 +3,7 @@
 Scope reviewed:
 - Source: `packages/server/src/**`
 - Criteria source: `_bmad-output/planning-artifacts/epics.md` (Epic 3 only)
-- Verification run: `pnpm --filter @agentlens/server test` → **PASS** (4 files, 77 tests)
+- Verification run: `pnpm --filter @agentlensai/server test` → **PASS** (4 files, 77 tests)
 
 ## Story 3.1 — Define Storage Interface (IEventStore)
 
