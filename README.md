@@ -31,6 +31,34 @@ AgentLens is a **flight recorder for AI agents**. It captures every tool call, a
 - **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz/agentgate) (approval flows) and [FormBridge](https://github.com/amitpaz/formbridge) (data collection).
 - **🏠 Self-Hosted** — SQLite by default, no external dependencies. MIT licensed. Your data stays on your infrastructure.
 
+## 📸 Dashboard
+
+AgentLens ships with a real-time web dashboard for monitoring your agents.
+
+### Overview — At-a-Glance Metrics
+
+![Dashboard Overview](demo/dashboard-overview.jpg)
+
+The overview page shows **live metrics** — sessions, events, errors, and active agents — with a 24-hour event timeline chart, recent sessions with status badges (active/completed), and a recent errors feed. Everything updates in real-time via SSE.
+
+### Sessions — Track Every Agent Run
+
+![Sessions List](demo/dashboard-sessions.jpg)
+
+The sessions table shows **every agent session** with sortable columns: agent name, status, start time, duration, event count, error count, and total cost. Filter by agent or status (Active / Completed / Error) to drill down.
+
+### Session Detail — Timeline & Hash Chain
+
+![Session Detail](demo/dashboard-session-detail.jpg)
+
+Click into any session to see the **full event timeline** — every tool call, error, cost event, and session lifecycle event in chronological order. The green **✓ Chain Valid** badge confirms the tamper-evident hash chain is intact. Filter by event type (Tool Calls, Errors, Approvals, Custom). Cost breakdown shows token usage and spend.
+
+### Events Explorer — Search & Filter Everything
+
+![Events Explorer](demo/dashboard-events.jpg)
+
+The events explorer gives you a **searchable, filterable view** of every event across all sessions. Filter by event type, severity, agent, or time range. Full-text search works on payload content. Each row shows the tool name, agent, session, severity level, and duration.
+
 ## 🏗️ Architecture
 
 ```
