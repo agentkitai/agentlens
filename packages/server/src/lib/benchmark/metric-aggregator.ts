@@ -31,15 +31,24 @@ export class MetricAggregator {
     metrics: BenchmarkMetric[],
     timeRange?: { from: string; to: string },
   ): Promise<{ sessionCount: number; metrics: Record<BenchmarkMetric, MetricStats> }> {
-    // Query sessions that have the variant's tag
-    const { sessions } = await store.querySessions({
-      tenantId: variant.tenantId,
-      agentId: variant.agentId,
-      tags: [variant.tag],
-      from: timeRange?.from,
-      to: timeRange?.to,
-      limit: 10000, // Fetch all matching sessions
-    });
+    // Paginate through all sessions (store caps at 500 per query)
+    const sessions: Session[] = [];
+    const pageSize = 500;
+    let offset = 0;
+    while (true) {
+      const page = await store.querySessions({
+        tenantId: variant.tenantId,
+        agentId: variant.agentId,
+        tags: [variant.tag],
+        from: timeRange?.from,
+        to: timeRange?.to,
+        limit: pageSize,
+        offset,
+      });
+      sessions.push(...page.sessions);
+      if (page.sessions.length < pageSize) break;
+      offset += pageSize;
+    }
 
     const result = {} as Record<BenchmarkMetric, MetricStats>;
 
@@ -88,9 +97,11 @@ export class MetricAggregator {
         return session.status === 'completed' ? 1 : 0;
 
       case 'tool_success_rate':
-        // (toolCallCount - errorCount) / toolCallCount
+        // errorCount includes ALL errors (LLM, system, etc.), not just tool errors.
+        // Use conservative proxy: cap tool errors at toolCallCount to avoid negative rates.
         if (session.toolCallCount === 0) return null;
-        return Math.max(0, (session.toolCallCount - session.errorCount) / session.toolCallCount);
+        const toolErrors = Math.min(session.errorCount, session.toolCallCount);
+        return Math.max(0, (session.toolCallCount - toolErrors) / session.toolCallCount);
 
       case 'avg_tokens':
         return session.totalInputTokens + session.totalOutputTokens;

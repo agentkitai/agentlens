@@ -222,7 +222,8 @@ describe('MetricAggregator — aggregate', () => {
       tags: ['v1'],
       from: timeRange.from,
       to: timeRange.to,
-      limit: 10000,
+      limit: 500,
+      offset: 0,
     });
   });
 });

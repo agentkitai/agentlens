@@ -186,17 +186,6 @@ export class BenchmarkEngine {
     for (const [winnerId, wins] of winsByVariant) {
       const winnerName = variantNameMap.get(winnerId) ?? winnerId;
 
-      // For each win, identify the loser from the comparison
-      const metricSummaries = wins.map((comp) => {
-        const loserId = comp.winner === comp.variantA.id ? comp.variantB.id : comp.variantA.id;
-        const loserName = variantNameMap.get(loserId) ?? loserId;
-        const metricName = METRIC_DISPLAY_NAMES[comp.metric] ?? comp.metric;
-        const pctSign = comp.percentDiff >= 0 ? '+' : '';
-        const pctStr = `${pctSign}${comp.percentDiff.toFixed(0)}%`;
-
-        return `${metricName} (${pctStr}, ${comp.confidence})`;
-      });
-
       // Group by loser
       const loserIds = new Set(
         wins.map((c) =>

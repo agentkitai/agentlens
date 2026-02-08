@@ -59,7 +59,7 @@ function validateCreateInput(body: any): { error?: string; input?: CreateBenchma
   }
 
   // Metrics: optional array, but if provided must be valid
-  let metrics: BenchmarkMetric[] = [...BENCHMARK_METRICS]; // default: all
+  let metrics: BenchmarkMetric[] = BENCHMARK_METRICS.filter(m => m !== 'health_score'); // default: all supported
   if (body.metrics !== undefined) {
     if (!Array.isArray(body.metrics) || body.metrics.length === 0) {
       return { error: 'metrics must be a non-empty array' };
@@ -67,6 +67,9 @@ function validateCreateInput(body: any): { error?: string; input?: CreateBenchma
     for (const m of body.metrics) {
       if (!VALID_METRICS.has(m)) {
         return { error: `Invalid metric: ${m}` };
+      }
+      if (m === 'health_score') {
+        return { error: `Metric "health_score" is not yet supported for benchmarks. It requires pre-computed health snapshots.` };
       }
     }
     metrics = body.metrics;
@@ -217,15 +220,15 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     const variantsWithCounts = await Promise.all(
       benchmark.variants.map(async (v) => {
         try {
-          const { sessions } = await tenantStore.querySessions({
+          const { total } = await tenantStore.querySessions({
             tenantId: v.tenantId,
             agentId: v.agentId,
             tags: [v.tag],
             from: benchmark.timeRange?.from,
             to: benchmark.timeRange?.to,
-            limit: 0,
+            limit: 1, // Minimal fetch — we only need the count
           });
-          return { ...v, sessionCount: sessions.length };
+          return { ...v, sessionCount: total };
         } catch {
           return { ...v, sessionCount: 0 };
         }

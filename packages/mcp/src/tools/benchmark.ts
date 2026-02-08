@@ -48,6 +48,7 @@ export interface MetricResult {
   winner?: string;
   difference?: number;
   differencePercent?: number;
+  confidence?: string;
 }
 
 export interface BenchmarkResults {
@@ -72,13 +73,21 @@ function statusIcon(status: string): string {
 }
 
 /**
- * Confidence stars based on p-value.
+ * Confidence stars from the API's confidence field.
+ * Falls back to p-value thresholds matching the server (★ p<0.1, ★★ p<0.05, ★★★ p<0.01).
  */
-function confidenceStars(pValue: number | undefined): string {
+function confidenceStars(pValue: number | undefined, confidence?: string): string {
+  if (confidence) {
+    if (confidence === 'high') return ' ★★★';
+    if (confidence === 'medium') return ' ★★';
+    if (confidence === 'low') return ' ★';
+    return '';
+  }
+  // Fallback: match server thresholds
   if (pValue === undefined) return '';
-  if (pValue < 0.001) return ' ★★★';
-  if (pValue < 0.01) return ' ★★';
-  if (pValue < 0.05) return ' ★';
+  if (pValue < 0.01) return ' ★★★';
+  if (pValue < 0.05) return ' ★★';
+  if (pValue < 0.1) return ' ★';
   return '';
 }
 
@@ -231,7 +240,7 @@ export function formatBenchmarkResults(results: BenchmarkResults): string {
     cols.push(pStr.padEnd(statsColWidth));
 
     let resultStr = metric.significant ? `${metric.winner ?? '?'} wins` : 'no sig. diff.';
-    resultStr += confidenceStars(metric.pValue);
+    resultStr += confidenceStars(metric.pValue, metric.confidence);
 
     cols.push(resultStr);
 
@@ -239,7 +248,7 @@ export function formatBenchmarkResults(results: BenchmarkResults): string {
   }
 
   lines.push('');
-  lines.push(`Confidence: ★ p<0.05  ★★ p<0.01  ★★★ p<0.001`);
+  lines.push(`Confidence: ★ p<0.1  ★★ p<0.05  ★★★ p<0.01`);
 
   if (results.summary) {
     lines.push('');

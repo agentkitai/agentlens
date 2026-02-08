@@ -171,8 +171,7 @@ export function registerReplayRoutes(
       // Apply memory guard: cap LLM history
       capLlmHistory(state);
 
-      // Cache the full (uncapped) state for future requests
-      // We cache after build but the capping is applied on response
+      // Cache the state (LLM history has been capped for memory efficiency)
       const apiKeyInfo = c.get('apiKey');
       const tenantId = apiKeyInfo?.tenantId ?? 'default';
       putCache(tenantId, sessionId, state);
