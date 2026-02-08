@@ -198,6 +198,66 @@ export class AgentLensTransport {
     this.sessionAgentMap.delete(sessionId);
   }
 
+  // ─── Lesson API methods (Story 3.3) ─────────────────────────
+
+  /**
+   * Create a new lesson.
+   */
+  async createLesson(body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/lessons`;
+    return fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * List lessons with optional query parameters.
+   */
+  async getLessons(params: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params);
+    const url = `${this.baseUrl}/api/lessons?${searchParams.toString()}`;
+    return fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+  }
+
+  /**
+   * Get a single lesson by ID.
+   */
+  async getLesson(id: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/lessons/${encodeURIComponent(id)}`;
+    return fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+  }
+
+  /**
+   * Update an existing lesson.
+   */
+  async updateLesson(id: string, body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/lessons/${encodeURIComponent(id)}`;
+    return fetch(url, {
+      method: 'PUT',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * Delete (archive) a lesson.
+   */
+  async deleteLesson(id: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/lessons/${encodeURIComponent(id)}`;
+    return fetch(url, {
+      method: 'DELETE',
+      headers: this.buildHeaders(),
+    });
+  }
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

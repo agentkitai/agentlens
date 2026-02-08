@@ -65,6 +65,7 @@ describe('Tool Registration (Story 5.1)', () => {
     const toolNames = result.tools.map((t) => t.name).sort();
 
     expect(toolNames).toEqual([
+      'agentlens_learn',
       'agentlens_log_event',
       'agentlens_log_llm_call',
       'agentlens_query_events',

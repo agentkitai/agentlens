@@ -189,6 +189,42 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_tenant_started ON sessions(tenant_id, started_at)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_agents_tenant_id ON agents(tenant_id)`);
 
+  // ─── Embeddings table (Epic 2 — Story 2.2) ──────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS embeddings (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      text_content TEXT NOT NULL,
+      embedding BLOB NOT NULL,
+      embedding_model TEXT NOT NULL,
+      dimensions INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_embeddings_tenant ON embeddings(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_embeddings_source ON embeddings(source_type, source_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_embeddings_content_hash ON embeddings(tenant_id, content_hash)`);
+
+  // ─── Session Summaries table (Epic 2 — Story 2.2) ──────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS session_summaries (
+      session_id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      topics TEXT NOT NULL DEFAULT '[]',
+      tool_sequence TEXT NOT NULL DEFAULT '[]',
+      error_summary TEXT,
+      outcome TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (session_id, tenant_id)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_session_summaries_tenant ON session_summaries(tenant_id)`);
+
   // ─── Composite PK migration (CRITICAL-2) ──────────────────
   // SQLite doesn't support ALTER TABLE to change PKs, so we recreate
   // tables with composite PKs (id, tenant_id) for tenant isolation.
@@ -277,6 +313,32 @@ export function runMigrations(db: SqliteDb): void {
 
     db.run(sql`CREATE INDEX idx_agents_tenant_id ON agents(tenant_id)`);
   }
+
+  // ─── Lessons table (Epic 3) ──────────────────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS lessons (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      agent_id TEXT,
+      category TEXT NOT NULL DEFAULT 'general',
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      context TEXT NOT NULL DEFAULT '{}',
+      importance TEXT NOT NULL DEFAULT 'normal',
+      source_session_id TEXT,
+      source_event_id TEXT,
+      access_count INTEGER NOT NULL DEFAULT 0,
+      last_accessed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      archived_at TEXT
+    )
+  `);
+
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_lessons_tenant ON lessons(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_lessons_tenant_agent ON lessons(tenant_id, agent_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_lessons_tenant_category ON lessons(tenant_id, category)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_lessons_tenant_importance ON lessons(tenant_id, importance)`);
 }
 
 /**

@@ -5,7 +5,7 @@
  * All indexes per Architecture §6.2.
  */
 
-import { sqliteTable, text, integer, real, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, blob, index, primaryKey } from 'drizzle-orm/sqlite-core';
 
 // ─── Events Table ──────────────────────────────────────────
 export const events = sqliteTable(
@@ -125,6 +125,34 @@ export const alertHistory = sqliteTable(
   (table) => [index('idx_alert_history_rule_id').on(table.ruleId)],
 );
 
+// ─── Lessons Table (Epic 3) ────────────────────────────────
+export const lessons = sqliteTable(
+  'lessons',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    agentId: text('agent_id'),
+    category: text('category').notNull().default('general'),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    context: text('context').notNull().default('{}'), // JSON
+    importance: text('importance').notNull().default('normal'),
+    sourceSessionId: text('source_session_id'),
+    sourceEventId: text('source_event_id'),
+    accessCount: integer('access_count').notNull().default(0),
+    lastAccessedAt: text('last_accessed_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    archivedAt: text('archived_at'),
+  },
+  (table) => [
+    index('idx_lessons_tenant').on(table.tenantId),
+    index('idx_lessons_tenant_agent').on(table.tenantId, table.agentId),
+    index('idx_lessons_tenant_category').on(table.tenantId, table.category),
+    index('idx_lessons_tenant_importance').on(table.tenantId, table.importance),
+  ],
+);
+
 // ─── API Keys ─────────────────────────────────────────────
 export const apiKeys = sqliteTable(
   'api_keys',
@@ -140,4 +168,46 @@ export const apiKeys = sqliteTable(
     tenantId: text('tenant_id').notNull().default('default'),
   },
   (table) => [index('idx_api_keys_hash').on(table.keyHash)],
+);
+
+// ─── Embeddings Table (Epic 2) ────────────────────────────
+export const embeddings = sqliteTable(
+  'embeddings',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    sourceType: text('source_type').notNull(), // 'event', 'session', 'lesson'
+    sourceId: text('source_id').notNull(),
+    contentHash: text('content_hash').notNull(), // SHA-256 of embedded text
+    textContent: text('text_content').notNull(),
+    embedding: blob('embedding', { mode: 'buffer' }).notNull(), // Float32Array as binary
+    embeddingModel: text('embedding_model').notNull(),
+    dimensions: integer('dimensions').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_embeddings_tenant').on(table.tenantId),
+    index('idx_embeddings_source').on(table.sourceType, table.sourceId),
+    index('idx_embeddings_content_hash').on(table.tenantId, table.contentHash),
+  ],
+);
+
+// ─── Session Summaries Table (Epic 2) ─────────────────────
+export const sessionSummaries = sqliteTable(
+  'session_summaries',
+  {
+    sessionId: text('session_id').notNull(),
+    tenantId: text('tenant_id').notNull(),
+    summary: text('summary').notNull(),
+    topics: text('topics').notNull().default('[]'), // JSON array
+    toolSequence: text('tool_sequence').notNull().default('[]'), // JSON array
+    errorSummary: text('error_summary'),
+    outcome: text('outcome'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.tenantId] }),
+    index('idx_session_summaries_tenant').on(table.tenantId),
+  ],
 );

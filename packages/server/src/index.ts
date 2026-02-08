@@ -27,6 +27,7 @@ import { alertsRoutes } from './routes/alerts.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { streamRoutes } from './routes/stream.js';
+import { lessonsRoutes } from './routes/lessons.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -48,6 +49,7 @@ export { alertsRoutes } from './routes/alerts.js';
 export { ingestRoutes, verifyWebhookSignature } from './routes/ingest.js';
 export { analyticsRoutes } from './routes/analytics.js';
 export { streamRoutes } from './routes/stream.js';
+export { lessonsRoutes } from './routes/lessons.js';
 export { createSSEStream } from './lib/sse.js';
 export { SqliteEventStore } from './db/sqlite-store.js';
 export { TenantScopedStore } from './db/tenant-scoped-store.js';
@@ -56,6 +58,7 @@ export { eventBus } from './lib/event-bus.js';
 export { createDb, createTestDb } from './db/index.js';
 export type { SqliteDb } from './db/index.js';
 export { runMigrations } from './db/migrate.js';
+export { LessonStore } from './db/lesson-store.js';
 
 // ─── Dashboard SPA helpers ───────────────────────────────────
 
@@ -192,6 +195,7 @@ export function createApp(
     app.use('/api/config/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/analytics/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/alerts/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/lessons/*', authMiddleware(db, resolvedConfig.authDisabled));
   }
 
   // ─── Routes ────────────────────────────────────────────
@@ -207,6 +211,9 @@ export function createApp(
     app.route('/api/analytics', analyticsRoutes(store, db));
   }
   app.route('/api/alerts', alertsRoutes(store));
+  if (db) {
+    app.route('/api/lessons', lessonsRoutes(db));
+  }
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();

@@ -463,3 +463,84 @@ export interface AlertHistory {
   /** Tenant this alert history belongs to (multi-tenant isolation) */
   tenantId: string;
 }
+
+// ─── Recall / Self-Query Types (Epic 2) ─────────────────────────────
+
+/**
+ * Query for agent self-recall (semantic search over embeddings)
+ */
+export interface RecallQuery {
+  /** Natural language query to search for */
+  query: string;
+  /** Scope filter: 'event' | 'session' | 'lesson' */
+  scope?: string;
+  /** Filter by agent ID */
+  agentId?: string;
+  /** Filter embeddings created after this ISO 8601 timestamp */
+  from?: Timestamp;
+  /** Filter embeddings created before this ISO 8601 timestamp */
+  to?: Timestamp;
+  /** Max number of results to return (default: 10) */
+  limit?: number;
+  /** Minimum cosine similarity score (0-1, default: 0.5) */
+  minScore?: number;
+}
+
+/**
+ * Result of a recall query
+ */
+export interface RecallResult {
+  /** Matching results, sorted by score descending */
+  results: Array<{
+    sourceType: string;
+    sourceId: string;
+    score: number;
+    text: string;
+    metadata?: Record<string, unknown>;
+  }>;
+  /** The original query string */
+  query: string;
+  /** Total number of results found (before limit) */
+  totalResults: number;
+}
+
+// ─── Lesson Types (Epic 3) ──────────────────────────────────────────
+
+/**
+ * Importance levels for lessons
+ */
+export type LessonImportance = 'low' | 'normal' | 'high' | 'critical';
+
+/**
+ * A distilled lesson / insight from agent experience
+ */
+export interface Lesson {
+  id: string;
+  tenantId: string;
+  agentId?: string;
+  category: string;
+  title: string;
+  content: string;
+  context: Record<string, unknown>;
+  importance: LessonImportance;
+  sourceSessionId?: string;
+  sourceEventId?: string;
+  accessCount: number;
+  lastAccessedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+/**
+ * Query filters for listing lessons
+ */
+export interface LessonQuery {
+  agentId?: string;
+  category?: string;
+  importance?: LessonImportance;
+  search?: string;
+  limit?: number;
+  offset?: number;
+  includeArchived?: boolean;
+}

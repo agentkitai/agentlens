@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AgentLensTransport } from './transport.js';
+import { registerLearnTool } from './tools/learn.js';
 
 // ─── Tool Registration ─────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ export function registerTools(server: McpServer, transport: AgentLensTransport):
   registerSessionEnd(server, transport);
   registerQueryEvents(server, transport);
   registerLogLlmCall(server, transport);
+  registerLearnTool(server, transport);
 }
 
 // ─── 5.2: agentlens_session_start ──────────────────────────────────
