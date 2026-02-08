@@ -791,3 +791,83 @@ export interface ContextResult {
   /** Summary of the context */
   summary?: string;
 }
+
+// ─── Health Score Types (Epic 6 — Story 1.1) ───────────────────────
+
+/** Health score dimension */
+export interface HealthDimension {
+  name: 'error_rate' | 'cost_efficiency' | 'tool_success' | 'latency' | 'completion_rate';
+  score: number;       // 0-100
+  weight: number;      // 0-1
+  rawValue: number;    // original metric value
+  description: string;
+}
+
+export type HealthTrend = 'improving' | 'stable' | 'degrading';
+
+/** Health score for a single agent */
+export interface HealthScore {
+  agentId: string;
+  overallScore: number;    // 0-100, weighted sum of dimensions
+  trend: HealthTrend;
+  trendDelta: number;      // point change from previous window
+  dimensions: HealthDimension[];
+  window: { from: string; to: string };
+  sessionCount: number;
+  computedAt: string;
+}
+
+/** Configurable weights for health score dimensions */
+export interface HealthWeights {
+  errorRate: number;        // default 0.30
+  costEfficiency: number;   // default 0.20
+  toolSuccess: number;      // default 0.20
+  latency: number;          // default 0.15
+  completionRate: number;   // default 0.15
+}
+
+/** Historical health snapshot */
+export interface HealthSnapshot {
+  agentId: string;
+  date: string;
+  overallScore: number;
+  errorRateScore: number;
+  costEfficiencyScore: number;
+  toolSuccessScore: number;
+  latencyScore: number;
+  completionRateScore: number;
+  sessionCount: number;
+}
+
+// ─── Cost Optimization Types (Epic 6 — Story 2.1) ──────────────────
+
+export type ComplexityTier = 'simple' | 'moderate' | 'complex';
+export type ConfidenceLevel = 'low' | 'medium' | 'high';
+
+/** Cost optimization recommendation */
+export interface CostRecommendation {
+  currentModel: string;
+  recommendedModel: string;
+  complexityTier: ComplexityTier;
+  currentCostPerCall: number;
+  recommendedCostPerCall: number;
+  monthlySavings: number;
+  callVolume: number;
+  currentSuccessRate: number;
+  recommendedSuccessRate: number;
+  confidence: ConfidenceLevel;
+  agentId: string;
+}
+
+/** Result of optimization analysis */
+export interface OptimizationResult {
+  recommendations: CostRecommendation[];
+  totalPotentialSavings: number;
+  period: number;
+  analyzedCalls: number;
+}
+
+/** Model cost configuration (per 1M tokens) */
+export interface ModelCosts {
+  [model: string]: { input: number; output: number };
+}

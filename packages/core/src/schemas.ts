@@ -251,3 +251,83 @@ export const ingestEventSchema = z
  * Type inferred from the ingest event schema
  */
 export type IngestEventInput = z.infer<typeof ingestEventSchema>;
+
+// ─── Health Score Schemas (Story 1.1) ───────────────────────────────
+
+export const HealthDimensionSchema = z.object({
+  name: z.enum(['error_rate', 'cost_efficiency', 'tool_success', 'latency', 'completion_rate']),
+  score: z.number().min(0).max(100),
+  weight: z.number().min(0).max(1),
+  rawValue: z.number(),
+  description: z.string().min(1),
+});
+
+export const HealthTrendSchema = z.enum(['improving', 'stable', 'degrading']);
+
+export const HealthScoreSchema = z.object({
+  agentId: z.string().min(1),
+  overallScore: z.number().min(0).max(100),
+  trend: HealthTrendSchema,
+  trendDelta: z.number(),
+  dimensions: z.array(HealthDimensionSchema).min(1),
+  window: z.object({
+    from: z.string().min(1),
+    to: z.string().min(1),
+  }),
+  sessionCount: z.number().int().min(0),
+  computedAt: z.string().min(1),
+});
+
+export const HealthWeightsSchema = z
+  .object({
+    errorRate: z.number().min(0).max(1),
+    costEfficiency: z.number().min(0).max(1),
+    toolSuccess: z.number().min(0).max(1),
+    latency: z.number().min(0).max(1),
+    completionRate: z.number().min(0).max(1),
+  })
+  .refine(
+    (w) => {
+      const sum = w.errorRate + w.costEfficiency + w.toolSuccess + w.latency + w.completionRate;
+      return sum >= 0.95 && sum <= 1.05;
+    },
+    { message: 'Weights must sum to approximately 1.0 (tolerance: 0.95–1.05)' },
+  );
+
+export const HealthSnapshotSchema = z.object({
+  agentId: z.string().min(1),
+  date: z.string().min(1),
+  overallScore: z.number().min(0).max(100),
+  errorRateScore: z.number().min(0).max(100),
+  costEfficiencyScore: z.number().min(0).max(100),
+  toolSuccessScore: z.number().min(0).max(100),
+  latencyScore: z.number().min(0).max(100),
+  completionRateScore: z.number().min(0).max(100),
+  sessionCount: z.number().int().min(0),
+});
+
+// ─── Cost Optimization Schemas (Story 2.1) ──────────────────────────
+
+export const ComplexityTierSchema = z.enum(['simple', 'moderate', 'complex']);
+export const ConfidenceLevelSchema = z.enum(['low', 'medium', 'high']);
+
+export const CostRecommendationSchema = z.object({
+  currentModel: z.string().min(1),
+  recommendedModel: z.string().min(1),
+  complexityTier: ComplexityTierSchema,
+  currentCostPerCall: z.number().min(0),
+  recommendedCostPerCall: z.number().min(0),
+  monthlySavings: z.number(),
+  callVolume: z.number().int().min(0),
+  currentSuccessRate: z.number().min(0).max(1),
+  recommendedSuccessRate: z.number().min(0).max(1),
+  confidence: ConfidenceLevelSchema,
+  agentId: z.string().min(1),
+});
+
+export const OptimizationResultSchema = z.object({
+  recommendations: z.array(CostRecommendationSchema),
+  totalPotentialSavings: z.number().min(0),
+  period: z.number().int().min(1),
+  analyzedCalls: z.number().int().min(0),
+});
