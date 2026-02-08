@@ -1,7 +1,30 @@
 {
   "name": "@agentlens/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Core types, schemas, and utilities for AgentLens — AI agent observability platform",
   "type": "module",
+  "license": "MIT",
+  "author": "Amit Paz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amitpaz/agentlens.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/amitpaz/agentlens/tree/main/packages/core",
+  "bugs": {
+    "url": "https://github.com/amitpaz/agentlens/issues"
+  },
+  "keywords": [
+    "agentlens",
+    "ai-agents",
+    "observability",
+    "mcp",
+    "event-sourcing",
+    "audit-trail",
+    "types",
+    "schemas",
+    "zod"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",

@@ -1,7 +1,31 @@
 {
   "name": "@agentlens/server",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "AgentLens API server — event ingestion, querying, dashboard, and alerting for AI agents",
   "type": "module",
+  "license": "MIT",
+  "author": "Amit Paz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amitpaz/agentlens.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/amitpaz/agentlens",
+  "bugs": {
+    "url": "https://github.com/amitpaz/agentlens/issues"
+  },
+  "keywords": [
+    "agentlens",
+    "ai-agents",
+    "observability",
+    "api-server",
+    "event-sourcing",
+    "audit-trail",
+    "hono",
+    "sqlite",
+    "dashboard",
+    "mcp"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

@@ -1,7 +1,30 @@
 {
   "name": "@agentlens/mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "MCP server for AgentLens — instrument AI agents with zero code changes",
   "type": "module",
+  "license": "MIT",
+  "author": "Amit Paz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amitpaz/agentlens.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/amitpaz/agentlens/tree/main/packages/mcp",
+  "bugs": {
+    "url": "https://github.com/amitpaz/agentlens/issues"
+  },
+  "keywords": [
+    "agentlens",
+    "mcp",
+    "mcp-server",
+    "ai-agents",
+    "observability",
+    "claude-desktop",
+    "cursor",
+    "model-context-protocol",
+    "instrumentation"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",

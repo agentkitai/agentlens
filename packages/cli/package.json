@@ -1,7 +1,35 @@
 {
   "name": "@agentlens/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Command-line interface for AgentLens — query events, sessions, and manage your observability server",
   "type": "module",
+  "license": "MIT",
+  "author": "Amit Paz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amitpaz/agentlens.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/amitpaz/agentlens/tree/main/packages/cli",
+  "bugs": {
+    "url": "https://github.com/amitpaz/agentlens/issues"
+  },
+  "keywords": [
+    "agentlens",
+    "ai-agents",
+    "observability",
+    "cli",
+    "command-line",
+    "terminal"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "agentlens": "./dist/index.js"
   },

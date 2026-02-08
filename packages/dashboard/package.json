@@ -1,7 +1,15 @@
 {
   "name": "@agentlens/dashboard",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Web dashboard for AgentLens — visualize agent sessions, events, analytics, and alerts",
   "type": "module",
+  "license": "MIT",
+  "author": "Amit Paz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amitpaz/agentlens.git",
+    "directory": "packages/dashboard"
+  },
   "private": true,
   "scripts": {
     "dev": "vite",
