@@ -9,6 +9,12 @@ export type {
   SessionQueryResult,
   TimelineResult,
   HealthResult,
+  LogLlmCallParams,
+  LlmAnalyticsParams,
+  LlmAnalyticsResult,
+  LlmAnalyticsSummary,
+  LlmAnalyticsByModel,
+  LlmAnalyticsByTime,
 } from './client.js';
 
 // Errors
@@ -31,4 +37,7 @@ export type {
   SessionQuery,
   SessionStatus,
   Agent,
+  LlmMessage,
+  LlmCallPayload,
+  LlmResponsePayload,
 } from '@agentlensai/core';

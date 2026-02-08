@@ -207,6 +207,143 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
     });
   });
 
+  // GET /api/analytics/llm — LLM call analytics
+  app.get('/llm', async (c) => {
+    const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
+    const to = c.req.query('to') ?? new Date().toISOString();
+    const granularity = (c.req.query('granularity') ?? 'hour') as 'hour' | 'day' | 'week';
+    const agentId = c.req.query('agentId');
+    const model = c.req.query('model');
+    const provider = c.req.query('provider');
+
+    if (!['hour', 'day', 'week'].includes(granularity)) {
+      return c.json({ error: 'Invalid granularity. Use: hour, day, week', status: 400 }, 400);
+    }
+
+    const formatStr =
+      granularity === 'hour'
+        ? '%Y-%m-%dT%H:00:00Z'
+        : granularity === 'day'
+          ? '%Y-%m-%dT00:00:00Z'
+          : '%Y-%W';
+
+    // Summary totals
+    const summary = db.get<{
+      totalCalls: number;
+      totalCostUsd: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      avgLatencyMs: number;
+    }>(
+      sql`
+        SELECT
+          COUNT(*) as totalCalls,
+          COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
+          COALESCE(SUM(json_extract(payload, '$.usage.inputTokens')), 0) as totalInputTokens,
+          COALESCE(SUM(json_extract(payload, '$.usage.outputTokens')), 0) as totalOutputTokens,
+          COALESCE(AVG(json_extract(payload, '$.latencyMs')), 0) as avgLatencyMs
+        FROM events
+        WHERE event_type = 'llm_response'
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
+          ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
+          ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
+      `,
+    );
+
+    const totalCalls = Number(summary?.totalCalls ?? 0);
+    const totalCostUsd = Number(summary?.totalCostUsd ?? 0);
+
+    // By model breakdown
+    const byModel = db.all<{
+      provider: string;
+      model: string;
+      calls: number;
+      costUsd: number;
+      inputTokens: number;
+      outputTokens: number;
+      avgLatencyMs: number;
+    }>(
+      sql`
+        SELECT
+          json_extract(payload, '$.provider') as provider,
+          json_extract(payload, '$.model') as model,
+          COUNT(*) as calls,
+          COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as costUsd,
+          COALESCE(SUM(json_extract(payload, '$.usage.inputTokens')), 0) as inputTokens,
+          COALESCE(SUM(json_extract(payload, '$.usage.outputTokens')), 0) as outputTokens,
+          COALESCE(AVG(json_extract(payload, '$.latencyMs')), 0) as avgLatencyMs
+        FROM events
+        WHERE event_type = 'llm_response'
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
+          ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
+          ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
+        GROUP BY provider, model
+        ORDER BY costUsd DESC
+      `,
+    );
+
+    // By time bucket
+    const byTime = db.all<{
+      bucket: string;
+      calls: number;
+      costUsd: number;
+      inputTokens: number;
+      outputTokens: number;
+      avgLatencyMs: number;
+    }>(
+      sql`
+        SELECT
+          strftime(${formatStr}, timestamp) as bucket,
+          COUNT(*) as calls,
+          COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as costUsd,
+          COALESCE(SUM(json_extract(payload, '$.usage.inputTokens')), 0) as inputTokens,
+          COALESCE(SUM(json_extract(payload, '$.usage.outputTokens')), 0) as outputTokens,
+          COALESCE(AVG(json_extract(payload, '$.latencyMs')), 0) as avgLatencyMs
+        FROM events
+        WHERE event_type = 'llm_response'
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
+          ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
+          ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
+        GROUP BY bucket
+        ORDER BY bucket ASC
+      `,
+    );
+
+    return c.json({
+      summary: {
+        totalCalls,
+        totalCostUsd,
+        totalInputTokens: Number(summary?.totalInputTokens ?? 0),
+        totalOutputTokens: Number(summary?.totalOutputTokens ?? 0),
+        avgLatencyMs: Number(summary?.avgLatencyMs ?? 0),
+        avgCostPerCall: totalCalls > 0 ? totalCostUsd / totalCalls : 0,
+      },
+      byModel: byModel.map((r) => ({
+        provider: r.provider,
+        model: r.model,
+        calls: Number(r.calls),
+        costUsd: Number(r.costUsd),
+        inputTokens: Number(r.inputTokens),
+        outputTokens: Number(r.outputTokens),
+        avgLatencyMs: Number(r.avgLatencyMs),
+      })),
+      byTime: byTime.map((r) => ({
+        bucket: r.bucket,
+        calls: Number(r.calls),
+        costUsd: Number(r.costUsd),
+        inputTokens: Number(r.inputTokens),
+        outputTokens: Number(r.outputTokens),
+        avgLatencyMs: Number(r.avgLatencyMs),
+      })),
+    });
+  });
+
   // GET /api/analytics/tools — tool usage statistics
   app.get('/tools', async (c) => {
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();

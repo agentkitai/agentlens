@@ -5,12 +5,14 @@
  * Uses native fetch — works in Node.js ≥ 18 and browsers.
  */
 
+import { randomUUID } from 'node:crypto';
 import type {
   EventQuery,
   EventQueryResult,
   AgentLensEvent,
   Session,
   SessionQuery,
+  LlmMessage,
 } from '@agentlensai/core';
 import {
   AgentLensError,
@@ -45,6 +47,71 @@ export interface TimelineResult {
 export interface HealthResult {
   status: string;
   version: string;
+}
+
+export interface LogLlmCallParams {
+  provider: string;
+  model: string;
+  messages: LlmMessage[];
+  systemPrompt?: string;
+  completion: string | null;
+  toolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
+  finishReason: string;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    thinkingTokens?: number;
+  };
+  costUsd: number;
+  latencyMs: number;
+  parameters?: Record<string, unknown>;
+  tools?: Array<{ name: string; description?: string; parameters?: Record<string, unknown> }>;
+  /** If true, prompt/completion content is stripped (redacted) before sending */
+  redact?: boolean;
+}
+
+export interface LlmAnalyticsParams {
+  from?: string;
+  to?: string;
+  agentId?: string;
+  model?: string;
+  provider?: string;
+  granularity?: 'hour' | 'day' | 'week';
+}
+
+export interface LlmAnalyticsSummary {
+  totalCalls: number;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  avgLatencyMs: number;
+  avgCostPerCall: number;
+}
+
+export interface LlmAnalyticsByModel {
+  provider: string;
+  model: string;
+  calls: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  avgLatencyMs: number;
+}
+
+export interface LlmAnalyticsByTime {
+  bucket: string;
+  calls: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  avgLatencyMs: number;
+}
+
+export interface LlmAnalyticsResult {
+  summary: LlmAnalyticsSummary;
+  byModel: LlmAnalyticsByModel[];
+  byTime: LlmAnalyticsByTime[];
 }
 
 // ─── Client ─────────────────────────────────────────────────────────
@@ -127,6 +194,98 @@ export class AgentLensClient {
     return this.request<TimelineResult>(
       `/api/sessions/${encodeURIComponent(sessionId)}/timeline`,
     );
+  }
+
+  // ─── LLM Call Tracking ────────────────────────────────────
+
+  /**
+   * Log a complete LLM call (request + response) by sending paired events via batch ingest.
+   * Auto-generates a callId. Supports redaction of prompt/completion content.
+   */
+  async logLlmCall(
+    sessionId: string,
+    agentId: string,
+    params: LogLlmCallParams,
+  ): Promise<{ callId: string }> {
+    const callId = randomUUID();
+    const timestamp = new Date().toISOString();
+    const redacted = params.redact === true;
+
+    // Build llm_call payload
+    const llmCallPayload: Record<string, unknown> = {
+      callId,
+      provider: params.provider,
+      model: params.model,
+      messages: redacted
+        ? params.messages.map((m) => ({ role: m.role, content: '[REDACTED]' }))
+        : params.messages,
+      ...(params.systemPrompt !== undefined
+        ? { systemPrompt: redacted ? '[REDACTED]' : params.systemPrompt }
+        : {}),
+      ...(params.parameters !== undefined ? { parameters: params.parameters } : {}),
+      ...(params.tools !== undefined ? { tools: params.tools } : {}),
+      ...(redacted ? { redacted: true } : {}),
+    };
+
+    // Build llm_response payload
+    const llmResponsePayload: Record<string, unknown> = {
+      callId,
+      provider: params.provider,
+      model: params.model,
+      completion: redacted ? '[REDACTED]' : params.completion,
+      ...(params.toolCalls !== undefined ? { toolCalls: params.toolCalls } : {}),
+      finishReason: params.finishReason,
+      usage: params.usage,
+      costUsd: params.costUsd,
+      latencyMs: params.latencyMs,
+      ...(redacted ? { redacted: true } : {}),
+    };
+
+    // Send both events in a single batch request
+    await this.request('/api/events', {
+      method: 'POST',
+      body: {
+        events: [
+          {
+            sessionId,
+            agentId,
+            eventType: 'llm_call',
+            severity: 'info',
+            payload: llmCallPayload,
+            metadata: {},
+            timestamp,
+          },
+          {
+            sessionId,
+            agentId,
+            eventType: 'llm_response',
+            severity: 'info',
+            payload: llmResponsePayload,
+            metadata: {},
+            timestamp,
+          },
+        ],
+      },
+    });
+
+    return { callId };
+  }
+
+  /**
+   * Get LLM analytics (aggregate metrics by model, time, etc.).
+   */
+  async getLlmAnalytics(params: LlmAnalyticsParams = {}): Promise<LlmAnalyticsResult> {
+    const searchParams = new URLSearchParams();
+    if (params.from) searchParams.set('from', params.from);
+    if (params.to) searchParams.set('to', params.to);
+    if (params.agentId) searchParams.set('agentId', params.agentId);
+    if (params.model) searchParams.set('model', params.model);
+    if (params.provider) searchParams.set('provider', params.provider);
+    if (params.granularity) searchParams.set('granularity', params.granularity);
+
+    const qs = searchParams.toString();
+    const path = qs ? `/api/analytics/llm?${qs}` : '/api/analytics/llm';
+    return this.request<LlmAnalyticsResult>(path);
   }
 
   // ─── Health ──────────────────────────────────────────────

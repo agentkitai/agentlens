@@ -45,6 +45,9 @@ export function runMigrations(db: SqliteDb): void {
       tool_call_count INTEGER NOT NULL DEFAULT 0,
       error_count INTEGER NOT NULL DEFAULT 0,
       total_cost_usd REAL NOT NULL DEFAULT 0,
+      llm_call_count INTEGER NOT NULL DEFAULT 0,
+      total_input_tokens INTEGER NOT NULL DEFAULT 0,
+      total_output_tokens INTEGER NOT NULL DEFAULT 0,
       tags TEXT NOT NULL DEFAULT '[]'
     )
   `);
@@ -114,6 +117,21 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_alert_history_rule_id ON alert_history(rule_id)`);
+
+  // ─── Migrations for existing databases ──────────────────
+  // Add LLM tracking columns to sessions (v0.3.0)
+  // SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we check first
+  const sessionColumns = db.all<{ name: string }>(sql`PRAGMA table_info(sessions)`);
+  const columnNames = new Set(sessionColumns.map((c) => c.name));
+  if (!columnNames.has('llm_call_count')) {
+    db.run(sql`ALTER TABLE sessions ADD COLUMN llm_call_count INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!columnNames.has('total_input_tokens')) {
+    db.run(sql`ALTER TABLE sessions ADD COLUMN total_input_tokens INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!columnNames.has('total_output_tokens')) {
+    db.run(sql`ALTER TABLE sessions ADD COLUMN total_output_tokens INTEGER NOT NULL DEFAULT 0`);
+  }
 }
 
 /**

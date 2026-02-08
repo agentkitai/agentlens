@@ -1,13 +1,15 @@
 /**
- * @agentlensai/mcp — Tool Definitions and Handlers (Stories 5.2–5.5)
+ * @agentlensai/mcp — Tool Definitions and Handlers (Stories 5.2–5.5, 3.1)
  *
- * Defines and registers the 4 MCP tools on an McpServer instance:
+ * Defines and registers the 5 MCP tools on an McpServer instance:
  *  - agentlens_session_start
  *  - agentlens_log_event
  *  - agentlens_session_end
  *  - agentlens_query_events
+ *  - agentlens_log_llm_call
  */
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AgentLensTransport } from './transport.js';
 
@@ -21,6 +23,7 @@ export function registerTools(server: McpServer, transport: AgentLensTransport):
   registerLogEvent(server, transport);
   registerSessionEnd(server, transport);
   registerQueryEvents(server, transport);
+  registerLogLlmCall(server, transport);
 }
 
 // ─── 5.2: agentlens_session_start ──────────────────────────────────
@@ -305,6 +308,177 @@ function registerQueryEvents(server: McpServer, transport: AgentLensTransport): 
             {
               type: 'text' as const,
               text: `Error querying events: ${error instanceof Error ? error.message : 'Server unreachable'}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+}
+
+// ─── 3.1: agentlens_log_llm_call ───────────────────────────────────
+
+const llmMessageSchema = z.object({
+  role: z.enum(['system', 'user', 'assistant', 'tool']),
+  content: z.union([z.string(), z.array(z.record(z.unknown()))]),
+  toolCallId: z.string().optional(),
+  toolCalls: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        arguments: z.record(z.unknown()),
+      }),
+    )
+    .optional(),
+});
+
+const llmToolDefSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  parameters: z.record(z.unknown()).optional(),
+});
+
+const llmToolCallSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  arguments: z.record(z.unknown()),
+});
+
+function registerLogLlmCall(server: McpServer, transport: AgentLensTransport): void {
+  server.tool(
+    'agentlens_log_llm_call',
+    'Log a complete LLM call (request + response) to an active AgentLens session. Emits paired llm_call and llm_response events.',
+    {
+      sessionId: z.string().describe('Session ID from agentlens_session_start'),
+      provider: z.string().describe('LLM provider name (e.g., "anthropic", "openai", "google")'),
+      model: z.string().describe('Model identifier (e.g., "claude-opus-4-6", "gpt-4o")'),
+      messages: z.array(llmMessageSchema).describe('The prompt messages sent to the model'),
+      systemPrompt: z.string().optional().describe('System prompt (if separate from messages)'),
+      completion: z.string().nullable().describe('The completion content returned by the model'),
+      toolCalls: z
+        .array(llmToolCallSchema)
+        .optional()
+        .describe('Tool calls requested by the model'),
+      finishReason: z
+        .string()
+        .describe('Stop reason (e.g., "stop", "length", "tool_use", "content_filter", "error")'),
+      usage: z
+        .object({
+          inputTokens: z.number(),
+          outputTokens: z.number(),
+          totalTokens: z.number(),
+        })
+        .describe('Token usage counts'),
+      costUsd: z.number().describe('Cost of this call in USD'),
+      latencyMs: z.number().describe('Latency in milliseconds'),
+      parameters: z.record(z.unknown()).optional().describe('Model parameters (temperature, maxTokens, etc.)'),
+      tools: z.array(llmToolDefSchema).optional().describe('Tool/function definitions provided to the model'),
+    },
+    async ({
+      sessionId,
+      provider,
+      model,
+      messages,
+      systemPrompt,
+      completion,
+      toolCalls,
+      finishReason,
+      usage,
+      costUsd,
+      latencyMs,
+      parameters,
+      tools,
+    }) => {
+      try {
+        const callId = randomUUID();
+        const timestamp = new Date().toISOString();
+        const agentId = transport.getSessionAgent(sessionId);
+
+        // Build llm_call event (request details)
+        const llmCallEvent = {
+          sessionId,
+          agentId,
+          eventType: 'llm_call' as const,
+          severity: 'info' as const,
+          payload: {
+            callId,
+            provider,
+            model,
+            messages,
+            ...(systemPrompt !== undefined ? { systemPrompt } : {}),
+            ...(parameters !== undefined ? { parameters } : {}),
+            ...(tools !== undefined ? { tools } : {}),
+          } as Record<string, unknown>,
+          metadata: {},
+          timestamp,
+        };
+
+        // Build llm_response event (response details)
+        const llmResponseEvent = {
+          sessionId,
+          agentId,
+          eventType: 'llm_response' as const,
+          severity: 'info' as const,
+          payload: {
+            callId,
+            provider,
+            model,
+            completion,
+            ...(toolCalls !== undefined ? { toolCalls } : {}),
+            finishReason,
+            usage,
+            costUsd,
+            latencyMs,
+          } as Record<string, unknown>,
+          metadata: {},
+          timestamp,
+        };
+
+        // Send both events via the transport
+        const callResponse = await transport.sendEventImmediate(llmCallEvent);
+        if (!callResponse.ok) {
+          const body = await callResponse.text().catch(() => 'Unknown error');
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Error logging LLM call: Server returned ${callResponse.status}: ${body}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const responseResponse = await transport.sendEventImmediate(llmResponseEvent);
+        if (!responseResponse.ok) {
+          const body = await responseResponse.text().catch(() => 'Unknown error');
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Error logging LLM response: Server returned ${responseResponse.status}: ${body}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ callId, eventsLogged: 2 }),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error logging LLM call: ${error instanceof Error ? error.message : 'Server unreachable'}`,
             },
           ],
           isError: true,

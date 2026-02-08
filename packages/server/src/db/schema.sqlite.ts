@@ -51,6 +51,9 @@ export const sessions = sqliteTable(
     toolCallCount: integer('tool_call_count').notNull().default(0),
     errorCount: integer('error_count').notNull().default(0),
     totalCostUsd: real('total_cost_usd').notNull().default(0),
+    llmCallCount: integer('llm_call_count').notNull().default(0),
+    totalInputTokens: integer('total_input_tokens').notNull().default(0),
+    totalOutputTokens: integer('total_output_tokens').notNull().default(0),
     tags: text('tags').notNull().default('[]'), // JSON array
   },
   (table) => [

@@ -353,6 +353,12 @@ export interface Session {
   toolCallCount: number;
   errorCount: number;
   totalCostUsd: number;
+  /** Number of LLM calls in this session */
+  llmCallCount?: number;
+  /** Total input tokens across all LLM calls */
+  totalInputTokens?: number;
+  /** Total output tokens across all LLM calls */
+  totalOutputTokens?: number;
   tags: string[];
 }
 

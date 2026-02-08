@@ -205,8 +205,13 @@ export class SqliteEventStore implements IEventStore {
       event.severity === 'critical' ||
       event.eventType === 'tool_error';
     const isCost = event.eventType === 'cost_tracked';
+    const isLlmResponse = event.eventType === 'llm_response';
     const costPayload = event.payload as Record<string, unknown>;
     const costUsd = isCost ? (Number(costPayload.costUsd) || 0) : 0;
+    const llmCostUsd = isLlmResponse ? (Number(costPayload.costUsd) || 0) : 0;
+    const llmUsage = isLlmResponse ? (costPayload.usage as Record<string, unknown> | undefined) : undefined;
+    const llmInputTokens = llmUsage ? (Number(llmUsage.inputTokens) || 0) : 0;
+    const llmOutputTokens = llmUsage ? (Number(llmUsage.outputTokens) || 0) : 0;
 
     if (event.eventType === 'session_ended') {
       const payload = event.payload as Record<string, unknown>;
@@ -239,7 +244,18 @@ export class SqliteEventStore implements IEventStore {
           : sessions.errorCount,
         totalCostUsd: isCost
           ? sql`${sessions.totalCostUsd} + ${costUsd}`
-          : sessions.totalCostUsd,
+          : isLlmResponse
+            ? sql`${sessions.totalCostUsd} + ${llmCostUsd}`
+            : sessions.totalCostUsd,
+        llmCallCount: isLlmResponse
+          ? sql`${sessions.llmCallCount} + 1`
+          : sessions.llmCallCount,
+        totalInputTokens: isLlmResponse
+          ? sql`${sessions.totalInputTokens} + ${llmInputTokens}`
+          : sessions.totalInputTokens,
+        totalOutputTokens: isLlmResponse
+          ? sql`${sessions.totalOutputTokens} + ${llmOutputTokens}`
+          : sessions.totalOutputTokens,
       })
       .where(eq(sessions.id, event.sessionId))
       .run();
@@ -297,6 +313,9 @@ export class SqliteEventStore implements IEventStore {
       if (session.toolCallCount !== undefined) updates.toolCallCount = session.toolCallCount;
       if (session.errorCount !== undefined) updates.errorCount = session.errorCount;
       if (session.totalCostUsd !== undefined) updates.totalCostUsd = session.totalCostUsd;
+      if (session.llmCallCount !== undefined) updates.llmCallCount = session.llmCallCount;
+      if (session.totalInputTokens !== undefined) updates.totalInputTokens = session.totalInputTokens;
+      if (session.totalOutputTokens !== undefined) updates.totalOutputTokens = session.totalOutputTokens;
       if (session.tags !== undefined) updates.tags = JSON.stringify(session.tags);
 
       if (Object.keys(updates).length > 0) {
@@ -320,6 +339,9 @@ export class SqliteEventStore implements IEventStore {
           toolCallCount: session.toolCallCount ?? 0,
           errorCount: session.errorCount ?? 0,
           totalCostUsd: session.totalCostUsd ?? 0,
+          llmCallCount: session.llmCallCount ?? 0,
+          totalInputTokens: session.totalInputTokens ?? 0,
+          totalOutputTokens: session.totalOutputTokens ?? 0,
           tags: JSON.stringify(session.tags ?? []),
         })
         .run();
@@ -935,6 +957,9 @@ export class SqliteEventStore implements IEventStore {
       toolCallCount: row.toolCallCount,
       errorCount: row.errorCount,
       totalCostUsd: row.totalCostUsd,
+      llmCallCount: row.llmCallCount,
+      totalInputTokens: row.totalInputTokens,
+      totalOutputTokens: row.totalOutputTokens,
       tags: safeJsonParse(row.tags, [] as string[]),
     };
   }
