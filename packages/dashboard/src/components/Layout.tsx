@@ -59,6 +59,25 @@ const navItems: NavItem[] = [
     icon: <span className="w-5 h-5 flex items-center justify-center text-base">🧠</span>,
   },
   {
+    to: '/lessons',
+    label: 'Lessons',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">📚</span>,
+  },
+  {
+    to: '/search',
+    label: 'Search',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/insights',
+    label: 'Insights',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">💡</span>,
+  },
+  {
     to: '/alerts',
     label: 'Alerts',
     icon: (

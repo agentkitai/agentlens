@@ -9,22 +9,37 @@ from typing import Any
 import httpx
 
 from agentlensai._utils import (
+    build_context_query_params,
     build_event_query_params,
+    build_lesson_query_params,
     build_llm_analytics_params,
     build_llm_call_events,
+    build_recall_query_params,
+    build_reflect_query_params,
     build_session_query_params,
     map_http_error,
 )
 from agentlensai.exceptions import AgentLensConnectionError
 from agentlensai.models import (
     AgentLensEvent,
+    ContextQuery,
+    ContextResult,
+    CreateLessonInput,
+    DeleteLessonResult,
     EventQuery,
     EventQueryResult,
     HealthResult,
+    Lesson,
+    LessonListResult,
+    LessonQuery,
     LlmAnalyticsParams,
     LlmAnalyticsResult,
     LogLlmCallParams,
     LogLlmCallResult,
+    RecallQuery,
+    RecallResult,
+    ReflectQuery,
+    ReflectResult,
     Session,
     SessionQuery,
     SessionQueryResult,
@@ -157,6 +172,64 @@ class AgentLensClient:
         query_params = build_llm_analytics_params(params)
         data = self._request("GET", "/api/analytics/llm", params=query_params or None)
         return LlmAnalyticsResult.model_validate(data)
+
+    # ─── Recall (Semantic Search) ─────────────────────────
+
+    def recall(self, query: RecallQuery) -> RecallResult:
+        """Semantic search over embeddings."""
+        params = build_recall_query_params(query)
+        data = self._request("GET", "/api/recall", params=params or None)
+        return RecallResult.model_validate(data)
+
+    # ─── Lessons ──────────────────────────────────────────
+
+    def create_lesson(self, lesson: CreateLessonInput) -> Lesson:
+        """Create a new lesson."""
+        data = self._request(
+            "POST",
+            "/api/lessons",
+            json=lesson.model_dump(by_alias=True, exclude_none=True),
+        )
+        return Lesson.model_validate(data)
+
+    def get_lessons(
+        self, query: LessonQuery | None = None,
+    ) -> LessonListResult:
+        """List lessons with optional filters."""
+        params = build_lesson_query_params(query)
+        data = self._request("GET", "/api/lessons", params=params or None)
+        return LessonListResult.model_validate(data)
+
+    def get_lesson(self, lesson_id: str) -> Lesson:
+        """Get a single lesson by ID."""
+        data = self._request("GET", f"/api/lessons/{lesson_id}")
+        return Lesson.model_validate(data)
+
+    def update_lesson(self, lesson_id: str, updates: dict) -> Lesson:
+        """Update a lesson."""
+        data = self._request("PUT", f"/api/lessons/{lesson_id}", json=updates)
+        return Lesson.model_validate(data)
+
+    def delete_lesson(self, lesson_id: str) -> DeleteLessonResult:
+        """Delete (archive) a lesson."""
+        data = self._request("DELETE", f"/api/lessons/{lesson_id}")
+        return DeleteLessonResult.model_validate(data)
+
+    # ─── Reflect (Pattern Analysis) ───────────────────────
+
+    def reflect(self, query: ReflectQuery) -> ReflectResult:
+        """Analyze patterns across sessions."""
+        params = build_reflect_query_params(query)
+        data = self._request("GET", "/api/reflect", params=params or None)
+        return ReflectResult.model_validate(data)
+
+    # ─── Context (Cross-Session) ──────────────────────────
+
+    def get_context(self, query: ContextQuery) -> ContextResult:
+        """Get cross-session context for a topic."""
+        params = build_context_query_params(query)
+        data = self._request("GET", "/api/context", params=params or None)
+        return ContextResult.model_validate(data)
 
     # ─── Health ───────────────────────────────────────────
 

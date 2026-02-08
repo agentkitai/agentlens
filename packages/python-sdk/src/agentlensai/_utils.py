@@ -165,6 +165,101 @@ def _build_message_data(
     return messages_data
 
 
+def build_recall_query_params(query: Any = None) -> dict[str, str]:
+    """Build URL params from a RecallQuery model."""
+    from agentlensai.models import RecallQuery
+
+    if query is None:
+        return {}
+    if not isinstance(query, RecallQuery):
+        return {}
+
+    params: dict[str, Any] = {}
+    params["query"] = query.query
+    if query.scope is not None:
+        params["scope"] = query.scope
+    if query.agent_id is not None:
+        params["agentId"] = query.agent_id
+    if query.from_time is not None:
+        params["from"] = query.from_time
+    if query.to is not None:
+        params["to"] = query.to
+    if query.limit is not None:
+        params["limit"] = query.limit
+    if query.min_score is not None:
+        params["minScore"] = query.min_score
+    return build_query_params(params)
+
+
+def build_lesson_query_params(query: Any = None) -> dict[str, str]:
+    """Build URL params from a LessonQuery model."""
+    from agentlensai.models import LessonQuery
+
+    if query is None:
+        return {}
+    if not isinstance(query, LessonQuery):
+        return {}
+
+    params: dict[str, Any] = {}
+    if query.agent_id is not None:
+        params["agentId"] = query.agent_id
+    if query.category is not None:
+        params["category"] = query.category
+    if query.importance is not None:
+        params["importance"] = query.importance
+    if query.search is not None:
+        params["search"] = query.search
+    if query.limit is not None:
+        params["limit"] = query.limit
+    if query.offset is not None:
+        params["offset"] = query.offset
+    if query.include_archived is not None:
+        params["includeArchived"] = str(query.include_archived).lower()
+    return build_query_params(params)
+
+
+def build_reflect_query_params(query: Any = None) -> dict[str, str]:
+    """Build URL params from a ReflectQuery model."""
+    from agentlensai.models import ReflectQuery
+
+    if query is None:
+        return {}
+    if not isinstance(query, ReflectQuery):
+        return {}
+
+    params: dict[str, Any] = {}
+    params["analysis"] = query.analysis
+    if query.agent_id is not None:
+        params["agentId"] = query.agent_id
+    if query.from_time is not None:
+        params["from"] = query.from_time
+    if query.to is not None:
+        params["to"] = query.to
+    if query.limit is not None:
+        params["limit"] = query.limit
+    return build_query_params(params)
+
+
+def build_context_query_params(query: Any = None) -> dict[str, str]:
+    """Build URL params from a ContextQuery model."""
+    from agentlensai.models import ContextQuery
+
+    if query is None:
+        return {}
+    if not isinstance(query, ContextQuery):
+        return {}
+
+    params: dict[str, Any] = {}
+    params["topic"] = query.topic
+    if query.user_id is not None:
+        params["userId"] = query.user_id
+    if query.agent_id is not None:
+        params["agentId"] = query.agent_id
+    if query.limit is not None:
+        params["limit"] = query.limit
+    return build_query_params(params)
+
+
 def build_llm_call_events(
     session_id: str,
     agent_id: str,

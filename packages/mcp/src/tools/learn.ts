@@ -12,7 +12,13 @@ import type { AgentLensTransport } from '../transport.js';
 export function registerLearnTool(server: McpServer, transport: AgentLensTransport): void {
   server.tool(
     'agentlens_learn',
-    'Manage agent lessons — save, retrieve, update, delete, or search distilled insights and knowledge.',
+    `Manage agent lessons — save, retrieve, update, delete, or search distilled insights and knowledge.
+
+**When to use:** After solving a difficult problem (save what worked), after resolving a recurring error (document the fix), to check existing knowledge before attempting a task (search/list), or to update outdated information (update/delete).
+
+**What it returns:** For save/get/update: the full lesson object. For list/search: a list of matching lessons with titles and previews. For delete: confirmation.
+
+**Example:** agentlens_learn({ action: "save", title: "Fix for rate limit errors", content: "Add exponential backoff with max 3 retries", category: "debugging", importance: "high" })`,
     {
       action: z.enum(['save', 'list', 'get', 'update', 'delete', 'search']).describe(
         'Operation to perform: save (create new lesson), list (list lessons), get (get by ID), update (update lesson), delete (archive lesson), search (text search)',

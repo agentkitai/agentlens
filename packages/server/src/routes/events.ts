@@ -21,8 +21,9 @@ import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { eventBus } from '../lib/event-bus.js';
 import { getTenantStore } from './tenant-helper.js';
-import { summarizeEvent } from '../lib/embeddings/summarizer.js';
+import { summarizeEvent, summarizeSession } from '../lib/embeddings/summarizer.js';
 import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
+import type { SessionSummaryStore } from '../db/session-summary-store.js';
 
 /** Schema for the batch ingestion request body */
 const ingestBatchSchema = z.object({
@@ -31,7 +32,10 @@ const ingestBatchSchema = z.object({
 
 export function eventsRoutes(
   store: IEventStore,
-  deps?: { embeddingWorker: EmbeddingWorker | null },
+  deps?: {
+    embeddingWorker: EmbeddingWorker | null;
+    sessionSummaryStore?: SessionSummaryStore | null;
+  },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
@@ -165,6 +169,47 @@ export function eventsRoutes(
       const session = await tenantStore.getSession(sessionId);
       if (session) {
         eventBus.emit({ type: 'session_updated', session, timestamp: now });
+      }
+    }
+
+    // Generate session summaries for sessions that just ended (fail-safe)
+    const summaryStore = deps?.sessionSummaryStore;
+    if (summaryStore) {
+      const endedEvents = allProcessed.filter((e) => e.eventType === 'session_ended');
+      for (const endedEvent of endedEvents) {
+        try {
+          const session = await tenantStore.getSession(endedEvent.sessionId);
+          if (!session) continue;
+
+          const timeline = await tenantStore.getSessionTimeline(endedEvent.sessionId);
+          const summaryResult = summarizeSession(session, timeline);
+
+          summaryStore.save(
+            endedEvent.tenantId,
+            endedEvent.sessionId,
+            summaryResult.summary,
+            summaryResult.topics,
+            summaryResult.toolSequence,
+            summaryResult.errorSummary || null,
+            summaryResult.outcome,
+          );
+
+          // Enqueue the summary for embedding
+          if (worker) {
+            worker.enqueue({
+              tenantId: endedEvent.tenantId,
+              sourceType: 'session',
+              sourceId: endedEvent.sessionId,
+              textContent: summaryResult.summary,
+            });
+          }
+        } catch (err) {
+          // Fail-safe: log and continue — never block event ingest
+          console.error(
+            `[events] Failed to generate session summary for ${endedEvent.sessionId}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
       }
     }
 

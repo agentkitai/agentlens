@@ -38,6 +38,8 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 - **💰 Cost Tracking** — Track token usage and estimated costs per session, per agent, per model, over time. Alert on cost spikes.
 - **🚨 Alerting** — Configurable rules for error rate, cost threshold, latency anomalies, and inactivity.
 - **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz/agentgate) (approval flows) and [FormBridge](https://github.com/amitpaz/formbridge) (data collection).
+- **🧠 Agent Memory** — Semantic recall, lessons learned, pattern reflection, and cross-session context. Agents can search past experience, save insights, analyze their own behavior, and carry context across sessions.
+- **🔒 Tenant Isolation** — Multi-tenant support with per-tenant data scoping, API key binding, and embedding isolation.
 - **🏠 Self-Hosted** — SQLite by default, no external dependencies. MIT licensed. Your data stays on your infrastructure.
 
 ## 📸 Dashboard
@@ -118,6 +120,10 @@ Click any LLM call to see the **full prompt and completion** in a chat-bubble st
 │  │  Engine    │ │   Engine   │ │   Engine   │ │  Analytics   │  │
 │  └─────┬──────┘ └─────┬──────┘ └────────────┘ └──────────────┘  │
 │        └───────────────┘                                         │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
+│  │  Recall    │ │  Lessons   │ │  Reflect   │ │  Context     │  │
+│  │ (Semantic) │ │ (Knowledge)│ │ (Patterns) │ │ (X-Session)  │  │
+│  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
 │               │                                                   │
 │        ┌──────┴──────┐         ┌─────────────┐                   │
 │        │   SQLite    │         │  Dashboard  │                   │
@@ -280,6 +286,35 @@ const analytics = await client.getLlmAnalytics();
 
 Navigate to **http://localhost:3400** — see sessions, timelines, analytics, and alerts in real time.
 
+## 🧠 Agent Memory
+
+AgentLens includes four MCP tools that give agents memory and self-improvement capabilities:
+
+| Tool | Purpose | Description |
+|---|---|---|
+| `agentlens_recall` | **Semantic Search** | Search past events, sessions, and lessons by meaning. Use before starting tasks to find relevant history. |
+| `agentlens_learn` | **Lessons Learned** | Save, retrieve, update, and search distilled insights. Build a persistent knowledge base across sessions. |
+| `agentlens_reflect` | **Pattern Analysis** | Analyze behavioral patterns — recurring errors, cost trends, tool sequences, performance changes. |
+| `agentlens_context` | **Cross-Session Context** | Retrieve topic-focused history with session summaries, key events, and related lessons ranked by relevance. |
+
+These tools are automatically available when using the MCP server. Agents can also access the underlying REST API directly via the SDK:
+
+```typescript
+// Recall — semantic search
+const results = await client.recall({ query: 'authentication errors', scope: 'events' });
+
+// Learn — save a lesson
+await client.createLesson({ title: 'Fix for timeout', content: 'Add retry with backoff', category: 'debugging' });
+
+// Reflect — analyze patterns
+const analysis = await client.reflect({ analysis: 'error_patterns', agentId: 'my-agent' });
+
+// Context — cross-session history
+const context = await client.getContext({ topic: 'database migrations', limit: 5 });
+```
+
+See the [Agent Memory Guide](./docs/guide/agent-memory.md) for integration patterns and best practices.
+
 ## 📦 Packages
 
 ### Python (PyPI)
@@ -310,6 +345,11 @@ Navigate to **http://localhost:3400** — see sessions, timelines, analytics, an
 | `GET /api/analytics` | Bucketed metrics over time |
 | `GET /api/analytics/costs` | Cost breakdown by agent |
 | `POST /api/alerts/rules` | Create alert rules |
+| `GET /api/recall` | Semantic search over agent memory |
+| `POST /api/lessons` | Create a lesson |
+| `GET /api/lessons` | List/search lessons |
+| `GET /api/reflect` | Pattern analysis (errors, costs, tools, performance) |
+| `GET /api/context` | Cross-session context retrieval |
 | `POST /api/events/ingest` | Webhook ingestion (AgentGate/FormBridge) |
 | `POST /api/keys` | Create API keys |
 

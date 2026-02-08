@@ -435,4 +435,166 @@ export async function getLlmAnalytics(params: {
   return request<LlmAnalyticsResult>(`/api/analytics/llm${qs}`);
 }
 
+// ─── Recall (Semantic Search) ───────────────────────────────────
+
+export interface RecallResultItem {
+  sourceType: string;
+  sourceId: string;
+  score: number;
+  text: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RecallResult {
+  results: RecallResultItem[];
+  query: string;
+  totalResults: number;
+}
+
+export async function recall(params: {
+  query: string;
+  scope?: string;
+  agentId?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  minScore?: number;
+}): Promise<RecallResult> {
+  const qs = toQueryString({
+    query: params.query,
+    scope: params.scope,
+    agentId: params.agentId,
+    from: params.from,
+    to: params.to,
+    limit: params.limit,
+    minScore: params.minScore,
+  });
+  return request<RecallResult>(`/api/recall${qs}`);
+}
+
+// ─── Lessons ────────────────────────────────────────────────────
+
+export type LessonImportance = 'low' | 'normal' | 'high' | 'critical';
+
+export interface LessonData {
+  id: string;
+  tenantId: string;
+  agentId?: string;
+  category: string;
+  title: string;
+  content: string;
+  context: Record<string, unknown>;
+  importance: LessonImportance;
+  sourceSessionId?: string;
+  sourceEventId?: string;
+  accessCount: number;
+  lastAccessedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface CreateLessonData {
+  title: string;
+  content: string;
+  category?: string;
+  importance?: LessonImportance;
+  agentId?: string;
+  context?: Record<string, unknown>;
+  sourceSessionId?: string;
+  sourceEventId?: string;
+}
+
+interface LessonsResponse {
+  lessons: LessonData[];
+  total: number;
+}
+
+export async function getLessons(params?: {
+  agentId?: string;
+  category?: string;
+  importance?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+  includeArchived?: boolean;
+}): Promise<LessonsResponse> {
+  const qs = toQueryString({
+    agentId: params?.agentId,
+    category: params?.category,
+    importance: params?.importance,
+    search: params?.search,
+    limit: params?.limit,
+    offset: params?.offset,
+    includeArchived: params?.includeArchived,
+  });
+  return request<LessonsResponse>(`/api/lessons${qs}`);
+}
+
+export async function getLesson(id: string): Promise<LessonData> {
+  return request<LessonData>(`/api/lessons/${encodeURIComponent(id)}`);
+}
+
+export async function createLesson(data: CreateLessonData): Promise<LessonData> {
+  return request<LessonData>('/api/lessons', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateLesson(id: string, data: Partial<CreateLessonData>): Promise<LessonData> {
+  return request<LessonData>(`/api/lessons/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteLesson(id: string): Promise<{ id: string; archived: boolean }> {
+  return request<{ id: string; archived: boolean }>(`/api/lessons/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+// ─── Reflect (Pattern Analysis) ─────────────────────────────────
+
+export type ReflectAnalysis =
+  | 'error_patterns'
+  | 'tool_sequences'
+  | 'cost_analysis'
+  | 'performance_trends';
+
+export interface ReflectInsight {
+  type: string;
+  summary: string;
+  data: Record<string, unknown>;
+  confidence: number;
+}
+
+export interface ReflectResultData {
+  analysis: ReflectAnalysis;
+  insights: ReflectInsight[];
+  metadata: {
+    sessionsAnalyzed: number;
+    eventsAnalyzed: number;
+    timeRange: { from: string; to: string };
+  };
+}
+
+export async function reflect(params: {
+  analysis: ReflectAnalysis;
+  agentId?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<ReflectResultData> {
+  const qs = toQueryString({
+    analysis: params.analysis,
+    agentId: params.agentId,
+    from: params.from,
+    to: params.to,
+    limit: params.limit,
+  });
+  return request<ReflectResultData>(`/api/reflect${qs}`);
+}
+
 export { ApiError };

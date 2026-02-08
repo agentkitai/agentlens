@@ -262,3 +262,198 @@ class LlmAnalyticsResult(_BaseModel):
     summary: LlmAnalyticsSummary
     by_model: list[LlmAnalyticsByModel]
     by_time: list[LlmAnalyticsByTime]
+
+
+# ─── Recall / Semantic Search Models (Epic 6) ───────────────────────────────
+
+LessonImportance = Literal["low", "normal", "high", "critical"]
+ReflectAnalysis = Literal[
+    "error_patterns",
+    "tool_sequences",
+    "cost_analysis",
+    "performance_trends",
+    "session_comparison",
+]
+
+
+class RecallQuery(_BaseModel):
+    """Query for semantic search over embeddings."""
+
+    query: str
+    scope: str | None = None
+    agent_id: str | None = None
+    from_time: str | None = Field(default=None, alias="from")
+    to: str | None = None
+    limit: int | None = None
+    min_score: float | None = None
+
+
+class RecallResultItem(_BaseModel):
+    """A single semantic search result."""
+
+    source_type: str
+    source_id: str
+    score: float
+    text: str
+    metadata: dict[str, Any] | None = None
+
+
+class RecallResult(_BaseModel):
+    """Result of a recall (semantic search) query."""
+
+    results: list[RecallResultItem]
+    query: str
+    total_results: int
+
+
+# ─── Lesson Models (Epic 6) ─────────────────────────────────────────────────
+
+
+class Lesson(_BaseModel):
+    """A distilled lesson / insight from agent experience."""
+
+    id: str
+    tenant_id: str
+    agent_id: str | None = None
+    category: str
+    title: str
+    content: str
+    context: dict[str, Any]
+    importance: LessonImportance
+    source_session_id: str | None = None
+    source_event_id: str | None = None
+    access_count: int
+    last_accessed_at: str | None = None
+    created_at: str
+    updated_at: str
+    archived_at: str | None = None
+
+
+class LessonQuery(_BaseModel):
+    """Query filters for listing lessons."""
+
+    agent_id: str | None = None
+    category: str | None = None
+    importance: LessonImportance | None = None
+    search: str | None = None
+    limit: int | None = None
+    offset: int | None = None
+    include_archived: bool | None = None
+
+
+class CreateLessonInput(_BaseModel):
+    """Input for creating a new lesson."""
+
+    title: str
+    content: str
+    category: str | None = None
+    importance: LessonImportance | None = None
+    agent_id: str | None = None
+    context: dict[str, Any] | None = None
+    source_session_id: str | None = None
+    source_event_id: str | None = None
+
+
+class LessonListResult(_BaseModel):
+    """Result of listing lessons."""
+
+    lessons: list[Lesson]
+    total: int
+
+
+class DeleteLessonResult(_BaseModel):
+    """Result of deleting (archiving) a lesson."""
+
+    id: str
+    archived: bool
+
+
+# ─── Reflect / Pattern Analysis Models (Epic 6) ─────────────────────────────
+
+
+class ReflectQuery(_BaseModel):
+    """Query input for the reflect endpoint."""
+
+    analysis: ReflectAnalysis
+    agent_id: str | None = None
+    from_time: str | None = Field(default=None, alias="from")
+    to: str | None = None
+    limit: int | None = None
+
+
+class ReflectInsight(_BaseModel):
+    """Structured insight returned from analysis."""
+
+    type: str
+    summary: str
+    data: dict[str, Any]
+    confidence: float
+
+
+class ReflectMetadata(_BaseModel):
+    """Metadata about the reflect analysis."""
+
+    sessions_analyzed: int
+    events_analyzed: int
+    time_range: dict[str, str]
+
+
+class ReflectResult(_BaseModel):
+    """Result envelope from the reflect endpoint."""
+
+    analysis: ReflectAnalysis
+    insights: list[ReflectInsight]
+    metadata: ReflectMetadata
+
+
+# ─── Context Models (Epic 6) ────────────────────────────────────────────────
+
+
+class ContextQuery(_BaseModel):
+    """Query for cross-session context retrieval."""
+
+    topic: str
+    user_id: str | None = None
+    agent_id: str | None = None
+    limit: int | None = None
+
+
+class ContextKeyEvent(_BaseModel):
+    """A key event within a context session."""
+
+    id: str
+    event_type: str
+    summary: str
+    timestamp: str
+
+
+class ContextSession(_BaseModel):
+    """A session included in context results."""
+
+    session_id: str
+    agent_id: str
+    started_at: str
+    ended_at: str | None = None
+    summary: str | None = None
+    relevance_score: float
+    key_events: list[ContextKeyEvent]
+
+
+class ContextLesson(_BaseModel):
+    """A lesson relevant to the context query."""
+
+    id: str
+    title: str
+    content: str
+    category: str
+    importance: LessonImportance
+    relevance_score: float
+
+
+class ContextResult(_BaseModel):
+    """Result of a context query."""
+
+    topic: str
+    sessions: list[ContextSession]
+    lessons: list[ContextLesson]
+    summary: str | None = None

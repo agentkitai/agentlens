@@ -30,6 +30,7 @@ import { streamRoutes } from './routes/stream.js';
 import { lessonsRoutes } from './routes/lessons.js';
 import { reflectRoutes } from './routes/reflect.js';
 import { recallRoutes } from './routes/recall.js';
+import { contextRoutes } from './routes/context.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -38,6 +39,7 @@ import { eventBus } from './lib/event-bus.js';
 import { EmbeddingWorker } from './lib/embeddings/worker.js';
 import type { EmbeddingService } from './lib/embeddings/index.js';
 import { EmbeddingStore } from './db/embedding-store.js';
+import { SessionSummaryStore } from './db/session-summary-store.js';
 
 // Re-export everything consumers may need
 export { getConfig } from './config.js';
@@ -68,6 +70,9 @@ export { createDb, createTestDb } from './db/index.js';
 export type { SqliteDb } from './db/index.js';
 export { runMigrations } from './db/migrate.js';
 export { LessonStore } from './db/lesson-store.js';
+export { SessionSummaryStore } from './db/session-summary-store.js';
+export { contextRoutes } from './routes/context.js';
+export { ContextRetriever } from './lib/context/retrieval.js';
 
 // ─── Dashboard SPA helpers ───────────────────────────────────
 
@@ -213,13 +218,18 @@ export function createApp(
     app.use('/api/reflect', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/recall/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/recall', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/context/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/context', authMiddleware(db, resolvedConfig.authDisabled));
   }
 
   // ─── Routes ────────────────────────────────────────────
   if (db) {
     app.route('/api/keys', apiKeysRoutes(db));
   }
-  app.route('/api/events', eventsRoutes(store, { embeddingWorker: config?.embeddingWorker ?? null }));
+  app.route('/api/events', eventsRoutes(store, {
+    embeddingWorker: config?.embeddingWorker ?? null,
+    sessionSummaryStore: db ? new SessionSummaryStore(db) : null,
+  }));
   app.route('/api/sessions', sessionsRoutes(store));
   app.route('/api/agents', agentsRoutes(store));
   app.route('/api/stats', statsRoutes(store));
@@ -240,6 +250,15 @@ export function createApp(
     const embeddingService = config?.embeddingService ?? null;
     const embeddingStore = db ? new EmbeddingStore(db) : null;
     app.route('/api/recall', recallRoutes({ embeddingService, embeddingStore }));
+
+    // ─── Context / Cross-Session Retrieval ──────────────
+    if (db) {
+      app.route('/api/context', contextRoutes(store, {
+        db,
+        embeddingService,
+        embeddingStore,
+      }));
+    }
   }
 
   // ─── Dashboard SPA static assets ──────────────────────

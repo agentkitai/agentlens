@@ -6,8 +6,12 @@
  */
 
 import { runConfigCommand } from './commands/config.js';
+import { runContextCommand } from './commands/context.js';
 import { runEventsCommand } from './commands/events.js';
+import { runLessonsCommand } from './commands/lessons.js';
 import { runLlmCommand } from './commands/llm.js';
+import { runRecallCommand } from './commands/recall.js';
+import { runReflectCommand } from './commands/reflect.js';
 import { runSessionsCommand } from './commands/sessions.js';
 import { runTailCommand } from './commands/tail.js';
 
@@ -17,10 +21,14 @@ Usage: agentlens <command> [options]
 
 Commands:
   config              Get or set configuration (url, api-key)
+  context             Retrieve cross-session context for a topic
   events              Query events
+  lessons             Manage agent lessons (list, create, get, update, delete, search)
+  llm                 LLM call tracking (stats, models, recent)
+  recall              Semantic search over agent memory
+  reflect             Pattern analysis across agent sessions
   sessions            List and inspect sessions
   tail                Stream live events (SSE)
-  llm                 LLM call tracking (stats, models, recent)
 
 Run "agentlens <command> --help" for command-specific help.
 
@@ -40,12 +48,28 @@ async function main(): Promise<void> {
       runConfigCommand(rest);
       break;
 
+    case 'context':
+      await runContextCommand(rest);
+      break;
+
     case 'events':
       await runEventsCommand(rest);
       break;
 
+    case 'lessons':
+      await runLessonsCommand(rest);
+      break;
+
     case 'llm':
       await runLlmCommand(rest);
+      break;
+
+    case 'recall':
+      await runRecallCommand(rest);
+      break;
+
+    case 'reflect':
+      await runReflectCommand(rest);
       break;
 
     case 'sessions':

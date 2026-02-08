@@ -12,7 +12,13 @@ import type { AgentLensTransport } from '../transport.js';
 export function registerRecallTool(server: McpServer, transport: AgentLensTransport): void {
   server.tool(
     'agentlens_recall',
-    'Semantic search over agent memory — find past events, sessions, and lessons by meaning. Use this to recall previous experiences, errors, tool usage patterns, and learned lessons.',
+    `Semantic search over agent memory — find past events, sessions, and lessons by meaning.
+
+**When to use:** Before starting a task (check for similar past work), when encountering an error (search for prior occurrences and fixes), or to find relevant context for decision-making.
+
+**What it returns:** A ranked list of results, each with a source type (event/session/lesson), similarity score (0-1), text content, and metadata. Results are sorted by relevance.
+
+**Example:** agentlens_recall({ query: "authentication timeout errors", scope: "events", minScore: 0.7 }) → returns past events about auth timeouts, ranked by semantic similarity.`,
     {
       query: z.string().describe('Natural language search query'),
       scope: z

@@ -68,10 +68,10 @@ describe('agentlens_learn registration', () => {
     expect(toolNames).toContain('agentlens_learn');
   });
 
-  it('registers 6 tools total', async () => {
+  it('registers 9 tools total', async () => {
     const { client } = await createTestSetup();
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(8);
+    expect(result.tools).toHaveLength(9);
   });
 
   it('has a description', async () => {

@@ -12,7 +12,13 @@ import type { AgentLensTransport } from '../transport.js';
 export function registerReflectTool(server: McpServer, transport: AgentLensTransport): void {
   server.tool(
     'agentlens_reflect',
-    'Analyze behavioral patterns from agent sessions — error patterns, tool sequences, cost analysis, and performance trends. Use this to reflect on agent behavior and identify areas for improvement.',
+    `Analyze behavioral patterns from agent sessions — error patterns, tool sequences, cost analysis, and performance trends.
+
+**When to use:** To identify recurring errors and their root causes (error_patterns), to understand cost drivers and optimize model usage (cost_analysis), to discover common tool usage chains and their success rates (tool_sequences), or to track performance over time (performance_trends).
+
+**What it returns:** A list of structured insights with type, summary, data, and confidence score, plus metadata about how many sessions/events were analyzed. Each analysis type returns different data shapes.
+
+**Example:** agentlens_reflect({ analysis: "error_patterns", agentId: "my-agent", from: "2026-01-01" }) → returns recurring error patterns with counts, first/last seen, and affected sessions.`,
     {
       analysis: z
         .enum([

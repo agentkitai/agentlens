@@ -98,7 +98,15 @@ All errors follow this format:
 | `GET` | `/api/agents` | List agents |
 | `GET` | `/api/agents/:id` | Get agent detail |
 | `GET` | `/api/stats` | Storage statistics |
+| `GET` | `/api/recall` | Semantic search over agent memory |
+| `POST` | `/api/lessons` | Create a lesson |
+| `GET` | `/api/lessons` | List lessons |
+| `GET` | `/api/lessons/:id` | Get single lesson |
+| `PUT` | `/api/lessons/:id` | Update a lesson |
+| `DELETE` | `/api/lessons/:id` | Delete (archive) a lesson |
+| `GET` | `/api/reflect` | Pattern analysis (errors, costs, tools, performance) |
+| `GET` | `/api/context` | Cross-session context retrieval |
 | `GET` | `/api/config` | Get configuration |
 | `PUT` | `/api/config` | Update configuration |
 
-Detailed documentation for each group: [Events](/reference/events) · [Sessions](/reference/sessions) · [Analytics](/reference/analytics) · [Alerts](/reference/alerts) · [Integrations](/reference/integrations) · [API Keys](/reference/api-keys)
+Detailed documentation for each group: [Events](/reference/events) · [Sessions](/reference/sessions) · [Analytics](/reference/analytics) · [Recall](/reference/recall) · [Lessons](/reference/lessons) · [Reflect](/reference/reflect) · [Context](/reference/context) · [Alerts](/reference/alerts) · [Integrations](/reference/integrations) · [API Keys](/reference/api-keys)

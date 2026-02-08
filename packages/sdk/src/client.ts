@@ -13,6 +13,15 @@ import type {
   Session,
   SessionQuery,
   LlmMessage,
+  RecallQuery,
+  RecallResult,
+  Lesson,
+  LessonQuery,
+  CreateLessonInput,
+  ReflectQuery,
+  ReflectResult,
+  ContextQuery,
+  ContextResult,
 } from '@agentlensai/core';
 import {
   AgentLensError,
@@ -286,6 +295,113 @@ export class AgentLensClient {
     const qs = searchParams.toString();
     const path = qs ? `/api/analytics/llm?${qs}` : '/api/analytics/llm';
     return this.request<LlmAnalyticsResult>(path);
+  }
+
+  // ─── Recall (Semantic Search) ──────────────────────────
+
+  /**
+   * Semantic search over embeddings.
+   */
+  async recall(query: RecallQuery): Promise<RecallResult> {
+    const params = new URLSearchParams();
+    params.set('query', query.query);
+    if (query.scope) params.set('scope', query.scope);
+    if (query.agentId) params.set('agentId', query.agentId);
+    if (query.from) params.set('from', query.from);
+    if (query.to) params.set('to', query.to);
+    if (query.limit != null) params.set('limit', String(query.limit));
+    if (query.minScore != null) params.set('minScore', String(query.minScore));
+
+    return this.request<RecallResult>(`/api/recall?${params.toString()}`);
+  }
+
+  // ─── Lessons ─────────────────────────────────────────────
+
+  /**
+   * Create a new lesson.
+   */
+  async createLesson(lesson: CreateLessonInput): Promise<Lesson> {
+    return this.request<Lesson>('/api/lessons', {
+      method: 'POST',
+      body: lesson,
+    });
+  }
+
+  /**
+   * List lessons with optional filters.
+   */
+  async getLessons(query?: LessonQuery): Promise<{ lessons: Lesson[]; total: number }> {
+    const params = new URLSearchParams();
+    if (query?.agentId) params.set('agentId', query.agentId);
+    if (query?.category) params.set('category', query.category);
+    if (query?.importance) params.set('importance', query.importance);
+    if (query?.search) params.set('search', query.search);
+    if (query?.limit != null) params.set('limit', String(query.limit));
+    if (query?.offset != null) params.set('offset', String(query.offset));
+    if (query?.includeArchived != null) params.set('includeArchived', String(query.includeArchived));
+
+    const qs = params.toString();
+    return this.request<{ lessons: Lesson[]; total: number }>(
+      qs ? `/api/lessons?${qs}` : '/api/lessons',
+    );
+  }
+
+  /**
+   * Get a single lesson by ID.
+   */
+  async getLesson(id: string): Promise<Lesson> {
+    return this.request<Lesson>(`/api/lessons/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Update a lesson.
+   */
+  async updateLesson(id: string, updates: Partial<CreateLessonInput>): Promise<Lesson> {
+    return this.request<Lesson>(`/api/lessons/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: updates,
+    });
+  }
+
+  /**
+   * Delete (archive) a lesson.
+   */
+  async deleteLesson(id: string): Promise<{ id: string; archived: boolean }> {
+    return this.request<{ id: string; archived: boolean }>(
+      `/api/lessons/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  // ─── Reflect (Pattern Analysis) ──────────────────────────
+
+  /**
+   * Analyze patterns across sessions.
+   */
+  async reflect(query: ReflectQuery): Promise<ReflectResult> {
+    const params = new URLSearchParams();
+    params.set('analysis', query.analysis);
+    if (query.agentId) params.set('agentId', query.agentId);
+    if (query.from) params.set('from', query.from);
+    if (query.to) params.set('to', query.to);
+    if (query.limit != null) params.set('limit', String(query.limit));
+
+    return this.request<ReflectResult>(`/api/reflect?${params.toString()}`);
+  }
+
+  // ─── Context (Cross-Session) ─────────────────────────────
+
+  /**
+   * Get cross-session context for a topic.
+   */
+  async getContext(query: ContextQuery): Promise<ContextResult> {
+    const params = new URLSearchParams();
+    params.set('topic', query.topic);
+    if (query.userId) params.set('userId', query.userId);
+    if (query.agentId) params.set('agentId', query.agentId);
+    if (query.limit != null) params.set('limit', String(query.limit));
+
+    return this.request<ContextResult>(`/api/context?${params.toString()}`);
   }
 
   // ─── Health ──────────────────────────────────────────────

@@ -10,6 +10,9 @@ import { EventsExplorer } from './pages/EventsExplorer';
 import { Analytics } from './pages/Analytics';
 import { Alerts } from './pages/Alerts';
 import { LlmAnalytics } from './pages/LlmAnalytics';
+import { Lessons } from './pages/Lessons';
+import { Search } from './pages/Search';
+import { Insights } from './pages/Insights';
 
 export function App(): React.ReactElement {
   return (
@@ -22,6 +25,9 @@ export function App(): React.ReactElement {
         <Route path="agents" element={<Agents />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="llm" element={<LlmAnalytics />} />
+        <Route path="lessons" element={<Lessons />} />
+        <Route path="search" element={<Search />} />
+        <Route path="insights" element={<Insights />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="settings" element={<Settings />} />
       </Route>

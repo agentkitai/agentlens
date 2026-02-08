@@ -704,3 +704,90 @@ export interface PerformanceTrendsResult {
     timeRange: { from: string; to: string };
   };
 }
+
+// ─── Create Lesson Input (Epic 6) ──────────────────────────────
+
+/**
+ * Input for creating a new lesson
+ */
+export interface CreateLessonInput {
+  title: string;
+  content: string;
+  category?: string;
+  importance?: LessonImportance;
+  agentId?: string;
+  context?: Record<string, unknown>;
+  sourceSessionId?: string;
+  sourceEventId?: string;
+}
+
+// ─── Context Types (Epic 5) ────────────────────────────────────
+
+/**
+ * Query for cross-session context retrieval
+ */
+export interface ContextQuery {
+  /** Topic to retrieve context for */
+  topic: string;
+  /** Filter by user ID */
+  userId?: string;
+  /** Filter by agent ID */
+  agentId?: string;
+  /** Start of time range (ISO 8601) */
+  from?: string;
+  /** End of time range (ISO 8601) */
+  to?: string;
+  /** Maximum number of sessions to include */
+  limit?: number;
+}
+
+/**
+ * A key event within a context session
+ */
+export interface ContextKeyEvent {
+  id: string;
+  eventType: string;
+  summary: string;
+  timestamp: string;
+}
+
+/**
+ * A lesson relevant to the context query
+ */
+export interface ContextLesson {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  importance: LessonImportance;
+  relevanceScore: number;
+}
+
+/**
+ * A session included in context results
+ */
+export interface ContextSession {
+  sessionId: string;
+  agentId: string;
+  startedAt: string;
+  endedAt?: string;
+  summary?: string;
+  relevanceScore: number;
+  keyEvents: ContextKeyEvent[];
+}
+
+/**
+ * Result of a context query
+ */
+export interface ContextResult {
+  /** The original topic queried */
+  topic: string;
+  /** Related sessions, sorted by relevance */
+  sessions: ContextSession[];
+  /** Related lessons */
+  lessons: ContextLesson[];
+  /** Total number of matching sessions */
+  totalSessions: number;
+  /** Summary of the context */
+  summary?: string;
+}

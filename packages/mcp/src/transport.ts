@@ -288,6 +288,41 @@ export class AgentLensTransport {
     });
   }
 
+  // ─── Context API method (Story 5.3) ──────────────────────────
+
+  /**
+   * Call the context retrieval endpoint.
+   */
+  async getContext(params: {
+    topic: string;
+    userId?: string;
+    agentId?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+  }): Promise<unknown> {
+    const searchParams = new URLSearchParams();
+    searchParams.set('topic', params.topic);
+    if (params.userId) searchParams.set('userId', params.userId);
+    if (params.agentId) searchParams.set('agentId', params.agentId);
+    if (params.from) searchParams.set('from', params.from);
+    if (params.to) searchParams.set('to', params.to);
+    if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+
+    const url = `${this.baseUrl}/api/context?${searchParams.toString()}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Context API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
+  }
+
   // ─── Reflect API method (Story 4.5) ──────────────────────────
 
   /**
