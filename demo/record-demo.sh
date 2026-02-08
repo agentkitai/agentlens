@@ -201,4 +201,4 @@ sleep 0.1
 echo -e "${BLUE}  → github.com/amitpaz1/agentlens${NC}"
 sleep 0.1
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-sleep 8
+sleep 12
