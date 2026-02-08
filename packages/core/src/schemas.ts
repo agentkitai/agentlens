@@ -331,3 +331,49 @@ export const OptimizationResultSchema = z.object({
   period: z.number().int().min(1),
   analyzedCalls: z.number().int().min(0),
 });
+
+// ─── Benchmark Schemas (v0.7.0 — Story 1.2) ────────────────────────
+
+export const BenchmarkStatusSchema = z.enum(['draft', 'running', 'completed', 'cancelled']);
+
+export const BenchmarkMetricSchema = z.enum([
+  'health_score',
+  'error_rate',
+  'avg_cost',
+  'avg_latency',
+  'tool_success_rate',
+  'completion_rate',
+  'avg_tokens',
+  'avg_duration',
+]);
+
+export const BenchmarkSchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  status: BenchmarkStatusSchema,
+  agentId: z.string().optional(),
+  metrics: z.array(BenchmarkMetricSchema).min(1),
+  minSessionsPerVariant: z.number().int().min(1),
+  timeRange: z
+    .object({
+      from: z.string().min(1),
+      to: z.string().min(1),
+    })
+    .optional(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  completedAt: z.string().optional(),
+});
+
+export const BenchmarkVariantSchema = z.object({
+  id: z.string().min(1),
+  benchmarkId: z.string().min(1),
+  tenantId: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  tag: z.string().min(1),
+  agentId: z.string().optional(),
+  sortOrder: z.number().int().min(0),
+});

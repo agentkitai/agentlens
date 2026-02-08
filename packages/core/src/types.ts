@@ -872,3 +872,245 @@ export interface OptimizationResult {
 export interface ModelCosts {
   [model: string]: { input: number; output: number };
 }
+
+// ─── Replay Types (v0.7.0 — Story 1.1) ─────────────────────────────
+
+/**
+ * A single step in a replay — one event with its accumulated context.
+ */
+export interface ReplayStep {
+  /** 0-based index in the replay */
+  index: number;
+  /** The event at this step */
+  event: AgentLensEvent;
+  /** If this event has a paired event (e.g., tool_call → tool_response) */
+  pairedEvent?: AgentLensEvent;
+  /** Duration between paired events (ms), if applicable */
+  pairDurationMs?: number;
+  /** Cumulative context at this point in the session */
+  context: ReplayContext;
+}
+
+/**
+ * Cumulative context at a specific point in the replay.
+ */
+export interface ReplayContext {
+  /** Total events processed so far (including current) */
+  eventIndex: number;
+  /** Total events in the session */
+  totalEvents: number;
+  /** Cumulative cost in USD */
+  cumulativeCostUsd: number;
+  /** Elapsed time from session start (ms) */
+  elapsedMs: number;
+  /** Counts by event type up to this point */
+  eventCounts: Record<string, number>;
+  /** LLM conversation history up to this point */
+  llmHistory: Array<{
+    callId: string;
+    provider: string;
+    model: string;
+    messages: LlmMessage[];
+    response?: string;
+    toolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
+    costUsd: number;
+    latencyMs: number;
+  }>;
+  /** Tool call results available at this point */
+  toolResults: Array<{
+    callId: string;
+    toolName: string;
+    arguments: Record<string, unknown>;
+    result?: unknown;
+    error?: string;
+    durationMs?: number;
+    completed: boolean;
+  }>;
+  /** Pending approvals at this point */
+  pendingApprovals: Array<{
+    requestId: string;
+    action: string;
+    status: 'pending' | 'granted' | 'denied' | 'expired';
+  }>;
+  /** Error count so far */
+  errorCount: number;
+  /** Warnings at this point (e.g., high cost, slow tool) */
+  warnings: string[];
+}
+
+/**
+ * Full replay state for a session.
+ */
+export interface ReplayState {
+  /** Session metadata */
+  session: Session;
+  /** Chain validity of the event sequence */
+  chainValid: boolean;
+  /** Total steps in the replay */
+  totalSteps: number;
+  /** Ordered replay steps (may be paginated) */
+  steps: ReplayStep[];
+  /** Pagination info */
+  pagination: {
+    offset: number;
+    limit: number;
+    hasMore: boolean;
+  };
+  /** Session-level summary */
+  summary: ReplaySummary;
+}
+
+/**
+ * Session-level replay summary.
+ */
+export interface ReplaySummary {
+  totalCost: number;
+  totalDurationMs: number;
+  totalLlmCalls: number;
+  totalToolCalls: number;
+  totalErrors: number;
+  models: string[];
+  tools: string[];
+}
+
+// ─── Benchmark Types (v0.7.0 — Story 1.2) ──────────────────────────
+
+/**
+ * Benchmark status lifecycle.
+ */
+export type BenchmarkStatus = 'draft' | 'running' | 'completed' | 'cancelled';
+
+/**
+ * Available metrics for benchmark comparison.
+ */
+export type BenchmarkMetric =
+  | 'health_score'
+  | 'error_rate'
+  | 'avg_cost'
+  | 'avg_latency'
+  | 'tool_success_rate'
+  | 'completion_rate'
+  | 'avg_tokens'
+  | 'avg_duration';
+
+/**
+ * Array of all benchmark metrics for iteration/validation.
+ */
+export const BENCHMARK_METRICS: readonly BenchmarkMetric[] = [
+  'health_score',
+  'error_rate',
+  'avg_cost',
+  'avg_latency',
+  'tool_success_rate',
+  'completion_rate',
+  'avg_tokens',
+  'avg_duration',
+] as const;
+
+/**
+ * A benchmark configuration — the parent entity.
+ */
+export interface Benchmark {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  status: BenchmarkStatus;
+  /** Agent ID if scoped to one agent (optional, can compare across agents) */
+  agentId?: string;
+  /** Which metrics to compare */
+  metrics: BenchmarkMetric[];
+  /** Minimum sessions per variant for completion */
+  minSessionsPerVariant: number;
+  /** Time range filter for sessions (optional) */
+  timeRange?: { from: string; to: string };
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+/**
+ * A variant within a benchmark.
+ */
+export interface BenchmarkVariant {
+  id: string;
+  benchmarkId: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  /** Tag used to identify sessions belonging to this variant */
+  tag: string;
+  /** Optional: filter to a specific agent */
+  agentId?: string;
+  /** Order for display */
+  sortOrder: number;
+}
+
+/**
+ * Statistical summary for a single metric.
+ */
+export interface MetricStats {
+  mean: number;
+  median: number;
+  stddev: number;
+  min: number;
+  max: number;
+  count: number;
+  /** Raw values array (for distribution charts) — only included when requested */
+  values?: number[];
+}
+
+/**
+ * Pairwise comparison result between two variants for one metric.
+ */
+export interface MetricComparison {
+  metric: BenchmarkMetric;
+  variantA: { id: string; name: string; stats: MetricStats };
+  variantB: { id: string; name: string; stats: MetricStats };
+  /** Absolute difference (B.mean - A.mean) */
+  absoluteDiff: number;
+  /** Percentage difference ((B.mean - A.mean) / A.mean * 100) */
+  percentDiff: number;
+  /** Statistical test used */
+  testType: 'welch_t' | 'chi_squared';
+  /** Test statistic value */
+  testStatistic: number;
+  /** p-value */
+  pValue: number;
+  /** 95% confidence interval for the difference */
+  confidenceInterval: { lower: number; upper: number };
+  /** Effect size (Cohen's d or phi coefficient) */
+  effectSize: number;
+  /** Is the result statistically significant at p < 0.05? */
+  significant: boolean;
+  /** Which variant is better for this metric */
+  winner?: string;
+  /** Confidence stars: ★★★ p<0.01, ★★ p<0.05, ★ p<0.1, — ns */
+  confidence: '★★★' | '★★' | '★' | '—';
+}
+
+/**
+ * Aggregated metrics for a single variant.
+ */
+export interface VariantMetrics {
+  variantId: string;
+  variantName: string;
+  sessionCount: number;
+  metrics: Record<BenchmarkMetric, MetricStats>;
+}
+
+/**
+ * Cached results for a completed benchmark.
+ */
+export interface BenchmarkResults {
+  benchmarkId: string;
+  tenantId: string;
+  /** Per-variant metric summaries */
+  variants: VariantMetrics[];
+  /** Pairwise comparisons */
+  comparisons: MetricComparison[];
+  /** Human-readable summary */
+  summary: string;
+  /** When results were computed */
+  computedAt: string;
+}

@@ -410,6 +410,58 @@ export function runMigrations(db: SqliteDb): void {
     )
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_health_snapshots_agent ON health_snapshots(tenant_id, agent_id, date DESC)`);
+
+  // ─── Benchmark tables (v0.7.0 — Story 1.3) ──────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS benchmarks (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'draft',
+      agent_id TEXT,
+      metrics TEXT NOT NULL DEFAULT '[]',
+      min_sessions_per_variant INTEGER NOT NULL DEFAULT 10,
+      time_range_from TEXT,
+      time_range_to TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS benchmark_variants (
+      id TEXT PRIMARY KEY,
+      benchmark_id TEXT NOT NULL REFERENCES benchmarks(id) ON DELETE CASCADE,
+      tenant_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      tag TEXT NOT NULL,
+      agent_id TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS benchmark_results (
+      id TEXT PRIMARY KEY,
+      benchmark_id TEXT NOT NULL REFERENCES benchmarks(id) ON DELETE CASCADE,
+      tenant_id TEXT NOT NULL,
+      variant_metrics TEXT NOT NULL DEFAULT '[]',
+      comparisons TEXT NOT NULL DEFAULT '[]',
+      summary TEXT,
+      computed_at TEXT NOT NULL
+    )
+  `);
+
+  // Benchmark indexes
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmarks_tenant_id ON benchmarks(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmarks_tenant_status ON benchmarks(tenant_id, status)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmark_variants_benchmark_id ON benchmark_variants(benchmark_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmark_variants_tenant_tag ON benchmark_variants(tenant_id, tag)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmark_results_benchmark_id ON benchmark_results(benchmark_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmark_results_tenant_id ON benchmark_results(tenant_id)`);
 }
 
 /**
