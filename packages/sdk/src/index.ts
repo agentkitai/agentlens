@@ -55,4 +55,10 @@ export type {
   ContextSession,
   ContextKeyEvent,
   ContextLesson,
+  HealthScore,
+  HealthSnapshot,
+  HealthDimension,
+  HealthTrend,
+  OptimizationResult,
+  CostRecommendation,
 } from '@agentlensai/core';

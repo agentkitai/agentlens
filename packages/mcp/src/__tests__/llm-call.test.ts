@@ -77,7 +77,7 @@ describe('agentlens_log_llm_call registration', () => {
     expect(toolNames).toContain('agentlens_log_llm_call');
   });
 
-  it('now registers 10 tools total', async () => {
+  it('now registers 11 tools total', async () => {
     const { client } = await createTestSetup();
 
     const result = await client.listTools();

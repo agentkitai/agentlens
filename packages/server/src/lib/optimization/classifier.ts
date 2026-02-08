@@ -102,12 +102,9 @@ function extractToolCallCount(
     return responsePayload.toolCalls.length;
   }
 
-  // Fall back to call payload's tools (definitions offered to the model)
-  if (callPayload?.tools != null) {
-    return callPayload.tools.length;
-  }
-
-  return null;
+  // No actual tool calls in response — default to 0
+  // (Don't fall back to tools definitions count, which is available tools, not invocations)
+  return 0;
 }
 
 /**

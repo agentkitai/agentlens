@@ -105,6 +105,9 @@ export class OptimizationEngine {
       const responseEvent = callId ? responseMap.get(callId) ?? null : null;
       const responsePayload = responseEvent?.payload as Partial<LlmResponsePayload> | undefined;
 
+      // Skip unmatched calls (no response yet) — don't count them as failures
+      if (!responseEvent) continue;
+
       const { tier } = classifyCallComplexity(callEvent, responseEvent);
 
       const groupKey = `${model}::${tier}`;
@@ -126,12 +129,10 @@ export class OptimizationEngine {
       group.callCount++;
       group.agentIds.add(callEvent.agentId);
 
-      // Determine success: response exists and finishReason is not 'error'
-      if (responseEvent) {
-        const isError = responsePayload?.finishReason === 'error';
-        if (!isError) {
-          group.successCount++;
-        }
+      // Determine success: finishReason is not 'error'
+      const isError = responsePayload?.finishReason === 'error';
+      if (!isError) {
+        group.successCount++;
       }
 
       // Accumulate cost from response payload
@@ -226,8 +227,15 @@ export class OptimizationEngine {
   private getModelCostRate(group: ModelTierGroup): number | null {
     const knownCost = this.modelCosts[group.model];
     if (knownCost) {
-      // Weighted average: assume ~3:1 input:output ratio for weighting
-      return knownCost.input * 0.75 + knownCost.output * 0.25;
+      // Weighted average using actual input/output ratio when available
+      const totalTokens = group.totalInputTokens + group.totalOutputTokens;
+      let inputWeight = 0.75; // default fallback ~3:1 input:output
+      let outputWeight = 0.25;
+      if (totalTokens > 0) {
+        inputWeight = group.totalInputTokens / totalTokens;
+        outputWeight = group.totalOutputTokens / totalTokens;
+      }
+      return knownCost.input * inputWeight + knownCost.output * outputWeight;
     }
 
     // Fall back to actual cost from event data

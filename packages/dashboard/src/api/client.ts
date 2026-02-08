@@ -597,4 +597,58 @@ export async function reflect(params: {
   return request<ReflectResultData>(`/api/reflect${qs}`);
 }
 
+// ─── Health Overview (Story 3.4) ────────────────────────────────────
+
+export interface AgentHealth {
+  agentId: string;
+  agentName?: string;
+  overallScore: number;
+  trend: 'improving' | 'stable' | 'degrading';
+  dimensions: Record<string, number>;
+}
+
+export interface HealthOverviewData {
+  agents: AgentHealth[];
+  window: number;
+}
+
+export async function getHealthOverview(params: {
+  window?: number;
+}): Promise<HealthOverviewData> {
+  const qs = toQueryString({ window: params.window });
+  return request<HealthOverviewData>(`/api/health/overview${qs}`);
+}
+
+// ─── Cost Optimization (Story 3.5) ──────────────────────────────────
+
+export interface OptimizationRecommendation {
+  agentId?: string;
+  agentName?: string;
+  currentModel: string;
+  recommendedModel: string;
+  complexityTier: string;
+  monthlySavings: number;
+  confidence: 'low' | 'medium' | 'high';
+  callVolume: number;
+}
+
+export interface OptimizationRecommendationsData {
+  recommendations: OptimizationRecommendation[];
+  period: number;
+  totalPotentialSavings: number;
+}
+
+export async function getOptimizationRecommendations(params: {
+  period?: number;
+  limit?: number;
+  agentId?: string;
+}): Promise<OptimizationRecommendationsData> {
+  const qs = toQueryString({
+    period: params.period,
+    limit: params.limit,
+    agentId: params.agentId,
+  });
+  return request<OptimizationRecommendationsData>(`/api/optimize/recommendations${qs}`);
+}
+
 export { ApiError };

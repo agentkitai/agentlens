@@ -29,6 +29,7 @@ from agentlensai.models import (
     EventQuery,
     EventQueryResult,
     HealthResult,
+    HealthScore,
     Lesson,
     LessonListResult,
     LessonQuery,
@@ -36,6 +37,7 @@ from agentlensai.models import (
     LlmAnalyticsResult,
     LogLlmCallParams,
     LogLlmCallResult,
+    OptimizationResult,
     RecallQuery,
     RecallResult,
     ReflectQuery,
@@ -246,3 +248,38 @@ class AsyncAgentLensClient:
         """Check server health (no auth required)."""
         data = await self._request("GET", "/api/health", skip_auth=True)
         return HealthResult.model_validate(data)
+
+    # ─── Agent Health Scores (Story 3.2) ──────────────────
+
+    async def get_health(self, agent_id: str, window: int = 7) -> HealthScore:
+        """Get health score for a specific agent."""
+        params = {"window": str(window)}
+        data = await self._request(
+            "GET", f"/api/agents/{agent_id}/health", params=params,
+        )
+        return HealthScore.model_validate(data)
+
+    async def get_health_overview(self, window: int = 7) -> list[HealthScore]:
+        """Get health overview for all agents."""
+        params = {"window": str(window)}
+        data = await self._request(
+            "GET", "/api/health/overview", params=params,
+        )
+        return [HealthScore.model_validate(item) for item in data]
+
+    # ─── Optimization Recommendations (Story 3.2) ────────
+
+    async def get_optimization_recommendations(
+        self,
+        agent_id: str | None = None,
+        period: int = 7,
+        limit: int = 10,
+    ) -> OptimizationResult:
+        """Get cost-optimization recommendations."""
+        params: dict[str, str] = {"period": str(period), "limit": str(limit)}
+        if agent_id is not None:
+            params["agentId"] = agent_id
+        data = await self._request(
+            "GET", "/api/optimize/recommendations", params=params,
+        )
+        return OptimizationResult.model_validate(data)

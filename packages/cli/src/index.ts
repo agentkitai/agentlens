@@ -8,8 +8,10 @@
 import { runConfigCommand } from './commands/config.js';
 import { runContextCommand } from './commands/context.js';
 import { runEventsCommand } from './commands/events.js';
+import { runHealthCommand } from './commands/health.js';
 import { runLessonsCommand } from './commands/lessons.js';
 import { runLlmCommand } from './commands/llm.js';
+import { runOptimizeCommand } from './commands/optimize.js';
 import { runRecallCommand } from './commands/recall.js';
 import { runReflectCommand } from './commands/reflect.js';
 import { runSessionsCommand } from './commands/sessions.js';
@@ -23,8 +25,10 @@ Commands:
   config              Get or set configuration (url, api-key)
   context             Retrieve cross-session context for a topic
   events              Query events
+  health              Agent health scores and trends
   lessons             Manage agent lessons (list, create, get, update, delete, search)
   llm                 LLM call tracking (stats, models, recent)
+  optimize            Cost optimization recommendations
   recall              Semantic search over agent memory
   reflect             Pattern analysis across agent sessions
   sessions            List and inspect sessions
@@ -56,12 +60,20 @@ async function main(): Promise<void> {
       await runEventsCommand(rest);
       break;
 
+    case 'health':
+      await runHealthCommand(rest);
+      break;
+
     case 'lessons':
       await runLessonsCommand(rest);
       break;
 
     case 'llm':
       await runLlmCommand(rest);
+      break;
+
+    case 'optimize':
+      await runOptimizeCommand(rest);
       break;
 
     case 'recall':

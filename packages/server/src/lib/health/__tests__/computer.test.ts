@@ -301,6 +301,46 @@ describe('HealthComputer — Tool Success', () => {
     const dim = result!.dimensions.find((d) => d.name === 'tool_success')!;
     expect(dim.score).toBe(0);
   });
+
+  it('counts tool_error events as failures', async () => {
+    const sessions = [makeSession()];
+    const events = [
+      makeEvent({ eventType: 'tool_call' }),
+      makeEvent({ eventType: 'tool_response', payload: { isError: false } }),
+      makeEvent({ eventType: 'tool_call' }),
+      makeEvent({ eventType: 'tool_error', payload: { error: 'timeout' } }),
+      makeEvent({ eventType: 'tool_call' }),
+      makeEvent({ eventType: 'tool_response', payload: { isError: false } }),
+      makeEvent({ eventType: 'tool_call' }),
+      makeEvent({ eventType: 'tool_error', payload: { error: 'crash' } }),
+    ];
+    // 4 tool_calls, 2 tool_errors → success rate = 2/4 = 50%
+    const store = createMockStore({ sessions, events });
+    const computer = new HealthComputer(EQUAL_WEIGHTS);
+    const result = await computer.compute(store, 'agent-1', 7);
+
+    const dim = result!.dimensions.find((d) => d.name === 'tool_success')!;
+    expect(dim.score).toBe(50);
+  });
+
+  it('counts both tool_error and tool_response isError as failures', async () => {
+    const sessions = [makeSession()];
+    const events = [
+      makeEvent({ eventType: 'tool_call' }),
+      makeEvent({ eventType: 'tool_response', payload: { isError: true } }),
+      makeEvent({ eventType: 'tool_call' }),
+      makeEvent({ eventType: 'tool_error', payload: { error: 'timeout' } }),
+      makeEvent({ eventType: 'tool_call' }),
+      makeEvent({ eventType: 'tool_response', payload: { isError: false } }),
+    ];
+    // 3 tool_calls, 1 tool_response error + 1 tool_error = 2 failures → success rate = 1/3 ≈ 33.33%
+    const store = createMockStore({ sessions, events });
+    const computer = new HealthComputer(EQUAL_WEIGHTS);
+    const result = await computer.compute(store, 'agent-1', 7);
+
+    const dim = result!.dimensions.find((d) => d.name === 'tool_success')!;
+    expect(dim.score).toBeCloseTo(33.33, 1);
+  });
 });
 
 // ─── Latency ───────────────────────────────────────────────

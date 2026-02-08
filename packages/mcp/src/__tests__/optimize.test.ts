@@ -66,7 +66,7 @@ describe('agentlens_optimize', () => {
     expect(tool!.inputSchema.properties).toHaveProperty('limit');
   });
 
-  it('registers 10 tools total (9 existing + optimize)', async () => {
+  it('registers 11 tools total (10 existing + optimize)', async () => {
     const { client } = await createTestSetup();
 
     const result = await client.listTools();

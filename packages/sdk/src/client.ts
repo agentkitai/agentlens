@@ -22,6 +22,9 @@ import type {
   ReflectResult,
   ContextQuery,
   ContextResult,
+  HealthScore,
+  HealthSnapshot,
+  OptimizationResult,
 } from '@agentlensai/core';
 import {
   AgentLensError,
@@ -407,7 +410,65 @@ export class AgentLensClient {
     return this.request<ContextResult>(`/api/context?${params.toString()}`);
   }
 
-  // ─── Health ──────────────────────────────────────────────
+  // ─── Agent Health Scores ──────────────────────────────────
+
+  /**
+   * Get the health score for a single agent.
+   */
+  async getHealth(agentId: string, window?: number): Promise<HealthScore> {
+    const params = new URLSearchParams();
+    if (window != null) params.set('window', String(window));
+    const qs = params.toString();
+    return this.request<HealthScore>(
+      `/api/agents/${encodeURIComponent(agentId)}/health${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  /**
+   * Get health score overview for all agents.
+   */
+  async getHealthOverview(window?: number): Promise<HealthScore[]> {
+    const params = new URLSearchParams();
+    if (window != null) params.set('window', String(window));
+    const qs = params.toString();
+    return this.request<HealthScore[]>(
+      `/api/health/overview${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  /**
+   * Get historical health snapshots for an agent.
+   */
+  async getHealthHistory(agentId: string, days?: number): Promise<HealthSnapshot[]> {
+    const params = new URLSearchParams();
+    params.set('agentId', agentId);
+    if (days != null) params.set('days', String(days));
+    return this.request<HealthSnapshot[]>(
+      `/api/health/history?${params.toString()}`,
+    );
+  }
+
+  // ─── Optimization ────────────────────────────────────────
+
+  /**
+   * Get cost optimization recommendations.
+   */
+  async getOptimizationRecommendations(options?: {
+    agentId?: string;
+    period?: number;
+    limit?: number;
+  }): Promise<OptimizationResult> {
+    const params = new URLSearchParams();
+    if (options?.agentId) params.set('agentId', options.agentId);
+    if (options?.period != null) params.set('period', String(options.period));
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    const qs = params.toString();
+    return this.request<OptimizationResult>(
+      `/api/optimize/recommendations${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  // ─── Server Health ───────────────────────────────────────
 
   /**
    * Check server health (no auth required).

@@ -457,3 +457,63 @@ class ContextResult(_BaseModel):
     sessions: list[ContextSession]
     lessons: list[ContextLesson]
     summary: str | None = None
+
+
+# ─── Health Score & Optimization Models (Story 3.2) ─────────────────────────
+
+TrendDirection = Literal["improving", "degrading", "stable"]
+
+
+class HealthDimension(_BaseModel):
+    """A single dimension contributing to an agent's health score."""
+
+    name: str
+    score: float
+    weight: float
+    trend: str
+    raw_value: float
+    description: str
+
+
+class HealthTrend(_BaseModel):
+    """Trend information for a health score."""
+
+    direction: TrendDirection
+    delta: float
+    previous_score: float
+
+
+class HealthScore(_BaseModel):
+    """Computed health score for an agent."""
+
+    agent_id: str
+    overall_score: float
+    dimensions: list[HealthDimension]
+    trend: HealthTrend
+    computed_at: str
+    window_days: int
+
+
+class CostRecommendation(_BaseModel):
+    """A single cost-optimization recommendation."""
+
+    current_model: str
+    recommended_model: str
+    complexity_tier: str
+    current_cost_per_call: float
+    recommended_cost_per_call: float
+    monthly_savings: float
+    call_volume: int
+    current_success_rate: float
+    recommended_success_rate: float
+    confidence: float
+    agent_id: str
+
+
+class OptimizationResult(_BaseModel):
+    """Result of optimization recommendations analysis."""
+
+    recommendations: list[CostRecommendation]
+    total_potential_savings: float
+    period: int
+    analyzed_calls: int

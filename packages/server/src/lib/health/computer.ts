@@ -56,12 +56,13 @@ export class HealthComputer {
       return null;
     }
 
-    // Query sessions for the 30-day baseline
+    // Query sessions for the 30-day baseline (excluding current window)
     const baselineFrom = daysAgo(30, now);
+    const baselineTo = daysAgo(windowDays, now);
     const { sessions: baselineSessions } = await store.querySessions({
       agentId,
       from: baselineFrom,
-      to: windowTo,
+      to: baselineTo,
       limit: 10000,
     });
 
@@ -70,7 +71,7 @@ export class HealthComputer {
       agentId,
       from: windowFrom,
       to: windowTo,
-      eventType: ['tool_call', 'tool_response'],
+      eventType: ['tool_call', 'tool_response', 'tool_error'],
       limit: 10000,
     });
 
@@ -89,12 +90,13 @@ export class HealthComputer {
       completionRateDim,
     ];
 
-    const overallScore =
+    const rawOverallScore =
       errorRateDim.score * this.weights.errorRate +
       costEfficiencyDim.score * this.weights.costEfficiency +
       toolSuccessDim.score * this.weights.toolSuccess +
       latencyDim.score * this.weights.latency +
       completionRateDim.score * this.weights.completionRate;
+    const overallScore = clamp(rawOverallScore, 0, 100);
 
     // Compute trend by comparing against previous window
     const trend = await this.computeTrend(store, agentId, windowDays, overallScore, now);
@@ -177,9 +179,10 @@ export class HealthComputer {
   }
 
   private computeToolSuccess(toolEvents: AgentLensEvent[]): HealthDimension {
-    // Separate tool_call and tool_response events
+    // Separate tool_call, tool_response, and tool_error events
     const toolCalls = toolEvents.filter((e) => e.eventType === 'tool_call');
     const toolResponses = toolEvents.filter((e) => e.eventType === 'tool_response');
+    const toolErrors = toolEvents.filter((e) => e.eventType === 'tool_error');
 
     const totalCalls = toolCalls.length;
 
@@ -193,11 +196,12 @@ export class HealthComputer {
       };
     }
 
-    // Count failed tool responses (isError=true in payload)
-    const failedCalls = toolResponses.filter((e) => {
+    // Count failed tool responses (isError=true in payload) + tool_error events
+    const failedResponses = toolResponses.filter((e) => {
       const payload = e.payload as Record<string, unknown>;
       return payload.isError === true;
     }).length;
+    const failedCalls = failedResponses + toolErrors.length;
 
     const successRate = (totalCalls - failedCalls) / totalCalls;
     const score = successRate * 100;
@@ -305,7 +309,7 @@ export class HealthComputer {
       agentId,
       from: prevFrom,
       to: prevTo,
-      eventType: ['tool_call', 'tool_response'],
+      eventType: ['tool_call', 'tool_response', 'tool_error'],
       limit: 10000,
     });
 

@@ -578,6 +578,37 @@ describe('OptimizationEngine', () => {
     expect(result.totalPotentialSavings).toBe(0);
   });
 
+  it('skips unmatched calls (no response) instead of counting as failures', async () => {
+    // 100 Opus calls but only 80 have responses (20 unmatched/in-flight)
+    const opusPaired = generateSimplePairs('claude-opus-4', 80, 0.05);
+    // 20 extra calls with no matching response
+    const unmatchedCalls: AgentLensEvent[] = [];
+    for (let i = 0; i < 20; i++) {
+      unmatchedCalls.push(makeCallEvent({
+        model: 'claude-opus-4',
+        callId: `unmatched-${i}`,
+        tools: [],
+      }));
+    }
+    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
+
+    const store = createMockStore(
+      [...opusPaired.calls, ...unmatchedCalls, ...haiku.calls],
+      [...opusPaired.responses, ...haiku.responses],
+    );
+
+    const engine = new OptimizationEngine(TEST_COSTS);
+    const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
+
+    const rec = result.recommendations.find(
+      (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-haiku-3.5',
+    );
+    expect(rec).toBeTruthy();
+    // Success rate should be based on the 80 paired calls (all successful), not 100
+    expect(rec!.currentSuccessRate).toBe(1);
+    expect(rec!.callVolume).toBe(80);
+  });
+
   it('works with moderate complexity tier recommendations', async () => {
     const opus = generateModeratePairs('claude-opus-4', 100, 0.08);
     const sonnet = generateModeratePairs('claude-sonnet-4', 100, 0.015);

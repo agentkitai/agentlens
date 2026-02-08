@@ -85,7 +85,7 @@ describe('agentlens_health', () => {
     expect(schema.properties).toHaveProperty('window');
   });
 
-  it('total tool count is 10', async () => {
+  it('total tool count is 11', async () => {
     const { client } = await createTestSetup();
     const result = await client.listTools();
     expect(result.tools).toHaveLength(11);
