@@ -92,8 +92,67 @@ result = client.log_llm_call(
 )
 ```
 
+## Auto-Instrumentation (v0.4.0+)
+
+One line of setup — every LLM call captured automatically. No code changes needed.
+
+```bash
+pip install agentlensai[openai]      # or agentlensai[anthropic] or agentlensai[all]
+```
+
+```python
+import agentlensai
+
+# Automatically instruments OpenAI + Anthropic SDKs
+agentlensai.init(
+    url="http://localhost:3400",
+    api_key="als_your_key",
+    agent_id="my-agent",
+)
+
+# Every call is now captured — deterministic, not MCP-dependent
+import openai
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+# ^ Automatically logged: model, tokens, cost, latency, prompts
+
+# Works with Anthropic too
+import anthropic
+client = anthropic.Anthropic()
+message = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello"}],
+)
+# ^ Also captured automatically
+
+# Clean up when done
+agentlensai.shutdown()
+```
+
+### LangChain Integration
+
+```python
+from agentlensai.integrations.langchain import AgentLensCallbackHandler
+
+handler = AgentLensCallbackHandler()
+chain.invoke(input, config={"callbacks": [handler]})
+# ^ Every LLM call, tool call, and chain event captured
+```
+
+### Key Guarantees
+
+- **Deterministic** — Every call captured, not dependent on LLM behavior
+- **Fail-safe** — If AgentLens server is down, your code still works normally
+- **Zero overhead** — Events sent via background thread, doesn't block your calls
+- **Privacy** — `init(redact=True)` strips content, keeps metadata
+
 ## Features
 
+- **Auto-Instrumentation** — One-liner setup for OpenAI, Anthropic, LangChain
 - **Sync & Async** — Both `AgentLensClient` and `AsyncAgentLensClient`
 - **Typed** — Full Pydantic v2 models, PEP 561 `py.typed` marker
 - **LLM Call Tracking** — Log prompts, completions, tokens, costs, latency
