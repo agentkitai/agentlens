@@ -129,7 +129,7 @@ export const alertHistory = sqliteTable(
 export const lessons = sqliteTable(
   'lessons',
   {
-    id: text('id').primaryKey(),
+    id: text('id').notNull(),
     tenantId: text('tenant_id').notNull(),
     agentId: text('agent_id'),
     category: text('category').notNull().default('general'),
@@ -146,6 +146,7 @@ export const lessons = sqliteTable(
     archivedAt: text('archived_at'),
   },
   (table) => [
+    primaryKey({ columns: [table.id, table.tenantId] }),
     index('idx_lessons_tenant').on(table.tenantId),
     index('idx_lessons_tenant_agent').on(table.tenantId, table.agentId),
     index('idx_lessons_tenant_category').on(table.tenantId, table.category),
@@ -189,6 +190,7 @@ export const embeddings = sqliteTable(
     index('idx_embeddings_tenant').on(table.tenantId),
     index('idx_embeddings_source').on(table.sourceType, table.sourceId),
     index('idx_embeddings_content_hash').on(table.tenantId, table.contentHash),
+    index('idx_embeddings_tenant_source_time').on(table.tenantId, table.sourceType, table.createdAt),
   ],
 );
 

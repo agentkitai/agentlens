@@ -247,6 +247,36 @@ export class AgentLensTransport {
     });
   }
 
+  // ─── Recall API methods (Story 2.5) ──────────────────────
+
+  /**
+   * Perform a semantic recall search.
+   */
+  async recall(params: {
+    query: string;
+    scope?: string;
+    agentId?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+    minScore?: number;
+  }): Promise<Response> {
+    const searchParams = new URLSearchParams();
+    searchParams.set('query', params.query);
+    if (params.scope) searchParams.set('scope', params.scope);
+    if (params.agentId) searchParams.set('agentId', params.agentId);
+    if (params.from) searchParams.set('from', params.from);
+    if (params.to) searchParams.set('to', params.to);
+    if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params.minScore !== undefined) searchParams.set('minScore', String(params.minScore));
+
+    const url = `${this.baseUrl}/api/recall?${searchParams.toString()}`;
+    return fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+  }
+
   /**
    * Delete (archive) a lesson.
    */
@@ -256,6 +286,40 @@ export class AgentLensTransport {
       method: 'DELETE',
       headers: this.buildHeaders(),
     });
+  }
+
+  // ─── Reflect API method (Story 4.5) ──────────────────────────
+
+  /**
+   * Call the reflect analysis endpoint.
+   */
+  async reflect(query: {
+    analysis: string;
+    agentId?: string;
+    from?: string;
+    to?: string;
+    params?: Record<string, unknown>;
+    limit?: number;
+  }): Promise<unknown> {
+    const searchParams = new URLSearchParams();
+    searchParams.set('analysis', query.analysis);
+    if (query.agentId) searchParams.set('agentId', query.agentId);
+    if (query.from) searchParams.set('from', query.from);
+    if (query.to) searchParams.set('to', query.to);
+    if (query.limit !== undefined) searchParams.set('limit', String(query.limit));
+
+    const url = `${this.baseUrl}/api/reflect?${searchParams.toString()}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Reflect API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
   }
 
   private buildHeaders(): Record<string, string> {

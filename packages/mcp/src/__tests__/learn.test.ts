@@ -71,7 +71,7 @@ describe('agentlens_learn registration', () => {
   it('registers 6 tools total', async () => {
     const { client } = await createTestSetup();
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(6);
+    expect(result.tools).toHaveLength(8);
   });
 
   it('has a description', async () => {

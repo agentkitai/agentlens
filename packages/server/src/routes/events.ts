@@ -21,13 +21,18 @@ import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { eventBus } from '../lib/event-bus.js';
 import { getTenantStore } from './tenant-helper.js';
+import { summarizeEvent } from '../lib/embeddings/summarizer.js';
+import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
 
 /** Schema for the batch ingestion request body */
 const ingestBatchSchema = z.object({
   events: z.array(ingestEventSchema).min(1).max(1000),
 });
 
-export function eventsRoutes(store: IEventStore) {
+export function eventsRoutes(
+  store: IEventStore,
+  deps?: { embeddingWorker: EmbeddingWorker | null },
+) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
   // POST /api/events — ingest events
@@ -131,6 +136,27 @@ export function eventsRoutes(store: IEventStore) {
     const now = new Date().toISOString();
     for (const event of allProcessed) {
       eventBus.emit({ type: 'event_ingested', event, timestamp: now });
+    }
+
+    // Enqueue embeddable events for background embedding
+    const worker = deps?.embeddingWorker;
+    if (worker) {
+      const tenantId = allProcessed[0]?.tenantId ?? 'default';
+      for (const event of allProcessed) {
+        try {
+          const text = summarizeEvent(event);
+          if (text) {
+            worker.enqueue({
+              tenantId,
+              sourceType: 'event',
+              sourceId: event.id,
+              textContent: text,
+            });
+          }
+        } catch {
+          // Never crash on embedding failures
+        }
+      }
     }
 
     // Emit session updates for affected sessions

@@ -317,7 +317,7 @@ export function runMigrations(db: SqliteDb): void {
   // ─── Lessons table (Epic 3) ──────────────────────────────
   db.run(sql`
     CREATE TABLE IF NOT EXISTS lessons (
-      id TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
       tenant_id TEXT NOT NULL,
       agent_id TEXT,
       category TEXT NOT NULL DEFAULT 'general',
@@ -331,7 +331,8 @@ export function runMigrations(db: SqliteDb): void {
       last_accessed_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      archived_at TEXT
+      archived_at TEXT,
+      PRIMARY KEY (id, tenant_id)
     )
   `);
 
@@ -339,6 +340,56 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_lessons_tenant_agent ON lessons(tenant_id, agent_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_lessons_tenant_category ON lessons(tenant_id, category)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_lessons_tenant_importance ON lessons(tenant_id, importance)`);
+
+  // ─── Lessons PK migration (H5) ──────────────────────────
+  // Migrate existing lessons tables from single-column PK to composite PK
+  const lessonsSchema = db.get<{ sql: string }>(
+    sql`SELECT sql FROM sqlite_master WHERE type='table' AND name='lessons'`,
+  );
+  if (lessonsSchema && lessonsSchema.sql.includes('id TEXT PRIMARY KEY')) {
+    db.run(sql`DROP INDEX IF EXISTS idx_lessons_tenant`);
+    db.run(sql`DROP INDEX IF EXISTS idx_lessons_tenant_agent`);
+    db.run(sql`DROP INDEX IF EXISTS idx_lessons_tenant_category`);
+    db.run(sql`DROP INDEX IF EXISTS idx_lessons_tenant_importance`);
+
+    db.run(sql`
+      CREATE TABLE lessons_new (
+        id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        agent_id TEXT,
+        category TEXT NOT NULL DEFAULT 'general',
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        context TEXT NOT NULL DEFAULT '{}',
+        importance TEXT NOT NULL DEFAULT 'normal',
+        source_session_id TEXT,
+        source_event_id TEXT,
+        access_count INTEGER NOT NULL DEFAULT 0,
+        last_accessed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        archived_at TEXT,
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    db.run(sql`
+      INSERT INTO lessons_new
+        SELECT id, tenant_id, agent_id, category, title, content, context,
+               importance, source_session_id, source_event_id, access_count,
+               last_accessed_at, created_at, updated_at, archived_at
+        FROM lessons
+    `);
+    db.run(sql`DROP TABLE lessons`);
+    db.run(sql`ALTER TABLE lessons_new RENAME TO lessons`);
+
+    db.run(sql`CREATE INDEX idx_lessons_tenant ON lessons(tenant_id)`);
+    db.run(sql`CREATE INDEX idx_lessons_tenant_agent ON lessons(tenant_id, agent_id)`);
+    db.run(sql`CREATE INDEX idx_lessons_tenant_category ON lessons(tenant_id, category)`);
+    db.run(sql`CREATE INDEX idx_lessons_tenant_importance ON lessons(tenant_id, importance)`);
+  }
+
+  // ─── Composite index for similarity search (M6) ──────────────────
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_embeddings_tenant_source_time ON embeddings(tenant_id, source_type, created_at)`);
 }
 
 /**

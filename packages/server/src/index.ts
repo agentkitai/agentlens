@@ -28,11 +28,16 @@ import { ingestRoutes } from './routes/ingest.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { streamRoutes } from './routes/stream.js';
 import { lessonsRoutes } from './routes/lessons.js';
+import { reflectRoutes } from './routes/reflect.js';
+import { recallRoutes } from './routes/recall.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
 import { AlertEngine } from './lib/alert-engine.js';
 import { eventBus } from './lib/event-bus.js';
+import { EmbeddingWorker } from './lib/embeddings/worker.js';
+import type { EmbeddingService } from './lib/embeddings/index.js';
+import { EmbeddingStore } from './db/embedding-store.js';
 
 // Re-export everything consumers may need
 export { getConfig } from './config.js';
@@ -50,6 +55,10 @@ export { ingestRoutes, verifyWebhookSignature } from './routes/ingest.js';
 export { analyticsRoutes } from './routes/analytics.js';
 export { streamRoutes } from './routes/stream.js';
 export { lessonsRoutes } from './routes/lessons.js';
+export { reflectRoutes } from './routes/reflect.js';
+export { recallRoutes } from './routes/recall.js';
+export { EmbeddingWorker } from './lib/embeddings/worker.js';
+export { EmbeddingStore } from './db/embedding-store.js';
 export { createSSEStream } from './lib/sse.js';
 export { SqliteEventStore } from './db/sqlite-store.js';
 export { TenantScopedStore } from './db/tenant-scoped-store.js';
@@ -118,7 +127,11 @@ function getDashboardIndexHtml(): string | null {
  */
 export function createApp(
   store: IEventStore,
-  config?: Partial<ServerConfig> & { db?: SqliteDb },
+  config?: Partial<ServerConfig> & {
+    db?: SqliteDb;
+    embeddingService?: EmbeddingService | null;
+    embeddingWorker?: EmbeddingWorker | null;
+  },
 ) {
   const resolvedConfig = { ...getConfig(), ...config };
 
@@ -196,13 +209,17 @@ export function createApp(
     app.use('/api/analytics/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/alerts/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/lessons/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/reflect/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/reflect', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/recall/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/recall', authMiddleware(db, resolvedConfig.authDisabled));
   }
 
   // ─── Routes ────────────────────────────────────────────
   if (db) {
     app.route('/api/keys', apiKeysRoutes(db));
   }
-  app.route('/api/events', eventsRoutes(store));
+  app.route('/api/events', eventsRoutes(store, { embeddingWorker: config?.embeddingWorker ?? null }));
   app.route('/api/sessions', sessionsRoutes(store));
   app.route('/api/agents', agentsRoutes(store));
   app.route('/api/stats', statsRoutes(store));
@@ -212,7 +229,17 @@ export function createApp(
   }
   app.route('/api/alerts', alertsRoutes(store));
   if (db) {
-    app.route('/api/lessons', lessonsRoutes(db));
+    app.route('/api/lessons', lessonsRoutes(db, { embeddingWorker: config?.embeddingWorker ?? null }));
+  }
+
+  // ─── Reflect / Pattern Analysis ────────────────────────
+  app.route('/api/reflect', reflectRoutes(store));
+
+  // ─── Recall / Semantic Search ─────────────────────────
+  {
+    const embeddingService = config?.embeddingService ?? null;
+    const embeddingStore = db ? new EmbeddingStore(db) : null;
+    app.route('/api/recall', recallRoutes({ embeddingService, embeddingStore }));
   }
 
   // ─── Dashboard SPA static assets ──────────────────────
@@ -231,7 +258,7 @@ export function createApp(
  * Start the server as a standalone process.
  * Creates the database, runs migrations, and starts listening.
  */
-export function startServer() {
+export async function startServer() {
   const config = getConfig();
 
   // Create and initialize database
@@ -239,8 +266,22 @@ export function startServer() {
   runMigrations(db);
   const store = new SqliteEventStore(db);
 
+  // Create embedding service & worker (optional — fail-safe)
+  let embeddingService: EmbeddingService | null = null;
+  let embeddingWorker: EmbeddingWorker | null = null;
+  try {
+    const { createEmbeddingService } = await import('./lib/embeddings/index.js');
+    embeddingService = createEmbeddingService();
+    const embeddingStore = new EmbeddingStore(db);
+    embeddingWorker = new EmbeddingWorker(embeddingService, embeddingStore);
+    embeddingWorker.start();
+    console.log(`  Embeddings: enabled (${embeddingService.modelName})`);
+  } catch (err) {
+    console.log(`  Embeddings: disabled (${err instanceof Error ? err.message : 'unknown error'})`);
+  }
+
   // Create app with db reference for auth
-  const app = createApp(store, { ...config, db });
+  const app = createApp(store, { ...config, db, embeddingService, embeddingWorker });
 
   // Start listening
   console.log(`AgentLens server starting on port ${config.port}`);

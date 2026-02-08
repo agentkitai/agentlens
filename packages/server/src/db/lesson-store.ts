@@ -4,7 +4,8 @@
  * CRUD operations for the lessons table with tenant isolation.
  */
 
-import { eq, and, like, or, sql, isNull, isNotNull } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { eq, and, or, sql, isNull } from 'drizzle-orm';
 import type { SqliteDb } from './index.js';
 import { lessons } from './schema.sqlite.js';
 import type { Lesson, LessonQuery, LessonImportance } from '@agentlensai/core';
@@ -32,9 +33,12 @@ export interface UpdateLessonInput {
   context?: Record<string, unknown>;
 }
 
-/** Generate a simple ID */
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+/** Valid importance values for runtime validation */
+const VALID_IMPORTANCE = new Set<string>(['low', 'normal', 'high', 'critical']);
+
+/** Escape LIKE wildcard characters to prevent injection */
+function escapeLike(s: string): string {
+  return s.replace(/[%_]/g, '\\$&');
 }
 
 /** Parse a DB row into a Lesson */
@@ -47,7 +51,7 @@ function rowToLesson(row: typeof lessons.$inferSelect): Lesson {
     title: row.title,
     content: row.content,
     context: JSON.parse(row.context) as Record<string, unknown>,
-    importance: row.importance as LessonImportance,
+    importance: VALID_IMPORTANCE.has(row.importance) ? row.importance as LessonImportance : 'normal',
     sourceSessionId: row.sourceSessionId ?? undefined,
     sourceEventId: row.sourceEventId ?? undefined,
     accessCount: row.accessCount,
@@ -66,7 +70,7 @@ export class LessonStore {
    */
   create(tenantId: string, input: CreateLessonInput): Lesson {
     const now = new Date().toISOString();
-    const id = generateId();
+    const id = randomUUID();
 
     const row = {
       id,
@@ -93,31 +97,33 @@ export class LessonStore {
 
   /**
    * Get a lesson by ID. Increments access_count and updates last_accessed_at.
+   * Wrapped in a transaction for atomicity.
    */
   get(tenantId: string, id: string): Lesson | null {
-    const row = this.db
-      .select()
-      .from(lessons)
-      .where(and(eq(lessons.id, id), eq(lessons.tenantId, tenantId)))
-      .get();
+    return this.db.transaction((tx) => {
+      const row = tx
+        .select()
+        .from(lessons)
+        .where(and(eq(lessons.id, id), eq(lessons.tenantId, tenantId)))
+        .get();
 
-    if (!row) return null;
+      if (!row) return null;
 
-    // Increment access_count and update last_accessed_at
-    const now = new Date().toISOString();
-    this.db
-      .update(lessons)
-      .set({
+      // Atomic increment — uses SQL expression to avoid read-then-write race
+      const now = new Date().toISOString();
+      tx.update(lessons)
+        .set({
+          accessCount: sql`${lessons.accessCount} + 1`,
+          lastAccessedAt: now,
+        })
+        .where(and(eq(lessons.id, id), eq(lessons.tenantId, tenantId)))
+        .run();
+
+      return rowToLesson({
+        ...row,
         accessCount: row.accessCount + 1,
         lastAccessedAt: now,
-      })
-      .where(and(eq(lessons.id, id), eq(lessons.tenantId, tenantId)))
-      .run();
-
-    return rowToLesson({
-      ...row,
-      accessCount: row.accessCount + 1,
-      lastAccessedAt: now,
+      });
     });
   }
 
@@ -141,11 +147,11 @@ export class LessonStore {
       conditions.push(eq(lessons.importance, query.importance));
     }
     if (query?.search) {
-      const pattern = `%${query.search}%`;
+      const pattern = `%${escapeLike(query.search)}%`;
       conditions.push(
         or(
-          like(lessons.title, pattern),
-          like(lessons.content, pattern),
+          sql`${lessons.title} LIKE ${pattern} ESCAPE '\\'`,
+          sql`${lessons.content} LIKE ${pattern} ESCAPE '\\'`,
         )!,
       );
     }
@@ -248,11 +254,11 @@ export class LessonStore {
       conditions.push(eq(lessons.importance, query.importance));
     }
     if (query?.search) {
-      const pattern = `%${query.search}%`;
+      const pattern = `%${escapeLike(query.search)}%`;
       conditions.push(
         or(
-          like(lessons.title, pattern),
-          like(lessons.content, pattern),
+          sql`${lessons.title} LIKE ${pattern} ESCAPE '\\'`,
+          sql`${lessons.content} LIKE ${pattern} ESCAPE '\\'`,
         )!,
       );
     }

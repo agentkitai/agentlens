@@ -544,3 +544,163 @@ export interface LessonQuery {
   offset?: number;
   includeArchived?: boolean;
 }
+
+// ─── Reflect / Pattern Analysis Types (Epic 4) ─────────────────────
+
+/**
+ * Supported analysis types for the reflect endpoint
+ */
+export type ReflectAnalysis =
+  | 'error_patterns'
+  | 'tool_sequences'
+  | 'cost_analysis'
+  | 'performance_trends'
+  | 'session_comparison';
+
+/**
+ * Query input for the reflect endpoint / MCP tool
+ */
+export interface ReflectQuery {
+  analysis: ReflectAnalysis;
+  agentId?: string;
+  from?: string;
+  to?: string;
+  params?: Record<string, unknown>;
+  limit?: number;
+}
+
+/**
+ * Structured insight returned from analysis
+ */
+export interface ReflectInsight {
+  type: string;
+  summary: string;
+  data: Record<string, unknown>;
+  confidence: number;
+}
+
+/**
+ * Result envelope from the reflect endpoint
+ */
+export interface ReflectResult {
+  analysis: ReflectAnalysis;
+  insights: ReflectInsight[];
+  metadata: {
+    sessionsAnalyzed: number;
+    eventsAnalyzed: number;
+    timeRange: { from: string; to: string };
+  };
+}
+
+// ─── Error Pattern Analysis ────────────────────────────────────────
+
+export interface ErrorPattern {
+  pattern: string;
+  count: number;
+  firstSeen: string;
+  lastSeen: string;
+  affectedSessions: string[];
+  precedingTools: string[][];
+}
+
+export interface ErrorPatternResult {
+  patterns: ErrorPattern[];
+  metadata: {
+    eventsAnalyzed: number;
+    timeRange: { from: string; to: string };
+  };
+}
+
+// ─── Tool Sequence Analysis ────────────────────────────────────────
+
+export interface ToolSequence {
+  tools: string[];
+  frequency: number;
+  sessions: number;
+  errorRate: number;
+}
+
+export interface ToolSequenceResult {
+  sequences: ToolSequence[];
+  stats: {
+    avgSequenceLength: number;
+    uniqueTools: number;
+    totalCalls: number;
+  };
+  metadata: {
+    eventsAnalyzed: number;
+    timeRange: { from: string; to: string };
+  };
+}
+
+// ─── Cost Analysis ─────────────────────────────────────────────────
+
+export interface CostByModel {
+  model: string;
+  totalCost: number;
+  callCount: number;
+  avgCostPerCall: number;
+}
+
+export interface CostByAgent {
+  agentId: string;
+  totalCost: number;
+  sessionCount: number;
+  avgCostPerSession: number;
+}
+
+export interface CostTrendBucket {
+  date: string;
+  totalCost: number;
+  sessionCount: number;
+}
+
+export interface CostAnalysisResult {
+  summary: {
+    totalCost: number;
+    avgPerSession: number;
+    totalSessions: number;
+  };
+  byModel: CostByModel[];
+  byAgent: CostByAgent[];
+  trend: {
+    direction: 'increasing' | 'stable' | 'decreasing';
+    buckets: CostTrendBucket[];
+  };
+  topSessions: Array<{
+    sessionId: string;
+    agentId: string;
+    totalCost: number;
+    startedAt: string;
+  }>;
+  metadata: {
+    eventsAnalyzed: number;
+    timeRange: { from: string; to: string };
+  };
+}
+
+// ─── Performance Trends ────────────────────────────────────────────
+
+export interface PerformanceTrendBucket {
+  date: string;
+  successRate: number;
+  duration: number;
+  toolCalls: number;
+  errors: number;
+}
+
+export interface PerformanceTrendsResult {
+  current: {
+    successRate: number;
+    avgDuration: number;
+    avgToolCalls: number;
+    avgErrors: number;
+  };
+  trends: PerformanceTrendBucket[];
+  assessment: 'improving' | 'stable' | 'degrading';
+  metadata: {
+    sessionsAnalyzed: number;
+    eventsAnalyzed: number;
+    timeRange: { from: string; to: string };
+  };
+}

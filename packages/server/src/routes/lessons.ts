@@ -14,10 +14,12 @@ import type { SqliteDb } from '../db/index.js';
 import { LessonStore } from '../db/lesson-store.js';
 import { NotFoundError } from '../db/errors.js';
 import type { LessonImportance } from '@agentlensai/core';
+import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
 
-// TODO: enqueue embedding on lesson create/update
-
-export function lessonsRoutes(db: SqliteDb) {
+export function lessonsRoutes(
+  db: SqliteDb,
+  deps?: { embeddingWorker: EmbeddingWorker | null },
+) {
   const app = new Hono<{ Variables: AuthVariables }>();
   const store = new LessonStore(db);
 
@@ -33,11 +35,11 @@ export function lessonsRoutes(db: SqliteDb) {
 
     const { title, content, category, importance, agentId, context, sourceSessionId, sourceEventId } = rawBody as Record<string, unknown>;
 
-    if (!title || typeof title !== 'string') {
-      return c.json({ error: 'title is required and must be a string', status: 400 }, 400);
+    if (!title || typeof title !== 'string' || title.length > 500) {
+      return c.json({ error: 'title required, max 500 chars', status: 400 }, 400);
     }
-    if (!content || typeof content !== 'string') {
-      return c.json({ error: 'content is required and must be a string', status: 400 }, 400);
+    if (!content || typeof content !== 'string' || content.length > 50000) {
+      return c.json({ error: 'content required, max 50000 chars', status: 400 }, 400);
     }
 
     // Validate importance if provided
@@ -56,6 +58,18 @@ export function lessonsRoutes(db: SqliteDb) {
       sourceSessionId: sourceSessionId as string | undefined,
       sourceEventId: sourceEventId as string | undefined,
     });
+
+    // Enqueue lesson for embedding
+    try {
+      deps?.embeddingWorker?.enqueue({
+        tenantId,
+        sourceType: 'lesson',
+        sourceId: lesson.id,
+        textContent: `${lesson.title}: ${lesson.content}`,
+      });
+    } catch {
+      // Never crash on embedding failures
+    }
 
     return c.json(lesson, 201);
   });
@@ -138,6 +152,18 @@ export function lessonsRoutes(db: SqliteDb) {
         agentId: agentId as string | undefined,
         context: context as Record<string, unknown> | undefined,
       });
+
+      // Re-enqueue lesson for embedding after update
+      try {
+        deps?.embeddingWorker?.enqueue({
+          tenantId,
+          sourceType: 'lesson',
+          sourceId: lesson.id,
+          textContent: `${lesson.title}: ${lesson.content}`,
+        });
+      } catch {
+        // Never crash on embedding failures
+      }
 
       return c.json(lesson);
     } catch (err) {

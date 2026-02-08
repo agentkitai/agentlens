@@ -7,16 +7,14 @@
  * - Tenant isolation
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { eq, and, sql } from 'drizzle-orm';
 import type { SqliteDb } from './index.js';
 import { embeddings } from './schema.sqlite.js';
 import { cosineSimilarity } from '../lib/embeddings/math.js';
 
-/** Generate a simple unique ID */
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
-}
+/** Maximum candidates loaded into memory for similarity search */
+const MAX_CANDIDATES = 10_000;
 
 /** Compute SHA-256 content hash of text */
 function contentHash(text: string): string {
@@ -25,13 +23,15 @@ function contentHash(text: string): string {
 
 /** Serialize Float32Array to Buffer for SQLite BLOB storage */
 function serializeEmbedding(embedding: Float32Array): Buffer {
-  return Buffer.from(embedding.buffer, embedding.byteOffset, embedding.byteLength);
+  // Slice to copy — avoids view mutation if source buffer is reused
+  return Buffer.from(embedding.buffer.slice(embedding.byteOffset, embedding.byteOffset + embedding.byteLength));
 }
 
 /** Deserialize Buffer from SQLite BLOB to Float32Array */
 function deserializeEmbedding(blob: Buffer): Float32Array {
-  const uint8 = new Uint8Array(blob.buffer, blob.byteOffset, blob.byteLength);
-  return new Float32Array(uint8.buffer, uint8.byteOffset, uint8.byteLength / 4);
+  // Copy to fresh aligned buffer — Buffer from SQLite may have non-4-byte-aligned offset
+  const copy = new Uint8Array(blob).buffer;
+  return new Float32Array(copy);
 }
 
 /** Options for similarity search */
@@ -77,11 +77,12 @@ export class EmbeddingStore {
   constructor(private readonly db: SqliteDb) {}
 
   /**
-   * Store an embedding with content-hash deduplication.
-   * If an embedding with the same tenant+content_hash already exists,
-   * it's updated rather than duplicated.
+   * Store an embedding with source-level deduplication.
+   * If an embedding with the same (tenant, source_type, source_id) already exists,
+   * it's updated rather than duplicated. Different sources with the same content
+   * are stored as separate rows to preserve source metadata.
    */
-  async store(
+  store(
     tenantId: string,
     sourceType: string,
     sourceId: string,
@@ -89,24 +90,29 @@ export class EmbeddingStore {
     embedding: Float32Array,
     model: string,
     dimensions: number,
-  ): Promise<string> {
+  ): string {
     const hash = contentHash(textContent);
     const now = new Date().toISOString();
 
-    // Check for existing embedding with same content hash for this tenant
+    // Check for existing embedding from the same source
     const existing = this.db
       .select({ id: embeddings.id })
       .from(embeddings)
-      .where(and(eq(embeddings.tenantId, tenantId), eq(embeddings.contentHash, hash)))
+      .where(
+        and(
+          eq(embeddings.tenantId, tenantId),
+          eq(embeddings.sourceType, sourceType),
+          eq(embeddings.sourceId, sourceId),
+        ),
+      )
       .get();
 
     if (existing) {
-      // Update existing — source may have changed
+      // Update existing — content may have changed
       this.db
         .update(embeddings)
         .set({
-          sourceType,
-          sourceId,
+          contentHash: hash,
           textContent,
           embedding: serializeEmbedding(embedding),
           embeddingModel: model,
@@ -117,7 +123,7 @@ export class EmbeddingStore {
       return existing.id;
     }
 
-    const id = generateId();
+    const id = randomUUID();
     this.db
       .insert(embeddings)
       .values({
@@ -140,11 +146,11 @@ export class EmbeddingStore {
   /**
    * Get embeddings for a specific source.
    */
-  async getBySource(
+  getBySource(
     tenantId: string,
     sourceType: string,
     sourceId: string,
-  ): Promise<StoredEmbedding | null> {
+  ): StoredEmbedding | null {
     const row = this.db
       .select()
       .from(embeddings)
@@ -177,11 +183,11 @@ export class EmbeddingStore {
    * Similarity search: load candidate embeddings filtered by tenant/sourceType/time,
    * compute cosine similarity in JS, sort by score, filter by minScore, return top N.
    */
-  async similaritySearch(
+  similaritySearch(
     tenantId: string,
     queryVector: Float32Array,
     opts: SimilaritySearchOptions = {},
-  ): Promise<SimilarityResult[]> {
+  ): SimilarityResult[] {
     const { sourceType, from, to, limit = 10, minScore = 0.0 } = opts;
 
     // Build all conditions upfront
@@ -200,7 +206,15 @@ export class EmbeddingStore {
       .select()
       .from(embeddings)
       .where(and(...conditions))
+      .limit(MAX_CANDIDATES)
       .all();
+
+    if (rows.length >= MAX_CANDIDATES) {
+      console.warn(
+        `[EmbeddingStore] similaritySearch hit MAX_CANDIDATES limit (${MAX_CANDIDATES}) ` +
+        `for tenant=${tenantId}. Results may be incomplete.`,
+      );
+    }
 
     // Compute cosine similarity for each candidate
     const results: SimilarityResult[] = [];
@@ -228,7 +242,7 @@ export class EmbeddingStore {
   /**
    * Delete embedding(s) for a specific source.
    */
-  async delete(tenantId: string, sourceType: string, sourceId: string): Promise<number> {
+  delete(tenantId: string, sourceType: string, sourceId: string): number {
     const result = this.db
       .delete(embeddings)
       .where(
@@ -246,7 +260,7 @@ export class EmbeddingStore {
   /**
    * Count embeddings for a tenant.
    */
-  async count(tenantId: string): Promise<number> {
+  count(tenantId: string): number {
     const result = this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(embeddings)

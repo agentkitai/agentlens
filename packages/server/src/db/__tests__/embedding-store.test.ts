@@ -45,16 +45,29 @@ describe('EmbeddingStore', () => {
       expect(typeof id).toBe('string');
     });
 
-    it('deduplicates by content hash (same text, same tenant)', async () => {
+    it('deduplicates by source (same tenant, same source_type, same source_id)', async () => {
       const emb1 = makeEmbedding(1);
       const emb2 = makeEmbedding(2);
-      const id1 = await store.store('tenant1', 'event', 'evt-1', 'same text', emb1, 'model', 4);
-      const id2 = await store.store('tenant1', 'event', 'evt-2', 'same text', emb2, 'model', 4);
+      const id1 = await store.store('tenant1', 'event', 'evt-1', 'text v1', emb1, 'model', 4);
+      const id2 = await store.store('tenant1', 'event', 'evt-1', 'text v2', emb2, 'model', 4);
       // Should return the same ID (updated in place)
       expect(id2).toBe(id1);
       // Count should still be 1
       const count = await store.count('tenant1');
       expect(count).toBe(1);
+      // Content should be updated
+      const retrieved = await store.getBySource('tenant1', 'event', 'evt-1');
+      expect(retrieved!.textContent).toBe('text v2');
+    });
+
+    it('allows same text from different sources (preserves source metadata)', async () => {
+      const emb = makeEmbedding(1);
+      const id1 = await store.store('tenant1', 'event', 'evt-1', 'same text', emb, 'model', 4);
+      const id2 = await store.store('tenant1', 'event', 'evt-2', 'same text', emb, 'model', 4);
+      // Different sources should create separate rows
+      expect(id1).not.toBe(id2);
+      const count = await store.count('tenant1');
+      expect(count).toBe(2);
     });
 
     it('does NOT deduplicate across tenants', async () => {
