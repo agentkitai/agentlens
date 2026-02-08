@@ -275,13 +275,21 @@ export function SessionDetail(): React.ReactElement | null {
 
   return (
     <div className="space-y-4">
-      {/* Back button */}
-      <Link
-        to="/sessions"
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-      >
-        ← Sessions
-      </Link>
+      {/* Back button + Replay link */}
+      <div className="flex items-center justify-between">
+        <Link
+          to="/sessions"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          ← Sessions
+        </Link>
+        <Link
+          to={`/replay/${id}`}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+        >
+          🎬 Replay
+        </Link>
+      </div>
 
       {/* SSE Connection Indicator (Story 14.3) */}
       {isSessionActive && (

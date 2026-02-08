@@ -15,6 +15,9 @@ import { Search } from './pages/Search';
 import { Insights } from './pages/Insights';
 import { HealthOverview } from './pages/HealthOverview';
 import { CostOptimization } from './pages/CostOptimization';
+import { SessionReplay } from './pages/SessionReplay';
+import { Benchmarks } from './pages/Benchmarks';
+import { BenchmarkNew } from './pages/BenchmarkNew';
 
 export function App(): React.ReactElement {
   return (
@@ -23,12 +26,15 @@ export function App(): React.ReactElement {
         <Route index element={<Overview />} />
         <Route path="sessions" element={<Sessions />} />
         <Route path="sessions/:id" element={<SessionDetailPage />} />
+        <Route path="replay/:sessionId" element={<SessionReplay />} />
         <Route path="events" element={<EventsExplorer />} />
         <Route path="agents" element={<Agents />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="llm" element={<LlmAnalytics />} />
         <Route path="health" element={<HealthOverview />} />
         <Route path="cost-optimization" element={<CostOptimization />} />
+        <Route path="benchmarks" element={<Benchmarks />} />
+        <Route path="benchmarks/new" element={<BenchmarkNew />} />
         <Route path="lessons" element={<Lessons />} />
         <Route path="search" element={<Search />} />
         <Route path="insights" element={<Insights />} />
