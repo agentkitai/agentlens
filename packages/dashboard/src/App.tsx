@@ -19,6 +19,7 @@ import { SessionReplay } from './pages/SessionReplay';
 import { Benchmarks } from './pages/Benchmarks';
 import { BenchmarkNew } from './pages/BenchmarkNew';
 import { BenchmarkDetail } from './pages/BenchmarkDetail';
+import Guardrails from './pages/Guardrails';
 
 export function App(): React.ReactElement {
   return (
@@ -41,6 +42,7 @@ export function App(): React.ReactElement {
         <Route path="search" element={<Search />} />
         <Route path="insights" element={<Insights />} />
         <Route path="alerts" element={<Alerts />} />
+        <Route path="guardrails" element={<Guardrails />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>

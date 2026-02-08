@@ -171,10 +171,10 @@ describe('agentlens_benchmark', () => {
     expect(schema.required).toContain('action');
   });
 
-  it('total tool count is 13', async () => {
+  it('total tool count is 14', async () => {
     const { client } = await createTestSetup();
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(13);
+    expect(result.tools).toHaveLength(14);
   });
 
   // ─── Create ───────────────────────────────────────────────

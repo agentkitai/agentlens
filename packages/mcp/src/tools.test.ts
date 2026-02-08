@@ -58,7 +58,7 @@ async function createTestSetup() {
 }
 
 describe('Tool Registration (Story 5.1)', () => {
-  it('registers all 13 tools', async () => {
+  it('registers all 14 tools', async () => {
     const { client } = await createTestSetup();
 
     const result = await client.listTools();
@@ -67,6 +67,7 @@ describe('Tool Registration (Story 5.1)', () => {
     expect(toolNames).toEqual([
       'agentlens_benchmark',
       'agentlens_context',
+      'agentlens_guardrails',
       'agentlens_health',
       'agentlens_learn',
       'agentlens_log_event',

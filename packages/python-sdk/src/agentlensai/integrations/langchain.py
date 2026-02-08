@@ -316,6 +316,286 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         except Exception:
             logger.debug("AgentLens LangChain: on_tool_error error", exc_info=True)
 
+    # ─── Chain Callbacks (v0.8.0) ─────────────────────────
+
+    def on_chain_start(
+        self,
+        serialized: dict[str, Any],
+        inputs: dict[str, Any],
+        *,
+        run_id: uuid.UUID,
+        parent_run_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a chain starts running."""
+        try:
+            config = self._get_client_and_config()
+            if config is None:
+                return
+
+            client, agent_id, session_id, _redact = config
+            rid = str(run_id)
+            self._run_timers[rid] = time.perf_counter()
+
+            chain_type = serialized.get("id", ["unknown"])[-1] if serialized.get("id") else serialized.get("name", "unknown")
+
+            event = {
+                "sessionId": session_id,
+                "agentId": agent_id,
+                "eventType": "custom",
+                "severity": "info",
+                "payload": {
+                    "type": "chain_start",
+                    "data": {
+                        "chain_type": str(chain_type),
+                        "run_id": rid,
+                        "parent_run_id": str(parent_run_id) if parent_run_id else None,
+                        "input_keys": list(inputs.keys()) if isinstance(inputs, dict) else [],
+                        "tags": tags or [],
+                    },
+                },
+                "metadata": {"source": "langchain"},
+                "timestamp": self._now(),
+            }
+            self._send_event(client, event)
+        except Exception:
+            logger.debug("AgentLens LangChain: on_chain_start error", exc_info=True)
+
+    def on_chain_end(
+        self,
+        outputs: dict[str, Any],
+        *,
+        run_id: uuid.UUID,
+        parent_run_id: uuid.UUID | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a chain finishes."""
+        try:
+            config = self._get_client_and_config()
+            if config is None:
+                return
+
+            client, agent_id, session_id, _redact = config
+            rid = str(run_id)
+            start = self._run_timers.pop(rid, None)
+            duration_ms = (time.perf_counter() - start) * 1000 if start else 0.0
+
+            event = {
+                "sessionId": session_id,
+                "agentId": agent_id,
+                "eventType": "custom",
+                "severity": "info",
+                "payload": {
+                    "type": "chain_end",
+                    "data": {
+                        "run_id": rid,
+                        "duration_ms": round(duration_ms, 2),
+                        "output_keys": list(outputs.keys()) if isinstance(outputs, dict) else [],
+                    },
+                },
+                "metadata": {"source": "langchain"},
+                "timestamp": self._now(),
+            }
+            self._send_event(client, event)
+        except Exception:
+            logger.debug("AgentLens LangChain: on_chain_end error", exc_info=True)
+
+    def on_chain_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: uuid.UUID,
+        parent_run_id: uuid.UUID | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a chain errors."""
+        try:
+            config = self._get_client_and_config()
+            if config is None:
+                return
+
+            client, agent_id, session_id, _redact = config
+            rid = str(run_id)
+            start = self._run_timers.pop(rid, None)
+            duration_ms = (time.perf_counter() - start) * 1000 if start else 0.0
+
+            event = {
+                "sessionId": session_id,
+                "agentId": agent_id,
+                "eventType": "custom",
+                "severity": "error",
+                "payload": {
+                    "type": "chain_error",
+                    "data": {
+                        "run_id": rid,
+                        "error": str(error)[:500],
+                        "duration_ms": round(duration_ms, 2),
+                    },
+                },
+                "metadata": {"source": "langchain"},
+                "timestamp": self._now(),
+            }
+            self._send_event(client, event)
+        except Exception:
+            logger.debug("AgentLens LangChain: on_chain_error error", exc_info=True)
+
+    def on_agent_action(
+        self,
+        action: Any,
+        *,
+        run_id: uuid.UUID,
+        parent_run_id: uuid.UUID | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when an agent takes an action."""
+        try:
+            config = self._get_client_and_config()
+            if config is None:
+                return
+
+            client, agent_id, session_id, _redact = config
+
+            tool = getattr(action, "tool", "unknown")
+            tool_input = str(getattr(action, "tool_input", ""))[:200]
+
+            event = {
+                "sessionId": session_id,
+                "agentId": agent_id,
+                "eventType": "custom",
+                "severity": "info",
+                "payload": {
+                    "type": "agent_action",
+                    "data": {
+                        "tool": str(tool),
+                        "tool_input": tool_input,
+                        "run_id": str(run_id),
+                    },
+                },
+                "metadata": {"source": "langchain"},
+                "timestamp": self._now(),
+            }
+            self._send_event(client, event)
+        except Exception:
+            logger.debug("AgentLens LangChain: on_agent_action error", exc_info=True)
+
+    def on_agent_finish(
+        self,
+        finish: Any,
+        *,
+        run_id: uuid.UUID,
+        parent_run_id: uuid.UUID | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when an agent finishes."""
+        try:
+            config = self._get_client_and_config()
+            if config is None:
+                return
+
+            client, agent_id, session_id, _redact = config
+
+            output = str(getattr(finish, "return_values", ""))[:500]
+
+            event = {
+                "sessionId": session_id,
+                "agentId": agent_id,
+                "eventType": "custom",
+                "severity": "info",
+                "payload": {
+                    "type": "agent_finish",
+                    "data": {
+                        "output": output,
+                        "run_id": str(run_id),
+                    },
+                },
+                "metadata": {"source": "langchain"},
+                "timestamp": self._now(),
+            }
+            self._send_event(client, event)
+        except Exception:
+            logger.debug("AgentLens LangChain: on_agent_finish error", exc_info=True)
+
+    def on_retriever_start(
+        self,
+        serialized: dict[str, Any],
+        query: str,
+        *,
+        run_id: uuid.UUID,
+        parent_run_id: uuid.UUID | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a retriever starts."""
+        try:
+            config = self._get_client_and_config()
+            if config is None:
+                return
+
+            client, agent_id, session_id, _redact = config
+            rid = str(run_id)
+            self._run_timers[rid] = time.perf_counter()
+
+            event = {
+                "sessionId": session_id,
+                "agentId": agent_id,
+                "eventType": "custom",
+                "severity": "info",
+                "payload": {
+                    "type": "retriever_start",
+                    "data": {
+                        "query": query[:200],
+                        "run_id": rid,
+                    },
+                },
+                "metadata": {"source": "langchain"},
+                "timestamp": self._now(),
+            }
+            self._send_event(client, event)
+        except Exception:
+            logger.debug("AgentLens LangChain: on_retriever_start error", exc_info=True)
+
+    def on_retriever_end(
+        self,
+        documents: Any,
+        *,
+        run_id: uuid.UUID,
+        parent_run_id: uuid.UUID | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a retriever finishes."""
+        try:
+            config = self._get_client_and_config()
+            if config is None:
+                return
+
+            client, agent_id, session_id, _redact = config
+            rid = str(run_id)
+            start = self._run_timers.pop(rid, None)
+            duration_ms = (time.perf_counter() - start) * 1000 if start else 0.0
+
+            doc_count = len(documents) if documents else 0
+
+            event = {
+                "sessionId": session_id,
+                "agentId": agent_id,
+                "eventType": "custom",
+                "severity": "info",
+                "payload": {
+                    "type": "retriever_end",
+                    "data": {
+                        "run_id": rid,
+                        "document_count": doc_count,
+                        "duration_ms": round(duration_ms, 2),
+                    },
+                },
+                "metadata": {"source": "langchain"},
+                "timestamp": self._now(),
+            }
+            self._send_event(client, event)
+        except Exception:
+            logger.debug("AgentLens LangChain: on_retriever_end error", exc_info=True)
+
     # ─── Helpers ────────────────────────────────────────
 
     @staticmethod

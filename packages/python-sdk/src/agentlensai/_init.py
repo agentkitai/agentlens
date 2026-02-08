@@ -62,6 +62,9 @@ def init(
     # Auto-detect and instrument providers
     _instrument_providers()
 
+    # Auto-detect and instrument frameworks (v0.8.0)
+    _instrument_frameworks()
+
     logger.info("AgentLens initialized: agent=%s, session=%s", agent_id, sid)
     return sid
 
@@ -82,6 +85,9 @@ def shutdown() -> None:
 
     # Uninstrument providers
     _uninstrument_providers()
+
+    # Uninstrument frameworks
+    _uninstrument_frameworks()
 
     # Close client and clear state
     state.client.close()
@@ -119,6 +125,57 @@ def _instrument_providers() -> None:
             logger.info("AgentLens: Anthropic instrumented")
         except Exception:
             logger.debug("AgentLens: failed to instrument Anthropic", exc_info=True)
+
+
+def _instrument_frameworks() -> None:
+    """Auto-detect installed frameworks and instrument them."""
+    if importlib.util.find_spec("crewai") is not None:
+        try:
+            from agentlensai.integrations.crewai import instrument_crewai
+            instrument_crewai()
+            logger.info("AgentLens: CrewAI instrumented")
+        except Exception:
+            logger.debug("AgentLens: failed to instrument CrewAI", exc_info=True)
+
+    if importlib.util.find_spec("autogen") is not None:
+        try:
+            from agentlensai.integrations.autogen import instrument_autogen
+            instrument_autogen()
+            logger.info("AgentLens: AutoGen instrumented")
+        except Exception:
+            logger.debug("AgentLens: failed to instrument AutoGen", exc_info=True)
+
+    if importlib.util.find_spec("semantic_kernel") is not None:
+        try:
+            from agentlensai.integrations.semantic_kernel import instrument_semantic_kernel
+            instrument_semantic_kernel()
+            logger.info("AgentLens: Semantic Kernel instrumented")
+        except Exception:
+            logger.debug("AgentLens: failed to instrument Semantic Kernel", exc_info=True)
+
+
+def _uninstrument_frameworks() -> None:
+    """Restore original methods on all frameworks."""
+    if importlib.util.find_spec("crewai") is not None:
+        try:
+            from agentlensai.integrations.crewai import uninstrument_crewai
+            uninstrument_crewai()
+        except Exception:
+            logger.debug("AgentLens: failed to uninstrument CrewAI", exc_info=True)
+
+    if importlib.util.find_spec("autogen") is not None:
+        try:
+            from agentlensai.integrations.autogen import uninstrument_autogen
+            uninstrument_autogen()
+        except Exception:
+            logger.debug("AgentLens: failed to uninstrument AutoGen", exc_info=True)
+
+    if importlib.util.find_spec("semantic_kernel") is not None:
+        try:
+            from agentlensai.integrations.semantic_kernel import uninstrument_semantic_kernel
+            uninstrument_semantic_kernel()
+        except Exception:
+            logger.debug("AgentLens: failed to uninstrument Semantic Kernel", exc_info=True)
 
 
 def _uninstrument_providers() -> None:
