@@ -1,12 +1,14 @@
 /**
- * In-process EventBus for real-time notifications (Story 12.5, Arch §11.1)
+ * In-process EventBus for real-time notifications (Story 12.5, Epic 14 — Arch §11.1)
  *
- * Simple typed EventEmitter for decoupled communication between
- * server components. Will be consumed by SSE endpoint (Epic 14).
+ * Typed EventEmitter for decoupled communication between
+ * server components. Consumed by SSE endpoint (Epic 14) and Alert Engine (Epic 12).
  */
 
 import { EventEmitter } from 'node:events';
-import type { AlertRule, AlertHistory } from '@agentlens/core';
+import type { AgentLensEvent, AlertRule, AlertHistory, Session } from '@agentlens/core';
+
+// ─── Bus Event Types ─────────────────────────────────────────────
 
 export interface AlertTriggeredEvent {
   type: 'alert_triggered';
@@ -22,7 +24,25 @@ export interface AlertResolvedEvent {
   timestamp: string;
 }
 
-export type BusEvent = AlertTriggeredEvent | AlertResolvedEvent;
+/** New event ingested (Epic 14 — Story 14.1) */
+export interface EventIngestedEvent {
+  type: 'event_ingested';
+  event: AgentLensEvent;
+  timestamp: string;
+}
+
+/** Session updated (Epic 14 — Story 14.1) */
+export interface SessionUpdatedEvent {
+  type: 'session_updated';
+  session: Session;
+  timestamp: string;
+}
+
+export type BusEvent =
+  | AlertTriggeredEvent
+  | AlertResolvedEvent
+  | EventIngestedEvent
+  | SessionUpdatedEvent;
 
 /**
  * Typed event bus for internal server communication.
@@ -33,7 +53,7 @@ class EventBus {
 
   constructor() {
     // Allow many SSE clients
-    this.emitter.setMaxListeners(100);
+    this.emitter.setMaxListeners(1000);
   }
 
   emit(event: BusEvent): void {

@@ -1,5 +1,5 @@
 /**
- * Session Detail Page (Stories 7.2 + 7.5)
+ * Session Detail Page (Stories 7.2 + 7.5 + 14.3)
  *
  * Route: /sessions/:id
  *
@@ -10,6 +10,8 @@
  *  - 404 message for missing sessions
  *  - Timeline event type filter buttons (All, Tool Calls, Errors, Approvals, Custom)
  *  - Client-side filtering with event count per filter
+ *  - Live timeline updates via SSE for active sessions (Story 14.3)
+ *  - Connection indicator (green dot / yellow warning)
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -17,6 +19,7 @@ import type { AgentLensEvent, Session, SessionStatus, CostTrackedPayload } from 
 import { getSession, getSessionTimeline } from '../api/client';
 import type { SessionTimeline } from '../api/client';
 import { useApi } from '../hooks/useApi';
+import { useSSE } from '../hooks/useSSE';
 import { Timeline } from '../components/Timeline';
 import { EventDetailPanel } from '../components/EventDetailPanel';
 
@@ -135,6 +138,9 @@ export function SessionDetail(): React.ReactElement | null {
   const { id } = useParams<{ id: string }>();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [selectedEvent, setSelectedEvent] = useState<AgentLensEvent | null>(null);
+  // SSE live events that arrive after initial load (Story 14.3)
+  const [liveEvents, setLiveEvents] = useState<AgentLensEvent[]>([]);
+  const [liveSession, setLiveSession] = useState<Session | null>(null);
 
   // Fetch session info
   const {
@@ -151,6 +157,48 @@ export function SessionDetail(): React.ReactElement | null {
     refetch: refetchTimeline,
   } = useApi<SessionTimeline>(() => getSessionTimeline(id!), [id]);
 
+  // Determine effective session (live updates override initial fetch)
+  const effectiveSession = liveSession ?? session;
+  const isSessionActive = effectiveSession?.status === 'active';
+
+  // SSE connection for live updates (Story 14.3)
+  // Only connect when session is active
+  const { connected: sseConnected } = useSSE({
+    url: '/api/stream',
+    params: { sessionId: id },
+    enabled: isSessionActive,
+    onEvent: useCallback((data: unknown) => {
+      const event = data as AgentLensEvent;
+      setLiveEvents((prev) => {
+        // Deduplicate by event id
+        if (prev.some((e) => e.id === event.id)) return prev;
+        return [...prev, event];
+      });
+    }, []),
+    onSessionUpdate: useCallback((data: unknown) => {
+      const updated = data as Session;
+      setLiveSession(updated);
+    }, []),
+  });
+
+  // Reset live state when session id changes
+  // (note: this is handled by the dependency array on useApi and useSSE,
+  //  but we also clear local live state)
+  const prevIdRef = React.useRef(id);
+  if (prevIdRef.current !== id) {
+    prevIdRef.current = id;
+    setLiveEvents([]);
+    setLiveSession(null);
+  }
+
+  // Merge initial timeline events with SSE live events
+  const allEvents = useMemo(() => {
+    if (!timeline?.events) return liveEvents;
+    const existingIds = new Set(timeline.events.map((e) => e.id));
+    const newEvents = liveEvents.filter((e) => !existingIds.has(e.id));
+    return [...timeline.events, ...newEvents];
+  }, [timeline?.events, liveEvents]);
+
   // Filter events client-side
   const currentFilter = useMemo(
     () => FILTERS.find((f) => f.key === activeFilter) ?? FILTERS[0],
@@ -158,19 +206,18 @@ export function SessionDetail(): React.ReactElement | null {
   );
 
   const filteredEvents = useMemo(() => {
-    if (!timeline?.events) return [];
-    return timeline.events.filter(currentFilter.match);
-  }, [timeline?.events, currentFilter]);
+    return allEvents.filter(currentFilter.match);
+  }, [allEvents, currentFilter]);
 
-  // Count per filter
+  // Count per filter (uses merged events)
   const filterCounts = useMemo(() => {
-    if (!timeline?.events) return new Map<FilterKey, number>();
+    if (allEvents.length === 0) return new Map<FilterKey, number>();
     const counts = new Map<FilterKey, number>();
     for (const f of FILTERS) {
-      counts.set(f.key, timeline.events.filter(f.match).length);
+      counts.set(f.key, allEvents.filter(f.match).length);
     }
     return counts;
-  }, [timeline?.events]);
+  }, [allEvents]);
 
   // Event click handler
   const handleEventClick = useCallback((event: AgentLensEvent) => {
@@ -221,6 +268,9 @@ export function SessionDetail(): React.ReactElement | null {
 
   if (!session) return null;
 
+  // Use effectiveSession (with live updates) for rendering
+  const displaySession = effectiveSession ?? session;
+
   // ── Render ────────────────────────────────────────────────────────
 
   return (
@@ -233,20 +283,42 @@ export function SessionDetail(): React.ReactElement | null {
         ← Sessions
       </Link>
 
+      {/* SSE Connection Indicator (Story 14.3) */}
+      {isSessionActive && (
+        <div className="flex items-center gap-2 text-xs">
+          {sseConnected ? (
+            <>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+              </span>
+              <span className="text-green-700">Live — receiving updates</span>
+            </>
+          ) : (
+            <>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-400" />
+              </span>
+              <span className="text-yellow-700">Reconnecting…</span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex flex-wrap items-start gap-4 justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">
-                {session.agentName ?? session.agentId}
+                {displaySession.agentName ?? displaySession.agentId}
               </h1>
-              <StatusBadge status={session.status} />
+              <StatusBadge status={displaySession.status} />
             </div>
             {/* Tags */}
-            {session.tags.length > 0 && (
+            {displaySession.tags.length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {session.tags.map((tag) => (
+                {displaySession.tags.map((tag) => (
                   <span
                     key={tag}
                     className="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded"
@@ -260,21 +332,21 @@ export function SessionDetail(): React.ReactElement | null {
 
           {/* Stats */}
           <div className="flex flex-wrap gap-3">
-            <StatCard label="Duration" value={formatDuration(session.startedAt, session.endedAt)} />
-            <StatCard label="Events" value={session.eventCount} />
+            <StatCard label="Duration" value={formatDuration(displaySession.startedAt, displaySession.endedAt)} />
+            <StatCard label="Events" value={displaySession.eventCount} />
             <StatCard
               label="Errors"
-              value={session.errorCount}
-              className={session.errorCount > 0 ? 'border-red-200' : ''}
+              value={displaySession.errorCount}
+              className={displaySession.errorCount > 0 ? 'border-red-200' : ''}
             />
-            <StatCard label="Cost" value={`$${session.totalCostUsd.toFixed(4)}`} />
+            <StatCard label="Cost" value={`$${displaySession.totalCostUsd.toFixed(4)}`} />
           </div>
         </div>
       </div>
 
       {/* Cost Summary (Story 11.5) */}
-      {session.totalCostUsd > 0 && timeline?.events && (() => {
-        const costEvents = timeline.events.filter(
+      {displaySession.totalCostUsd > 0 && allEvents.length > 0 && (() => {
+        const costEvents = allEvents.filter(
           (ev) => ev.eventType === 'cost_tracked',
         );
         if (costEvents.length === 0) return null;
@@ -315,7 +387,7 @@ export function SessionDetail(): React.ReactElement | null {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div>
                 <div className="text-xs text-gray-500 font-medium">Total Cost</div>
-                <div className="text-lg font-semibold text-gray-900">${session.totalCostUsd.toFixed(4)}</div>
+                <div className="text-lg font-semibold text-gray-900">${displaySession.totalCostUsd.toFixed(4)}</div>
               </div>
               <div>
                 <div className="text-xs text-gray-500 font-medium">Input Tokens</div>

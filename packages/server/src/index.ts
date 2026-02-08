@@ -26,6 +26,7 @@ import { configRoutes } from './routes/config.js';
 import { alertsRoutes } from './routes/alerts.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { analyticsRoutes } from './routes/analytics.js';
+import { streamRoutes } from './routes/stream.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -46,6 +47,8 @@ export { configRoutes } from './routes/config.js';
 export { alertsRoutes } from './routes/alerts.js';
 export { ingestRoutes, verifyWebhookSignature } from './routes/ingest.js';
 export { analyticsRoutes } from './routes/analytics.js';
+export { streamRoutes } from './routes/stream.js';
+export { createSSEStream } from './lib/sse.js';
 export { SqliteEventStore } from './db/sqlite-store.js';
 export { AlertEngine } from './lib/alert-engine.js';
 export { eventBus } from './lib/event-bus.js';
@@ -154,6 +157,9 @@ export function createApp(
   app.get('/api/health', (c) => {
     return c.json({ status: 'ok', version: '0.1.0' });
   });
+
+  // ─── SSE stream (no API key auth — browser EventSource doesn't send headers) ──
+  app.route('/api/stream', streamRoutes());
 
   // ─── Webhook ingest (no API key auth — uses HMAC signature verification) ──
   app.route('/api/events/ingest', ingestRoutes(store, {

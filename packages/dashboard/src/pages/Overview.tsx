@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BarChart,
@@ -17,6 +17,7 @@ import type {
   SessionQueryResult,
 } from '@agentlens/core';
 import { useApi } from '../hooks/useApi';
+import { useSSE } from '../hooks/useSSE';
 import { getStats, getEvents, getSessions } from '../api/client';
 import { MetricsGrid } from '../components/MetricsGrid';
 import type { MetricCard } from '../components/MetricsGrid';
@@ -99,6 +100,23 @@ function bucketByHour(events: AgentLensEvent[]): HourlyBucket[] {
 // ─── Component ──────────────────────────────────────────────────────
 
 export function Overview(): React.ReactElement {
+  // SSE live counters (Story 14.4)
+  const [liveEventDelta, setLiveEventDelta] = useState(0);
+  const [liveSessionRefreshKey, setLiveSessionRefreshKey] = useState(0);
+
+  // SSE connection for real-time updates
+  const { connected: sseConnected } = useSSE({
+    url: '/api/stream',
+    onEvent: useCallback(() => {
+      // Increment live counter for each event received
+      setLiveEventDelta((d) => d + 1);
+    }, []),
+    onSessionUpdate: useCallback(() => {
+      // Trigger session list refresh
+      setLiveSessionRefreshKey((k) => k + 1);
+    }, []),
+  });
+
   const now = useMemo(() => new Date(), []);
   const todayStart = useMemo(() => {
     const d = new Date(now);
@@ -140,10 +158,10 @@ export function Overview(): React.ReactElement {
     [yesterdayStart, todayStart],
   );
 
-  // Recent sessions
+  // Recent sessions (refetched on SSE session updates — Story 14.4)
   const sessions = useApi<SessionQueryResult & { hasMore: boolean }>(
     () => getSessions({ limit: 10 }),
-    [],
+    [liveSessionRefreshKey],
   );
 
   // Sessions today for count
@@ -181,6 +199,9 @@ export function Overview(): React.ReactElement {
   const metricsLoading =
     eventsToday.loading || eventsYesterday.loading || errorsToday.loading || errorsYesterday.loading || sessionsToday.loading || sessionsYesterday.loading || stats.loading;
 
+  // Add live event delta to "Events Today" for real-time counter (Story 14.4)
+  const eventsTodayCount = (eventsToday.data?.total ?? 0) + liveEventDelta;
+
   const cards: MetricCard[] = [
     {
       label: 'Sessions Today',
@@ -190,8 +211,8 @@ export function Overview(): React.ReactElement {
     },
     {
       label: 'Events Today',
-      value: eventsToday.data?.total ?? 0,
-      currentValue: eventsToday.data?.total ?? 0,
+      value: eventsTodayCount,
+      currentValue: eventsTodayCount,
       previousValue: eventsYesterday.data?.total ?? 0,
     },
     {
@@ -217,11 +238,32 @@ export function Overview(): React.ReactElement {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Overview</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Real-time overview of your agent activity.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Overview</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Real-time overview of your agent activity.
+          </p>
+        </div>
+        {/* SSE Connection Indicator (Story 14.4) */}
+        <div className="flex items-center gap-2 text-xs mt-1">
+          {sseConnected ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              <span className="text-green-700">Live</span>
+            </>
+          ) : (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400" />
+              </span>
+              <span className="text-yellow-700">Connection lost — data may be stale</span>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Metrics Cards */}

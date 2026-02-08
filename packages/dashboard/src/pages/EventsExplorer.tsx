@@ -20,6 +20,7 @@ import type {
 import { EVENT_TYPES, EVENT_SEVERITIES } from '@agentlens/core';
 import { getEvents, getAgents } from '../api/client';
 import { useApi } from '../hooks/useApi';
+import { useSSE } from '../hooks/useSSE';
 
 // ─── Constants ──────────────────────────────────────────────
 
@@ -226,6 +227,8 @@ export function EventsExplorer(): React.ReactElement {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [page, setPage] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // SSE live events prepended to the list (Story 14.4)
+  const [liveEvents, setLiveEvents] = useState<AgentLensEvent[]>([]);
 
   // Debounce search input (300ms) to avoid firing API calls on every keystroke
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
@@ -260,10 +263,51 @@ export function EventsExplorer(): React.ReactElement {
 
   const { data: agents } = useApi(() => getAgents(), []);
 
+  // SSE params: build from current filters for server-side filtering
+  const sseParams = useMemo(() => {
+    const p: Record<string, string | undefined> = {};
+    if (filters.agentId) p.agentId = filters.agentId;
+    if (filters.eventTypes.length === 1) p.eventType = filters.eventTypes[0];
+    else if (filters.eventTypes.length > 1) p.eventType = filters.eventTypes.join(',');
+    return p;
+  }, [filters.agentId, filters.eventTypes]);
+
+  // SSE for live updates (Story 14.4)
+  // Only show live events on page 0 (first page, newest first)
+  const { connected: sseConnected } = useSSE({
+    url: '/api/stream',
+    params: sseParams,
+    enabled: page === 0,
+    onEvent: useCallback((data: unknown) => {
+      const event = data as AgentLensEvent;
+      setLiveEvents((prev) => {
+        if (prev.some((e) => e.id === event.id)) return prev;
+        // Keep max 50 live events to avoid memory growth
+        const updated = [event, ...prev];
+        return updated.slice(0, 50);
+      });
+    }, []),
+  });
+
+  // Clear live events when filters/page change (they'll be included in next fetch)
+  useEffect(() => {
+    setLiveEvents([]);
+  }, [JSON.stringify(query)]);
+
   const updateFilter = useCallback(<K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((f) => ({ ...f, [key]: value }));
     setPage(0);
   }, []);
+
+  // Merge live events with fetched results
+  const displayEvents = useMemo(() => {
+    if (!result) return liveEvents;
+    if (page > 0) return result.events; // Only show live events on first page
+    // Prepend live events that aren't already in the result
+    const existingIds = new Set(result.events.map((e) => e.id));
+    const newLive = liveEvents.filter((e) => !existingIds.has(e.id));
+    return [...newLive, ...result.events];
+  }, [result, liveEvents, page]);
 
   const totalPages = result ? Math.ceil(result.total / PAGE_SIZE) : 0;
 
@@ -271,10 +315,29 @@ export function EventsExplorer(): React.ReactElement {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Events Explorer</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Events Explorer</h1>
+          {/* SSE Connection Indicator (Story 14.4) */}
+          {sseConnected ? (
+            <span className="relative flex h-2 w-2" title="Live updates active">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+            </span>
+          ) : (
+            <span
+              className="relative flex h-2 w-2"
+              title="Connection lost — data may be stale"
+            >
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-400" />
+            </span>
+          )}
+        </div>
         {result && (
           <span className="text-sm text-gray-500">
             {result.total.toLocaleString()} event{result.total !== 1 ? 's' : ''}
+            {liveEvents.length > 0 && page === 0 && (
+              <span className="text-green-600 ml-1">+{liveEvents.length} new</span>
+            )}
           </span>
         )}
       </div>
@@ -378,14 +441,14 @@ export function EventsExplorer(): React.ReactElement {
                 </td>
               </tr>
             )}
-            {result && result.events.length === 0 && (
+            {result && displayEvents.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                   No events found
                 </td>
               </tr>
             )}
-            {result?.events.map((event) => (
+            {displayEvents.map((event) => (
               <React.Fragment key={event.id}>
                 <tr
                   tabIndex={0}
