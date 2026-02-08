@@ -1,5 +1,5 @@
 /**
- * Session Replay Page (Stories 5.1, 5.2, 5.3)
+ * Session Replay Page (Stories 5.1–5.5)
  *
  * Route: /replay/:sessionId
  *
@@ -11,7 +11,8 @@
  *  - URL query param ?step=N sets initial step
  *  - ReplayControls at top
  *  - ReplayScrubber below controls
- *  - Placeholder content area for timeline (Batch 5)
+ *  - ReplayTimeline (left) — step-by-step event view (Story 5.4)
+ *  - ContextPanel (right) — cumulative state display (Story 5.5)
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -21,6 +22,8 @@ import type { SessionReplayData } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import { ReplayControls } from '../components/replay/ReplayControls';
 import { ReplayScrubber } from '../components/replay/ReplayScrubber';
+import { ReplayTimeline } from '../components/replay/ReplayTimeline';
+import { ContextPanel } from '../components/replay/ContextPanel';
 
 // ─── Status badge (reuse pattern from SessionDetail) ────────────────
 
@@ -250,20 +253,24 @@ export function SessionReplay(): React.ReactElement | null {
         onStepChange={handleStepChange}
       />
 
-      {/* Placeholder content area for timeline (Batch 5) */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <div className="text-center text-gray-400">
-          <div className="text-4xl mb-3">📼</div>
-          <p className="text-sm font-medium">Event Timeline</p>
-          <p className="text-xs mt-1">
-            {events.length > 0 && clampedStep < events.length
-              ? `Current: ${events[clampedStep].eventType} at ${new Date(events[clampedStep].timestamp).toLocaleTimeString()}`
-              : 'No events in this session'}
-          </p>
-          <p className="text-xs text-gray-300 mt-3">
-            Step-by-step event view and context panel coming in Batch 5
-          </p>
+      {/* Timeline + Context Panel */}
+      <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" style={{ height: 'calc(100vh - 340px)', minHeight: 400 }}>
+        {/* Left: ReplayTimeline */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <ReplayTimeline
+            events={events}
+            currentStep={clampedStep}
+            onStepChange={handleStepChange}
+            sessionStartTime={session.startedAt}
+          />
         </div>
+
+        {/* Right: ContextPanel */}
+        <ContextPanel
+          events={events}
+          currentStep={clampedStep}
+          sessionStartTime={session.startedAt}
+        />
       </div>
     </div>
   );
