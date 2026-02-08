@@ -22,6 +22,7 @@ import type {
   ApprovalDecisionPayload,
 } from '@agentlens/core';
 import type { IEventStore } from '@agentlens/core';
+import { eventBus } from '../lib/event-bus.js';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -295,9 +296,8 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
       ...(body.context ?? {}),
     };
 
-    // Get last hash for session chain
-    const timeline = await store.getSessionTimeline(sessionId);
-    const prevHash = timeline.length > 0 ? timeline[timeline.length - 1]!.hash : null;
+    // Get last hash for session chain (optimized — only fetches last event's hash)
+    const prevHash = await store.getLastEventHash(sessionId);
 
     const payload = truncatePayload(mapped.payload);
 
@@ -328,6 +328,16 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
 
     // Persist
     await store.insertEvents([event]);
+
+    // Emit to EventBus for SSE fan-out (async, non-blocking)
+    const emitTimestamp = new Date().toISOString();
+    eventBus.emit({ type: 'event_ingested', event, timestamp: emitTimestamp });
+
+    // Emit session update
+    const updatedSession = await store.getSession(sessionId);
+    if (updatedSession) {
+      eventBus.emit({ type: 'session_updated', session: updatedSession, timestamp: emitTimestamp });
+    }
 
     return c.json({
       ok: true,

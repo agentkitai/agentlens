@@ -19,6 +19,7 @@ import {
 import type { AgentLensEvent, EventQuery, EventType, EventSeverity } from '@agentlens/core';
 import type { IEventStore } from '@agentlens/core';
 import type { AuthVariables } from '../middleware/auth.js';
+import { eventBus } from '../lib/event-bus.js';
 
 /** Schema for the batch ingestion request body */
 const ingestBatchSchema = z.object({
@@ -61,9 +62,8 @@ export function eventsRoutes(store: IEventStore) {
 
     // Phase 1: Build all events (validate and compute hashes) without writing
     for (const [sessionId, sessionEvents] of bySession) {
-      // Get the last event hash for this session to chain from
-      const timeline = await store.getSessionTimeline(sessionId);
-      let prevHash: string | null = timeline.length > 0 ? timeline[timeline.length - 1]!.hash : null;
+      // Get the last event hash for this session to chain from (optimized)
+      let prevHash: string | null = await store.getLastEventHash(sessionId);
 
       for (const input of sessionEvents) {
         const id = ulid();
@@ -121,6 +121,21 @@ export function eventsRoutes(store: IEventStore) {
       // If any session group fails, the entire batch is rejected
       const message = error instanceof Error ? error.message : 'Unknown error';
       return c.json({ error: `Batch insert failed: ${message}`, status: 500 }, 500);
+    }
+
+    // Emit events to EventBus for SSE fan-out (async, non-blocking)
+    const now = new Date().toISOString();
+    for (const event of allProcessed) {
+      eventBus.emit({ type: 'event_ingested', event, timestamp: now });
+    }
+
+    // Emit session updates for affected sessions
+    const affectedSessionIds = new Set(allProcessed.map((e) => e.sessionId));
+    for (const sessionId of affectedSessionIds) {
+      const session = await store.getSession(sessionId);
+      if (session) {
+        eventBus.emit({ type: 'session_updated', session, timestamp: now });
+      }
     }
 
     return c.json({

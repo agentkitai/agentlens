@@ -74,6 +74,8 @@ export interface IEventStore {
   getEvent(id: string): Promise<AgentLensEvent | null>;
   /** Get all events in a session, ordered by timestamp ascending */
   getSessionTimeline(sessionId: string): Promise<AgentLensEvent[]>;
+  /** Get the hash of the last event in a session (for chain continuation) */
+  getLastEventHash(sessionId: string): Promise<string | null>;
   /** Count events matching a query (for pagination) */
   countEvents(query: Omit<EventQuery, 'limit' | 'offset'>): Promise<number>;
 

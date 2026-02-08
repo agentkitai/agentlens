@@ -11,9 +11,29 @@
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { getConfig } from '../config.js';
+
+/**
+ * Hash a secret with SHA-256 for storage.
+ * Used for webhook secrets so plaintext is never persisted.
+ */
+function hashSecret(secret: string): string {
+  return createHash('sha256').update(secret).digest('hex');
+}
+
+/**
+ * Compare a plaintext secret against a stored hash using timing-safe comparison.
+ */
+export function verifySecretHash(plaintext: string, storedHash: string): boolean {
+  const computedHash = hashSecret(plaintext);
+  const a = Buffer.from(computedHash, 'utf8');
+  const b = Buffer.from(storedHash, 'utf8');
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 /** Schema for config update request */
 const configUpdateSchema = z.object({
@@ -65,16 +85,15 @@ export function configRoutes(db: SqliteDb) {
 
   ensureConfigTable(db);
 
-  // GET /api/config — current config
+  // GET /api/config — current config (secrets are never returned)
   app.get('/', (c) => {
     const config = getAllConfig(db);
-    // Mask secrets in response
     return c.json({
       retentionDays: config.retentionDays,
       agentGateUrl: config.agentGateUrl,
-      agentGateSecret: config.agentGateSecret ? '••••••••' : '',
+      agentGateSecretSet: !!config.agentGateSecret,
       formBridgeUrl: config.formBridgeUrl,
-      formBridgeSecret: config.formBridgeSecret ? '••••••••' : '',
+      formBridgeSecretSet: !!config.formBridgeSecret,
     });
   });
 
@@ -103,13 +122,15 @@ export function configRoutes(db: SqliteDb) {
       setConfigValue(db, 'agentGateUrl', updates.agentGateUrl);
     }
     if (updates.agentGateSecret !== undefined) {
-      setConfigValue(db, 'agentGateSecret', updates.agentGateSecret);
+      // Store hash of secret, never plaintext
+      setConfigValue(db, 'agentGateSecret', hashSecret(updates.agentGateSecret));
     }
     if (updates.formBridgeUrl !== undefined) {
       setConfigValue(db, 'formBridgeUrl', updates.formBridgeUrl);
     }
     if (updates.formBridgeSecret !== undefined) {
-      setConfigValue(db, 'formBridgeSecret', updates.formBridgeSecret);
+      // Store hash of secret, never plaintext
+      setConfigValue(db, 'formBridgeSecret', hashSecret(updates.formBridgeSecret));
     }
 
     return c.json({ ok: true });

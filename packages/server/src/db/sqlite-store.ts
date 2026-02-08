@@ -14,7 +14,7 @@
  * - getAnalytics(), getStats()
  */
 
-import { eq, and, gte, lte, inArray, desc, asc, sql, like, count as drizzleCount } from 'drizzle-orm';
+import { eq, and, gte, lte, inArray, desc, asc, sql, count as drizzleCount } from 'drizzle-orm';
 import { computeEventHash } from '@agentlens/core';
 import type {
   AgentLensEvent,
@@ -413,6 +413,18 @@ export class SqliteEventStore implements IEventStore {
       .all();
 
     return rows.map(this._mapEventRow);
+  }
+
+  async getLastEventHash(sessionId: string): Promise<string | null> {
+    const row = this.db
+      .select({ hash: events.hash })
+      .from(events)
+      .where(eq(events.sessionId, sessionId))
+      .orderBy(desc(events.timestamp), desc(events.id))
+      .limit(1)
+      .get();
+
+    return row?.hash ?? null;
   }
 
   async countEvents(
@@ -845,7 +857,12 @@ export class SqliteEventStore implements IEventStore {
       conditions.push(lte(events.timestamp, query.to));
     }
     if (query.search) {
-      conditions.push(like(events.payload, `%${query.search}%`));
+      // H1 fix: Escape LIKE wildcards to prevent wildcard abuse
+      const escaped = query.search
+        .replace(/\\/g, '\\\\')
+        .replace(/%/g, '\\%')
+        .replace(/_/g, '\\_');
+      conditions.push(sql`${events.payload} LIKE ${'%' + escaped + '%'} ESCAPE '\\'`);
     }
 
     return conditions;

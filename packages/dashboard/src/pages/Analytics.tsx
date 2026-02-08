@@ -154,13 +154,37 @@ export function Analytics(): React.ReactElement {
     }));
   }, [analytics, range]);
 
+  // Collect all unique agent IDs from cost data for stacked bars
+  const costAgentIds = useMemo(() => {
+    if (!costs?.overTime) return [];
+    const agentSet = new Set<string>();
+    for (const b of costs.overTime) {
+      if (b.byAgent) {
+        for (const agentId of Object.keys(b.byAgent)) {
+          agentSet.add(agentId);
+        }
+      }
+    }
+    return Array.from(agentSet);
+  }, [costs]);
+
   const costChartData = useMemo(() => {
     if (!costs?.overTime) return [];
-    return costs.overTime.map((b) => ({
-      label: formatBucketLabel(b.bucket, range),
-      cost: b.totalCostUsd,
-    }));
-  }, [costs, range]);
+    return costs.overTime.map((b) => {
+      const row: Record<string, unknown> = {
+        label: formatBucketLabel(b.bucket, range),
+      };
+      // Add per-agent cost fields for stacked bars
+      if (b.byAgent && costAgentIds.length > 0) {
+        for (const agentId of costAgentIds) {
+          row[agentId] = b.byAgent[agentId] ?? 0;
+        }
+      } else {
+        row['cost'] = b.totalCostUsd;
+      }
+      return row;
+    });
+  }, [costs, range, costAgentIds]);
 
   const toolChartData = useMemo(() => {
     if (!toolsData?.tools) return [];
@@ -363,9 +387,22 @@ export function Analytics(): React.ReactElement {
                     borderRadius: '8px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number) => [formatCost(value), 'Cost']}
+                  formatter={(value: number) => [formatCost(value)]}
                 />
-                <Bar dataKey="cost" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Cost (USD)" />
+                <Legend />
+                {costAgentIds.length > 0 ? (
+                  costAgentIds.map((agentId, idx) => (
+                    <Bar
+                      key={agentId}
+                      dataKey={agentId}
+                      stackId="cost"
+                      fill={COLORS[idx % COLORS.length]}
+                      name={agentId}
+                    />
+                  ))
+                ) : (
+                  <Bar dataKey="cost" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Cost (USD)" />
+                )}
               </BarChart>
             </ResponsiveContainer>
           )}

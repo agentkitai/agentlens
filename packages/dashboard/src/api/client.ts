@@ -223,6 +223,7 @@ export interface CostOverTime {
   bucket: string;
   totalCostUsd: number;
   eventCount: number;
+  byAgent?: Record<string, number>;
 }
 
 export interface CostAnalyticsResult {

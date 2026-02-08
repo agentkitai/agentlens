@@ -73,26 +73,44 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
         `,
       );
 
-    // Cost over time
-    const overTime = db
+    // Cost over time — broken down by agent for stacked chart
+    const overTimeByAgent = db
       .all<{
         bucket: string;
+        agentId: string;
         totalCostUsd: number;
         eventCount: number;
       }>(
         sql`
           SELECT
             strftime(${formatStr}, timestamp) as bucket,
+            agent_id as agentId,
             COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
             COUNT(*) as eventCount
           FROM events
           WHERE event_type = 'cost_tracked'
             AND timestamp >= ${from}
             AND timestamp <= ${to}
-          GROUP BY bucket
+          GROUP BY bucket, agent_id
           ORDER BY bucket ASC
         `,
       );
+
+    // Pivot: group by bucket, with per-agent cost fields
+    const bucketMap = new Map<string, { bucket: string; totalCostUsd: number; eventCount: number; byAgent: Record<string, number> }>();
+    for (const row of overTimeByAgent) {
+      const existing = bucketMap.get(row.bucket) ?? {
+        bucket: row.bucket,
+        totalCostUsd: 0,
+        eventCount: 0,
+        byAgent: {},
+      };
+      existing.totalCostUsd += Number(row.totalCostUsd);
+      existing.eventCount += Number(row.eventCount);
+      existing.byAgent[row.agentId] = Number(row.totalCostUsd);
+      bucketMap.set(row.bucket, existing);
+    }
+    const overTime = Array.from(bucketMap.values());
 
     // Total cost
     const total = db.get<{
@@ -127,6 +145,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
         bucket: r.bucket,
         totalCostUsd: Number(r.totalCostUsd),
         eventCount: Number(r.eventCount),
+        byAgent: r.byAgent,
       })),
       totals: {
         totalCostUsd: Number(total?.totalCostUsd ?? 0),
