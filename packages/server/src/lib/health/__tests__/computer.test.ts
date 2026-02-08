@@ -95,7 +95,8 @@ function makeSession(overrides: Partial<Session> = {}): Session {
   };
 }
 
-function makeEvent(overrides: Partial<AgentLensEvent> = {}): AgentLensEvent {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function makeEvent(overrides: Record<string, any> = {}): AgentLensEvent {
   return {
     id: `evt-${Math.random().toString(36).slice(2)}`,
     timestamp: new Date().toISOString(),
@@ -109,7 +110,7 @@ function makeEvent(overrides: Partial<AgentLensEvent> = {}): AgentLensEvent {
     hash: 'abc',
     tenantId: 'default',
     ...overrides,
-  };
+  } as AgentLensEvent;
 }
 
 /** Equal weights for isolated dimension testing */

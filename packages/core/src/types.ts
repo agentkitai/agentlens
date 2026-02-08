@@ -104,6 +104,7 @@ export interface ToolResponsePayload {
   toolName: string;
   result: unknown;
   durationMs: number;
+  isError?: boolean;
 }
 
 export interface ToolErrorPayload {
