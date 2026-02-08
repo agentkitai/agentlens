@@ -11,7 +11,7 @@ AgentLens ships as an MCP server (`@agentlensai/mcp`) that agents add to their t
 
 ```
 Agent  ──MCP stdio──►  @agentlensai/mcp  ──HTTP──►  @agentlensai/server
-                        (4 tools)                    (API + Dashboard)
+                        (5 tools)                    (API + Dashboard)
 ```
 
 ## MCP Tools
@@ -50,6 +50,30 @@ End a monitoring session. Call this when the agent workflow completes.
 | `sessionId` | string | ✅ | Session ID to end |
 | `reason` | string | ✅ | `completed` / `error` / `timeout` / `manual` |
 | `summary` | string | — | Human-readable summary |
+
+### `agentlens_log_llm_call`
+
+Log a complete LLM interaction (request + response) in a single call. Internally emits two paired events (`llm_call` + `llm_response`) with a shared `callId`.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `sessionId` | string | ✅ | Active session ID |
+| `provider` | string | ✅ | Provider name (e.g., `openai`, `anthropic`) |
+| `model` | string | ✅ | Model identifier |
+| `messages` | array | ✅ | Prompt messages (`[{ role, content }]`) |
+| `systemPrompt` | string | — | System prompt (if separate) |
+| `completion` | string \| null | ✅ | Model response content |
+| `toolCalls` | array | — | Tool calls requested by the model |
+| `finishReason` | string | ✅ | `stop`, `length`, `tool_use`, `content_filter`, or `error` |
+| `usage` | object | ✅ | `{ inputTokens, outputTokens, totalTokens }` |
+| `costUsd` | number | ✅ | Cost in USD |
+| `latencyMs` | number | ✅ | Latency in milliseconds |
+| `parameters` | object | — | Model parameters (`temperature`, `maxTokens`, etc.) |
+| `tools` | array | — | Tool definitions provided to the model |
+
+**Returns:** `{ callId: string, eventsIngested: 2 }`
+
+See the [LLM Call Tracking guide](/guide/llm-tracking) for detailed usage and provider examples.
 
 ### `agentlens_query_events`
 

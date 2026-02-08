@@ -7,6 +7,7 @@
 
 import { runConfigCommand } from './commands/config.js';
 import { runEventsCommand } from './commands/events.js';
+import { runLlmCommand } from './commands/llm.js';
 import { runSessionsCommand } from './commands/sessions.js';
 import { runTailCommand } from './commands/tail.js';
 
@@ -19,6 +20,7 @@ Commands:
   events              Query events
   sessions            List and inspect sessions
   tail                Stream live events (SSE)
+  llm                 LLM call tracking (stats, models, recent)
 
 Run "agentlens <command> --help" for command-specific help.
 
@@ -40,6 +42,10 @@ async function main(): Promise<void> {
 
     case 'events':
       await runEventsCommand(rest);
+      break;
+
+    case 'llm':
+      await runLlmCommand(rest);
       break;
 
     case 'sessions':

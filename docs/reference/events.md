@@ -53,6 +53,8 @@ Ingest a batch of events. Events are validated, assigned IDs, added to the sessi
 | `form_submitted` | `submissionId`, `formId`, `formName?`, `fieldCount` |
 | `form_completed` | `submissionId`, `formId`, `completedBy`, `durationMs` |
 | `form_expired` | `submissionId`, `formId`, `expiredAfterMs` |
+| `llm_call` | `callId`, `provider`, `model`, `messages`, `systemPrompt?`, `parameters?`, `tools?`, `redacted?` |
+| `llm_response` | `callId`, `provider`, `model`, `completion`, `toolCalls?`, `finishReason`, `usage`, `costUsd`, `latencyMs`, `redacted?` |
 | `cost_tracked` | `provider`, `model`, `inputTokens`, `outputTokens`, `totalTokens`, `costUsd`, `trigger?` |
 | `alert_triggered` | `alertRuleId`, `alertName`, `condition`, `currentValue`, `threshold`, `message` |
 | `alert_resolved` | `alertRuleId`, `alertName`, `resolvedBy?` |

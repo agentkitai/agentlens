@@ -63,6 +63,7 @@ export default defineConfig({
           { text: 'Integrations', link: '/guide/integrations' },
           { text: 'Alerting', link: '/guide/alerting' },
           { text: 'Cost Tracking', link: '/guide/cost-tracking' },
+          { text: 'LLM Call Tracking', link: '/guide/llm-tracking' },
         ],
       },
       {
@@ -72,6 +73,7 @@ export default defineConfig({
           { text: 'Events API', link: '/reference/events' },
           { text: 'Sessions API', link: '/reference/sessions' },
           { text: 'Analytics API', link: '/reference/analytics' },
+          { text: 'LLM Analytics API', link: '/reference/llm-analytics' },
           { text: 'Alerts API', link: '/reference/alerts' },
           { text: 'Integrations API', link: '/reference/integrations' },
           { text: 'API Keys', link: '/reference/api-keys' },

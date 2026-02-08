@@ -46,6 +46,82 @@ curl "http://localhost:3400/api/analytics?from=2026-02-01&to=2026-02-08&granular
 
 ---
 
+## GET /api/analytics/llm
+
+LLM-specific analytics: aggregate metrics by model, provider, and time. Includes summary statistics, per-model breakdown, and time-bucketed series.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `from` | string | 24h ago | Start of time range (ISO 8601) |
+| `to` | string | now | End of time range (ISO 8601) |
+| `granularity` | string | `hour` | Bucket size: `hour`, `day`, or `week` |
+| `agentId` | string | — | Filter to a specific agent |
+| `model` | string | — | Filter to a specific model |
+| `provider` | string | — | Filter to a specific provider |
+
+### Response (200)
+
+```json
+{
+  "summary": {
+    "totalCalls": 42,
+    "totalCostUsd": 12.34,
+    "totalInputTokens": 150000,
+    "totalOutputTokens": 50000,
+    "avgLatencyMs": 1250,
+    "avgCostPerCall": 0.29
+  },
+  "byModel": [
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "calls": 20,
+      "costUsd": 8.50,
+      "inputTokens": 100000,
+      "outputTokens": 30000,
+      "avgLatencyMs": 1500
+    }
+  ],
+  "byTime": [
+    {
+      "bucket": "2026-02-08T10:00:00Z",
+      "calls": 5,
+      "costUsd": 1.20,
+      "inputTokens": 15000,
+      "outputTokens": 5000,
+      "avgLatencyMs": 900
+    }
+  ]
+}
+```
+
+### curl Example
+
+```bash
+curl "http://localhost:3400/api/analytics/llm?from=2026-02-01&granularity=day&model=claude-sonnet-4-20250514" \
+  -H "Authorization: Bearer als_your_key"
+```
+
+### SDK Example
+
+```typescript
+const analytics = await client.getLlmAnalytics({
+  from: '2026-02-01',
+  to: '2026-02-08',
+  granularity: 'day',
+});
+
+console.log(analytics.summary);
+// { totalCalls: 42, totalCostUsd: 12.34, ... }
+
+console.log(analytics.byModel);
+// [{ provider: "anthropic", model: "claude-sonnet-4-20250514", calls: 20, ... }]
+```
+
+---
+
 ## GET /api/analytics/costs
 
 Cost breakdown by agent and time period.

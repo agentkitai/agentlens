@@ -10,7 +10,7 @@ interface AgentLensEvent {
   timestamp: string;    // ISO 8601
   sessionId: string;    // Groups events into agent sessions
   agentId: string;      // Which agent produced this event
-  eventType: EventType; // One of 16 types
+  eventType: EventType; // One of 18 types
   severity: EventSeverity; // debug | info | warn | error | critical
   payload: object;      // Type-specific data
   metadata: object;     // Additional context
@@ -19,7 +19,7 @@ interface AgentLensEvent {
 }
 ```
 
-## Event Types (16)
+## Event Types (18)
 
 ### Agent Lifecycle
 - `session_started` — Agent session begins
@@ -40,6 +40,10 @@ interface AgentLensEvent {
 - `form_submitted` — Form sent to human
 - `form_completed` — Human completed the form
 - `form_expired` — Form timed out
+
+### LLM Call Tracking
+- `llm_call` — Request sent to an LLM provider (prompt, model, parameters)
+- `llm_response` — Completion received from an LLM provider (tokens, cost, latency)
 
 ### Cost Tracking
 - `cost_tracked` — Token usage and cost recorded
