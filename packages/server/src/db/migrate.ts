@@ -462,6 +462,59 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmark_variants_tenant_tag ON benchmark_variants(tenant_id, tag)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmark_results_benchmark_id ON benchmark_results(benchmark_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_benchmark_results_tenant_id ON benchmark_results(tenant_id)`);
+
+  // ─── Guardrail tables (v0.8.0 — Phase 3) ──────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS guardrail_rules (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      condition_type TEXT NOT NULL,
+      condition_config TEXT NOT NULL DEFAULT '{}',
+      action_type TEXT NOT NULL,
+      action_config TEXT NOT NULL DEFAULT '{}',
+      agent_id TEXT,
+      cooldown_minutes INTEGER NOT NULL DEFAULT 15,
+      dry_run INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS guardrail_state (
+      rule_id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      last_triggered_at TEXT,
+      trigger_count INTEGER NOT NULL DEFAULT 0,
+      last_evaluated_at TEXT,
+      current_value REAL,
+      PRIMARY KEY (rule_id, tenant_id)
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS guardrail_trigger_history (
+      id TEXT PRIMARY KEY,
+      rule_id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      triggered_at TEXT NOT NULL,
+      condition_value REAL NOT NULL,
+      condition_threshold REAL NOT NULL,
+      action_executed INTEGER NOT NULL DEFAULT 0,
+      action_result TEXT,
+      metadata TEXT NOT NULL DEFAULT '{}'
+    )
+  `);
+
+  // Guardrail indexes
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_rules_tenant ON guardrail_rules(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_rules_tenant_enabled ON guardrail_rules(tenant_id, enabled)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_state_tenant ON guardrail_state(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_trigger_history_tenant ON guardrail_trigger_history(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_trigger_history_rule ON guardrail_trigger_history(rule_id, triggered_at)`);
 }
 
 /**

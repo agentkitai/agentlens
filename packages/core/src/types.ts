@@ -1114,3 +1114,80 @@ export interface BenchmarkResults {
   /** When results were computed */
   computedAt: string;
 }
+
+// ─── Guardrail Types (v0.8.0 — Phase 3) ────────────────────────────
+
+/**
+ * Condition types for guardrail rules
+ */
+export type GuardrailConditionType =
+  | 'error_rate_threshold'
+  | 'cost_limit'
+  | 'health_score_threshold'
+  | 'custom_metric';
+
+/**
+ * Action types for guardrail rules
+ */
+export type GuardrailActionType =
+  | 'pause_agent'
+  | 'notify_webhook'
+  | 'downgrade_model'
+  | 'agentgate_policy';
+
+/**
+ * A guardrail rule — configurable condition + action with cooldown
+ */
+export interface GuardrailRule {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  conditionType: GuardrailConditionType;
+  conditionConfig: Record<string, unknown>;
+  actionType: GuardrailActionType;
+  actionConfig: Record<string, unknown>;
+  agentId?: string;
+  cooldownMinutes: number;
+  dryRun: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Runtime state for a guardrail rule (cooldowns, trigger tracking)
+ */
+export interface GuardrailState {
+  ruleId: string;
+  tenantId: string;
+  lastTriggeredAt?: string;
+  triggerCount: number;
+  lastEvaluatedAt?: string;
+  currentValue?: number;
+}
+
+/**
+ * Record of a guardrail trigger event
+ */
+export interface GuardrailTriggerHistory {
+  id: string;
+  ruleId: string;
+  tenantId: string;
+  triggeredAt: string;
+  conditionValue: number;
+  conditionThreshold: number;
+  actionExecuted: boolean;
+  actionResult?: string;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Result of evaluating a guardrail condition
+ */
+export interface GuardrailConditionResult {
+  triggered: boolean;
+  currentValue: number;
+  threshold: number;
+  message: string;
+}

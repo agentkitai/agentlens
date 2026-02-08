@@ -377,3 +377,62 @@ export const BenchmarkVariantSchema = z.object({
   agentId: z.string().optional(),
   sortOrder: z.number().int().min(0),
 });
+
+// ─── Guardrail Schemas (v0.8.0 — Phase 3) ──────────────────────────
+
+export const GuardrailConditionTypeSchema = z.enum([
+  'error_rate_threshold',
+  'cost_limit',
+  'health_score_threshold',
+  'custom_metric',
+]);
+
+export const GuardrailActionTypeSchema = z.enum([
+  'pause_agent',
+  'notify_webhook',
+  'downgrade_model',
+  'agentgate_policy',
+]);
+
+export const CreateGuardrailRuleSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional(),
+  enabled: z.boolean().default(true),
+  conditionType: GuardrailConditionTypeSchema,
+  conditionConfig: z.record(z.unknown()),
+  actionType: GuardrailActionTypeSchema,
+  actionConfig: z.record(z.unknown()),
+  agentId: z.string().optional(),
+  cooldownMinutes: z.number().int().min(0).max(1440).default(15),
+  dryRun: z.boolean().default(false),
+});
+
+export const UpdateGuardrailRuleSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(1000).optional(),
+  enabled: z.boolean().optional(),
+  conditionType: GuardrailConditionTypeSchema.optional(),
+  conditionConfig: z.record(z.unknown()).optional(),
+  actionType: GuardrailActionTypeSchema.optional(),
+  actionConfig: z.record(z.unknown()).optional(),
+  agentId: z.string().nullable().optional(),
+  cooldownMinutes: z.number().int().min(0).max(1440).optional(),
+  dryRun: z.boolean().optional(),
+});
+
+export const GuardrailRuleSchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  enabled: z.boolean(),
+  conditionType: GuardrailConditionTypeSchema,
+  conditionConfig: z.record(z.unknown()),
+  actionType: GuardrailActionTypeSchema,
+  actionConfig: z.record(z.unknown()),
+  agentId: z.string().optional(),
+  cooldownMinutes: z.number().int().min(0),
+  dryRun: z.boolean(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+});

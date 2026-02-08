@@ -40,6 +40,10 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 - **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz/agentgate) (approval flows) and [FormBridge](https://github.com/amitpaz/formbridge) (data collection).
 - **🧠 Agent Memory** — Semantic recall, lessons learned, pattern reflection, and cross-session context. Agents can search past experience, save insights, analyze their own behavior, and carry context across sessions.
 - **🔒 Tenant Isolation** — Multi-tenant support with per-tenant data scoping, API key binding, and embedding isolation.
+- **❤️‍🩹 Health Scores** — 5-dimension health scoring (error rate, cost efficiency, tool success, latency, completion rate) with trend tracking. Monitor agent reliability at a glance.
+- **💡 Cost Optimization** — Complexity-aware model recommendation engine. Classifies LLM calls by complexity tier and suggests cheaper alternatives with projected savings.
+- **📼 Session Replay** — Step-through any past session with full context reconstruction — LLM history, tool results, cost accumulation, and error tracking at every step.
+- **⚖️ A/B Benchmarking** — Statistical comparison of agent variants using Welch's t-test and chi-squared analysis across 8 metrics. Create experiments, collect data, get p-values.
 - **🏠 Self-Hosted** — SQLite by default, no external dependencies. MIT licensed. Your data stays on your infrastructure.
 
 ## 📸 Dashboard
@@ -88,6 +92,34 @@ LLM calls appear in the session timeline with **🧠 icons and indigo styling**,
 
 Click any LLM call to see the **full prompt and completion** in a chat-bubble style viewer. System, user, assistant, and tool messages each get distinct styling. The metadata panel shows provider, model, parameters (temperature, max tokens), token breakdown (input/output/thinking/cache), cost, latency, tools provided to the model, and the tamper-evident hash chain.
 
+### ❤️‍🩹 Health Overview — Agent Reliability at a Glance
+
+<!-- TODO: capture screenshot → demo/dashboard-health.jpg -->
+![Health Overview](demo/dashboard-health.jpg)
+
+The Health Overview page shows a **5-dimension health score** (0–100) for every agent: error rate, cost efficiency, tool success, latency, and completion rate. Each dimension is scored independently and combined into a weighted overall score. Trend arrows (↑ improving, → stable, ↓ degrading) show direction over time. Click any agent to see a historical sparkline of their score.
+
+### 💡 Cost Optimization — Model Recommendations
+
+<!-- TODO: capture screenshot → demo/dashboard-cost-optimization.jpg -->
+![Cost Optimization](demo/dashboard-cost-optimization.jpg)
+
+The Cost Optimization page analyzes your **LLM call patterns** and recommends cheaper model alternatives. Calls are classified by complexity tier (simple / moderate / complex), and the recommendation engine suggests where you can safely downgrade — e.g., "Switch gpt-4o → gpt-4o-mini for SIMPLE tasks, saving $89/month." Confidence levels and success rate comparisons are shown for each recommendation.
+
+### 📼 Session Replay — Step-Through Debugger
+
+<!-- TODO: capture screenshot → demo/dashboard-session-replay.jpg -->
+![Session Replay](demo/dashboard-session-replay.jpg)
+
+Session Replay lets you **step through any past session** event by event with full context reconstruction. A scrubber/timeline control moves through steps chronologically. At each step, the context panel shows cumulative cost, LLM conversation history, tool call results, pending approvals, and error count. Filter by event type, jump to specific steps, or replay just the summary.
+
+### ⚖️ Benchmarks — A/B Testing for Agents
+
+<!-- TODO: capture screenshot → demo/dashboard-benchmarks.jpg -->
+![Benchmarks](demo/dashboard-benchmarks.jpg)
+
+The Benchmarks page lets you **create and manage A/B experiments** comparing agent variants. Define 2–10 variants with session tags, pick metrics (cost, latency, error rate, success rate, tokens, duration), and collect data. Results include per-variant statistics, Welch's t-test p-values, confidence stars (★ ★★ ★★★), and distribution charts. The full workflow — draft → running → completed — is managed from the dashboard.
+
 ## 🏗️ Architecture
 
 ```
@@ -123,6 +155,10 @@ Click any LLM call to see the **full prompt and completion** in a chat-bubble st
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
 │  │  Recall    │ │  Lessons   │ │  Reflect   │ │  Context     │  │
 │  │ (Semantic) │ │ (Knowledge)│ │ (Patterns) │ │ (X-Session)  │  │
+│  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
+│  │  Health    │ │   Cost     │ │  Session   │ │  Benchmark   │  │
+│  │  Scoring   │ │  Optimizer │ │  Replay    │ │  Engine      │  │
 │  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
 │               │                                                   │
 │        ┌──────┴──────┐         ┌─────────────┐                   │
@@ -263,6 +299,13 @@ client = AgentLensClient("http://localhost:3400", api_key="als_your_key")
 sessions = client.get_sessions()
 analytics = client.get_llm_analytics()
 print(f"Total cost: ${analytics.summary.total_cost_usd:.2f}")
+
+# Health scores & optimization (v0.6.0+)
+health = client.get_health("my-agent", window=7)
+overview = client.get_health_overview()
+history = client.get_health_history("my-agent", days=30)
+recs = client.get_optimization_recommendations(period=7)
+
 client.close()
 ```
 
@@ -288,7 +331,7 @@ Navigate to **http://localhost:3400** — see sessions, timelines, analytics, an
 
 ## 🧠 Agent Memory
 
-AgentLens includes four MCP tools that give agents memory and self-improvement capabilities:
+AgentLens ships **13 MCP tools** — 4 for memory and self-improvement, 5 for observability, and 4 for analytics:
 
 | Tool | Purpose | Description |
 |---|---|---|
@@ -296,6 +339,10 @@ AgentLens includes four MCP tools that give agents memory and self-improvement c
 | `agentlens_learn` | **Lessons Learned** | Save, retrieve, update, and search distilled insights. Build a persistent knowledge base across sessions. |
 | `agentlens_reflect` | **Pattern Analysis** | Analyze behavioral patterns — recurring errors, cost trends, tool sequences, performance changes. |
 | `agentlens_context` | **Cross-Session Context** | Retrieve topic-focused history with session summaries, key events, and related lessons ranked by relevance. |
+| `agentlens_health` | **Health Scores** | Check the agent's 5-dimension health score (0–100) with trend tracking. Dimensions: error rate, cost efficiency, tool success, latency, completion rate. |
+| `agentlens_optimize` | **Cost Optimization** | Get model switch recommendations with projected monthly savings. Analyzes call complexity and suggests cheaper alternatives. |
+| `agentlens_replay` | **Session Replay** | Replay a past session as a structured timeline with numbered steps, context annotations, and cost accumulation. |
+| `agentlens_benchmark` | **A/B Benchmarking** | Create, manage, and analyze A/B experiments comparing agent variants with statistical significance testing. |
 
 These tools are automatically available when using the MCP server. Agents can also access the underlying REST API directly via the SDK:
 
@@ -351,6 +398,17 @@ See the [Agent Memory Guide](./docs/guide/agent-memory.md) for integration patte
 | `GET /api/reflect` | Pattern analysis (errors, costs, tools, performance) |
 | `GET /api/context` | Cross-session context retrieval |
 | `POST /api/events/ingest` | Webhook ingestion (AgentGate/FormBridge) |
+| `GET /api/agents/:id/health` | Agent health score with dimensions |
+| `GET /api/health/overview` | Health overview for all agents |
+| `GET /api/health/history` | Historical health snapshots |
+| `GET /api/optimize/recommendations` | Cost optimization recommendations |
+| `GET /api/sessions/:id/replay` | Session replay with context reconstruction |
+| `POST /api/benchmarks` | Create a benchmark |
+| `GET /api/benchmarks` | List benchmarks |
+| `GET /api/benchmarks/:id` | Get benchmark detail |
+| `PUT /api/benchmarks/:id/status` | Transition benchmark status |
+| `GET /api/benchmarks/:id/results` | Get benchmark comparison results |
+| `DELETE /api/benchmarks/:id` | Delete a benchmark |
 | `POST /api/keys` | Create API keys |
 
 [Full API Reference →](./docs/reference/api.md)
@@ -368,6 +426,20 @@ AgentLens works alongside two companion projects for unified agent lifecycle man
 Together: **data collection → approvals → observability**.
 
 Approval events from AgentGate and form submissions from FormBridge appear directly in AgentLens session timelines, giving you a single view of the complete agent lifecycle.
+
+## ⌨️ CLI
+
+The `@agentlensai/cli` package provides command-line access to key features:
+
+```bash
+npx @agentlensai/cli health                          # Overview of all agents
+npx @agentlensai/cli health --agent my-agent          # Detailed health with dimensions
+npx @agentlensai/cli health --agent my-agent --history # Score trend over time
+npx @agentlensai/cli optimize                          # Cost optimization recommendations
+npx @agentlensai/cli optimize --agent my-agent --period 7
+```
+
+Both commands support `--format json` for machine-readable output. See `agentlens health --help` and `agentlens optimize --help` for all options.
 
 ## 🛠️ Development
 
