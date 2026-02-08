@@ -35,6 +35,9 @@ import { optimizeRoutes } from './routes/optimize.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerReplayRoutes } from './routes/replay.js';
 import { benchmarkRoutes } from './routes/benchmarks.js';
+import { guardrailRoutes } from './routes/guardrails.js';
+import { GuardrailEngine } from './lib/guardrails/engine.js';
+import { GuardrailStore } from './db/guardrail-store.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -80,6 +83,9 @@ export { SessionSummaryStore } from './db/session-summary-store.js';
 export { contextRoutes } from './routes/context.js';
 export { registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
+export { guardrailRoutes } from './routes/guardrails.js';
+export { GuardrailEngine } from './lib/guardrails/engine.js';
+export { GuardrailStore } from './db/guardrail-store.js';
 
 // ─── Dashboard SPA helpers ───────────────────────────────────
 
@@ -233,6 +239,8 @@ export function createApp(
     app.use('/api/benchmarks', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/health/overview', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/health/history', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/guardrails/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/guardrails', authMiddleware(db, resolvedConfig.authDisabled));
   }
 
   // ─── Routes ────────────────────────────────────────────
@@ -269,6 +277,12 @@ export function createApp(
   // ─── Benchmarks / A/B Testing ─────────────────────────
   if (db) {
     app.route('/api/benchmarks', benchmarkRoutes(store, db));
+  }
+
+  // ─── Guardrails / Proactive Guardrails ────────────────
+  if (db) {
+    const gStore = new GuardrailStore(db);
+    app.route('/api/guardrails', guardrailRoutes(gStore));
   }
 
   // ─── Recall / Semantic Search ─────────────────────────
@@ -337,6 +351,11 @@ export async function startServer() {
   // Start alert evaluation engine
   const alertEngine = new AlertEngine(store);
   alertEngine.start();
+
+  // Start guardrail evaluation engine (v0.8.0)
+  const guardrailEngine = new GuardrailEngine(store, db);
+  guardrailEngine.start();
+  console.log('  Guardrails: enabled');
 
   serve({
     fetch: app.fetch,

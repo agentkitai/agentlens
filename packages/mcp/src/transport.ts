@@ -556,6 +556,34 @@ export class AgentLensTransport {
     return response.json();
   }
 
+  // ─── Guardrails (v0.8.0) ──────────────────────────────
+
+  async getGuardrailRules(): Promise<unknown> {
+    const url = `${this.baseUrl}/api/guardrails`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Guardrail API error ${response.status}: ${body}`);
+    }
+    return response.json();
+  }
+
+  async getGuardrailStatus(ruleId: string): Promise<unknown> {
+    const url = `${this.baseUrl}/api/guardrails/${encodeURIComponent(ruleId)}/status`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Guardrail API error ${response.status}: ${body}`);
+    }
+    return response.json();
+  }
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
