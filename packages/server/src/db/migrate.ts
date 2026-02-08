@@ -390,6 +390,26 @@ export function runMigrations(db: SqliteDb): void {
 
   // ─── Composite index for similarity search (M6) ──────────────────
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_embeddings_tenant_source_time ON embeddings(tenant_id, source_type, created_at)`);
+
+  // ─── Health Snapshots table (Epic 6 — Story 1.3) ──────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS health_snapshots (
+      id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      overall_score REAL NOT NULL,
+      error_rate_score REAL NOT NULL,
+      cost_efficiency_score REAL NOT NULL,
+      tool_success_score REAL NOT NULL,
+      latency_score REAL NOT NULL,
+      completion_rate_score REAL NOT NULL,
+      session_count INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (tenant_id, agent_id, date)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_health_snapshots_agent ON health_snapshots(tenant_id, agent_id, date DESC)`);
 }
 
 /**
