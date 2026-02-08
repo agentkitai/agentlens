@@ -388,8 +388,17 @@ export function EventsExplorer(): React.ReactElement {
             {result?.events.map((event) => (
               <React.Fragment key={event.id}>
                 <tr
+                  tabIndex={0}
+                  role="button"
+                  aria-expanded={expandedId === event.id}
                   onClick={() => setExpandedId(expandedId === event.id ? null : event.id)}
-                  className="cursor-pointer hover:bg-gray-50"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setExpandedId(expandedId === event.id ? null : event.id);
+                    }
+                  }}
+                  className="cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
                 >
                   <td className="whitespace-nowrap px-4 py-2 text-sm text-gray-600">
                     {formatTimestamp(event.timestamp)}

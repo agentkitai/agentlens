@@ -116,15 +116,27 @@ export function Overview(): React.ReactElement {
   // Fetch stats
   const stats = useApi<StorageStats>(() => getStats(), []);
 
-  // Events today (for chart + error count)
+  // Events today (total count only — limit:1 since we only need the `total`)
   const eventsToday = useApi<EventQueryResult>(
-    () => getEvents({ from: todayStart, limit: 1000, order: 'desc' }),
+    () => getEvents({ from: todayStart, limit: 1, order: 'desc' }),
     [todayStart],
   );
 
-  // Events yesterday (for trend comparison)
+  // Events yesterday (total count only)
   const eventsYesterday = useApi<EventQueryResult>(
-    () => getEvents({ from: yesterdayStart, to: todayStart, limit: 1000, order: 'desc' }),
+    () => getEvents({ from: yesterdayStart, to: todayStart, limit: 1, order: 'desc' }),
+    [yesterdayStart, todayStart],
+  );
+
+  // Error counts today (use server-side severity filter + total)
+  const errorsToday = useApi<EventQueryResult>(
+    () => getEvents({ from: todayStart, severity: ['error', 'critical'], limit: 1, order: 'desc' }),
+    [todayStart],
+  );
+
+  // Error counts yesterday (for trend)
+  const errorsYesterday = useApi<EventQueryResult>(
+    () => getEvents({ from: yesterdayStart, to: todayStart, severity: ['error', 'critical'], limit: 1, order: 'desc' }),
     [yesterdayStart, todayStart],
   );
 
@@ -160,21 +172,14 @@ export function Overview(): React.ReactElement {
 
   // ─── Computed metrics ───────────────────────────────────────────
 
-  const todayEvents = eventsToday.data?.events ?? [];
-  const yesterdayEvents = eventsYesterday.data?.events ?? [];
-
-  const todayErrorCount = todayEvents.filter(
-    (e) => e.severity === 'error' || e.severity === 'critical',
-  ).length;
-  const yesterdayErrorCount = yesterdayEvents.filter(
-    (e) => e.severity === 'error' || e.severity === 'critical',
-  ).length;
+  const todayErrorCount = errorsToday.data?.total ?? 0;
+  const yesterdayErrorCount = errorsYesterday.data?.total ?? 0;
 
   const todaySessionCount = sessionsToday.data?.total ?? 0;
   const yesterdaySessionCount = sessionsYesterday.data?.total ?? 0;
 
   const metricsLoading =
-    eventsToday.loading || eventsYesterday.loading || sessionsToday.loading || sessionsYesterday.loading || stats.loading;
+    eventsToday.loading || eventsYesterday.loading || errorsToday.loading || errorsYesterday.loading || sessionsToday.loading || sessionsYesterday.loading || stats.loading;
 
   const cards: MetricCard[] = [
     {

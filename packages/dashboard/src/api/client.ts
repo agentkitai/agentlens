@@ -164,4 +164,25 @@ export async function revokeKey(id: string): Promise<{ id: string; revoked: bool
   });
 }
 
+// ─── Config ─────────────────────────────────────────────────────────
+
+export interface ConfigData {
+  retentionDays: number;
+  agentGateUrl: string;
+  agentGateSecret: string;
+  formBridgeUrl: string;
+  formBridgeSecret: string;
+}
+
+export async function getConfig(): Promise<ConfigData> {
+  return request<ConfigData>('/api/config');
+}
+
+export async function updateConfig(data: Partial<ConfigData>): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/api/config', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 export { ApiError };

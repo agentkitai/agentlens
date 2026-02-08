@@ -76,6 +76,11 @@ function SortIndicator({ field, sortField, sortDir }: { field: SortField; sortFi
 
 // ─── Column header ──────────────────────────────────────────────────
 
+function getAriaSortValue(field: SortField, sortField: SortField, sortDir: SortDir): 'ascending' | 'descending' | 'none' {
+  if (field !== sortField) return 'none';
+  return sortDir === 'asc' ? 'ascending' : 'descending';
+}
+
 function Th({
   field, label, sortField, sortDir, onSort, className = '',
 }: {
@@ -84,11 +89,17 @@ function Th({
 }) {
   return (
     <th
-      className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 ${className}`}
-      onClick={() => onSort(field)}
+      className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider ${className}`}
+      aria-sort={getAriaSortValue(field, sortField, sortDir)}
     >
-      {label}
-      <SortIndicator field={field} sortField={sortField} sortDir={sortDir} />
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className="inline-flex items-center gap-0.5 cursor-pointer select-none hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 rounded"
+      >
+        {label}
+        <SortIndicator field={field} sortField={sortField} sortDir={sortDir} />
+      </button>
     </th>
   );
 }

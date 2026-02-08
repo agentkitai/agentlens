@@ -57,12 +57,22 @@ function colorForAgent(id: string): string {
 
 // ─── Agent Card ─────────────────────────────────────────────
 
+/** Agent with computed error rate from server */
+interface AgentWithErrorRate extends Agent {
+  errorRate?: number;
+}
+
 interface AgentCardProps {
-  agent: Agent;
+  agent: AgentWithErrorRate;
   onClick: () => void;
 }
 
 function AgentCard({ agent, onClick }: AgentCardProps): React.ReactElement {
+  const errorRate = agent.errorRate ?? 0;
+  const errorRatePercent = (errorRate * 100).toFixed(1);
+  const errorRateColor =
+    errorRate >= 0.1 ? 'text-red-600' : errorRate >= 0.05 ? 'text-yellow-600' : 'text-green-600';
+
   return (
     <button
       type="button"
@@ -83,11 +93,17 @@ function AgentCard({ agent, onClick }: AgentCardProps): React.ReactElement {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-gray-100 pt-3">
+      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-gray-100 pt-3 sm:grid-cols-4">
         <div>
           <p className="text-xs text-gray-500">Sessions</p>
           <p className="text-sm font-semibold text-gray-900">
             {agent.sessionCount.toLocaleString()}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500">Error Rate</p>
+          <p className={`text-sm font-semibold ${errorRateColor}`}>
+            {errorRatePercent}%
           </p>
         </div>
         <div>
@@ -111,7 +127,7 @@ function AgentCard({ agent, onClick }: AgentCardProps): React.ReactElement {
 
 export function Agents(): React.ReactElement {
   const navigate = useNavigate();
-  const { data: agents, loading, error } = useApi(() => getAgents(), []);
+  const { data: agents, loading, error } = useApi(() => getAgents() as Promise<AgentWithErrorRate[]>, []);
 
   const sorted = (agents ?? []).slice().sort(
     (a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime(),
