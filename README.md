@@ -13,6 +13,10 @@
 
 ---
 
+<p align="center">
+  <img src="demo/agentlens-demo.gif" alt="AgentLens Demo" width="720">
+</p>
+
 AgentLens is a **flight recorder for AI agents**. It captures every tool call, approval decision, data exchange, and error — then presents it through a queryable API and real-time web dashboard.
 
 **MCP-native.** Add one config block → every tool call is captured automatically. Zero code changes.
