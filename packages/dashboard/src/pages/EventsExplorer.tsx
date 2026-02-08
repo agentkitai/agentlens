@@ -9,7 +9,7 @@
  * - Pagination controls
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type {
   EventType,
   EventSeverity,
@@ -227,6 +227,17 @@ export function EventsExplorer(): React.ReactElement {
   const [page, setPage] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Debounce search input (300ms) to avoid firing API calls on every keystroke
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, 300);
+    return () => clearTimeout(debounceTimer.current);
+  }, [filters.search]);
+
   const query = useMemo((): EventQuery => {
     const q: EventQuery = {
       limit: PAGE_SIZE,
@@ -238,9 +249,9 @@ export function EventsExplorer(): React.ReactElement {
     if (filters.agentId) q.agentId = filters.agentId;
     if (filters.from) q.from = new Date(filters.from).toISOString();
     if (filters.to) q.to = new Date(filters.to).toISOString();
-    if (filters.search.trim()) q.search = filters.search.trim();
+    if (debouncedSearch.trim()) q.search = debouncedSearch.trim();
     return q;
-  }, [filters, page]);
+  }, [filters.eventTypes, filters.severities, filters.agentId, filters.from, filters.to, debouncedSearch, page]);
 
   const { data: result, loading, error } = useApi(
     () => getEvents(query),

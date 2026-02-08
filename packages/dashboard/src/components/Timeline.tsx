@@ -197,6 +197,13 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
     setExpanded((prev) => !prev);
   }, []);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  }, [handleClick]);
+
   return (
     <div className="flex gap-3">
       {/* Time marker */}
@@ -212,11 +219,14 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
         <div className="w-px flex-1 bg-gray-200" />
       </div>
 
-      {/* Event card */}
+      {/* Event card — use div with role="button" to avoid nested button a11y violation */}
       <div className="flex-1 pb-3">
-        <button
+        <div
+          role="button"
+          tabIndex={0}
           onClick={handleClick}
-          className={`w-full text-left rounded-lg border p-3 transition-all ${style.bgColor} ${style.borderColor} ${
+          onKeyDown={handleKeyDown}
+          className={`w-full text-left rounded-lg border p-3 transition-all cursor-pointer ${style.bgColor} ${style.borderColor} ${
             isSelected ? 'ring-2 ring-blue-500 shadow-md' : 'hover:shadow-sm'
           }`}
         >
@@ -243,7 +253,7 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
               </button>
             )}
           </div>
-        </button>
+        </div>
 
         {/* Expanded paired response */}
         {isPaired && expanded && node.responseEvent && (

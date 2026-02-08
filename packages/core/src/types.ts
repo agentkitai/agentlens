@@ -307,7 +307,7 @@ export interface EventQueryResult {
 
 export interface SessionQuery {
   agentId?: string;
-  status?: SessionStatus;
+  status?: SessionStatus | SessionStatus[];
   from?: Timestamp;
   to?: Timestamp;
   limit?: number;

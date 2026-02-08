@@ -799,7 +799,15 @@ export class SqliteEventStore implements IEventStore {
       conditions.push(eq(sessions.agentId, query.agentId));
     }
     if (query.status) {
-      conditions.push(eq(sessions.status, query.status));
+      if (Array.isArray(query.status)) {
+        if (query.status.length === 1) {
+          conditions.push(eq(sessions.status, query.status[0]));
+        } else if (query.status.length > 1) {
+          conditions.push(inArray(sessions.status, query.status));
+        }
+      } else {
+        conditions.push(eq(sessions.status, query.status));
+      }
     }
     if (query.from) {
       conditions.push(gte(sessions.startedAt, query.from));

@@ -23,7 +23,10 @@ export function sessionsRoutes(store: IEventStore) {
     if (agentId) query.agentId = agentId;
 
     const status = c.req.query('status');
-    if (status) query.status = status as SessionStatus;
+    if (status) {
+      const statuses = status.split(',').filter(Boolean) as SessionStatus[];
+      query.status = statuses.length === 1 ? statuses[0] : statuses;
+    }
 
     const from = c.req.query('from');
     if (from) query.from = from;

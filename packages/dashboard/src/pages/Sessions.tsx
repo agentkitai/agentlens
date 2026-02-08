@@ -6,6 +6,7 @@
  *           sortable table, pagination for 50+ sessions.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { SessionStatus, Agent } from '@agentlens/core';
 import { getSessions, getAgents } from '../api/client';
 import type { SessionQueryResult } from '@agentlens/core';
@@ -21,8 +22,12 @@ const STATUS_OPTIONS: SessionStatus[] = ['active', 'completed', 'error'];
 // ─── Component ──────────────────────────────────────────────────────
 
 export function Sessions(): React.ReactElement {
-  // Filters
-  const [agentFilter, setAgentFilter] = useState<string>('');
+  const [searchParams] = useSearchParams();
+
+  // Filters — initialise agentFilter from URL ?agentId= for deep-linking
+  const [agentFilter, setAgentFilter] = useState<string>(
+    () => searchParams.get('agentId') ?? '',
+  );
   const [statusFilters, setStatusFilters] = useState<Set<SessionStatus>>(new Set());
 
   // Sort
@@ -35,16 +40,17 @@ export function Sessions(): React.ReactElement {
   // Fetch agents for dropdown
   const { data: agents } = useApi<Agent[]>(() => getAgents(), []);
 
-  // Build query params
+  // Build query params — pass all selected statuses to server for filtering
   const queryAgentId = agentFilter || undefined;
-  const queryStatus = statusFilters.size === 1 ? [...statusFilters][0] : undefined;
+  const statusArray = useMemo(() => [...statusFilters], [statusFilters]);
+  const queryStatus = statusArray.length === 1 ? statusArray[0] : statusArray.length > 1 ? statusArray.join(',') : undefined;
 
   // Fetch sessions
   const { data, loading, error, refetch } = useApi(
     () =>
       getSessions({
         agentId: queryAgentId,
-        status: queryStatus,
+        status: queryStatus as SessionStatus | undefined,
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       }),
@@ -56,17 +62,11 @@ export function Sessions(): React.ReactElement {
     setPage(0);
   }, [agentFilter, statusFilters]);
 
-  // Client-side sort (server returns by startedAt desc)
+  // Client-side sort (server returns by startedAt desc; status filtering is server-side)
   const sortedSessions = useMemo(() => {
     if (!data?.sessions) return [];
 
-    let filtered = data.sessions;
-    // Client-side multi-status filter
-    if (statusFilters.size > 1) {
-      filtered = filtered.filter((s) => statusFilters.has(s.status));
-    }
-
-    return [...filtered].sort((a, b) => {
+    return [...data.sessions].sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
         case 'agentName':
@@ -93,7 +93,7 @@ export function Sessions(): React.ReactElement {
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [data?.sessions, sortField, sortDir, statusFilters]);
+  }, [data?.sessions, sortField, sortDir]);
 
   // Sort handler
   const handleSort = useCallback(

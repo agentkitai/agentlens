@@ -22,6 +22,7 @@ import { eventsRoutes } from './routes/events.js';
 import { sessionsRoutes } from './routes/sessions.js';
 import { agentsRoutes } from './routes/agents.js';
 import { statsRoutes } from './routes/stats.js';
+import { configRoutes } from './routes/config.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -36,6 +37,7 @@ export { eventsRoutes } from './routes/events.js';
 export { sessionsRoutes } from './routes/sessions.js';
 export { agentsRoutes } from './routes/agents.js';
 export { statsRoutes } from './routes/stats.js';
+export { configRoutes } from './routes/config.js';
 export { SqliteEventStore } from './db/sqlite-store.js';
 export { createDb, createTestDb } from './db/index.js';
 export type { SqliteDb } from './db/index.js';
@@ -121,6 +123,11 @@ export function createApp(
     if (path.startsWith('/api/')) {
       return c.json({ error: 'Not found', status: 404 }, 404);
     }
+    // Static asset requests (paths with file extensions) should 404,
+    // not fall through to SPA index.html
+    if (/\.\w{1,10}$/.test(path)) {
+      return c.json({ error: 'Not found', status: 404 }, 404);
+    }
     // SPA fallback: serve index.html for client-side routing
     const indexHtml = getDashboardIndexHtml();
     if (indexHtml) {
@@ -153,6 +160,7 @@ export function createApp(
     app.use('/api/sessions/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/agents/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/stats/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/config/*', authMiddleware(db, resolvedConfig.authDisabled));
   }
 
   // ─── Routes ────────────────────────────────────────────
@@ -163,6 +171,9 @@ export function createApp(
   app.route('/api/sessions', sessionsRoutes(store));
   app.route('/api/agents', agentsRoutes(store));
   app.route('/api/stats', statsRoutes(store));
+  if (db) {
+    app.route('/api/config', configRoutes(db));
+  }
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();

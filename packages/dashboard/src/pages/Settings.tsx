@@ -20,8 +20,11 @@ import {
   createKey,
   revokeKey,
   getStats,
+  getConfig,
+  updateConfig,
   type ApiKeyInfo,
   type ApiKeyCreated,
+  type ConfigData,
 } from '../api/client';
 import { useApi } from '../hooks/useApi';
 
@@ -217,10 +220,17 @@ function RevokeDialog({
   onCancel: () => void;
 }): React.ReactElement {
   const [revoking, setRevoking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRevoke = async () => {
     setRevoking(true);
-    await onConfirm();
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setRevoking(false);
+    }
   };
 
   return (
@@ -231,6 +241,11 @@ function RevokeDialog({
           Are you sure you want to revoke <strong>{keyInfo.name}</strong>? This action cannot be
           undone. Any agents using this key will lose access immediately.
         </p>
+        {error && (
+          <p className="mt-2 text-sm text-red-600">
+            Failed to revoke key: {error}
+          </p>
+        )}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
@@ -270,13 +285,9 @@ function ApiKeysTab(): React.ReactElement {
 
   const handleRevoke = async () => {
     if (!revokeTarget) return;
-    try {
-      await revokeKey(revokeTarget.id);
-      setRevokeTarget(null);
-      refetch();
-    } catch {
-      setRevokeTarget(null);
-    }
+    await revokeKey(revokeTarget.id);
+    setRevokeTarget(null);
+    refetch();
   };
 
   const activeKeys = (keys ?? []).filter((k) => !k.revokedAt);
@@ -413,54 +424,107 @@ function ApiKeysTab(): React.ReactElement {
 
 // ─── Configuration Tab (Story 8.4) ─────────────────────────
 
-interface ConfigItem {
-  label: string;
-  value: string | number;
-  description: string;
+interface ConfigFormState {
+  retentionDays: string;
+  agentGateUrl: string;
+  agentGateSecret: string;
+  formBridgeUrl: string;
+  formBridgeSecret: string;
 }
 
 function ConfigurationTab(): React.ReactElement {
-  const { data: stats, loading, error } = useApi(() => getStats(), []);
+  const { data: stats, loading: statsLoading, error: statsError } = useApi(() => getStats(), []);
+  const { data: configData, loading: configLoading, error: configError, refetch: refetchConfig } = useApi(() => getConfig(), []);
 
-  const configItems: ConfigItem[] = [
-    {
-      label: 'Retention Period',
-      value: '90 days',
-      description: 'Events older than this are automatically deleted',
-    },
-    {
-      label: 'AgentGate URL',
-      value: 'Not configured',
-      description: 'Webhook URL for AgentGate approval events',
-    },
-    {
-      label: 'AgentGate Secret',
-      value: '••••••••',
-      description: 'Shared secret for AgentGate webhook verification',
-    },
-    {
-      label: 'FormBridge URL',
-      value: 'Not configured',
-      description: 'Webhook URL for FormBridge form events',
-    },
-    {
-      label: 'FormBridge Secret',
-      value: '••••••••',
-      description: 'Shared secret for FormBridge webhook verification',
-    },
-  ];
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [form, setForm] = useState<ConfigFormState>({
+    retentionDays: '90',
+    agentGateUrl: '',
+    agentGateSecret: '',
+    formBridgeUrl: '',
+    formBridgeSecret: '',
+  });
+
+  // Sync form state when config loads
+  React.useEffect(() => {
+    if (configData) {
+      setForm({
+        retentionDays: String(configData.retentionDays ?? 90),
+        agentGateUrl: configData.agentGateUrl ?? '',
+        agentGateSecret: '', // Don't pre-fill masked secrets
+        formBridgeUrl: configData.formBridgeUrl ?? '',
+        formBridgeSecret: '', // Don't pre-fill masked secrets
+      });
+    }
+  }, [configData]);
+
+  const handleEdit = () => {
+    setEditing(true);
+    setSaveSuccess(false);
+    setSaveError(null);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+    setSaveError(null);
+    // Reset form to server values
+    if (configData) {
+      setForm({
+        retentionDays: String(configData.retentionDays ?? 90),
+        agentGateUrl: configData.agentGateUrl ?? '',
+        agentGateSecret: '',
+        formBridgeUrl: configData.formBridgeUrl ?? '',
+        formBridgeSecret: '',
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    try {
+      const payload: Partial<ConfigData> = {
+        retentionDays: parseInt(form.retentionDays, 10) || 90,
+        agentGateUrl: form.agentGateUrl,
+        formBridgeUrl: form.formBridgeUrl,
+      };
+      // Only send secrets if the user actually typed something
+      if (form.agentGateSecret) {
+        payload.agentGateSecret = form.agentGateSecret;
+      }
+      if (form.formBridgeSecret) {
+        payload.formBridgeSecret = form.formBridgeSecret;
+      }
+      await updateConfig(payload);
+      setSaveSuccess(true);
+      setEditing(false);
+      refetchConfig();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateField = (field: keyof ConfigFormState, value: string) => {
+    setForm((f) => ({ ...f, [field]: value }));
+  };
 
   return (
     <div className="space-y-6">
       {/* Storage Stats */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900">Storage Statistics</h3>
-        {error && (
+        {statsError && (
           <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
+            {statsError}
           </div>
         )}
-        {loading && !stats && (
+        {statsLoading && !stats && (
           <p className="mt-2 text-sm text-gray-500">Loading…</p>
         )}
         {stats && (
@@ -472,36 +536,173 @@ function ConfigurationTab(): React.ReactElement {
         )}
       </div>
 
-      {/* Configuration Display */}
+      {/* Configuration */}
       <div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">Configuration</h3>
-          <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-            Read-only
-          </span>
+          {!editing && (
+            <button
+              type="button"
+              onClick={handleEdit}
+              className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Edit
+            </button>
+          )}
         </div>
-        <p className="mt-1 text-sm text-gray-500">
-          Configuration changes require editing environment variables and restarting the server.
-        </p>
+
+        {configError && (
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {configError}
+          </div>
+        )}
+        {configLoading && !configData && (
+          <p className="mt-2 text-sm text-gray-500">Loading configuration…</p>
+        )}
+
+        {saveSuccess && (
+          <div className="mt-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+            Configuration saved successfully.
+          </div>
+        )}
+        {saveError && (
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            Failed to save: {saveError}
+          </div>
+        )}
 
         <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
-          {configItems.map((item, i) => (
-            <div
-              key={item.label}
-              className={`flex items-center justify-between px-4 py-3 ${
-                i < configItems.length - 1 ? 'border-b border-gray-100' : ''
-              }`}
-            >
-              <div>
-                <p className="text-sm font-medium text-gray-900">{item.label}</p>
-                <p className="text-xs text-gray-500">{item.description}</p>
-              </div>
-              <span className="rounded bg-gray-50 px-3 py-1 font-mono text-sm text-gray-700">
-                {item.value}
-              </span>
+          {/* Retention Period */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900">Retention Period</p>
+              <p className="text-xs text-gray-500">Events older than this are automatically deleted</p>
             </div>
-          ))}
+            {editing ? (
+              <div className="flex items-center gap-1 ml-4">
+                <input
+                  type="number"
+                  min={0}
+                  max={3650}
+                  value={form.retentionDays}
+                  onChange={(e) => updateField('retentionDays', e.target.value)}
+                  className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <span className="text-sm text-gray-500">days</span>
+              </div>
+            ) : (
+              <span className="rounded bg-gray-50 px-3 py-1 font-mono text-sm text-gray-700 ml-4">
+                {configData?.retentionDays ?? 90} days
+              </span>
+            )}
+          </div>
+
+          {/* AgentGate URL */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900">AgentGate URL</p>
+              <p className="text-xs text-gray-500">Webhook URL for AgentGate approval events</p>
+            </div>
+            {editing ? (
+              <input
+                type="url"
+                value={form.agentGateUrl}
+                onChange={(e) => updateField('agentGateUrl', e.target.value)}
+                placeholder="https://..."
+                className="ml-4 w-64 rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            ) : (
+              <span className="rounded bg-gray-50 px-3 py-1 font-mono text-sm text-gray-700 ml-4">
+                {configData?.agentGateUrl || 'Not configured'}
+              </span>
+            )}
+          </div>
+
+          {/* AgentGate Secret */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900">AgentGate Secret</p>
+              <p className="text-xs text-gray-500">Shared secret for AgentGate webhook verification</p>
+            </div>
+            {editing ? (
+              <input
+                type="password"
+                value={form.agentGateSecret}
+                onChange={(e) => updateField('agentGateSecret', e.target.value)}
+                placeholder="Leave blank to keep current"
+                className="ml-4 w-64 rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            ) : (
+              <span className="rounded bg-gray-50 px-3 py-1 font-mono text-sm text-gray-700 ml-4">
+                {configData?.agentGateSecret || 'Not set'}
+              </span>
+            )}
+          </div>
+
+          {/* FormBridge URL */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900">FormBridge URL</p>
+              <p className="text-xs text-gray-500">Webhook URL for FormBridge form events</p>
+            </div>
+            {editing ? (
+              <input
+                type="url"
+                value={form.formBridgeUrl}
+                onChange={(e) => updateField('formBridgeUrl', e.target.value)}
+                placeholder="https://..."
+                className="ml-4 w-64 rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            ) : (
+              <span className="rounded bg-gray-50 px-3 py-1 font-mono text-sm text-gray-700 ml-4">
+                {configData?.formBridgeUrl || 'Not configured'}
+              </span>
+            )}
+          </div>
+
+          {/* FormBridge Secret */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900">FormBridge Secret</p>
+              <p className="text-xs text-gray-500">Shared secret for FormBridge webhook verification</p>
+            </div>
+            {editing ? (
+              <input
+                type="password"
+                value={form.formBridgeSecret}
+                onChange={(e) => updateField('formBridgeSecret', e.target.value)}
+                placeholder="Leave blank to keep current"
+                className="ml-4 w-64 rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            ) : (
+              <span className="rounded bg-gray-50 px-3 py-1 font-mono text-sm text-gray-700 ml-4">
+                {configData?.formBridgeSecret || 'Not set'}
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Save/Cancel buttons */}
+        {editing && (
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save Configuration'}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={saving}
+              className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

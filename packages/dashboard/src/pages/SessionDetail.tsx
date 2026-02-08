@@ -147,6 +147,8 @@ export function SessionDetail(): React.ReactElement | null {
   const {
     data: timeline,
     loading: timelineLoading,
+    error: timelineError,
+    refetch: refetchTimeline,
   } = useApi<SessionTimeline>(() => getSessionTimeline(id!), [id]);
 
   // Filter events client-side
@@ -296,7 +298,17 @@ export function SessionDetail(): React.ReactElement | null {
       </div>
 
       {/* Timeline */}
-      {timelineLoading && !timeline ? (
+      {timelineError ? (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-700 text-sm">Error loading timeline: {timelineError}</p>
+          <button
+            onClick={refetchTimeline}
+            className="mt-2 px-3 py-1.5 text-sm rounded border border-red-300 text-red-700 hover:bg-red-100"
+          >
+            ↻ Retry
+          </button>
+        </div>
+      ) : timelineLoading && !timeline ? (
         <div className="flex justify-center py-8">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
         </div>
