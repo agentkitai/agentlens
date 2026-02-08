@@ -10,16 +10,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm --filter @agentlens/core test
-      - run: pnpm --filter @agentlens/server test
-      - run: pnpm --filter @agentlens/mcp test
-      - run: pnpm --filter @agentlens/sdk test
-      - run: pnpm --filter @agentlens/dashboard build
+      - run: pnpm --filter @agentlensai/core test
+      - run: pnpm --filter @agentlensai/server test
+      - run: pnpm --filter @agentlensai/mcp test
+      - run: pnpm --filter @agentlensai/sdk test
+      - run: pnpm --filter @agentlensai/dashboard build
