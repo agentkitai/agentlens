@@ -59,6 +59,24 @@ Click into any session to see the **full event timeline** — every tool call, e
 
 The events explorer gives you a **searchable, filterable view** of every event across all sessions. Filter by event type, severity, agent, or time range. Full-text search works on payload content. Each row shows the tool name, agent, session, severity level, and duration.
 
+### 🧠 LLM Analytics — Prompt & Cost Tracking
+
+![LLM Analytics](demo/dashboard-llm-analytics.jpg)
+
+The LLM Analytics page shows **total LLM calls, cost, latency, and token usage** across all agents. Cost and calls over time charts, plus a **model comparison table** breaking down usage by provider and model (Anthropic, OpenAI, Google). Filter by agent, provider, or model.
+
+### 🧠 Session Timeline — LLM Call Pairing
+
+![LLM Timeline](demo/dashboard-llm-timeline.jpg)
+
+LLM calls appear in the session timeline with **🧠 icons and indigo styling**, paired with their completions by `callId`. Each node shows the model, message count, token usage (in/out), cost badge, and latency. Tool calls and LLM calls are interleaved chronologically — see exactly what the agent thought, then did.
+
+### 💬 Prompt Detail — Chat Bubble Viewer
+
+![LLM Call Detail](demo/dashboard-llm-detail.jpg)
+
+Click any LLM call to see the **full prompt and completion** in a chat-bubble style viewer. System, user, assistant, and tool messages each get distinct styling. The metadata panel shows provider, model, parameters (temperature, max tokens), token breakdown (input/output/thinking/cache), cost, latency, tools provided to the model, and the tamper-evident hash chain.
+
 ## 🏗️ Architecture
 
 ```
