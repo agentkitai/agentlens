@@ -66,11 +66,11 @@ describe('agentlens_optimize', () => {
     expect(tool!.inputSchema.properties).toHaveProperty('limit');
   });
 
-  it('registers 11 tools total (10 existing + optimize)', async () => {
+  it('registers 13 tools total (10 existing + optimize)', async () => {
     const { client } = await createTestSetup();
 
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(11);
+    expect(result.tools).toHaveLength(13);
 
     const toolNames = result.tools.map((t) => t.name);
     expect(toolNames).toContain('agentlens_optimize');
