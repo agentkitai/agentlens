@@ -23,9 +23,14 @@ import { sessionsRoutes } from './routes/sessions.js';
 import { agentsRoutes } from './routes/agents.js';
 import { statsRoutes } from './routes/stats.js';
 import { configRoutes } from './routes/config.js';
+import { alertsRoutes } from './routes/alerts.js';
+import { ingestRoutes } from './routes/ingest.js';
+import { analyticsRoutes } from './routes/analytics.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
+import { AlertEngine } from './lib/alert-engine.js';
+import { eventBus } from './lib/event-bus.js';
 
 // Re-export everything consumers may need
 export { getConfig } from './config.js';
@@ -38,7 +43,12 @@ export { sessionsRoutes } from './routes/sessions.js';
 export { agentsRoutes } from './routes/agents.js';
 export { statsRoutes } from './routes/stats.js';
 export { configRoutes } from './routes/config.js';
+export { alertsRoutes } from './routes/alerts.js';
+export { ingestRoutes, verifyWebhookSignature } from './routes/ingest.js';
+export { analyticsRoutes } from './routes/analytics.js';
 export { SqliteEventStore } from './db/sqlite-store.js';
+export { AlertEngine } from './lib/alert-engine.js';
+export { eventBus } from './lib/event-bus.js';
 export { createDb, createTestDb } from './db/index.js';
 export type { SqliteDb } from './db/index.js';
 export { runMigrations } from './db/migrate.js';
@@ -145,6 +155,12 @@ export function createApp(
     return c.json({ status: 'ok', version: '0.1.0' });
   });
 
+  // ─── Webhook ingest (no API key auth — uses HMAC signature verification) ──
+  app.route('/api/events/ingest', ingestRoutes(store, {
+    agentgateWebhookSecret: process.env['AGENTGATE_WEBHOOK_SECRET'],
+    formbridgeWebhookSecret: process.env['FORMBRIDGE_WEBHOOK_SECRET'],
+  }));
+
   // ─── Auth middleware on protected routes ───────────────
   // We need the db reference for auth key lookup
   const db = config?.db;
@@ -156,11 +172,18 @@ export function createApp(
   }
   if (db) {
     app.use('/api/keys/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/events/*', authMiddleware(db, resolvedConfig.authDisabled));
+    // Protect event endpoints but exclude webhook ingest (uses HMAC auth instead)
+    app.use('/api/events/*', async (c, next) => {
+      const path = new URL(c.req.url).pathname;
+      if (path.startsWith('/api/events/ingest')) return next();
+      return authMiddleware(db, resolvedConfig.authDisabled)(c, next);
+    });
     app.use('/api/sessions/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/agents/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/stats/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/config/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/analytics/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/alerts/*', authMiddleware(db, resolvedConfig.authDisabled));
   }
 
   // ─── Routes ────────────────────────────────────────────
@@ -173,7 +196,9 @@ export function createApp(
   app.route('/api/stats', statsRoutes(store));
   if (db) {
     app.route('/api/config', configRoutes(db));
+    app.route('/api/analytics', analyticsRoutes(store, db));
   }
+  app.route('/api/alerts', alertsRoutes(store));
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();
@@ -207,6 +232,10 @@ export function startServer() {
   console.log(`  Auth: ${config.authDisabled ? 'DISABLED (dev mode)' : 'enabled'}`);
   console.log(`  CORS origin: ${config.corsOrigin}`);
   console.log(`  Database: ${config.dbPath}`);
+
+  // Start alert evaluation engine
+  const alertEngine = new AlertEngine(store);
+  alertEngine.start();
 
   serve({
     fetch: app.fetch,

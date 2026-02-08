@@ -10,7 +10,18 @@
  */
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { AgentLensEvent, EventType, ToolCallPayload, ToolResponsePayload, ToolErrorPayload } from '@agentlens/core';
+import type {
+  AgentLensEvent,
+  EventType,
+  ToolCallPayload,
+  ToolResponsePayload,
+  ToolErrorPayload,
+  ApprovalRequestedPayload,
+  ApprovalDecisionPayload,
+  FormSubmittedPayload,
+  FormCompletedPayload,
+  FormExpiredPayload,
+} from '@agentlens/core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -22,11 +33,11 @@ export interface TimelineProps {
 }
 
 interface TimelineNode {
-  kind: 'single' | 'paired';
+  kind: 'single' | 'paired' | 'approval_paired' | 'form_paired';
   event: AgentLensEvent;
-  /** For paired nodes: the matching response/error event */
+  /** For paired nodes: the matching response/error/decision event */
   responseEvent?: AgentLensEvent;
-  /** Computed duration for paired tool_call → response */
+  /** Computed duration for paired tool_call → response, approval request → decision, or form submission → completed */
   durationMs?: number;
 }
 
@@ -47,15 +58,15 @@ const EVENT_STYLES: Record<string, EventStyle> = {
   tool_call:     { icon: '🔧', color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-300' },
   tool_response: { icon: '📦', color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-300' },
   tool_error:    { icon: '💥', color: 'text-red-700', bgColor: 'bg-red-50', borderColor: 'border-red-300' },
-  // Approvals
-  approval_requested: { icon: '🔔', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-300' },
-  approval_granted:   { icon: '✅', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-300' },
-  approval_denied:    { icon: '🚫', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-300' },
-  approval_expired:   { icon: '⏰', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-300' },
-  // Forms
-  form_submitted: { icon: '📝', color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-300' },
-  form_completed: { icon: '✔️', color: 'text-green-700', bgColor: 'bg-green-50', borderColor: 'border-green-300' },
-  form_expired:   { icon: '⏰', color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-300' },
+  // Approvals (Story 9.4 — ⏳✅❌⏰ icons)
+  approval_requested: { icon: '⏳', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-300' },
+  approval_granted:   { icon: '✅', color: 'text-green-700', bgColor: 'bg-green-50', borderColor: 'border-green-300' },
+  approval_denied:    { icon: '❌', color: 'text-red-700', bgColor: 'bg-red-50', borderColor: 'border-red-300' },
+  approval_expired:   { icon: '⏰', color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-300' },
+  // Forms (FormBridge — distinct teal/cyan palette)
+  form_submitted: { icon: '📋', color: 'text-teal-700', bgColor: 'bg-teal-50', borderColor: 'border-teal-300' },
+  form_completed: { icon: '✅', color: 'text-teal-700', bgColor: 'bg-teal-50', borderColor: 'border-teal-300' },
+  form_expired:   { icon: '⏰', color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-300' },
   // Cost
   cost_tracked: { icon: '💰', color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-300' },
   // Alerts
@@ -100,6 +111,36 @@ function formatMs(ms: number): string {
 
 function eventName(event: AgentLensEvent): string {
   const p = event.payload;
+  // Approval events — show friendly label + action
+  if (event.eventType === 'approval_requested') {
+    const action = 'action' in p && typeof p.action === 'string' ? p.action : '';
+    return action ? `Approval Requested: ${action}` : 'Approval Requested';
+  }
+  if (event.eventType === 'approval_granted') {
+    const decidedBy = 'decidedBy' in p && typeof p.decidedBy === 'string' ? p.decidedBy : '';
+    return decidedBy ? `Approved by ${decidedBy}` : 'Approved';
+  }
+  if (event.eventType === 'approval_denied') {
+    const decidedBy = 'decidedBy' in p && typeof p.decidedBy === 'string' ? p.decidedBy : '';
+    return decidedBy ? `Denied by ${decidedBy}` : 'Denied';
+  }
+  if (event.eventType === 'approval_expired') {
+    return 'Expired';
+  }
+  // FormBridge events — friendly labels
+  if (event.eventType === 'form_submitted') {
+    const formName = 'formName' in p && typeof p.formName === 'string' ? p.formName : '';
+    const fieldCount = 'fieldCount' in p && typeof p.fieldCount === 'number' ? p.fieldCount : 0;
+    const label = formName || 'Form Submitted';
+    return fieldCount > 0 ? `${label} (${fieldCount} fields)` : label;
+  }
+  if (event.eventType === 'form_completed') {
+    const completedBy = 'completedBy' in p && typeof p.completedBy === 'string' ? p.completedBy : '';
+    return completedBy ? `Form Completed by ${completedBy}` : 'Form Completed';
+  }
+  if (event.eventType === 'form_expired') {
+    return 'Form Expired';
+  }
   if ('toolName' in p && typeof p.toolName === 'string') return p.toolName;
   if ('action' in p && typeof p.action === 'string') return p.action;
   if ('alertName' in p && typeof p.alertName === 'string') return p.alertName;
@@ -111,7 +152,7 @@ function eventName(event: AgentLensEvent): string {
 // ─── Build timeline nodes (pair tool_call with tool_response) ──────
 
 function buildTimelineNodes(events: AgentLensEvent[]): TimelineNode[] {
-  // Build a map of callId → response/error event
+  // Build a map of callId → response/error event (tool calls)
   const responseMap = new Map<string, AgentLensEvent>();
   for (const ev of events) {
     if (ev.eventType === 'tool_response' || ev.eventType === 'tool_error') {
@@ -122,12 +163,38 @@ function buildTimelineNodes(events: AgentLensEvent[]): TimelineNode[] {
     }
   }
 
-  // Track which events we consumed as responses
+  // Build a map of requestId → decision event (approval flow, Story 9.4)
+  const approvalDecisionMap = new Map<string, AgentLensEvent>();
+  for (const ev of events) {
+    if (
+      ev.eventType === 'approval_granted' ||
+      ev.eventType === 'approval_denied' ||
+      ev.eventType === 'approval_expired'
+    ) {
+      const payload = ev.payload as ApprovalDecisionPayload;
+      if (payload.requestId) {
+        approvalDecisionMap.set(payload.requestId, ev);
+      }
+    }
+  }
+
+  // Build a map of submissionId → form outcome event (Story 10.4)
+  const formOutcomeMap = new Map<string, AgentLensEvent>();
+  for (const ev of events) {
+    if (ev.eventType === 'form_completed' || ev.eventType === 'form_expired') {
+      const payload = ev.payload as FormCompletedPayload | FormExpiredPayload;
+      if (payload.submissionId) {
+        formOutcomeMap.set(payload.submissionId, ev);
+      }
+    }
+  }
+
+  // Track which events we consumed as responses/decisions
   const consumedIds = new Set<string>();
 
   const nodes: TimelineNode[] = [];
   for (const ev of events) {
-    // Skip response events that are paired with a call
+    // Skip events that are paired with a request
     if (consumedIds.has(ev.id)) continue;
 
     if (ev.eventType === 'tool_call') {
@@ -145,11 +212,71 @@ function buildTimelineNodes(events: AgentLensEvent[]): TimelineNode[] {
       } else {
         nodes.push({ kind: 'single', event: ev });
       }
+    } else if (ev.eventType === 'approval_requested') {
+      // Pair approval_requested with its decision (Story 9.4)
+      const reqPayload = ev.payload as ApprovalRequestedPayload;
+      const decisionEvent = approvalDecisionMap.get(reqPayload.requestId);
+      if (decisionEvent) {
+        consumedIds.add(decisionEvent.id);
+        // Compute waiting duration from timestamps
+        const requestTime = new Date(ev.timestamp).getTime();
+        const decisionTime = new Date(decisionEvent.timestamp).getTime();
+        const waitingMs = Math.max(0, decisionTime - requestTime);
+        nodes.push({
+          kind: 'approval_paired',
+          event: ev,
+          responseEvent: decisionEvent,
+          durationMs: waitingMs,
+        });
+      } else {
+        // No decision yet — show as single (still waiting)
+        nodes.push({ kind: 'single', event: ev });
+      }
+    } else if (ev.eventType === 'form_submitted') {
+      // Pair form_submitted with its outcome (Story 10.4)
+      const subPayload = ev.payload as FormSubmittedPayload;
+      const outcomeEvent = formOutcomeMap.get(subPayload.submissionId);
+      if (outcomeEvent) {
+        consumedIds.add(outcomeEvent.id);
+        // Use durationMs from completed payload if available, else compute from timestamps
+        let waitingMs: number;
+        if (outcomeEvent.eventType === 'form_completed') {
+          const completedPayload = outcomeEvent.payload as FormCompletedPayload;
+          waitingMs = completedPayload.durationMs > 0
+            ? completedPayload.durationMs
+            : Math.max(0, new Date(outcomeEvent.timestamp).getTime() - new Date(ev.timestamp).getTime());
+        } else {
+          waitingMs = Math.max(0, new Date(outcomeEvent.timestamp).getTime() - new Date(ev.timestamp).getTime());
+        }
+        nodes.push({
+          kind: 'form_paired',
+          event: ev,
+          responseEvent: outcomeEvent,
+          durationMs: waitingMs,
+        });
+      } else {
+        // No outcome yet — show as single (pending submission)
+        nodes.push({ kind: 'single', event: ev });
+      }
     } else if (
       (ev.eventType === 'tool_response' || ev.eventType === 'tool_error') &&
       !consumedIds.has(ev.id)
     ) {
       // Orphan response — show as single
+      nodes.push({ kind: 'single', event: ev });
+    } else if (
+      (ev.eventType === 'approval_granted' ||
+       ev.eventType === 'approval_denied' ||
+       ev.eventType === 'approval_expired') &&
+      !consumedIds.has(ev.id)
+    ) {
+      // Orphan decision — show as single
+      nodes.push({ kind: 'single', event: ev });
+    } else if (
+      (ev.eventType === 'form_completed' || ev.eventType === 'form_expired') &&
+      !consumedIds.has(ev.id)
+    ) {
+      // Orphan form outcome — show as single
       nodes.push({ kind: 'single', event: ev });
     } else {
       nodes.push({ kind: 'single', event: ev });
@@ -187,6 +314,9 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
   const [expanded, setExpanded] = useState(false);
   const style = getEventStyle(node.event.eventType);
   const isPaired = node.kind === 'paired';
+  const isApprovalPaired = node.kind === 'approval_paired';
+  const isFormPaired = node.kind === 'form_paired';
+  const hasResponse = isPaired || isApprovalPaired || isFormPaired;
 
   const handleClick = useCallback(() => {
     onClick(node.event);
@@ -203,6 +333,21 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
       handleClick();
     }
   }, [handleClick]);
+
+  // Compute a label for the expand button based on the pair type
+  const expandLabel = isApprovalPaired
+    ? node.responseEvent?.eventType === 'approval_granted'
+      ? 'approved'
+      : node.responseEvent?.eventType === 'approval_denied'
+        ? 'denied'
+        : 'expired'
+    : isFormPaired
+      ? node.responseEvent?.eventType === 'form_completed'
+        ? 'completed'
+        : 'expired'
+      : node.responseEvent?.eventType === 'tool_error'
+        ? 'error'
+        : 'response';
 
   return (
     <div className="flex gap-3">
@@ -239,24 +384,35 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
               {node.event.eventType}
             </span>
             {node.durationMs !== undefined && (
-              <span className="text-xs font-mono text-gray-600 bg-white/60 px-1.5 py-0.5 rounded">
-                {formatMs(node.durationMs)}
+              <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+                isApprovalPaired
+                  ? 'text-purple-700 bg-purple-100'
+                  : 'text-gray-600 bg-white/60'
+              }`}>
+                {isApprovalPaired ? `⏱ waited ${formatMs(node.durationMs)}` : formatMs(node.durationMs)}
               </span>
             )}
-            {isPaired && (
+            {hasResponse && (
               <button
                 onClick={toggleExpand}
                 className="ml-auto text-xs text-gray-500 hover:text-gray-700 px-1"
                 aria-label={expanded ? 'Collapse' : 'Expand'}
               >
-                {expanded ? '▼' : '▶'} {node.responseEvent?.eventType === 'tool_error' ? 'error' : 'response'}
+                {expanded ? '▼' : '▶'} {expandLabel}
               </button>
             )}
           </div>
+
+          {/* For approval_requested without a decision, show "waiting" indicator */}
+          {node.event.eventType === 'approval_requested' && !isApprovalPaired && (
+            <div className="mt-1.5 text-xs text-purple-600 animate-pulse">
+              ⏳ Waiting for decision…
+            </div>
+          )}
         </div>
 
-        {/* Expanded paired response */}
-        {isPaired && expanded && node.responseEvent && (
+        {/* Expanded paired response / decision */}
+        {hasResponse && expanded && node.responseEvent && (
           <div className="mt-1 ml-4">
             <button
               onClick={() => onClick(node.responseEvent!)}

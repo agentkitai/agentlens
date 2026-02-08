@@ -10,7 +10,7 @@ import type { Session, SessionStatus } from '@agentlens/core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export type SortField = 'agentName' | 'status' | 'startedAt' | 'duration' | 'eventCount' | 'errorCount';
+export type SortField = 'agentName' | 'status' | 'startedAt' | 'duration' | 'eventCount' | 'errorCount' | 'cost';
 export type SortDir = 'asc' | 'desc';
 
 export interface SessionListProps {
@@ -133,6 +133,7 @@ export function SessionList({
               <Th field="duration" label="Duration" sortField={sortField} sortDir={sortDir} onSort={onSort} />
               <Th field="eventCount" label="Events" sortField={sortField} sortDir={sortDir} onSort={onSort} />
               <Th field="errorCount" label="Errors" sortField={sortField} sortDir={sortDir} onSort={onSort} />
+              <Th field="cost" label="Cost" sortField={sortField} sortDir={sortDir} onSort={onSort} />
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Tags
               </th>
@@ -165,6 +166,9 @@ export function SessionList({
                   <span className={s.errorCount > 0 ? 'text-red-600 font-medium' : 'text-gray-600'}>
                     {s.errorCount}
                   </span>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-mono">
+                  {s.totalCostUsd > 0 ? `$${s.totalCostUsd.toFixed(4)}` : '—'}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <div className="flex flex-wrap gap-1">

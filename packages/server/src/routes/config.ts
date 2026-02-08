@@ -33,7 +33,7 @@ function ensureConfigTable(db: SqliteDb): void {
   db.run(sql`CREATE TABLE IF NOT EXISTS config_kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
 }
 
-function getConfigValue(db: SqliteDb, key: string): string | null {
+export function getConfigValue(db: SqliteDb, key: string): string | null {
   const row = db.get<{ value: string }>(
     sql`SELECT value FROM config_kv WHERE key = ${key}`,
   );

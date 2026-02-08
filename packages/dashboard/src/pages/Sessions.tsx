@@ -90,6 +90,9 @@ export function Sessions(): React.ReactElement {
         case 'errorCount':
           cmp = a.errorCount - b.errorCount;
           break;
+        case 'cost':
+          cmp = a.totalCostUsd - b.totalCostUsd;
+          break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });

@@ -24,10 +24,11 @@ import type {
   SessionQuery,
   Agent,
   AlertRule,
+  AlertHistory,
 } from '@agentlens/core';
 import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlens/core';
 import type { SqliteDb } from './index.js';
-import { events, sessions, agents, alertRules } from './schema.sqlite.js';
+import { events, sessions, agents, alertRules, alertHistory } from './schema.sqlite.js';
 import { HashChainError, NotFoundError } from './errors.js';
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -671,6 +672,65 @@ export class SqliteEventStore implements IEventStore {
       .where(eq(alertRules.id, id))
       .get();
     return row ? this._mapAlertRuleRow(row) : null;
+  }
+
+  // ─── Alert History ─────────────────────────────────────────
+
+  async insertAlertHistory(entry: AlertHistory): Promise<void> {
+    this.db
+      .insert(alertHistory)
+      .values({
+        id: entry.id,
+        ruleId: entry.ruleId,
+        triggeredAt: entry.triggeredAt,
+        resolvedAt: entry.resolvedAt ?? null,
+        currentValue: entry.currentValue,
+        threshold: entry.threshold,
+        message: entry.message,
+      })
+      .run();
+  }
+
+  async listAlertHistory(opts?: {
+    ruleId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ entries: AlertHistory[]; total: number }> {
+    const limit = Math.min(opts?.limit ?? 50, 500);
+    const offset = opts?.offset ?? 0;
+
+    const conditions = [];
+    if (opts?.ruleId) {
+      conditions.push(eq(alertHistory.ruleId, opts.ruleId));
+    }
+
+    const rows = this.db
+      .select()
+      .from(alertHistory)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(alertHistory.triggeredAt))
+      .limit(limit)
+      .offset(offset)
+      .all();
+
+    const totalResult = this.db
+      .select({ count: drizzleCount() })
+      .from(alertHistory)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .get();
+
+    return {
+      entries: rows.map((row) => ({
+        id: row.id,
+        ruleId: row.ruleId,
+        triggeredAt: row.triggeredAt,
+        resolvedAt: row.resolvedAt ?? undefined,
+        currentValue: row.currentValue,
+        threshold: row.threshold,
+        message: row.message,
+      })),
+      total: totalResult?.count ?? 0,
+    };
   }
 
   // ─── Maintenance ───────────────────────────────────────────

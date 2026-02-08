@@ -13,7 +13,7 @@
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { AgentLensEvent, Session, SessionStatus } from '@agentlens/core';
+import type { AgentLensEvent, Session, SessionStatus, CostTrackedPayload } from '@agentlens/core';
 import { getSession, getSessionTimeline } from '../api/client';
 import type { SessionTimeline } from '../api/client';
 import { useApi } from '../hooks/useApi';
@@ -271,6 +271,97 @@ export function SessionDetail(): React.ReactElement | null {
           </div>
         </div>
       </div>
+
+      {/* Cost Summary (Story 11.5) */}
+      {session.totalCostUsd > 0 && timeline?.events && (() => {
+        const costEvents = timeline.events.filter(
+          (ev) => ev.eventType === 'cost_tracked',
+        );
+        if (costEvents.length === 0) return null;
+
+        // Group by model/provider
+        const breakdown = new Map<string, { provider: string; model: string; inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number; count: number }>();
+        for (const ev of costEvents) {
+          const p = ev.payload as CostTrackedPayload;
+          const key = `${p.provider}/${p.model}`;
+          const existing = breakdown.get(key);
+          if (existing) {
+            existing.inputTokens += p.inputTokens;
+            existing.outputTokens += p.outputTokens;
+            existing.totalTokens += p.totalTokens;
+            existing.costUsd += p.costUsd;
+            existing.count += 1;
+          } else {
+            breakdown.set(key, {
+              provider: p.provider,
+              model: p.model,
+              inputTokens: p.inputTokens,
+              outputTokens: p.outputTokens,
+              totalTokens: p.totalTokens,
+              costUsd: p.costUsd,
+              count: 1,
+            });
+          }
+        }
+
+        const totalInputTokens = costEvents.reduce((sum, ev) => sum + (ev.payload as CostTrackedPayload).inputTokens, 0);
+        const totalOutputTokens = costEvents.reduce((sum, ev) => sum + (ev.payload as CostTrackedPayload).outputTokens, 0);
+
+        return (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+              💰 Cost Breakdown
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div>
+                <div className="text-xs text-gray-500 font-medium">Total Cost</div>
+                <div className="text-lg font-semibold text-gray-900">${session.totalCostUsd.toFixed(4)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 font-medium">Input Tokens</div>
+                <div className="text-lg font-semibold text-gray-900">{totalInputTokens.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 font-medium">Output Tokens</div>
+                <div className="text-lg font-semibold text-gray-900">{totalOutputTokens.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 font-medium">Cost Events</div>
+                <div className="text-lg font-semibold text-gray-900">{costEvents.length}</div>
+              </div>
+            </div>
+            {breakdown.size > 1 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Provider / Model</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Cost</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Input</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Output</th>
+                      <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Calls</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {Array.from(breakdown.values()).map((b) => (
+                      <tr key={`${b.provider}/${b.model}`} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-gray-900">
+                          <span className="font-medium">{b.model}</span>
+                          <span className="text-gray-400 ml-1 text-xs">({b.provider})</span>
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono">${b.costUsd.toFixed(4)}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">{b.inputTokens.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">{b.outputTokens.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">{b.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Filter buttons (Story 7.5) */}
       <div className="flex flex-wrap items-center gap-2">

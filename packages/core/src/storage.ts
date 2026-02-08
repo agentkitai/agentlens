@@ -14,6 +14,7 @@ import type {
   SessionQuery,
   Agent,
   AlertRule,
+  AlertHistory,
 } from './types.js';
 
 /**
@@ -112,6 +113,12 @@ export interface IEventStore {
   listAlertRules(): Promise<AlertRule[]>;
   /** Get a single alert rule by ID */
   getAlertRule(id: string): Promise<AlertRule | null>;
+
+  // ─── Alert History ───────────────────────────────────────
+  /** Insert an alert history record */
+  insertAlertHistory(entry: AlertHistory): Promise<void>;
+  /** List alert history with optional filters */
+  listAlertHistory(opts?: { ruleId?: string; limit?: number; offset?: number }): Promise<{ entries: AlertHistory[]; total: number }>;
 
   // ─── Maintenance ─────────────────────────────────────────
   /** Apply retention policy — delete events older than given date */
