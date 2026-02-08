@@ -40,6 +40,9 @@ export type EventType =
   | 'form_expired'
   // Cost tracking
   | 'cost_tracked'
+  // LLM call tracking
+  | 'llm_call'
+  | 'llm_response'
   // Alerting
   | 'alert_triggered'
   | 'alert_resolved'
@@ -63,6 +66,8 @@ export const EVENT_TYPES: readonly EventType[] = [
   'form_completed',
   'form_expired',
   'cost_tracked',
+  'llm_call',
+  'llm_response',
   'alert_triggered',
   'alert_resolved',
   'custom',
@@ -185,6 +190,85 @@ export interface AlertResolvedPayload {
   resolvedBy?: string;
 }
 
+export interface LlmMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | Array<{ type: string; text?: string; [key: string]: unknown }>;
+  /** For tool role: which tool call this responds to */
+  toolCallId?: string;
+  /** For assistant role: tool calls the model wants to make */
+  toolCalls?: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  }>;
+}
+
+export interface LlmCallPayload {
+  /** Correlation ID to match with llm_response */
+  callId: string;
+  /** Provider name (e.g., "anthropic", "openai", "google") */
+  provider: string;
+  /** Model identifier (e.g., "claude-opus-4-6", "gpt-4o") */
+  model: string;
+  /** The messages/prompt sent to the model */
+  messages: LlmMessage[];
+  /** System prompt (if separate from messages) */
+  systemPrompt?: string;
+  /** Model parameters */
+  parameters?: {
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+    stopSequences?: string[];
+    [key: string]: unknown;
+  };
+  /** Tool/function definitions provided to the model */
+  tools?: Array<{
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+  }>;
+  /** If true, prompt content was redacted for privacy */
+  redacted?: boolean;
+}
+
+export interface LlmResponsePayload {
+  /** Correlation ID matching the llm_call */
+  callId: string;
+  /** Provider name */
+  provider: string;
+  /** Model used (may differ from requested if auto-routed) */
+  model: string;
+  /** The completion content */
+  completion: string | null;
+  /** Tool calls requested by the model */
+  toolCalls?: Array<{
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
+  }>;
+  /** Stop reason */
+  finishReason: 'stop' | 'length' | 'tool_use' | 'content_filter' | 'error' | string;
+  /** Token usage */
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    /** Thinking/reasoning tokens if applicable */
+    thinkingTokens?: number;
+    /** Cache read/write tokens if applicable */
+    cacheReadTokens?: number;
+    /** Cache write tokens if applicable */
+    cacheWriteTokens?: number;
+  };
+  /** Cost in USD */
+  costUsd: number;
+  /** Latency in milliseconds (time from request to full response) */
+  latencyMs: number;
+  /** If true, completion content was redacted for privacy */
+  redacted?: boolean;
+}
+
 export interface CustomPayload {
   type: string;
   data: Record<string, unknown>;
@@ -205,6 +289,8 @@ export type EventPayload =
   | FormCompletedPayload
   | FormExpiredPayload
   | CostTrackedPayload
+  | LlmCallPayload
+  | LlmResponsePayload
   | AlertTriggeredPayload
   | AlertResolvedPayload
   | CustomPayload;

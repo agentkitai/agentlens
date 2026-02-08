@@ -23,6 +23,8 @@ describe('Story 2.3: Zod Validation Schemas', () => {
         'form_completed',
         'form_expired',
         'cost_tracked',
+        'llm_call',
+        'llm_response',
         'alert_triggered',
         'alert_resolved',
         'custom',

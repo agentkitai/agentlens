@@ -22,6 +22,8 @@ export const eventTypeSchema = z.enum([
   'form_completed',
   'form_expired',
   'cost_tracked',
+  'llm_call',
+  'llm_response',
   'alert_triggered',
   'alert_resolved',
   'custom',
@@ -129,6 +131,61 @@ export const alertResolvedPayloadSchema = z.object({
   resolvedBy: z.string().optional(),
 });
 
+export const llmMessageSchema = z.object({
+  role: z.enum(['system', 'user', 'assistant', 'tool']),
+  content: z.union([z.string(), z.array(z.record(z.unknown()))]),
+  toolCallId: z.string().optional(),
+  toolCalls: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    arguments: z.record(z.unknown()),
+  })).optional(),
+});
+
+export const llmCallPayloadSchema = z.object({
+  callId: z.string().min(1),
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  messages: z.array(llmMessageSchema).min(1),
+  systemPrompt: z.string().optional(),
+  parameters: z.object({
+    temperature: z.number().optional(),
+    maxTokens: z.number().optional(),
+    topP: z.number().optional(),
+    stopSequences: z.array(z.string()).optional(),
+  }).catchall(z.unknown()).optional(),
+  tools: z.array(z.object({
+    name: z.string(),
+    description: z.string().optional(),
+    parameters: z.record(z.unknown()).optional(),
+  })).optional(),
+  redacted: z.boolean().optional(),
+});
+
+export const llmResponsePayloadSchema = z.object({
+  callId: z.string().min(1),
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  completion: z.string().nullable(),
+  toolCalls: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    arguments: z.record(z.unknown()),
+  })).optional(),
+  finishReason: z.string().min(1),
+  usage: z.object({
+    inputTokens: z.number(),
+    outputTokens: z.number(),
+    totalTokens: z.number(),
+    thinkingTokens: z.number().optional(),
+    cacheReadTokens: z.number().optional(),
+    cacheWriteTokens: z.number().optional(),
+  }),
+  costUsd: z.number(),
+  latencyMs: z.number(),
+  redacted: z.boolean().optional(),
+});
+
 export const customPayloadSchema = z.object({
   type: z.string(),
   data: z.record(z.unknown()),
@@ -151,6 +208,8 @@ export const payloadSchemasByEventType: Record<string, z.ZodTypeAny> = {
   form_completed: formCompletedPayloadSchema,
   form_expired: formExpiredPayloadSchema,
   cost_tracked: costTrackedPayloadSchema,
+  llm_call: llmCallPayloadSchema,
+  llm_response: llmResponsePayloadSchema,
   alert_triggered: alertTriggeredPayloadSchema,
   alert_resolved: alertResolvedPayloadSchema,
   custom: customPayloadSchema,
