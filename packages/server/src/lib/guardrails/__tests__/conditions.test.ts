@@ -180,6 +180,55 @@ describe('Guardrail Conditions', () => {
       const result = await evaluateCustomMetric(store, rule, 'agent_1');
       expect(result.triggered).toBe(false);
     });
+
+    it('should evaluate metricKeyPath from event metadata (architecture §3.4)', async () => {
+      for (let i = 0; i < 5; i++) {
+        await store.insertEvents([makeEvent({ agentId: 'agent_1', metadata: { response_time_ms: 100 + i * 50 } })]);
+      }
+      const rule = makeRule({
+        conditionType: 'custom_metric',
+        conditionConfig: { metricKeyPath: 'response_time_ms', operator: 'gt', value: 200, windowMinutes: 60 },
+      });
+      const result = await evaluateCustomMetric(store, rule, 'agent_1');
+      // Last event has response_time_ms = 300, which is > 200
+      expect(result.triggered).toBe(true);
+      expect(result.currentValue).toBe(300);
+    });
+
+    it('should extract nested metricKeyPath with dot notation', async () => {
+      await store.insertEvents([makeEvent({ agentId: 'agent_1', metadata: { perf: { latency_ms: 150 } } })]);
+      const rule = makeRule({
+        conditionType: 'custom_metric',
+        conditionConfig: { metricKeyPath: 'perf.latency_ms', operator: 'gte', value: 150, windowMinutes: 60 },
+      });
+      const result = await evaluateCustomMetric(store, rule, 'agent_1');
+      expect(result.triggered).toBe(true);
+      expect(result.currentValue).toBe(150);
+    });
+
+    it('should not trigger when no events have the metricKeyPath', async () => {
+      await store.insertEvents([makeEvent({ agentId: 'agent_1', metadata: { other_field: 42 } })]);
+      const rule = makeRule({
+        conditionType: 'custom_metric',
+        conditionConfig: { metricKeyPath: 'response_time_ms', operator: 'gt', value: 100, windowMinutes: 60 },
+      });
+      const result = await evaluateCustomMetric(store, rule, 'agent_1');
+      expect(result.triggered).toBe(false);
+      expect(result.message).toContain('No events with metadata key');
+    });
+
+    it('should support gte and lte operators', async () => {
+      for (let i = 0; i < 3; i++) {
+        await store.insertEvents([makeEvent({ agentId: 'agent_1' })]);
+      }
+      const ruleGte = makeRule({ conditionType: 'custom_metric', conditionConfig: { metricName: 'event_count', operator: 'gte', value: 3, windowMinutes: 60 } });
+      const resultGte = await evaluateCustomMetric(store, ruleGte, 'agent_1');
+      expect(resultGte.triggered).toBe(true);
+
+      const ruleLte = makeRule({ conditionType: 'custom_metric', conditionConfig: { metricName: 'event_count', operator: 'lte', value: 3, windowMinutes: 60 } });
+      const resultLte = await evaluateCustomMetric(store, ruleLte, 'agent_1');
+      expect(resultLte.triggered).toBe(true);
+    });
   });
 
   describe('evaluateCondition (dispatch)', () => {

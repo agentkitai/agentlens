@@ -122,7 +122,7 @@ describe('CreateGuardrailRuleSchema', () => {
     if (result.success) {
       expect(result.data.enabled).toBe(true); // default
       expect(result.data.cooldownMinutes).toBe(15); // default
-      expect(result.data.dryRun).toBe(false); // default
+      expect(result.data.dryRun).toBe(true); // default (PRD FR-G1.5: dry-run by default)
     }
   });
 

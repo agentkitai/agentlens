@@ -12,6 +12,29 @@ export interface ActionResult {
   result: string;
 }
 
+/**
+ * Optional store interface for agent-level DB updates.
+ * Story 1.2 will implement the agents table migration with paused_at, pause_reason,
+ * and model_override columns. When available, pass an AgentStore to the action
+ * executors to persist state changes to the DB.
+ */
+export interface AgentStore {
+  pauseAgent?(tenantId: string, agentId: string, reason: string): void;
+  unpauseAgent?(tenantId: string, agentId: string): void;
+  setModelOverride?(tenantId: string, agentId: string, model: string): void;
+}
+
+/** Module-level agent store — set via `setAgentStore()` when available (Story 1.2). */
+let agentStore: AgentStore | null = null;
+
+export function setAgentStore(store: AgentStore | null): void {
+  agentStore = store;
+}
+
+export function getAgentStore(): AgentStore | null {
+  return agentStore;
+}
+
 export async function executePauseAgent(
   rule: GuardrailRule,
   conditionResult: GuardrailConditionResult,
@@ -20,6 +43,14 @@ export async function executePauseAgent(
   try {
     const config = rule.actionConfig as { message?: string };
     const message = config.message ?? `Guardrail "${rule.name}" triggered: ${conditionResult.message}`;
+
+    // TODO [Story 1.2]: When agents table has paused_at/pause_reason columns,
+    // UPDATE agents SET paused_at = NOW(), pause_reason = message
+    // WHERE id = agentId AND tenant_id = tenantId
+    // This is required for: SDK X-AgentLens-Agent-Paused header, dashboard paused badge, unpause endpoint.
+    if (agentStore?.pauseAgent) {
+      agentStore.pauseAgent(rule.tenantId, _agentId, message);
+    }
 
     eventBus.emit({
       type: 'alert_triggered',
@@ -79,6 +110,14 @@ export async function executeDowngradeModel(
     const config = rule.actionConfig as { targetModel?: string; message?: string };
     const message = config.message ?? `Guardrail "${rule.name}" recommends downgrading model`;
 
+    // TODO [Story 1.2]: When agents table has model_override column,
+    // UPDATE agents SET model_override = config.targetModel
+    // WHERE id = agentId AND tenant_id = tenantId
+    // This is required for: SDK to read the override and use the downgraded model.
+    if (agentStore?.setModelOverride && config.targetModel) {
+      agentStore.setModelOverride(rule.tenantId, _agentId, config.targetModel);
+    }
+
     eventBus.emit({
       type: 'alert_triggered',
       rule: {
@@ -111,7 +150,7 @@ export async function executeAgentgatePolicy(
 
     const url = `${config.agentgateUrl.replace(/\/$/, '')}/api/policies/${config.policyId ?? 'default'}`;
     const response = await fetch(url, {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: config.action ?? 'restrict',

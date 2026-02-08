@@ -404,7 +404,7 @@ export const CreateGuardrailRuleSchema = z.object({
   actionConfig: z.record(z.unknown()),
   agentId: z.string().optional(),
   cooldownMinutes: z.number().int().min(0).max(1440).default(15),
-  dryRun: z.boolean().default(false),
+  dryRun: z.boolean().default(true),
 });
 
 export const UpdateGuardrailRuleSchema = z.object({

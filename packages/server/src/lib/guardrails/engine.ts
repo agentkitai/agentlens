@@ -66,6 +66,9 @@ export class GuardrailEngine {
   private async evaluateRule(rule: GuardrailRule, event: AgentLensEvent): Promise<void> {
     const now = new Date();
 
+    // 0. Check enabled (defense-in-depth — listEnabledRules already filters, but verify)
+    if (!rule.enabled) return;
+
     // 1. Check cooldown
     if (this.isInCooldown(rule, now)) return;
 

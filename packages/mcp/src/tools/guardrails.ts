@@ -66,9 +66,30 @@ export function registerGuardrailsTool(server: McpServer, transport: AgentLensTr
           };
         }
 
-        // Fetch guardrail rules
-        const rulesResponse = await transport.getGuardrailRules() as { rules: GuardrailRuleResponse[] };
-        const rules = rulesResponse.rules || [];
+        // Fetch guardrail rules — handle empty/error responses gracefully
+        let rules: GuardrailRuleResponse[] = [];
+        try {
+          const rulesResponse = await transport.getGuardrailRules() as { rules?: GuardrailRuleResponse[] } | null;
+          rules = rulesResponse?.rules ?? [];
+        } catch (fetchError) {
+          const msg = fetchError instanceof Error ? fetchError.message : 'Unknown error';
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Failed to fetch guardrail rules: ${msg}. The guardrail API may be unavailable.`,
+            }],
+            isError: true,
+          };
+        }
+
+        if (rules.length === 0) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: 'No guardrail rules configured for this tenant. Use the dashboard or API to create guardrail rules.',
+            }],
+          };
+        }
 
         // Fetch status for each rule
         const statuses: GuardrailStatusResponse[] = [];

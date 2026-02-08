@@ -32,7 +32,7 @@ describe('Guardrail REST API', () => {
       expect(body.id).toBeDefined();
       expect(body.name).toBe('Error Rate Guard');
       expect(body.enabled).toBe(true);
-      expect(body.dryRun).toBe(false);
+      expect(body.dryRun).toBe(true);
       expect(body.cooldownMinutes).toBe(15);
     });
 

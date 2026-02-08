@@ -16,6 +16,42 @@ import { CreateGuardrailRuleSchema, UpdateGuardrailRuleSchema } from '@agentlens
 import type { AuthVariables } from '../middleware/auth.js';
 import type { GuardrailStore } from '../db/guardrail-store.js';
 
+/**
+ * Validate that conditionConfig contains required fields for the given condition type.
+ * Returns an error message string if invalid, or null if valid.
+ */
+function validateConditionConfig(conditionType: string, config: Record<string, unknown>): string | null {
+  switch (conditionType) {
+    case 'error_rate_threshold':
+      if (config.threshold !== undefined && (typeof config.threshold !== 'number' || config.threshold < 0 || config.threshold > 100)) {
+        return 'error_rate_threshold requires threshold to be a number between 0 and 100';
+      }
+      break;
+    case 'cost_limit':
+      if (config.maxCostUsd !== undefined && (typeof config.maxCostUsd !== 'number' || config.maxCostUsd < 0)) {
+        return 'cost_limit requires maxCostUsd to be a non-negative number';
+      }
+      if (config.scope !== undefined && config.scope !== 'session' && config.scope !== 'daily') {
+        return 'cost_limit scope must be "session" or "daily"';
+      }
+      break;
+    case 'health_score_threshold':
+      if (config.minScore !== undefined && (typeof config.minScore !== 'number' || config.minScore < 0 || config.minScore > 100)) {
+        return 'health_score_threshold requires minScore to be a number between 0 and 100';
+      }
+      break;
+    case 'custom_metric':
+      if (config.operator !== undefined) {
+        const validOps = ['gt', 'gte', 'lt', 'lte', 'eq'];
+        if (!validOps.includes(config.operator as string)) {
+          return `custom_metric operator must be one of: ${validOps.join(', ')}`;
+        }
+      }
+      break;
+  }
+  return null;
+}
+
 export function guardrailRoutes(guardrailStore: GuardrailStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
@@ -40,6 +76,12 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
         status: 400,
         details: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
       }, 400);
+    }
+
+    // H4: Validate that conditionConfig has required fields for the condition type
+    const configError = validateConditionConfig(result.data.conditionType, result.data.conditionConfig);
+    if (configError) {
+      return c.json({ error: 'Validation failed', status: 400, details: [{ path: 'conditionConfig', message: configError }] }, 400);
     }
 
     const now = new Date().toISOString();

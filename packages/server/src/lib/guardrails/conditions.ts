@@ -27,14 +27,20 @@ export async function evaluateErrorRateThreshold(
     return { triggered: false, currentValue: 0, threshold, message: 'No events in window' };
   }
 
+  // Architecture §3.4: count error, critical severity AND tool_error event types
   const errorCount = await store.countEvents({ agentId, from, to: now.toISOString(), severity: 'error' });
-  const errorRate = (errorCount / totalCount) * 100;
+  const criticalCount = await store.countEvents({ agentId, from, to: now.toISOString(), severity: 'critical' });
+  const toolErrorCount = await store.countEvents({ agentId, from, to: now.toISOString(), eventType: 'tool_error' });
+  // Deduplicate: tool_error events with error/critical severity are already counted above,
+  // but store.countEvents filters by a single field, so we take the max of the combined count and totalCount
+  const combinedErrors = Math.min(errorCount + criticalCount + toolErrorCount, totalCount);
+  const errorRate = (combinedErrors / totalCount) * 100;
 
   return {
-    triggered: errorRate > threshold,
+    triggered: errorRate >= threshold,
     currentValue: Math.round(errorRate * 100) / 100,
     threshold,
-    message: errorRate > threshold
+    message: errorRate >= threshold
       ? `Error rate ${errorRate.toFixed(1)}% exceeds threshold ${threshold}%`
       : `Error rate ${errorRate.toFixed(1)}% within threshold ${threshold}%`,
   };
@@ -54,10 +60,10 @@ export async function evaluateCostLimit(
     const session = await store.getSession(sessionId);
     const currentCost = session?.totalCostUsd ?? 0;
     return {
-      triggered: currentCost > maxCostUsd,
+      triggered: currentCost >= maxCostUsd,
       currentValue: Math.round(currentCost * 10000) / 10000,
       threshold: maxCostUsd,
-      message: currentCost > maxCostUsd
+      message: currentCost >= maxCostUsd
         ? `Session cost $${currentCost.toFixed(4)} exceeds limit $${maxCostUsd}`
         : `Session cost $${currentCost.toFixed(4)} within limit $${maxCostUsd}`,
     };
@@ -69,10 +75,10 @@ export async function evaluateCostLimit(
   const dailyCost = sessions.reduce((sum, s) => sum + (s.totalCostUsd || 0), 0);
 
   return {
-    triggered: dailyCost > maxCostUsd,
+    triggered: dailyCost >= maxCostUsd,
     currentValue: Math.round(dailyCost * 10000) / 10000,
     threshold: maxCostUsd,
-    message: dailyCost > maxCostUsd
+    message: dailyCost >= maxCostUsd
       ? `Daily cost $${dailyCost.toFixed(4)} exceeds limit $${maxCostUsd}`
       : `Daily cost $${dailyCost.toFixed(4)} within limit $${maxCostUsd}`,
   };
@@ -106,13 +112,45 @@ export async function evaluateHealthScoreThreshold(
   }
 }
 
+/**
+ * Extract a value from a nested object using dot-notation key path.
+ * e.g. getByKeyPath({ a: { b: 3 } }, 'a.b') → 3
+ */
+function getByKeyPath(obj: Record<string, unknown>, keyPath: string): unknown {
+  const parts = keyPath.split('.');
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (current == null || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+function compareMetric(currentValue: number, operator: string, targetValue: number): boolean {
+  switch (operator) {
+    case 'gt': return currentValue > targetValue;
+    case 'gte': return currentValue >= targetValue;
+    case 'lt': return currentValue < targetValue;
+    case 'lte': return currentValue <= targetValue;
+    case 'eq': return currentValue === targetValue;
+    default: return false;
+  }
+}
+
 export async function evaluateCustomMetric(
   store: IEventStore,
   rule: GuardrailRule,
   agentId: string,
 ): Promise<GuardrailConditionResult> {
-  const config = rule.conditionConfig as { metricName?: string; operator?: string; value?: number; windowMinutes?: number };
-  const metricName = config.metricName ?? 'event_count';
+  const config = rule.conditionConfig as {
+    metricKeyPath?: string;
+    // Legacy compat: metricName still supported as fallback
+    metricName?: string;
+    operator?: string;
+    value?: number;
+    windowMinutes?: number;
+  };
+  const metricKeyPath = config.metricKeyPath;
   const operator = config.operator ?? 'gt';
   const targetValue = config.value ?? 0;
   const windowMinutes = config.windowMinutes ?? 60;
@@ -120,6 +158,42 @@ export async function evaluateCustomMetric(
   const now = new Date();
   const from = new Date(now.getTime() - windowMinutes * 60 * 1000).toISOString();
 
+  // Architecture §3.4: Use metricKeyPath to extract values from event metadata
+  if (metricKeyPath) {
+    const eventsResult = await store.queryEvents({ agentId, from, to: now.toISOString(), limit: 10000 });
+    const values: number[] = [];
+    for (const event of eventsResult.events) {
+      const md = (event.metadata ?? {}) as Record<string, unknown>;
+      const raw = getByKeyPath(md, metricKeyPath);
+      if (typeof raw === 'number') values.push(raw);
+    }
+    // (events returned newest-first by default query order)
+
+    if (values.length === 0) {
+      return {
+        triggered: false,
+        currentValue: 0,
+        threshold: targetValue,
+        message: `No events with metadata key "${metricKeyPath}" in window`,
+      };
+    }
+
+    // Use the latest value for comparison (events are returned newest-first, so first element is latest)
+    const currentValue = values[0];
+    const triggered = compareMetric(currentValue, operator, targetValue);
+
+    return {
+      triggered,
+      currentValue,
+      threshold: targetValue,
+      message: triggered
+        ? `${metricKeyPath} (${currentValue}) ${operator} ${targetValue} = triggered`
+        : `${metricKeyPath} (${currentValue}) ${operator} ${targetValue} = not triggered`,
+    };
+  }
+
+  // Legacy fallback: metricName-based evaluation for backward compatibility
+  const metricName = config.metricName ?? 'event_count';
   let currentValue = 0;
   switch (metricName) {
     case 'event_count':
@@ -137,12 +211,7 @@ export async function evaluateCustomMetric(
       return { triggered: false, currentValue: 0, threshold: targetValue, message: `Unknown metric: ${metricName}` };
   }
 
-  let triggered = false;
-  switch (operator) {
-    case 'gt': triggered = currentValue > targetValue; break;
-    case 'lt': triggered = currentValue < targetValue; break;
-    case 'eq': triggered = currentValue === targetValue; break;
-  }
+  const triggered = compareMetric(currentValue, operator, targetValue);
 
   return {
     triggered,
