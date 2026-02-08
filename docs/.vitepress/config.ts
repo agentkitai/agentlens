@@ -2,6 +2,7 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
   title: 'AgentLens',
+  base: '/agentlens/',
   description: 'Open-source observability & audit trail platform for AI agents',
   head: [['link', { rel: 'icon', href: '/favicon.ico' }]],
 
