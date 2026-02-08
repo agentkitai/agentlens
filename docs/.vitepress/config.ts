@@ -4,6 +4,10 @@ export default defineConfig({
   title: 'AgentLens',
   base: '/agentlens/',
   description: 'Open-source observability & audit trail platform for AI agents',
+  markdown: {
+    config: () => {},
+  },
+  ignoreDeadLinks: [/^http:\/\/localhost/],
   head: [['link', { rel: 'icon', href: '/favicon.ico' }]],
 
   themeConfig: {
@@ -19,11 +23,11 @@ export default defineConfig({
         items: [
           {
             text: 'AgentGate',
-            link: 'https://github.com/amitpaz/agentgate',
+            link: 'https://github.com/amitpaz1/agentgate',
           },
           {
             text: 'FormBridge',
-            link: 'https://github.com/amitpaz/formbridge',
+            link: 'https://github.com/amitpaz1/formbridge',
           },
         ],
       },
@@ -32,11 +36,11 @@ export default defineConfig({
         items: [
           {
             text: 'Changelog',
-            link: 'https://github.com/amitpaz/agentlens/blob/main/CHANGELOG.md',
+            link: 'https://github.com/amitpaz1/agentlens/blob/main/CHANGELOG.md',
           },
           {
             text: 'npm',
-            link: 'https://www.npmjs.com/org/agentlens',
+            link: 'https://www.npmjs.com/org/agentlensai',
           },
         ],
       },
@@ -87,7 +91,7 @@ export default defineConfig({
     socialLinks: [
       {
         icon: 'github',
-        link: 'https://github.com/amitpaz/agentlens',
+        link: 'https://github.com/amitpaz1/agentlens',
       },
     ],
 
@@ -102,7 +106,7 @@ export default defineConfig({
 
     editLink: {
       pattern:
-        'https://github.com/amitpaz/agentlens/edit/main/docs/:path',
+        'https://github.com/amitpaz1/agentlens/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
   },
