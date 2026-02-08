@@ -15,6 +15,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm --filter @agentlensai/core test
       - run: pnpm --filter @agentlensai/server test
