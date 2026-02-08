@@ -396,10 +396,10 @@ describe('HealthComputer — Latency', () => {
         makeSession({ startedAt: started.toISOString(), endedAt: ended.toISOString() }),
       );
     }
-    // Baseline includes both: avg duration somewhere between 5-15s
-    // Window avg = 15s, baseline avg = (10*5000 + 5*15000)/15 ≈ 8333
-    // ratio = 15000/8333 = 1.8
-    // score = 100 - (1.8 - 1) * 50 = 100 - 40 = 60
+    // Baseline excludes current window: only old sessions, avg = 5000ms
+    // Window avg = 15000ms
+    // ratio = 15000/5000 = 3.0
+    // score = 100 - (3.0 - 1) * 50 = 100 - 100 = 0
     const store = createMockStore({
       sessions: [...oldSessions, ...recentSessions],
     });
@@ -407,8 +407,7 @@ describe('HealthComputer — Latency', () => {
     const result = await computer.compute(store, 'agent-1', 7);
 
     const dim = result!.dimensions.find((d) => d.name === 'latency')!;
-    expect(dim.score).toBeLessThan(70);
-    expect(dim.score).toBeGreaterThan(50);
+    expect(dim.score).toBe(0);
   });
 });
 

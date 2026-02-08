@@ -10,14 +10,16 @@ const mockGetHealthOverview = vi.fn();
 const mockGetHealthHistory = vi.fn();
 const mockGetOptimizationRecommendations = vi.fn();
 
-vi.mock('@agentlensai/sdk', () => ({
-  AgentLensClient: vi.fn().mockImplementation(() => ({
-    getHealth: mockGetHealth,
-    getHealthOverview: mockGetHealthOverview,
-    getHealthHistory: mockGetHealthHistory,
-    getOptimizationRecommendations: mockGetOptimizationRecommendations,
-  })),
-}));
+vi.mock('@agentlensai/sdk', () => {
+  return {
+    AgentLensClient: class MockAgentLensClient {
+      getHealth = mockGetHealth;
+      getHealthOverview = mockGetHealthOverview;
+      getHealthHistory = mockGetHealthHistory;
+      getOptimizationRecommendations = mockGetOptimizationRecommendations;
+    },
+  };
+});
 
 vi.mock('../lib/config.js', () => ({
   loadConfig: () => ({ url: 'http://localhost:3400', apiKey: 'test' }),
