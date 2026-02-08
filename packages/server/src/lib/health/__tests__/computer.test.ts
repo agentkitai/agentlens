@@ -200,10 +200,10 @@ describe('HealthComputer — Cost Efficiency', () => {
   });
 
   it('scores 0 when cost is 2x baseline', async () => {
-    // Window sessions are expensive, baseline includes cheaper sessions
+    // Window sessions are expensive, baseline excludes current window
     const now = new Date();
     const baselineSessions = [];
-    // Cheap old sessions (15-25 days ago)
+    // Cheap old sessions (15-25 days ago) — these form the baseline
     for (let i = 0; i < 10; i++) {
       const d = new Date(now);
       d.setDate(d.getDate() - 20 + i);
@@ -220,10 +220,10 @@ describe('HealthComputer — Cost Efficiency', () => {
         makeSession({ totalCostUsd: 0.10, startedAt: d.toISOString() }),
       );
     }
-    // Baseline avg = (10*0.05 + 10*0.10)/20 = 0.075
+    // Baseline avg = 10*0.05/10 = 0.05 (excludes window sessions)
     // Window avg = 0.10
-    // ratio = 0.10/0.075 = 1.333
-    // score = 100 - (1.333-1)*100 = 66.67
+    // ratio = 0.10/0.05 = 2.0
+    // score = 100 - (2.0-1)*100 = 0
     const store = createMockStore({
       sessions: [...baselineSessions, ...windowSessions],
     });
@@ -231,8 +231,7 @@ describe('HealthComputer — Cost Efficiency', () => {
     const result = await computer.compute(store, 'agent-1', 7);
 
     const dim = result!.dimensions.find((d) => d.name === 'cost_efficiency')!;
-    expect(dim.score).toBeGreaterThan(60);
-    expect(dim.score).toBeLessThan(70);
+    expect(dim.score).toBe(0);
   });
 });
 

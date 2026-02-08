@@ -293,15 +293,16 @@ describe('classifyCallComplexity', () => {
 
   // ── Signal extraction ────────────────────────────────────────
 
-  it('extracts tool count from call payload tools when response has no toolCalls', () => {
+  it('defaults tool count to 0 when response has no toolCalls (ignores tool definitions)', () => {
     const call = makeCallEvent({
       tools: [{ name: 'a' }, { name: 'b' }, { name: 'c' }],
     });
     const response = makeResponseEvent({ inputTokens: 600, outputTokens: 100 });
     // response has no toolCalls field (only usage)
+    // Should default to 0 (no actual invocations), not 3 (available definitions)
 
     const result = classifyCallComplexity(call, response);
-    expect(result.signals.toolCallCount).toBe(3);
+    expect(result.signals.toolCallCount).toBe(0);
     expect(result.tier).toBe('moderate');
   });
 
