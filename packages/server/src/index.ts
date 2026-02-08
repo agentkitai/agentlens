@@ -31,6 +31,8 @@ import { lessonsRoutes } from './routes/lessons.js';
 import { reflectRoutes } from './routes/reflect.js';
 import { recallRoutes } from './routes/recall.js';
 import { contextRoutes } from './routes/context.js';
+import { optimizeRoutes } from './routes/optimize.js';
+import { registerHealthRoutes } from './routes/health.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -59,6 +61,7 @@ export { streamRoutes } from './routes/stream.js';
 export { lessonsRoutes } from './routes/lessons.js';
 export { reflectRoutes } from './routes/reflect.js';
 export { recallRoutes } from './routes/recall.js';
+export { optimizeRoutes } from './routes/optimize.js';
 export { EmbeddingWorker } from './lib/embeddings/worker.js';
 export { EmbeddingStore } from './db/embedding-store.js';
 export { createSSEStream } from './lib/sse.js';
@@ -72,6 +75,7 @@ export { runMigrations } from './db/migrate.js';
 export { LessonStore } from './db/lesson-store.js';
 export { SessionSummaryStore } from './db/session-summary-store.js';
 export { contextRoutes } from './routes/context.js';
+export { registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
 
 // ─── Dashboard SPA helpers ───────────────────────────────────
@@ -220,6 +224,10 @@ export function createApp(
     app.use('/api/recall', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/context/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/context', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/optimize/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/optimize', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/health/overview', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/health/history', authMiddleware(db, resolvedConfig.authDisabled));
   }
 
   // ─── Routes ────────────────────────────────────────────
@@ -231,6 +239,8 @@ export function createApp(
     sessionSummaryStore: db ? new SessionSummaryStore(db) : null,
   }));
   app.route('/api/sessions', sessionsRoutes(store));
+  // Health routes registered directly on main app (before generic agents routes)
+  registerHealthRoutes(app, store, db);
   app.route('/api/agents', agentsRoutes(store));
   app.route('/api/stats', statsRoutes(store));
   if (db) {
@@ -244,6 +254,9 @@ export function createApp(
 
   // ─── Reflect / Pattern Analysis ────────────────────────
   app.route('/api/reflect', reflectRoutes(store));
+
+  // ─── Optimize / Cost Recommendations ──────────────────
+  app.route('/api/optimize', optimizeRoutes(store));
 
   // ─── Recall / Semantic Search ─────────────────────────
   {

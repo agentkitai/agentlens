@@ -14,8 +14,10 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AgentLensTransport } from './transport.js';
 import { registerContextTool } from './tools/context.js';
 import { registerLearnTool } from './tools/learn.js';
+import { registerOptimizeTool } from './tools/optimize.js';
 import { registerRecallTool } from './tools/recall.js';
 import { registerReflectTool } from './tools/reflect.js';
+import { registerHealthTool } from './tools/health.js';
 
 // ─── Tool Registration ─────────────────────────────────────────────
 
@@ -31,7 +33,9 @@ export function registerTools(server: McpServer, transport: AgentLensTransport):
   registerLearnTool(server, transport);
   registerRecallTool(server, transport);
   registerReflectTool(server, transport);
+  registerOptimizeTool(server, transport);
   registerContextTool(server, transport);
+  registerHealthTool(server, transport);
 }
 
 // ─── 5.2: agentlens_session_start ──────────────────────────────────

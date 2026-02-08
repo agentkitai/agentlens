@@ -198,6 +198,17 @@ export class AgentLensTransport {
     this.sessionAgentMap.delete(sessionId);
   }
 
+  /**
+   * Get the first active agent ID (if any sessions are active).
+   * Used by tools that need to know the current agent (e.g. health).
+   */
+  getFirstActiveAgent(): string | undefined {
+    for (const agentId of this.sessionAgentMap.values()) {
+      if (agentId) return agentId;
+    }
+    return undefined;
+  }
+
   // ─── Lesson API methods (Story 3.3) ─────────────────────────
 
   /**
@@ -323,6 +334,35 @@ export class AgentLensTransport {
     return response.json();
   }
 
+  // ─── Optimize API method (Story 2.5) ──────────────────────────
+
+  /**
+   * Get cost optimization recommendations.
+   */
+  async getOptimizationRecommendations(params: {
+    period?: number;
+    limit?: number;
+    agentId?: string;
+  } = {}): Promise<unknown> {
+    const searchParams = new URLSearchParams();
+    if (params.period !== undefined) searchParams.set('period', String(params.period));
+    if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params.agentId) searchParams.set('agentId', params.agentId);
+
+    const url = `${this.baseUrl}/api/optimize/recommendations?${searchParams.toString()}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Optimize API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
+  }
+
   // ─── Reflect API method (Story 4.5) ──────────────────────────
 
   /**
@@ -352,6 +392,30 @@ export class AgentLensTransport {
     if (!response.ok) {
       const body = await response.text().catch(() => 'Unknown error');
       throw new Error(`Reflect API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
+  }
+
+  // ─── Health API method (Story 1.5) ────────────────────────────
+
+  /**
+   * Get the health score for an agent.
+   */
+  async getHealth(agentId: string, window?: number): Promise<unknown> {
+    const searchParams = new URLSearchParams();
+    if (window !== undefined) searchParams.set('window', String(window));
+
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}/health${qs ? `?${qs}` : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Health API error ${response.status}: ${body}`);
     }
 
     return response.json();
