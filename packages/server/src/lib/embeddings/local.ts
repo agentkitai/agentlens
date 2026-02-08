@@ -29,7 +29,6 @@ export function createLocalEmbeddingService(modelName?: string): EmbeddingServic
           // Use a variable to prevent TypeScript/bundlers from resolving at compile time
           const moduleName = '@xenova/transformers';
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          // @ts-expect-error — dynamic module specifier to avoid compile-time resolution
           const mod: any = await import(moduleName);
           const { pipeline } = mod;
           return await pipeline('feature-extraction', model);
