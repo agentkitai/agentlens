@@ -330,6 +330,9 @@ export interface AgentLensEvent {
 
   /** SHA-256 hash of this event (computed on ingest) */
   hash: string;
+
+  /** Tenant this event belongs to (multi-tenant isolation) */
+  tenantId: string;
 }
 
 // ─── Session & Agent ────────────────────────────────────────────────
@@ -360,6 +363,8 @@ export interface Session {
   /** Total output tokens across all LLM calls */
   totalOutputTokens: number;
   tags: string[];
+  /** Tenant this session belongs to (multi-tenant isolation) */
+  tenantId: string;
 }
 
 /**
@@ -372,6 +377,8 @@ export interface Agent {
   firstSeenAt: Timestamp;
   lastSeenAt: Timestamp;
   sessionCount: number;
+  /** Tenant this agent belongs to (multi-tenant isolation) */
+  tenantId: string;
 }
 
 // ─── Query Types ────────────────────────────────────────────────────
@@ -389,6 +396,8 @@ export interface EventQuery {
   order?: 'asc' | 'desc';
   /** Full-text search on payload */
   search?: string;
+  /** Tenant ID for multi-tenant isolation */
+  tenantId?: string;
 }
 
 export interface EventQueryResult {
@@ -405,6 +414,8 @@ export interface SessionQuery {
   limit?: number;
   offset?: number;
   tags?: string[];
+  /** Tenant ID for multi-tenant isolation */
+  tenantId?: string;
 }
 
 export interface SessionQueryResult {
@@ -437,6 +448,8 @@ export interface AlertRule {
   notifyChannels: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  /** Tenant this rule belongs to (multi-tenant isolation) */
+  tenantId: string;
 }
 
 export interface AlertHistory {
@@ -447,4 +460,6 @@ export interface AlertHistory {
   currentValue: number;
   threshold: number;
   message: string;
+  /** Tenant this alert history belongs to (multi-tenant isolation) */
+  tenantId: string;
 }

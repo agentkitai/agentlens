@@ -16,12 +16,14 @@ import type { AlertRule } from '@agentlensai/core';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { NotFoundError } from '../db/errors.js';
+import { getTenantStore } from './tenant-helper.js';
 
 export function alertsRoutes(store: IEventStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
   // POST /api/alerts/rules — create alert rule
   app.post('/rules', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const rawBody = await c.req.json().catch(() => null);
     if (!rawBody) {
       return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
@@ -56,23 +58,26 @@ export function alertsRoutes(store: IEventStore) {
       notifyChannels: input.notifyChannels,
       createdAt: now,
       updatedAt: now,
+      tenantId: 'default',
     };
 
-    await store.createAlertRule(rule);
+    await tenantStore.createAlertRule(rule);
 
     return c.json(rule, 201);
   });
 
   // GET /api/alerts/rules — list all alert rules
   app.get('/rules', async (c) => {
-    const rules = await store.listAlertRules();
+    const tenantStore = getTenantStore(store, c);
+    const rules = await tenantStore.listAlertRules();
     return c.json({ rules });
   });
 
   // GET /api/alerts/rules/:id — get single alert rule
   app.get('/rules/:id', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const id = c.req.param('id');
-    const rule = await store.getAlertRule(id);
+    const rule = await tenantStore.getAlertRule(id);
 
     if (!rule) {
       return c.json({ error: 'Alert rule not found', status: 404 }, 404);
@@ -83,6 +88,7 @@ export function alertsRoutes(store: IEventStore) {
 
   // PUT /api/alerts/rules/:id — update alert rule
   app.put('/rules/:id', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const id = c.req.param('id');
     const rawBody = await c.req.json().catch(() => null);
     if (!rawBody) {
@@ -107,7 +113,7 @@ export function alertsRoutes(store: IEventStore) {
     const updates = parseResult.data;
 
     try {
-      await store.updateAlertRule(id, {
+      await tenantStore.updateAlertRule(id, {
         ...updates,
         updatedAt: new Date().toISOString(),
       });
@@ -118,16 +124,17 @@ export function alertsRoutes(store: IEventStore) {
       throw err;
     }
 
-    const updated = await store.getAlertRule(id);
+    const updated = await tenantStore.getAlertRule(id);
     return c.json(updated);
   });
 
   // DELETE /api/alerts/rules/:id — delete alert rule
   app.delete('/rules/:id', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const id = c.req.param('id');
 
     try {
-      await store.deleteAlertRule(id);
+      await tenantStore.deleteAlertRule(id);
     } catch (err) {
       if (err instanceof NotFoundError) {
         return c.json({ error: 'Alert rule not found', status: 404 }, 404);
@@ -140,6 +147,7 @@ export function alertsRoutes(store: IEventStore) {
 
   // GET /api/alerts/history — list alert history
   app.get('/history', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const ruleId = c.req.query('ruleId');
     const limitStr = c.req.query('limit');
     const offsetStr = c.req.query('offset');
@@ -147,7 +155,7 @@ export function alertsRoutes(store: IEventStore) {
     const limit = limitStr ? Math.max(1, Math.min(parseInt(limitStr, 10) || 50, 500)) : 50;
     const offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10) || 0) : 0;
 
-    const result = await store.listAlertHistory({
+    const result = await tenantStore.listAlertHistory({
       ruleId: ruleId ?? undefined,
       limit,
       offset,

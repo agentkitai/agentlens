@@ -20,6 +20,7 @@ export interface SSEFilters {
   sessionId?: string;
   agentId?: string;
   eventTypes?: string[];
+  tenantId?: string;
 }
 
 /** Default heartbeat interval in ms */
@@ -36,6 +37,7 @@ function formatSSE(eventName: string, data: unknown): string {
  * Check if an ingested event matches the SSE filters.
  */
 function matchesFilters(event: AgentLensEvent, filters: SSEFilters): boolean {
+  if (filters.tenantId && event.tenantId !== filters.tenantId) return false;
   if (filters.sessionId && event.sessionId !== filters.sessionId) return false;
   if (filters.agentId && event.agentId !== filters.agentId) return false;
   if (
@@ -91,8 +93,10 @@ export function createSSEStream(
           case 'session_updated': {
             const session = (busEvent as SessionUpdatedEvent).session;
             // Session updates are sent if:
+            //   - Matching tenantId (if filtered)
             //   - No sessionId filter, or matching sessionId
             //   - No agentId filter, or matching agentId
+            if (filters.tenantId && session.tenantId !== filters.tenantId) break;
             if (filters.sessionId && session.id !== filters.sessionId) break;
             if (filters.agentId && session.agentId !== filters.agentId) break;
             send('session_update', session);
@@ -100,7 +104,8 @@ export function createSSEStream(
           }
           case 'alert_triggered': {
             const alert = busEvent as AlertTriggeredEvent;
-            // Alerts are sent to all connections (no filter)
+            // Alerts are tenant-scoped if filter is set
+            if (filters.tenantId && alert.rule.tenantId !== filters.tenantId) break;
             send('alert', {
               ruleId: alert.rule.id,
               name: alert.rule.name,

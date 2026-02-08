@@ -11,12 +11,14 @@ import { verifyChain, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentlensai/core
 import type { SessionQuery, SessionStatus } from '@agentlensai/core';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
+import { getTenantStore } from './tenant-helper.js';
 
 export function sessionsRoutes(store: IEventStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
   // GET /api/sessions — list sessions
   app.get('/', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const query: SessionQuery = {};
 
     const agentId = c.req.query('agentId');
@@ -45,7 +47,7 @@ export function sessionsRoutes(store: IEventStore) {
     const offsetStr = c.req.query('offset');
     query.offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10) || 0) : 0;
 
-    const result = await store.querySessions(query);
+    const result = await tenantStore.querySessions(query);
 
     return c.json({
       sessions: result.sessions,
@@ -56,12 +58,10 @@ export function sessionsRoutes(store: IEventStore) {
 
   // GET /api/sessions/:id — session detail
   app.get('/:id', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const id = c.req.param('id');
 
-    // Check for /timeline path  — Hono routes "/:id" will also match,
-    // but we have a separate route for /:id/timeline below.
-
-    const session = await store.getSession(id);
+    const session = await tenantStore.getSession(id);
     if (!session) {
       return c.json({ error: 'Session not found', status: 404 }, 404);
     }
@@ -71,14 +71,15 @@ export function sessionsRoutes(store: IEventStore) {
 
   // GET /api/sessions/:id/timeline — all events ascending + chain verification
   app.get('/:id/timeline', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const id = c.req.param('id');
 
-    const session = await store.getSession(id);
+    const session = await tenantStore.getSession(id);
     if (!session) {
       return c.json({ error: 'Session not found', status: 404 }, 404);
     }
 
-    const timeline = await store.getSessionTimeline(id);
+    const timeline = await tenantStore.getSessionTimeline(id);
     const chainResult = verifyChain(timeline);
 
     return c.json({

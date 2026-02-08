@@ -22,6 +22,8 @@ import type {
   ApprovalDecisionPayload,
 } from '@agentlensai/core';
 import type { IEventStore } from '@agentlensai/core';
+import type { SqliteEventStore } from '../db/sqlite-store.js';
+import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { eventBus } from '../lib/event-bus.js';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -41,6 +43,12 @@ export interface IngestConfig {
   agentgateWebhookSecret?: string;
   /** HMAC secret for FormBridge webhooks */
   formbridgeWebhookSecret?: string;
+  /** Tenant ID for AgentGate webhooks (defaults to 'default') */
+  agentgateTenantId?: string;
+  /** Tenant ID for FormBridge webhooks (defaults to 'default') */
+  formbridgeTenantId?: string;
+  /** Tenant ID for generic webhooks (defaults to 'default') */
+  genericTenantId?: string;
 }
 
 // ─── Signature Verification ─────────────────────────────────────────
@@ -201,10 +209,30 @@ function getSecretForSource(
   }
 }
 
+// ─── Tenant Resolver ────────────────────────────────────────────────
+
+function getTenantIdForSource(
+  source: WebhookSource,
+  config: IngestConfig,
+): string {
+  switch (source) {
+    case 'agentgate':
+      return config.agentgateTenantId ?? 'default';
+    case 'formbridge':
+      return config.formbridgeTenantId ?? 'default';
+    case 'generic':
+      return config.genericTenantId ?? 'default';
+  }
+}
+
 // ─── Route Factory ──────────────────────────────────────────────────
 
 export function ingestRoutes(store: IEventStore, config: IngestConfig) {
   const app = new Hono();
+
+  // Cast to SqliteEventStore for TenantScopedStore wrapping.
+  // IEventStore is the interface but we need the concrete type for the tenant wrapper.
+  const innerStore = store as SqliteEventStore;
 
   /**
    * POST /api/events/ingest — Webhook ingestion endpoint.
@@ -284,6 +312,10 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
       }, 400);
     }
 
+    // Resolve tenant ID from webhook source configuration
+    const tenantId = getTenantIdForSource(source, config);
+    const tenantStore = new TenantScopedStore(innerStore, tenantId);
+
     // Extract session/agent correlation
     const { sessionId, agentId } = extractCorrelation(body.context);
 
@@ -297,7 +329,7 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
     };
 
     // Get last hash for session chain (optimized — only fetches last event's hash)
-    const prevHash = await store.getLastEventHash(sessionId);
+    const prevHash = await tenantStore.getLastEventHash(sessionId);
 
     const payload = truncatePayload(mapped.payload);
 
@@ -324,17 +356,18 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
       metadata,
       prevHash,
       hash,
+      tenantId,
     };
 
-    // Persist
-    await store.insertEvents([event]);
+    // Persist via tenant-scoped store (stamps tenantId on insert)
+    await tenantStore.insertEvents([event]);
 
     // Emit to EventBus for SSE fan-out (async, non-blocking)
     const emitTimestamp = new Date().toISOString();
     eventBus.emit({ type: 'event_ingested', event, timestamp: emitTimestamp });
 
     // Emit session update
-    const updatedSession = await store.getSession(sessionId);
+    const updatedSession = await tenantStore.getSession(sessionId);
     if (updatedSession) {
       eventBus.emit({ type: 'session_updated', session: updatedSession, timestamp: emitTimestamp });
     }

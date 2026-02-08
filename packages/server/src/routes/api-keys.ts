@@ -11,7 +11,7 @@ import { randomBytes } from 'node:crypto';
 import { ulid } from 'ulid';
 import type { SqliteDb } from '../db/index.js';
 import { apiKeys } from '../db/schema.sqlite.js';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { hashApiKey, type AuthVariables } from '../middleware/auth.js';
 
 export function apiKeysRoutes(db: SqliteDb) {
@@ -22,6 +22,17 @@ export function apiKeysRoutes(db: SqliteDb) {
     const body = await c.req.json().catch(() => ({}));
     const name = (body as Record<string, unknown>).name as string | undefined;
     const scopes = (body as Record<string, unknown>).scopes as string[] | undefined;
+    const requestedTenantId = (body as Record<string, unknown>).tenantId as string | undefined;
+
+    // Enforce tenant isolation: non-dev callers can only create keys for their own tenant
+    const callerKey = c.get('apiKey');
+    const callerTenantId = callerKey?.tenantId ?? 'default';
+    const isDevMode = callerKey?.id === 'dev';
+
+    // In dev mode, allow specifying tenantId; otherwise force caller's tenant
+    const resolvedTenantId = isDevMode
+      ? (requestedTenantId ?? 'default')
+      : callerTenantId;
 
     const id = ulid();
     const rawKey = `als_${randomBytes(32).toString('hex')}`;
@@ -35,6 +46,7 @@ export function apiKeysRoutes(db: SqliteDb) {
         name: name ?? 'Unnamed Key',
         scopes: JSON.stringify(scopes ?? ['*']),
         createdAt: now,
+        tenantId: resolvedTenantId,
       })
       .run();
 
@@ -43,13 +55,21 @@ export function apiKeysRoutes(db: SqliteDb) {
       key: rawKey,
       name: name ?? 'Unnamed Key',
       scopes: scopes ?? ['*'],
+      tenantId: resolvedTenantId,
       createdAt: new Date(now * 1000).toISOString(),
     }, 201);
   });
 
-  // GET /api/keys — list all keys
+  // GET /api/keys — list keys for caller's tenant only
   app.get('/', (c) => {
-    const rows = db.select().from(apiKeys).all();
+    const callerKey = c.get('apiKey');
+    const callerTenantId = callerKey?.tenantId ?? 'default';
+
+    const rows = db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.tenantId, callerTenantId))
+      .all();
 
     const keys = rows.map((row) => ({
       id: row.id,
@@ -57,6 +77,7 @@ export function apiKeysRoutes(db: SqliteDb) {
       scopes: (() => {
         try { return JSON.parse(row.scopes) as string[]; } catch { return []; }
       })(),
+      tenantId: row.tenantId,
       createdAt: new Date(row.createdAt * 1000).toISOString(),
       lastUsedAt: row.lastUsedAt ? new Date(row.lastUsedAt * 1000).toISOString() : null,
       revokedAt: row.revokedAt ? new Date(row.revokedAt * 1000).toISOString() : null,
@@ -65,12 +86,20 @@ export function apiKeysRoutes(db: SqliteDb) {
     return c.json({ keys });
   });
 
-  // DELETE /api/keys/:id — revoke a key
+  // DELETE /api/keys/:id — revoke a key (tenant-scoped)
   app.delete('/:id', (c) => {
     const id = c.req.param('id');
     const now = Math.floor(Date.now() / 1000);
+    const callerKey = c.get('apiKey');
+    const callerTenantId = callerKey?.tenantId ?? 'default';
 
-    const existing = db.select().from(apiKeys).where(eq(apiKeys.id, id)).get();
+    // Look up key scoped to caller's tenant
+    const existing = db
+      .select()
+      .from(apiKeys)
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.tenantId, callerTenantId)))
+      .get();
+
     if (!existing) {
       return c.json({ error: 'API key not found', status: 404 }, 404);
     }

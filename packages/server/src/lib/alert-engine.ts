@@ -12,6 +12,8 @@
 import { ulid } from 'ulid';
 import type { IEventStore } from '@agentlensai/core';
 import type { AlertRule, AlertHistory, AlertCondition } from '@agentlensai/core';
+import { SqliteEventStore } from '../db/sqlite-store.js';
+import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { eventBus } from './event-bus.js';
 
 /** Default evaluation interval: 60 seconds */
@@ -117,38 +119,78 @@ export class AlertEngine {
   }
 
   /**
+   * Get a tenant-scoped store for a given rule.
+   * If the underlying store is SqliteEventStore and the rule has a tenantId,
+   * returns a TenantScopedStore. Otherwise returns the original store.
+   */
+  private getTenantStore(rule: AlertRule): IEventStore {
+    const tenantId = rule.tenantId ?? 'default';
+    if (this.store instanceof SqliteEventStore) {
+      return new TenantScopedStore(this.store, tenantId);
+    }
+    return this.store;
+  }
+
+  /**
    * Run a single evaluation cycle (can also be called manually / from tests).
+   *
+   * Rules are grouped by tenantId so every operation — listing rules,
+   * querying analytics, deduplication, and history insertion — goes
+   * through a tenant-scoped store.  This prevents any cross-tenant
+   * data leakage during alert evaluation.
    */
   async evaluate(): Promise<AlertHistory[]> {
     if (this.running) return [];
     this.running = true;
 
     try {
-      const rules = await this.store.listAlertRules();
-      const enabledRules = rules.filter((r) => r.enabled);
+      // Fetch all rules then group by tenant so every subsequent
+      // operation uses the correct tenant-scoped store.
+      const allRules = await this.store.listAlertRules();
+      const rulesByTenant = new Map<string, AlertRule[]>();
+      for (const rule of allRules) {
+        const tid = rule.tenantId ?? 'default';
+        let bucket = rulesByTenant.get(tid);
+        if (!bucket) {
+          bucket = [];
+          rulesByTenant.set(tid, bucket);
+        }
+        bucket.push(rule);
+      }
+
       const triggered: AlertHistory[] = [];
 
-      for (const rule of enabledRules) {
-        try {
-          const currentValue = await this.computeCurrentValue(rule);
-          const shouldTrigger = this.checkCondition(rule.condition, currentValue, rule.threshold);
+      for (const [tenantId, tenantRules] of rulesByTenant) {
+        // Build a single tenant-scoped store per tenant
+        const tenantStore =
+          this.store instanceof SqliteEventStore
+            ? new TenantScopedStore(this.store, tenantId)
+            : this.store;
 
-          if (shouldTrigger) {
-            // M1 fix: Deduplication — skip if the rule already triggered within its window
-            const recentHistory = await this.store.listAlertHistory({ ruleId: rule.id, limit: 1 });
-            if (recentHistory.entries.length > 0) {
-              const lastTrigger = new Date(recentHistory.entries[0]!.triggeredAt).getTime();
-              const cooldownMs = rule.windowMinutes * 60_000;
-              if (Date.now() - lastTrigger < cooldownMs) {
-                continue; // Still within cooldown period
+        const enabledRules = tenantRules.filter((r) => r.enabled);
+
+        for (const rule of enabledRules) {
+          try {
+            const currentValue = await this.computeCurrentValue(rule, tenantStore);
+            const shouldTrigger = this.checkCondition(rule.condition, currentValue, rule.threshold);
+
+            if (shouldTrigger) {
+              // M1 fix: Deduplication — skip if the rule already triggered within its window
+              const recentHistory = await tenantStore.listAlertHistory({ ruleId: rule.id, limit: 1 });
+              if (recentHistory.entries.length > 0) {
+                const lastTrigger = new Date(recentHistory.entries[0]!.triggeredAt).getTime();
+                const cooldownMs = rule.windowMinutes * 60_000;
+                if (Date.now() - lastTrigger < cooldownMs) {
+                  continue; // Still within cooldown period
+                }
               }
-            }
 
-            const entry = await this.triggerAlert(rule, currentValue);
-            triggered.push(entry);
+              const entry = await this.triggerAlert(rule, currentValue, tenantStore);
+              triggered.push(entry);
+            }
+          } catch (err) {
+            console.error(`[AlertEngine] Error evaluating rule "${rule.name}" (${rule.id}):`, err);
           }
-        } catch (err) {
-          console.error(`[AlertEngine] Error evaluating rule "${rule.name}" (${rule.id}):`, err);
         }
       }
 
@@ -161,13 +203,13 @@ export class AlertEngine {
   /**
    * Compute the current metric value for a rule by querying analytics.
    */
-  private async computeCurrentValue(rule: AlertRule): Promise<number> {
+  private async computeCurrentValue(rule: AlertRule, tenantStore: IEventStore): Promise<number> {
     const now = new Date();
     const windowStart = new Date(now.getTime() - rule.windowMinutes * 60_000);
     const from = windowStart.toISOString();
     const to = now.toISOString();
 
-    const analytics = await this.store.getAnalytics({
+    const analytics = await tenantStore.getAnalytics({
       from,
       to,
       agentId: rule.scope.agentId,
@@ -228,7 +270,7 @@ export class AlertEngine {
   /**
    * Trigger an alert: persist history, deliver webhooks, emit on EventBus.
    */
-  private async triggerAlert(rule: AlertRule, currentValue: number): Promise<AlertHistory> {
+  private async triggerAlert(rule: AlertRule, currentValue: number, tenantStore: IEventStore): Promise<AlertHistory> {
     const now = new Date().toISOString();
     const message = this.buildMessage(rule, currentValue);
 
@@ -239,10 +281,11 @@ export class AlertEngine {
       currentValue,
       threshold: rule.threshold,
       message,
+      tenantId: rule.tenantId,
     };
 
-    // 1. Persist to alert history
-    await this.store.insertAlertHistory(entry);
+    // 1. Persist to alert history (via tenant-scoped store)
+    await tenantStore.insertAlertHistory(entry);
 
     // 2. Console log
     console.log(`[AlertEngine] 🔔 Alert triggered: "${rule.name}" — ${message}`);

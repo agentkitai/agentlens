@@ -2,6 +2,7 @@
  * Shared test helpers for API tests.
  */
 
+import { randomBytes } from 'node:crypto';
 import { createApp } from '../index.js';
 import { createTestDb, type SqliteDb } from '../db/index.js';
 import { runMigrations } from '../db/migrate.js';
@@ -21,7 +22,7 @@ export interface TestContext {
  * Create a test app with an in-memory database and a pre-created API key.
  * Auth is NOT disabled — use the returned apiKey for Bearer auth.
  */
-export function createTestApp(opts?: { authDisabled?: boolean }): TestContext {
+export function createTestApp(opts?: { authDisabled?: boolean; tenantId?: string }): TestContext {
   const db = createTestDb();
   runMigrations(db);
   const store = new SqliteEventStore(db);
@@ -36,6 +37,7 @@ export function createTestApp(opts?: { authDisabled?: boolean }): TestContext {
       name: 'Test Key',
       scopes: JSON.stringify(['*']),
       createdAt: Math.floor(Date.now() / 1000),
+      tenantId: opts?.tenantId ?? 'default',
     })
     .run();
 
@@ -46,6 +48,29 @@ export function createTestApp(opts?: { authDisabled?: boolean }): TestContext {
   });
 
   return { app: app as unknown as Hono, db, store, apiKey: rawKey };
+}
+
+/**
+ * Create a raw API key in the database and return it.
+ * Useful for multi-tenant tests.
+ */
+export function createApiKey(db: SqliteDb, opts: {
+  id?: string;
+  tenantId?: string;
+  name?: string;
+}): string {
+  const rawKey = `als_${randomBytes(32).toString('hex')}`;
+  db.insert(apiKeys)
+    .values({
+      id: opts.id ?? `key-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      keyHash: hashApiKey(rawKey),
+      name: opts.name ?? 'Test Key',
+      scopes: JSON.stringify(['*']),
+      createdAt: Math.floor(Date.now() / 1000),
+      tenantId: opts.tenantId ?? 'default',
+    })
+    .run();
+  return rawKey;
 }
 
 /**

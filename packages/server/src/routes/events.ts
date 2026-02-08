@@ -20,6 +20,7 @@ import type { AgentLensEvent, EventQuery, EventType, EventSeverity } from '@agen
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { eventBus } from '../lib/event-bus.js';
+import { getTenantStore } from './tenant-helper.js';
 
 /** Schema for the batch ingestion request body */
 const ingestBatchSchema = z.object({
@@ -31,6 +32,8 @@ export function eventsRoutes(store: IEventStore) {
 
   // POST /api/events — ingest events
   app.post('/', async (c) => {
+    const tenantStore = getTenantStore(store, c);
+
     const rawBody = await c.req.json().catch(() => null);
     if (!rawBody) {
       return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
@@ -63,7 +66,7 @@ export function eventsRoutes(store: IEventStore) {
     // Phase 1: Build all events (validate and compute hashes) without writing
     for (const [sessionId, sessionEvents] of bySession) {
       // Get the last event hash for this session to chain from (optimized)
-      let prevHash: string | null = await store.getLastEventHash(sessionId);
+      let prevHash: string | null = await tenantStore.getLastEventHash(sessionId);
 
       for (const input of sessionEvents) {
         const id = ulid();
@@ -95,6 +98,7 @@ export function eventsRoutes(store: IEventStore) {
           metadata,
           prevHash,
           hash,
+          tenantId: 'default',
         };
 
         allProcessed.push(event);
@@ -115,7 +119,7 @@ export function eventsRoutes(store: IEventStore) {
 
     try {
       for (const [, sessionProcessed] of sessionGroups) {
-        await store.insertEvents(sessionProcessed);
+        await tenantStore.insertEvents(sessionProcessed);
       }
     } catch (error) {
       // If any session group fails, the entire batch is rejected
@@ -132,7 +136,7 @@ export function eventsRoutes(store: IEventStore) {
     // Emit session updates for affected sessions
     const affectedSessionIds = new Set(allProcessed.map((e) => e.sessionId));
     for (const sessionId of affectedSessionIds) {
-      const session = await store.getSession(sessionId);
+      const session = await tenantStore.getSession(sessionId);
       if (session) {
         eventBus.emit({ type: 'session_updated', session, timestamp: now });
       }
@@ -146,6 +150,7 @@ export function eventsRoutes(store: IEventStore) {
 
   // GET /api/events — query events
   app.get('/', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const query: EventQuery = {};
 
     const sessionId = c.req.query('sessionId');
@@ -188,7 +193,7 @@ export function eventsRoutes(store: IEventStore) {
     const order = c.req.query('order');
     if (order === 'asc' || order === 'desc') query.order = order;
 
-    const result = await store.queryEvents(query);
+    const result = await tenantStore.queryEvents(query);
 
     return c.json({
       events: result.events,
@@ -199,8 +204,9 @@ export function eventsRoutes(store: IEventStore) {
 
   // GET /api/events/:id — single event
   app.get('/:id', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const id = c.req.param('id');
-    const event = await store.getEvent(id);
+    const event = await tenantStore.getEvent(id);
 
     if (!event) {
       return c.json({ error: 'Event not found', status: 404 }, 404);

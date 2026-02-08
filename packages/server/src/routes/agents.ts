@@ -8,18 +8,20 @@
 import { Hono } from 'hono';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
+import { getTenantStore } from './tenant-helper.js';
 
 export function agentsRoutes(store: IEventStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
   // GET /api/agents — list all agents with computed error rates
   app.get('/', async (c) => {
-    const agents = await store.listAgents();
+    const tenantStore = getTenantStore(store, c);
+    const agents = await tenantStore.listAgents();
 
     // Enrich agents with error rate computed from their sessions
     const enriched = await Promise.all(
       agents.map(async (agent) => {
-        const { sessions } = await store.querySessions({ agentId: agent.id, limit: 10000 });
+        const { sessions } = await tenantStore.querySessions({ agentId: agent.id, limit: 10000 });
         const totalErrors = sessions.reduce((sum, s) => sum + s.errorCount, 0);
         const totalEvents = sessions.reduce((sum, s) => sum + s.eventCount, 0);
         const errorRate = totalEvents > 0 ? totalErrors / totalEvents : 0;
@@ -32,8 +34,9 @@ export function agentsRoutes(store: IEventStore) {
 
   // GET /api/agents/:id — single agent
   app.get('/:id', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const id = c.req.param('id');
-    const agent = await store.getAgent(id);
+    const agent = await tenantStore.getAgent(id);
 
     if (!agent) {
       return c.json({ error: 'Agent not found', status: 404 }, 404);

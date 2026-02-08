@@ -83,6 +83,7 @@ describe('Story 2.1: Core Event Types and Interfaces', () => {
         metadata: { source: 'mcp' },
         prevHash: null,
         hash: 'abc123def456',
+        tenantId: 'default',
       };
 
       expect(event.id).toBe('01HXY0001');
@@ -259,6 +260,7 @@ describe('Story 2.1: Core Event Types and Interfaces', () => {
         metadata: {},
         prevHash: null,
         hash: 'abc',
+        tenantId: 'default',
       };
 
       // Runtime check that payload has expected shape for tool_call

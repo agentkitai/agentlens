@@ -20,6 +20,7 @@ function mockEvent(overrides: Partial<AgentLensEvent> = {}): AgentLensEvent {
     metadata: {},
     prevHash: null,
     hash: 'abc123',
+    tenantId: 'default',
     ...overrides,
   };
 }
@@ -40,6 +41,7 @@ function mockSession(overrides: Partial<Session> = {}): Session {
     totalInputTokens: 0,
     totalOutputTokens: 0,
     tags: [],
+    tenantId: 'default',
     ...overrides,
   };
 }
@@ -134,6 +136,18 @@ async function sseRequest(
 describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   afterEach(() => {
     eventBus.removeAllListeners();
+  });
+
+  it('rejects unauthenticated requests when auth is enabled', async () => {
+    const { app } = createTestApp(); // auth enabled
+    const res = await app.request('/api/stream');
+    expect(res.status).toBe(401);
+  });
+
+  it('accepts ?token= query param for auth', async () => {
+    const { app, apiKey } = createTestApp(); // auth enabled
+    const { headers } = await sseRequest(app, `/api/stream?token=${apiKey}`);
+    expect(headers.get('Content-Type')).toBe('text/event-stream');
   });
 
   it('returns SSE content-type headers', async () => {
@@ -301,6 +315,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
             notifyChannels: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            tenantId: 'default',
           },
           history: {
             id: 'hist_001',
@@ -309,6 +324,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
             currentValue: 0.25,
             threshold: 0.1,
             message: 'Error rate is 25% (threshold: 10%)',
+            tenantId: 'default',
           },
           timestamp: new Date().toISOString(),
         });

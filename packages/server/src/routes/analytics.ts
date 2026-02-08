@@ -13,12 +13,14 @@ import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { events, sessions } from '../db/schema.sqlite.js';
+import { getTenantStore } from './tenant-helper.js';
 
 export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
   // GET /api/analytics — bucketed metrics over time
   app.get('/', async (c) => {
+    const tenantStore = getTenantStore(store, c);
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
     const granularity = (c.req.query('granularity') ?? 'hour') as 'hour' | 'day' | 'week';
@@ -28,13 +30,14 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
       return c.json({ error: 'Invalid granularity. Use: hour, day, week', status: 400 }, 400);
     }
 
-    const result = await store.getAnalytics({ from, to, agentId, granularity });
+    const result = await tenantStore.getAnalytics({ from, to, agentId, granularity });
 
     return c.json(result);
   });
 
   // GET /api/analytics/costs — cost breakdown by agent and time
   app.get('/costs', async (c) => {
+    const tenantId = c.get('apiKey')?.tenantId ?? 'default';
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
     const granularity = (c.req.query('granularity') ?? 'day') as 'hour' | 'day' | 'week';
@@ -68,6 +71,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
           WHERE event_type = 'cost_tracked'
             AND timestamp >= ${from}
             AND timestamp <= ${to}
+            AND tenant_id = ${tenantId}
           GROUP BY agent_id
           ORDER BY totalCostUsd DESC
         `,
@@ -91,6 +95,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
           WHERE event_type = 'cost_tracked'
             AND timestamp >= ${from}
             AND timestamp <= ${to}
+            AND tenant_id = ${tenantId}
           GROUP BY bucket, agent_id
           ORDER BY bucket ASC
         `,
@@ -129,6 +134,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
         WHERE event_type = 'cost_tracked'
           AND timestamp >= ${from}
           AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
       `,
     );
 
@@ -158,6 +164,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
 
   // GET /api/analytics/agents — per-agent metrics
   app.get('/agents', async (c) => {
+    const tenantId = c.get('apiKey')?.tenantId ?? 'default';
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
 
@@ -186,6 +193,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
         FROM sessions s
         WHERE s.started_at >= ${from}
           AND s.started_at <= ${to}
+          AND s.tenant_id = ${tenantId}
         GROUP BY s.agent_id
         ORDER BY sessionCount DESC
       `,
@@ -209,6 +217,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
 
   // GET /api/analytics/llm — LLM call analytics
   app.get('/llm', async (c) => {
+    const tenantId = c.get('apiKey')?.tenantId ?? 'default';
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
     const granularity = (c.req.query('granularity') ?? 'hour') as 'hour' | 'day' | 'week';
@@ -246,6 +255,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
         WHERE event_type = 'llm_response'
           AND timestamp >= ${from}
           AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
           ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
           ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
           ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
@@ -278,6 +288,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
         WHERE event_type = 'llm_response'
           AND timestamp >= ${from}
           AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
           ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
           ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
           ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
@@ -307,6 +318,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
         WHERE event_type = 'llm_response'
           AND timestamp >= ${from}
           AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
           ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
           ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
           ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
@@ -346,6 +358,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
 
   // GET /api/analytics/tools — tool usage statistics
   app.get('/tools', async (c) => {
+    const tenantId = c.get('apiKey')?.tenantId ?? 'default';
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
 
@@ -369,9 +382,10 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
         WHERE event_type IN ('tool_call', 'tool_response', 'tool_error')
           AND timestamp >= ${from}
           AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
           AND json_extract(payload, '$.toolName') IS NOT NULL
         GROUP BY toolName
-        ORDER BY callCount DESC
+        ORDER by callCount DESC
       `,
     );
 

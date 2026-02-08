@@ -56,6 +56,7 @@ export class SqliteEventStore implements IEventStore {
     this.db.transaction((tx) => {
       // CRITICAL 3: Validate hash chain before inserting
       const firstEvent = eventList[0]!;
+      const tenantId = firstEvent.tenantId ?? 'default';
 
       // Check if the first event already exists (idempotent re-insert)
       const existingFirst = tx
@@ -69,7 +70,7 @@ export class SqliteEventStore implements IEventStore {
         const lastStoredEvent = tx
           .select({ hash: events.hash })
           .from(events)
-          .where(eq(events.sessionId, firstEvent.sessionId))
+          .where(and(eq(events.sessionId, firstEvent.sessionId), eq(events.tenantId, tenantId)))
           .orderBy(desc(events.timestamp), desc(events.id))
           .limit(1)
           .get();
@@ -132,15 +133,16 @@ export class SqliteEventStore implements IEventStore {
             metadata: JSON.stringify(event.metadata),
             prevHash: event.prevHash,
             hash: event.hash,
+            tenantId,
           })
           .onConflictDoNothing({ target: events.id })
           .run();
 
         // Handle session management
-        this._handleSessionUpdate(tx, event);
+        this._handleSessionUpdate(tx, event, tenantId);
 
         // Handle agent auto-creation
-        this._handleAgentUpsert(tx, event);
+        this._handleAgentUpsert(tx, event, tenantId);
       }
     });
   }
@@ -148,6 +150,7 @@ export class SqliteEventStore implements IEventStore {
   private _handleSessionUpdate(
     tx: Parameters<Parameters<SqliteDb['transaction']>[0]>[0],
     event: AgentLensEvent,
+    tenantId: string,
   ): void {
     if (event.eventType === 'session_started') {
       // Create new session
@@ -168,9 +171,10 @@ export class SqliteEventStore implements IEventStore {
           errorCount: 0,
           totalCostUsd: 0,
           tags: JSON.stringify(tags),
+          tenantId,
         })
         .onConflictDoUpdate({
-          target: sessions.id,
+          target: [sessions.id, sessions.tenantId],
           set: {
             agentName: agentName ?? sql`coalesce(${sessions.agentName}, NULL)`,
             status: 'active',
@@ -194,8 +198,9 @@ export class SqliteEventStore implements IEventStore {
         errorCount: 0,
         totalCostUsd: 0,
         tags: '[]',
+        tenantId,
       })
-      .onConflictDoNothing({ target: sessions.id })
+      .onConflictDoNothing({ target: [sessions.id, sessions.tenantId] })
       .run();
 
     // Build incremental updates
@@ -227,7 +232,7 @@ export class SqliteEventStore implements IEventStore {
             ? sql`${sessions.errorCount} + 1`
             : sessions.errorCount,
         })
-        .where(eq(sessions.id, event.sessionId))
+        .where(and(eq(sessions.id, event.sessionId), eq(sessions.tenantId, tenantId)))
         .run();
       return;
     }
@@ -257,15 +262,17 @@ export class SqliteEventStore implements IEventStore {
           ? sql`${sessions.totalOutputTokens} + ${llmOutputTokens}`
           : sessions.totalOutputTokens,
       })
-      .where(eq(sessions.id, event.sessionId))
+      .where(and(eq(sessions.id, event.sessionId), eq(sessions.tenantId, tenantId)))
       .run();
   }
 
   private _handleAgentUpsert(
     tx: Parameters<Parameters<SqliteDb['transaction']>[0]>[0],
     event: AgentLensEvent,
+    tenantId: string,
   ): void {
     // CRITICAL 4: Use INSERT ... ON CONFLICT DO UPDATE for agents
+    // Agents are scoped per tenant — use composite key (id + tenant_id)
     const payload = event.payload as Record<string, unknown>;
     const agentName =
       (payload.agentName as string) ?? event.agentId;
@@ -277,9 +284,10 @@ export class SqliteEventStore implements IEventStore {
         firstSeenAt: event.timestamp,
         lastSeenAt: event.timestamp,
         sessionCount: event.eventType === 'session_started' ? 1 : 0,
+        tenantId,
       })
       .onConflictDoUpdate({
-        target: agents.id,
+        target: [agents.id, agents.tenantId],
         set: {
           lastSeenAt: event.timestamp,
           sessionCount:
@@ -296,10 +304,11 @@ export class SqliteEventStore implements IEventStore {
   async upsertSession(
     session: Partial<Session> & { id: string },
   ): Promise<void> {
+    const tenantId = session.tenantId ?? 'default';
     const existing = this.db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, session.id))
+      .where(and(eq(sessions.id, session.id), eq(sessions.tenantId, tenantId)))
       .get();
 
     if (existing) {
@@ -322,7 +331,7 @@ export class SqliteEventStore implements IEventStore {
         this.db
           .update(sessions)
           .set(updates)
-          .where(eq(sessions.id, session.id))
+          .where(and(eq(sessions.id, session.id), eq(sessions.tenantId, tenantId)))
           .run();
       }
     } else {
@@ -343,6 +352,7 @@ export class SqliteEventStore implements IEventStore {
           totalInputTokens: session.totalInputTokens ?? 0,
           totalOutputTokens: session.totalOutputTokens ?? 0,
           tags: JSON.stringify(session.tags ?? []),
+          tenantId,
         })
         .run();
     }
@@ -353,10 +363,11 @@ export class SqliteEventStore implements IEventStore {
   async upsertAgent(
     agent: Partial<Agent> & { id: string },
   ): Promise<void> {
+    const tenantId = agent.tenantId ?? 'default';
     const existing = this.db
       .select()
       .from(agents)
-      .where(eq(agents.id, agent.id))
+      .where(and(eq(agents.id, agent.id), eq(agents.tenantId, tenantId)))
       .get();
 
     if (existing) {
@@ -370,7 +381,7 @@ export class SqliteEventStore implements IEventStore {
         this.db
           .update(agents)
           .set(updates)
-          .where(eq(agents.id, agent.id))
+          .where(and(eq(agents.id, agent.id), eq(agents.tenantId, tenantId)))
           .run();
       }
     } else {
@@ -384,6 +395,7 @@ export class SqliteEventStore implements IEventStore {
           firstSeenAt: agent.firstSeenAt ?? now,
           lastSeenAt: agent.lastSeenAt ?? now,
           sessionCount: agent.sessionCount ?? 0,
+          tenantId,
         })
         .run();
     }
@@ -416,32 +428,41 @@ export class SqliteEventStore implements IEventStore {
     };
   }
 
-  async getEvent(id: string): Promise<AgentLensEvent | null> {
+  async getEvent(id: string, tenantId?: string): Promise<AgentLensEvent | null> {
+    const conditions = [eq(events.id, id)];
+    if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+
     const row = this.db
       .select()
       .from(events)
-      .where(eq(events.id, id))
+      .where(and(...conditions))
       .get();
 
     return row ? this._mapEventRow(row) : null;
   }
 
-  async getSessionTimeline(sessionId: string): Promise<AgentLensEvent[]> {
+  async getSessionTimeline(sessionId: string, tenantId?: string): Promise<AgentLensEvent[]> {
+    const conditions = [eq(events.sessionId, sessionId)];
+    if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+
     const rows = this.db
       .select()
       .from(events)
-      .where(eq(events.sessionId, sessionId))
+      .where(and(...conditions))
       .orderBy(asc(events.timestamp))
       .all();
 
     return rows.map(this._mapEventRow);
   }
 
-  async getLastEventHash(sessionId: string): Promise<string | null> {
+  async getLastEventHash(sessionId: string, tenantId?: string): Promise<string | null> {
+    const conditions = [eq(events.sessionId, sessionId)];
+    if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+
     const row = this.db
       .select({ hash: events.hash })
       .from(events)
-      .where(eq(events.sessionId, sessionId))
+      .where(and(...conditions))
       .orderBy(desc(events.timestamp), desc(events.id))
       .limit(1)
       .get();
@@ -494,11 +515,14 @@ export class SqliteEventStore implements IEventStore {
     };
   }
 
-  async getSession(id: string): Promise<Session | null> {
+  async getSession(id: string, tenantId?: string): Promise<Session | null> {
+    const conditions = [eq(sessions.id, id)];
+    if (tenantId) conditions.push(eq(sessions.tenantId, tenantId));
+
     const row = this.db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, id))
+      .where(and(...conditions))
       .get();
 
     return row ? this._mapSessionRow(row) : null;
@@ -506,21 +530,27 @@ export class SqliteEventStore implements IEventStore {
 
   // ─── Agents — Read ─────────────────────────────────────────
 
-  async listAgents(): Promise<Agent[]> {
+  async listAgents(tenantId?: string): Promise<Agent[]> {
+    const conditions = tenantId ? [eq(agents.tenantId, tenantId)] : [];
+
     const rows = this.db
       .select()
       .from(agents)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(agents.lastSeenAt))
       .all();
 
     return rows.map(this._mapAgentRow);
   }
 
-  async getAgent(id: string): Promise<Agent | null> {
+  async getAgent(id: string, tenantId?: string): Promise<Agent | null> {
+    const conditions = [eq(agents.id, id)];
+    if (tenantId) conditions.push(eq(agents.tenantId, tenantId));
+
     const row = this.db
       .select()
       .from(agents)
-      .where(eq(agents.id, id))
+      .where(and(...conditions))
       .get();
 
     return row ? this._mapAgentRow(row) : null;
@@ -533,6 +563,7 @@ export class SqliteEventStore implements IEventStore {
     to: string;
     agentId?: string;
     granularity: 'hour' | 'day' | 'week';
+    tenantId?: string;
   }): Promise<AnalyticsResult> {
     // HIGH 5: Build the time-bucket format string for SQLite strftime
     const formatStr =
@@ -575,6 +606,7 @@ export class SqliteEventStore implements IEventStore {
           WHERE timestamp >= ${params.from}
             AND timestamp <= ${params.to}
             ${params.agentId ? sql`AND agent_id = ${params.agentId}` : sql``}
+            ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
           GROUP BY bucket
           ORDER BY bucket ASC
         `,
@@ -603,6 +635,7 @@ export class SqliteEventStore implements IEventStore {
         WHERE timestamp >= ${params.from}
           AND timestamp <= ${params.to}
           ${params.agentId ? sql`AND agent_id = ${params.agentId}` : sql``}
+          ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
       `,
     );
 
@@ -644,6 +677,7 @@ export class SqliteEventStore implements IEventStore {
         notifyChannels: JSON.stringify(rule.notifyChannels),
         createdAt: rule.createdAt,
         updatedAt: rule.updatedAt,
+        tenantId: rule.tenantId ?? 'default',
       })
       .run();
   }
@@ -652,6 +686,7 @@ export class SqliteEventStore implements IEventStore {
   async updateAlertRule(
     id: string,
     updates: Partial<AlertRule>,
+    tenantId?: string,
   ): Promise<void> {
     const setValues: Record<string, unknown> = {};
     if (updates.name !== undefined) setValues.name = updates.name;
@@ -663,12 +698,15 @@ export class SqliteEventStore implements IEventStore {
     if (updates.notifyChannels !== undefined) setValues.notifyChannels = JSON.stringify(updates.notifyChannels);
     if (updates.updatedAt !== undefined) setValues.updatedAt = updates.updatedAt;
 
+    const whereConditions = [eq(alertRules.id, id)];
+    if (tenantId) whereConditions.push(eq(alertRules.tenantId, tenantId));
+
     if (Object.keys(setValues).length === 0) {
       // Even with no actual updates, verify the rule exists
       const existing = this.db
         .select({ id: alertRules.id })
         .from(alertRules)
-        .where(eq(alertRules.id, id))
+        .where(and(...whereConditions))
         .get();
       if (!existing) {
         throw new NotFoundError(`Alert rule not found: ${id}`);
@@ -679,7 +717,7 @@ export class SqliteEventStore implements IEventStore {
     const result = this.db
       .update(alertRules)
       .set(setValues)
-      .where(eq(alertRules.id, id))
+      .where(and(...whereConditions))
       .run();
 
     if (result.changes === 0) {
@@ -687,23 +725,34 @@ export class SqliteEventStore implements IEventStore {
     }
   }
 
-  async deleteAlertRule(id: string): Promise<void> {
-    const result = this.db.delete(alertRules).where(eq(alertRules.id, id)).run();
+  async deleteAlertRule(id: string, tenantId?: string): Promise<void> {
+    const whereConditions = [eq(alertRules.id, id)];
+    if (tenantId) whereConditions.push(eq(alertRules.tenantId, tenantId));
+
+    const result = this.db.delete(alertRules).where(and(...whereConditions)).run();
     if (result.changes === 0) {
       throw new NotFoundError(`Alert rule not found: ${id}`);
     }
   }
 
-  async listAlertRules(): Promise<AlertRule[]> {
-    const rows = this.db.select().from(alertRules).all();
+  async listAlertRules(tenantId?: string): Promise<AlertRule[]> {
+    const conditions = tenantId ? [eq(alertRules.tenantId, tenantId)] : [];
+    const rows = this.db
+      .select()
+      .from(alertRules)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .all();
     return rows.map(this._mapAlertRuleRow);
   }
 
-  async getAlertRule(id: string): Promise<AlertRule | null> {
+  async getAlertRule(id: string, tenantId?: string): Promise<AlertRule | null> {
+    const conditions = [eq(alertRules.id, id)];
+    if (tenantId) conditions.push(eq(alertRules.tenantId, tenantId));
+
     const row = this.db
       .select()
       .from(alertRules)
-      .where(eq(alertRules.id, id))
+      .where(and(...conditions))
       .get();
     return row ? this._mapAlertRuleRow(row) : null;
   }
@@ -721,6 +770,7 @@ export class SqliteEventStore implements IEventStore {
         currentValue: entry.currentValue,
         threshold: entry.threshold,
         message: entry.message,
+        tenantId: entry.tenantId ?? 'default',
       })
       .run();
   }
@@ -729,6 +779,7 @@ export class SqliteEventStore implements IEventStore {
     ruleId?: string;
     limit?: number;
     offset?: number;
+    tenantId?: string;
   }): Promise<{ entries: AlertHistory[]; total: number }> {
     const limit = Math.min(opts?.limit ?? 50, 500);
     const offset = opts?.offset ?? 0;
@@ -736,6 +787,9 @@ export class SqliteEventStore implements IEventStore {
     const conditions = [];
     if (opts?.ruleId) {
       conditions.push(eq(alertHistory.ruleId, opts.ruleId));
+    }
+    if (opts?.tenantId) {
+      conditions.push(eq(alertHistory.tenantId, opts.tenantId));
     }
 
     const rows = this.db
@@ -762,6 +816,7 @@ export class SqliteEventStore implements IEventStore {
         currentValue: row.currentValue,
         threshold: row.threshold,
         message: row.message,
+        tenantId: row.tenantId,
       })),
       total: totalResult?.count ?? 0,
     };
@@ -771,53 +826,81 @@ export class SqliteEventStore implements IEventStore {
 
   async applyRetention(
     olderThan: string,
+    tenantId?: string,
   ): Promise<{ deletedCount: number }> {
+    // Build conditions — always filter by timestamp, optionally by tenant
+    const countConditions = [lte(events.timestamp, olderThan)];
+    if (tenantId) countConditions.push(eq(events.tenantId, tenantId));
+
     // Count events to be deleted
     const countResult = this.db
       .select({ count: drizzleCount() })
       .from(events)
-      .where(lte(events.timestamp, olderThan))
+      .where(and(...countConditions))
       .get();
     const deletedCount = countResult?.count ?? 0;
 
     if (deletedCount === 0) return { deletedCount: 0 };
 
     this.db.transaction((tx) => {
-      // Delete old events
-      tx.delete(events).where(lte(events.timestamp, olderThan)).run();
+      if (tenantId) {
+        // Tenant-scoped retention: only delete this tenant's old events
+        tx.delete(events)
+          .where(and(lte(events.timestamp, olderThan), eq(events.tenantId, tenantId)))
+          .run();
 
-      // Clean up sessions with no remaining events
-      tx.run(sql`
-        DELETE FROM sessions
-        WHERE id NOT IN (SELECT DISTINCT session_id FROM events)
-      `);
+        // Clean up this tenant's sessions that have no remaining events
+        tx.run(sql`
+          DELETE FROM sessions
+          WHERE tenant_id = ${tenantId}
+            AND id NOT IN (
+              SELECT DISTINCT session_id FROM events WHERE tenant_id = ${tenantId}
+            )
+        `);
+      } else {
+        // Global retention (system-level, not exposed through TenantScopedStore)
+        tx.delete(events).where(lte(events.timestamp, olderThan)).run();
+
+        tx.run(sql`
+          DELETE FROM sessions
+          WHERE id NOT IN (SELECT DISTINCT session_id FROM events)
+        `);
+      }
     });
 
     return { deletedCount };
   }
 
-  async getStats(): Promise<StorageStats> {
+  async getStats(tenantId?: string): Promise<StorageStats> {
+    const eventConditions = tenantId ? [eq(events.tenantId, tenantId)] : [];
+    const sessionConditions = tenantId ? [eq(sessions.tenantId, tenantId)] : [];
+    const agentConditions = tenantId ? [eq(agents.tenantId, tenantId)] : [];
+
     const eventCount =
       this.db
         .select({ count: drizzleCount() })
         .from(events)
+        .where(eventConditions.length > 0 ? and(...eventConditions) : undefined)
         .get()?.count ?? 0;
 
     const sessionCount =
       this.db
         .select({ count: drizzleCount() })
         .from(sessions)
+        .where(sessionConditions.length > 0 ? and(...sessionConditions) : undefined)
         .get()?.count ?? 0;
 
     const agentCount =
       this.db
         .select({ count: drizzleCount() })
         .from(agents)
+        .where(agentConditions.length > 0 ? and(...agentConditions) : undefined)
         .get()?.count ?? 0;
 
     const oldest = this.db
       .select({ timestamp: events.timestamp })
       .from(events)
+      .where(eventConditions.length > 0 ? and(...eventConditions) : undefined)
       .orderBy(asc(events.timestamp))
       .limit(1)
       .get();
@@ -825,6 +908,7 @@ export class SqliteEventStore implements IEventStore {
     const newest = this.db
       .select({ timestamp: events.timestamp })
       .from(events)
+      .where(eventConditions.length > 0 ? and(...eventConditions) : undefined)
       .orderBy(desc(events.timestamp))
       .limit(1)
       .get();
@@ -852,6 +936,9 @@ export class SqliteEventStore implements IEventStore {
   private _buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>) {
     const conditions = [];
 
+    if (query.tenantId) {
+      conditions.push(eq(events.tenantId, query.tenantId));
+    }
     if (query.sessionId) {
       conditions.push(eq(events.sessionId, query.sessionId));
     }
@@ -894,6 +981,9 @@ export class SqliteEventStore implements IEventStore {
   private _buildSessionConditions(query: SessionQuery) {
     const conditions = [];
 
+    if (query.tenantId) {
+      conditions.push(eq(sessions.tenantId, query.tenantId));
+    }
     if (query.agentId) {
       conditions.push(eq(sessions.agentId, query.agentId));
     }
@@ -942,6 +1032,7 @@ export class SqliteEventStore implements IEventStore {
       metadata: safeJsonParse(row.metadata, {} as Record<string, unknown>),
       prevHash: row.prevHash,
       hash: row.hash,
+      tenantId: row.tenantId,
     };
   }
 
@@ -961,6 +1052,7 @@ export class SqliteEventStore implements IEventStore {
       totalInputTokens: row.totalInputTokens,
       totalOutputTokens: row.totalOutputTokens,
       tags: safeJsonParse(row.tags, [] as string[]),
+      tenantId: row.tenantId,
     };
   }
 
@@ -972,6 +1064,7 @@ export class SqliteEventStore implements IEventStore {
       firstSeenAt: row.firstSeenAt,
       lastSeenAt: row.lastSeenAt,
       sessionCount: row.sessionCount,
+      tenantId: row.tenantId,
     };
   }
 
@@ -987,6 +1080,7 @@ export class SqliteEventStore implements IEventStore {
       notifyChannels: safeJsonParse(row.notifyChannels, [] as string[]),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
+      tenantId: row.tenantId,
     };
   }
 }

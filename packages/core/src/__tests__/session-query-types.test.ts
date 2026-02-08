@@ -30,6 +30,7 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         totalInputTokens: 1500,
         totalOutputTokens: 800,
         tags: ['research', 'production'],
+        tenantId: 'default',
       };
 
       expect(session.id).toBe('sess_abc123');
@@ -59,6 +60,7 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         totalInputTokens: 0,
         totalOutputTokens: 0,
         tags: [],
+        tenantId: 'default',
       };
 
       expect(session.agentName).toBeUndefined();
@@ -85,6 +87,7 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         firstSeenAt: '2026-01-01T00:00:00Z',
         lastSeenAt: '2026-02-07T10:00:00Z',
         sessionCount: 100,
+        tenantId: 'default',
       };
 
       expect(agent.id).toBe('agent_main');
@@ -102,6 +105,7 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         firstSeenAt: '2026-01-01T00:00:00Z',
         lastSeenAt: '2026-02-07T10:00:00Z',
         sessionCount: 100,
+        tenantId: 'default',
       };
 
       expect(agent.description).toBeUndefined();
@@ -211,6 +215,7 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         notifyChannels: ['https://hooks.slack.com/xxx'],
         createdAt: '2026-02-01T00:00:00Z',
         updatedAt: '2026-02-07T10:00:00Z',
+        tenantId: 'default',
       };
 
       expect(rule.id).toBe('rule_1');
@@ -247,6 +252,7 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         currentValue: 0.15,
         threshold: 0.1,
         message: 'Error rate exceeded threshold',
+        tenantId: 'default',
       };
 
       expect(history.id).toBe('alert_hist_1');
@@ -266,6 +272,7 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         currentValue: 0.15,
         threshold: 0.1,
         message: 'Error rate exceeded threshold',
+        tenantId: 'default',
       };
 
       expect(history.resolvedAt).toBeUndefined();

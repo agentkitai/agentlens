@@ -35,7 +35,7 @@ export function runMigrations(db: SqliteDb): void {
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
       agent_id TEXT NOT NULL,
       agent_name TEXT,
       started_at TEXT NOT NULL,
@@ -48,18 +48,22 @@ export function runMigrations(db: SqliteDb): void {
       llm_call_count INTEGER NOT NULL DEFAULT 0,
       total_input_tokens INTEGER NOT NULL DEFAULT 0,
       total_output_tokens INTEGER NOT NULL DEFAULT 0,
-      tags TEXT NOT NULL DEFAULT '[]'
+      tags TEXT NOT NULL DEFAULT '[]',
+      tenant_id TEXT NOT NULL DEFAULT 'default',
+      PRIMARY KEY (id, tenant_id)
     )
   `);
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS agents (
-      id TEXT PRIMARY KEY,
+      id TEXT NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
       first_seen_at TEXT NOT NULL,
       last_seen_at TEXT NOT NULL,
-      session_count INTEGER NOT NULL DEFAULT 0
+      session_count INTEGER NOT NULL DEFAULT 0,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
+      PRIMARY KEY (id, tenant_id)
     )
   `);
 
@@ -122,15 +126,156 @@ export function runMigrations(db: SqliteDb): void {
   // Add LLM tracking columns to sessions (v0.3.0)
   // SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we check first
   const sessionColumns = db.all<{ name: string }>(sql`PRAGMA table_info(sessions)`);
-  const columnNames = new Set(sessionColumns.map((c) => c.name));
-  if (!columnNames.has('llm_call_count')) {
+  const sessionColumnNames = new Set(sessionColumns.map((c) => c.name));
+  if (!sessionColumnNames.has('llm_call_count')) {
     db.run(sql`ALTER TABLE sessions ADD COLUMN llm_call_count INTEGER NOT NULL DEFAULT 0`);
   }
-  if (!columnNames.has('total_input_tokens')) {
+  if (!sessionColumnNames.has('total_input_tokens')) {
     db.run(sql`ALTER TABLE sessions ADD COLUMN total_input_tokens INTEGER NOT NULL DEFAULT 0`);
   }
-  if (!columnNames.has('total_output_tokens')) {
+  if (!sessionColumnNames.has('total_output_tokens')) {
     db.run(sql`ALTER TABLE sessions ADD COLUMN total_output_tokens INTEGER NOT NULL DEFAULT 0`);
+  }
+
+  // ─── Tenant isolation migration (Epic 1) ──────────────────
+  // Add tenant_id to all data tables for multi-tenant support
+
+  // api_keys.tenant_id
+  const apiKeyColumns = db.all<{ name: string }>(sql`PRAGMA table_info(api_keys)`);
+  const apiKeyColumnNames = new Set(apiKeyColumns.map((c) => c.name));
+  if (!apiKeyColumnNames.has('tenant_id')) {
+    db.run(sql`ALTER TABLE api_keys ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+
+  // events.tenant_id
+  const eventColumns = db.all<{ name: string }>(sql`PRAGMA table_info(events)`);
+  const eventColumnNames = new Set(eventColumns.map((c) => c.name));
+  if (!eventColumnNames.has('tenant_id')) {
+    db.run(sql`ALTER TABLE events ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+
+  // sessions.tenant_id
+  if (!sessionColumnNames.has('tenant_id')) {
+    db.run(sql`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+
+  // agents.tenant_id
+  const agentColumns = db.all<{ name: string }>(sql`PRAGMA table_info(agents)`);
+  const agentColumnNames = new Set(agentColumns.map((c) => c.name));
+  if (!agentColumnNames.has('tenant_id')) {
+    db.run(sql`ALTER TABLE agents ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+
+  // alert_rules.tenant_id
+  const alertRuleColumns = db.all<{ name: string }>(sql`PRAGMA table_info(alert_rules)`);
+  const alertRuleColumnNames = new Set(alertRuleColumns.map((c) => c.name));
+  if (!alertRuleColumnNames.has('tenant_id')) {
+    db.run(sql`ALTER TABLE alert_rules ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+
+  // alert_history.tenant_id
+  const alertHistoryColumns = db.all<{ name: string }>(sql`PRAGMA table_info(alert_history)`);
+  const alertHistoryColumnNames = new Set(alertHistoryColumns.map((c) => c.name));
+  if (!alertHistoryColumnNames.has('tenant_id')) {
+    db.run(sql`ALTER TABLE alert_history ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+
+  // Tenant isolation indexes
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_tenant_id ON events(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_tenant_session ON events(tenant_id, session_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_tenant_agent_ts ON events(tenant_id, agent_id, timestamp)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_tenant_id ON sessions(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_tenant_agent ON sessions(tenant_id, agent_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_tenant_started ON sessions(tenant_id, started_at)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_agents_tenant_id ON agents(tenant_id)`);
+
+  // ─── Composite PK migration (CRITICAL-2) ──────────────────
+  // SQLite doesn't support ALTER TABLE to change PKs, so we recreate
+  // tables with composite PKs (id, tenant_id) for tenant isolation.
+
+  // Check if sessions table still has single-column PK
+  // by looking at the CREATE TABLE statement
+  const sessionsSchema = db.get<{ sql: string }>(
+    sql`SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'`,
+  );
+  if (sessionsSchema && sessionsSchema.sql.includes('id TEXT PRIMARY KEY')) {
+    // Drop old indexes that reference sessions (they'll be recreated)
+    db.run(sql`DROP INDEX IF EXISTS idx_sessions_agent_id`);
+    db.run(sql`DROP INDEX IF EXISTS idx_sessions_started_at`);
+    db.run(sql`DROP INDEX IF EXISTS idx_sessions_status`);
+    db.run(sql`DROP INDEX IF EXISTS idx_sessions_tenant_id`);
+    db.run(sql`DROP INDEX IF EXISTS idx_sessions_tenant_agent`);
+    db.run(sql`DROP INDEX IF EXISTS idx_sessions_tenant_started`);
+
+    db.run(sql`
+      CREATE TABLE sessions_new (
+        id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        agent_name TEXT,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        event_count INTEGER NOT NULL DEFAULT 0,
+        tool_call_count INTEGER NOT NULL DEFAULT 0,
+        error_count INTEGER NOT NULL DEFAULT 0,
+        total_cost_usd REAL NOT NULL DEFAULT 0,
+        llm_call_count INTEGER NOT NULL DEFAULT 0,
+        total_input_tokens INTEGER NOT NULL DEFAULT 0,
+        total_output_tokens INTEGER NOT NULL DEFAULT 0,
+        tags TEXT NOT NULL DEFAULT '[]',
+        tenant_id TEXT NOT NULL DEFAULT 'default',
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    db.run(sql`
+      INSERT INTO sessions_new
+        SELECT id, agent_id, agent_name, started_at, ended_at, status,
+               event_count, tool_call_count, error_count, total_cost_usd,
+               llm_call_count, total_input_tokens, total_output_tokens,
+               tags, tenant_id
+        FROM sessions
+    `);
+    db.run(sql`DROP TABLE sessions`);
+    db.run(sql`ALTER TABLE sessions_new RENAME TO sessions`);
+
+    // Recreate indexes
+    db.run(sql`CREATE INDEX idx_sessions_agent_id ON sessions(agent_id)`);
+    db.run(sql`CREATE INDEX idx_sessions_started_at ON sessions(started_at)`);
+    db.run(sql`CREATE INDEX idx_sessions_status ON sessions(status)`);
+    db.run(sql`CREATE INDEX idx_sessions_tenant_id ON sessions(tenant_id)`);
+    db.run(sql`CREATE INDEX idx_sessions_tenant_agent ON sessions(tenant_id, agent_id)`);
+    db.run(sql`CREATE INDEX idx_sessions_tenant_started ON sessions(tenant_id, started_at)`);
+  }
+
+  // Check if agents table still has single-column PK
+  const agentsSchema = db.get<{ sql: string }>(
+    sql`SELECT sql FROM sqlite_master WHERE type='table' AND name='agents'`,
+  );
+  if (agentsSchema && agentsSchema.sql.includes('id TEXT PRIMARY KEY')) {
+    db.run(sql`DROP INDEX IF EXISTS idx_agents_tenant_id`);
+
+    db.run(sql`
+      CREATE TABLE agents_new (
+        id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        session_count INTEGER NOT NULL DEFAULT 0,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
+        PRIMARY KEY (id, tenant_id)
+      )
+    `);
+    db.run(sql`
+      INSERT INTO agents_new
+        SELECT id, name, description, first_seen_at, last_seen_at,
+               session_count, tenant_id
+        FROM agents
+    `);
+    db.run(sql`DROP TABLE agents`);
+    db.run(sql`ALTER TABLE agents_new RENAME TO agents`);
+
+    db.run(sql`CREATE INDEX idx_agents_tenant_id ON agents(tenant_id)`);
   }
 }
 

@@ -50,6 +50,7 @@ export { analyticsRoutes } from './routes/analytics.js';
 export { streamRoutes } from './routes/stream.js';
 export { createSSEStream } from './lib/sse.js';
 export { SqliteEventStore } from './db/sqlite-store.js';
+export { TenantScopedStore } from './db/tenant-scoped-store.js';
 export { AlertEngine } from './lib/alert-engine.js';
 export { eventBus } from './lib/event-bus.js';
 export { createDb, createTestDb } from './db/index.js';
@@ -158,8 +159,9 @@ export function createApp(
     return c.json({ status: 'ok', version: '0.1.0' });
   });
 
-  // ─── SSE stream (no API key auth — browser EventSource doesn't send headers) ──
-  app.route('/api/stream', streamRoutes());
+  // ─── SSE stream (authenticates via Bearer header or ?token= query param) ──
+  // Mounted before auth middleware — handles its own auth internally for EventSource compat.
+  app.route('/api/stream', streamRoutes(config?.db, resolvedConfig.authDisabled));
 
   // ─── Webhook ingest (no API key auth — uses HMAC signature verification) ──
   app.route('/api/events/ingest', ingestRoutes(store, {

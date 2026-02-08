@@ -32,6 +32,7 @@ function makeEvent(
     metadata: overrides.metadata ?? {},
     prevHash,
     hash: '',
+    tenantId: 'default',
   };
 
   base.hash = computeEventHash({
@@ -80,6 +81,7 @@ describe('AlertEngine.evaluate()', () => {
       notifyChannels: [],
       createdAt: now,
       updatedAt: now,
+      tenantId: 'default',
     });
 
     const triggered = await engine.evaluate();
@@ -101,6 +103,7 @@ describe('AlertEngine.evaluate()', () => {
       notifyChannels: [],
       createdAt: now,
       updatedAt: now,
+      tenantId: 'default',
     });
 
     // Insert events as a single batch: 1 start + 8 normal + 2 errors = ~18% error rate
@@ -161,6 +164,7 @@ describe('AlertEngine.evaluate()', () => {
       notifyChannels: [],
       createdAt: now,
       updatedAt: now,
+      tenantId: 'default',
     });
 
     // Insert events as a single batch to avoid hash chain issues
@@ -207,6 +211,7 @@ describe('AlertEngine.evaluate()', () => {
       notifyChannels: [],
       createdAt: now,
       updatedAt: now,
+      tenantId: 'default',
     });
 
     // Insert 5 events as a batch (>3 threshold)
@@ -248,6 +253,7 @@ describe('AlertEngine.evaluate()', () => {
       notifyChannels: [],
       createdAt: now,
       updatedAt: now,
+      tenantId: 'default',
     });
 
     // No events inserted

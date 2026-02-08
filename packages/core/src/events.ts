@@ -28,6 +28,8 @@ export interface CreateEventOptions {
   prevHash?: string | null;
   /** Optional client-provided timestamp (defaults to now) */
   timestamp?: string;
+  /** Tenant ID (defaults to 'default') */
+  tenantId?: string;
 }
 
 /**
@@ -70,6 +72,7 @@ export function createEvent(options: CreateEventOptions): AgentLensEvent {
     metadata,
     prevHash,
     hash,
+    tenantId: options.tenantId ?? 'default',
   };
 }
 

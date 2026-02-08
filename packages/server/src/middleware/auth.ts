@@ -20,6 +20,7 @@ export interface ApiKeyInfo {
   id: string;
   name: string;
   scopes: string[];
+  tenantId: string;
 }
 
 /**
@@ -46,7 +47,7 @@ export function authMiddleware(db: SqliteDb, authDisabled: boolean) {
   return createMiddleware<{ Variables: AuthVariables }>(async (c, next) => {
     // Dev mode: skip auth
     if (authDisabled) {
-      c.set('apiKey', { id: 'dev', name: 'dev-mode', scopes: ['*'] });
+      c.set('apiKey', { id: 'dev', name: 'dev-mode', scopes: ['*'], tenantId: 'default' });
       return next();
     }
 
@@ -97,6 +98,7 @@ export function authMiddleware(db: SqliteDb, authDisabled: boolean) {
       id: row.id,
       name: row.name,
       scopes,
+      tenantId: row.tenantId,
     });
 
     return next();

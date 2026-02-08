@@ -5,7 +5,7 @@
  * All indexes per Architecture §6.2.
  */
 
-import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, primaryKey } from 'drizzle-orm/sqlite-core';
 
 // ─── Events Table ──────────────────────────────────────────
 export const events = sqliteTable(
@@ -21,6 +21,7 @@ export const events = sqliteTable(
     metadata: text('metadata').notNull().default('{}'), // JSON
     prevHash: text('prev_hash'),
     hash: text('hash').notNull(),
+    tenantId: text('tenant_id').notNull().default('default'),
   },
   (table) => [
     index('idx_events_timestamp').on(table.timestamp),
@@ -30,6 +31,10 @@ export const events = sqliteTable(
     index('idx_events_session_ts').on(table.sessionId, table.timestamp),
     // Composite index for dashboard query: "recent events for agent X of type Y"
     index('idx_events_agent_type_ts').on(table.agentId, table.eventType, table.timestamp),
+    // Tenant isolation indexes
+    index('idx_events_tenant_id').on(table.tenantId),
+    index('idx_events_tenant_session').on(table.tenantId, table.sessionId),
+    index('idx_events_tenant_agent_ts').on(table.tenantId, table.agentId, table.timestamp),
   ],
 );
 
@@ -37,7 +42,7 @@ export const events = sqliteTable(
 export const sessions = sqliteTable(
   'sessions',
   {
-    id: text('id').primaryKey(),
+    id: text('id').notNull(),
     agentId: text('agent_id').notNull(),
     agentName: text('agent_name'),
     startedAt: text('started_at').notNull(), // ISO 8601
@@ -55,23 +60,37 @@ export const sessions = sqliteTable(
     totalInputTokens: integer('total_input_tokens').notNull().default(0),
     totalOutputTokens: integer('total_output_tokens').notNull().default(0),
     tags: text('tags').notNull().default('[]'), // JSON array
+    tenantId: text('tenant_id').notNull().default('default'),
   },
   (table) => [
+    primaryKey({ columns: [table.id, table.tenantId] }),
     index('idx_sessions_agent_id').on(table.agentId),
     index('idx_sessions_started_at').on(table.startedAt),
     index('idx_sessions_status').on(table.status),
+    // Tenant isolation indexes
+    index('idx_sessions_tenant_id').on(table.tenantId),
+    index('idx_sessions_tenant_agent').on(table.tenantId, table.agentId),
+    index('idx_sessions_tenant_started').on(table.tenantId, table.startedAt),
   ],
 );
 
 // ─── Agents Table (materialized) ──────────────────────────
-export const agents = sqliteTable('agents', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  description: text('description'),
-  firstSeenAt: text('first_seen_at').notNull(),
-  lastSeenAt: text('last_seen_at').notNull(),
-  sessionCount: integer('session_count').notNull().default(0),
-});
+export const agents = sqliteTable(
+  'agents',
+  {
+    id: text('id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    firstSeenAt: text('first_seen_at').notNull(),
+    lastSeenAt: text('last_seen_at').notNull(),
+    sessionCount: integer('session_count').notNull().default(0),
+    tenantId: text('tenant_id').notNull().default('default'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.id, table.tenantId] }),
+    index('idx_agents_tenant_id').on(table.tenantId),
+  ],
+);
 
 // ─── Alert Rules Table ────────────────────────────────────
 export const alertRules = sqliteTable('alert_rules', {
@@ -85,6 +104,7 @@ export const alertRules = sqliteTable('alert_rules', {
   notifyChannels: text('notify_channels').notNull().default('[]'), // JSON
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+  tenantId: text('tenant_id').notNull().default('default'),
 });
 
 // ─── Alert History ────────────────────────────────────────
@@ -100,6 +120,7 @@ export const alertHistory = sqliteTable(
     currentValue: real('current_value').notNull(),
     threshold: real('threshold').notNull(),
     message: text('message').notNull(),
+    tenantId: text('tenant_id').notNull().default('default'),
   },
   (table) => [index('idx_alert_history_rule_id').on(table.ruleId)],
 );
@@ -116,6 +137,7 @@ export const apiKeys = sqliteTable(
     lastUsedAt: integer('last_used_at'),
     revokedAt: integer('revoked_at'),
     rateLimit: integer('rate_limit'),
+    tenantId: text('tenant_id').notNull().default('default'),
   },
   (table) => [index('idx_api_keys_hash').on(table.keyHash)],
 );
