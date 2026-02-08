@@ -249,7 +249,7 @@ export function createApp(
   {
     const embeddingService = config?.embeddingService ?? null;
     const embeddingStore = db ? new EmbeddingStore(db) : null;
-    app.route('/api/recall', recallRoutes({ embeddingService, embeddingStore }));
+    app.route('/api/recall', recallRoutes({ embeddingService, embeddingStore, eventStore: store }));
 
     // ─── Context / Cross-Session Retrieval ──────────────
     if (db) {

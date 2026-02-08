@@ -65,7 +65,7 @@ export async function analyzeErrorPatterns(
     from: opts.from,
     to: opts.to,
     eventType: 'tool_error',
-    limit: 500,
+    limit: 1000,
     order: 'asc',
   });
 
@@ -75,9 +75,13 @@ export async function analyzeErrorPatterns(
     from: opts.from,
     to: opts.to,
     severity: ['error', 'critical'],
-    limit: 500,
+    limit: 1000,
     order: 'asc',
   });
+
+  // Track whether either query hit its limit (results may be truncated)
+  const possiblyTruncated =
+    toolErrorResult.events.length === 1000 || severityErrorResult.events.length === 1000;
 
   // Merge and deduplicate by event ID
   const seenIds = new Set<string>();
@@ -177,6 +181,7 @@ export async function analyzeErrorPatterns(
     metadata: {
       eventsAnalyzed,
       timeRange,
+      ...(possiblyTruncated ? { truncated: true, note: 'Results may be incomplete — query limit reached' } : {}),
     },
   };
 }

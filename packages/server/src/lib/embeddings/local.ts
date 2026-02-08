@@ -26,10 +26,11 @@ export function createLocalEmbeddingService(modelName?: string): EmbeddingServic
       pipelinePromise = (async () => {
         try {
           // Dynamic import — @xenova/transformers may not be installed
-          // Use a variable to prevent TypeScript from resolving the module at compile time
+          // Use a variable to prevent TypeScript/bundlers from resolving at compile time
           const moduleName = '@xenova/transformers';
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mod = await (Function('m', 'return import(m)') as (m: string) => Promise<any>)(moduleName);
+          // @ts-expect-error — dynamic module specifier to avoid compile-time resolution
+          const mod: any = await import(moduleName);
           const { pipeline } = mod;
           return await pipeline('feature-extraction', model);
         } catch (err: unknown) {

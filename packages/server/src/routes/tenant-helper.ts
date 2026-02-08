@@ -26,5 +26,22 @@ export function getTenantStore(
   if (apiKeyInfo?.tenantId && store instanceof SqliteEventStore) {
     return new TenantScopedStore(store, apiKeyInfo.tenantId);
   }
+
+  // If auth provided a tenantId but the store isn't SqliteEventStore,
+  // tenant isolation cannot be applied — warn or reject.
+  if (apiKeyInfo?.tenantId && !(store instanceof SqliteEventStore)) {
+    const isTest = process.env['NODE_ENV'] === 'test' || process.env['VITEST'];
+    if (isTest) {
+      console.warn(
+        `[tenant-helper] Store is not SqliteEventStore; tenant isolation skipped for tenant "${apiKeyInfo.tenantId}".`,
+      );
+    } else {
+      throw new Error(
+        `Tenant isolation requires SqliteEventStore but got ${store.constructor.name}. ` +
+          `Cannot safely scope data for tenant "${apiKeyInfo.tenantId}".`,
+      );
+    }
+  }
+
   return store;
 }

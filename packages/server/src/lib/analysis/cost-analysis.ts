@@ -36,7 +36,7 @@ export async function analyzeCosts(
     agentId: opts.agentId,
     from: opts.from,
     to: opts.to,
-    limit: 500,
+    limit: 1000,
   });
 
   // Query llm_response events for model breakdown
@@ -45,9 +45,13 @@ export async function analyzeCosts(
     from: opts.from,
     to: opts.to,
     eventType: 'llm_response',
-    limit: 500,
+    limit: 1000,
     order: 'asc',
   });
+
+  // Track whether either query hit its limit (results may be truncated)
+  const possiblyTruncated =
+    sessionResult.sessions.length === 1000 || llmResult.events.length === 1000;
 
   const sessions = sessionResult.sessions;
   const llmEvents = llmResult.events;
@@ -169,6 +173,7 @@ export async function analyzeCosts(
     metadata: {
       eventsAnalyzed,
       timeRange,
+      ...(possiblyTruncated ? { truncated: true, note: 'Results may be incomplete — query limit reached' } : {}),
     },
   };
 }

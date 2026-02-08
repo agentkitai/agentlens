@@ -127,7 +127,7 @@ function formatCostAnalysis(result: { insights: Array<{ type: string; summary: s
   }
 
   // Look for summary insight
-  const summaryInsight = result.insights.find((i) => i.type === 'summary' || i.type === 'cost_summary');
+  const summaryInsight = result.insights.find((i) => i.type === 'cost_summary');
   if (summaryInsight) {
     const d = summaryInsight.data as Record<string, unknown>;
     console.log(`  Total Cost:       $${Number(d.totalCost ?? 0).toFixed(4)}`);
@@ -137,7 +137,7 @@ function formatCostAnalysis(result: { insights: Array<{ type: string; summary: s
   }
 
   // Look for model breakdown insights
-  const modelInsights = result.insights.filter((i) => i.type === 'model_breakdown' || i.type === 'by_model');
+  const modelInsights = result.insights.filter((i) => i.type === 'cost_by_model');
   if (modelInsights.length > 0) {
     console.log('Model Breakdown:');
     const headers = ['Model', 'Calls', 'Cost', 'Avg/Call'];

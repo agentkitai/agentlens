@@ -18,7 +18,6 @@ const VALID_ANALYSES = [
   'tool_sequences',
   'cost_analysis',
   'performance_trends',
-  'session_comparison',
 ];
 
 export function reflectRoutes(store: IEventStore) {

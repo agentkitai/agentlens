@@ -47,6 +47,19 @@ export function safeJsonParse<T>(raw: string, fallback: T): T {
 export class SqliteEventStore implements IEventStore {
   constructor(private db: SqliteDb) {}
 
+  /**
+   * Defense-in-depth: warn when a query method is called without tenantId.
+   * This helps catch missing tenant scoping in call chains.
+   */
+  private warnIfNoTenant(method: string, tenantId?: string): void {
+    if (tenantId === undefined) {
+      console.warn(
+        `[SqliteEventStore] ${method}() called without tenantId — query is unscoped. ` +
+          `Ensure tenant isolation is applied upstream (via TenantScopedStore).`,
+      );
+    }
+  }
+
   // ─── Events — Write ────────────────────────────────────────
 
   async insertEvents(eventList: AgentLensEvent[]): Promise<void> {
@@ -429,6 +442,7 @@ export class SqliteEventStore implements IEventStore {
   }
 
   async getEvent(id: string, tenantId?: string): Promise<AgentLensEvent | null> {
+    this.warnIfNoTenant('getEvent', tenantId);
     const conditions = [eq(events.id, id)];
     if (tenantId) conditions.push(eq(events.tenantId, tenantId));
 
@@ -489,6 +503,7 @@ export class SqliteEventStore implements IEventStore {
   async querySessions(
     query: SessionQuery,
   ): Promise<{ sessions: Session[]; total: number }> {
+    this.warnIfNoTenant('querySessions', query.tenantId);
     const limit = Math.min(query.limit ?? 50, 500);
     const offset = query.offset ?? 0;
 
@@ -531,6 +546,7 @@ export class SqliteEventStore implements IEventStore {
   // ─── Agents — Read ─────────────────────────────────────────
 
   async listAgents(tenantId?: string): Promise<Agent[]> {
+    this.warnIfNoTenant('listAgents', tenantId);
     const conditions = tenantId ? [eq(agents.tenantId, tenantId)] : [];
 
     const rows = this.db
@@ -565,6 +581,7 @@ export class SqliteEventStore implements IEventStore {
     granularity: 'hour' | 'day' | 'week';
     tenantId?: string;
   }): Promise<AnalyticsResult> {
+    this.warnIfNoTenant('getAnalytics', params.tenantId);
     // HIGH 5: Build the time-bucket format string for SQLite strftime
     const formatStr =
       params.granularity === 'hour'
@@ -736,6 +753,7 @@ export class SqliteEventStore implements IEventStore {
   }
 
   async listAlertRules(tenantId?: string): Promise<AlertRule[]> {
+    this.warnIfNoTenant('listAlertRules', tenantId);
     const conditions = tenantId ? [eq(alertRules.tenantId, tenantId)] : [];
     const rows = this.db
       .select()

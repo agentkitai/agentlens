@@ -36,6 +36,10 @@ export class ContextRetriever {
    * 2. Lesson search (semantic or text-based)
    * 3. Key events for matching sessions
    * 4. Ranking by relevance + recency
+   *
+   * TODO: userId filtering is accepted in the ContextQuery type but not yet
+   * implemented. Requires schema changes to associate sessions/events with
+   * a userId before we can filter here. Deferred to a future release.
    */
   async retrieve(tenantId: string, query: ContextQuery): Promise<ContextResult> {
     const limit = query.limit ?? DEFAULT_LIMIT;

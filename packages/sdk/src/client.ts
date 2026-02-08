@@ -385,6 +385,7 @@ export class AgentLensClient {
     if (query.from) params.set('from', query.from);
     if (query.to) params.set('to', query.to);
     if (query.limit != null) params.set('limit', String(query.limit));
+    if (query.params) params.set('params', JSON.stringify(query.params));
 
     return this.request<ReflectResult>(`/api/reflect?${params.toString()}`);
   }
@@ -399,6 +400,8 @@ export class AgentLensClient {
     params.set('topic', query.topic);
     if (query.userId) params.set('userId', query.userId);
     if (query.agentId) params.set('agentId', query.agentId);
+    if (query.from) params.set('from', query.from);
+    if (query.to) params.set('to', query.to);
     if (query.limit != null) params.set('limit', String(query.limit));
 
     return this.request<ContextResult>(`/api/context?${params.toString()}`);

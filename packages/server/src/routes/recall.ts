@@ -8,6 +8,7 @@
  */
 
 import { Hono } from 'hono';
+import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { EmbeddingService } from '../lib/embeddings/index.js';
 import type { EmbeddingStore, SimilaritySearchOptions } from '../db/embedding-store.js';
@@ -15,6 +16,7 @@ import type { EmbeddingStore, SimilaritySearchOptions } from '../db/embedding-st
 export interface RecallRouteDeps {
   embeddingService: EmbeddingService | null;
   embeddingStore: EmbeddingStore | null;
+  eventStore?: IEventStore;
 }
 
 export function recallRoutes(deps: RecallRouteDeps) {
@@ -37,6 +39,7 @@ export function recallRoutes(deps: RecallRouteDeps) {
     }
 
     const scope = c.req.query('scope'); // 'events' | 'sessions' | 'lessons' | 'all'
+    const agentId = c.req.query('agentId');
     const limitStr = c.req.query('limit');
     const minScoreStr = c.req.query('minScore');
     const from = c.req.query('from');
@@ -68,11 +71,32 @@ export function recallRoutes(deps: RecallRouteDeps) {
         minScore,
       };
 
-      const results = await embeddingStore.similaritySearch(
+      let results = await embeddingStore.similaritySearch(
         tenantId,
         queryVector,
         searchOpts,
       );
+
+      // Post-hoc agentId filter: if agentId is specified, keep only results
+      // whose source session belongs to that agent.
+      if (agentId && deps.eventStore) {
+        const filtered = [];
+        for (const r of results) {
+          // For session-scoped embeddings, sourceId is the sessionId
+          if (r.sourceType === 'session' || r.sourceType === 'event') {
+            const session = await deps.eventStore.getSession(
+              r.sourceType === 'session' ? r.sourceId : r.sourceId,
+            );
+            if (session && session.agentId === agentId) {
+              filtered.push(r);
+            }
+          } else {
+            // Lessons and other types don't have agentId — include them
+            filtered.push(r);
+          }
+        }
+        results = filtered;
+      }
 
       return c.json({
         results: results.map((r) => ({

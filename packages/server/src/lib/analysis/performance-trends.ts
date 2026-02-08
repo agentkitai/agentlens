@@ -31,8 +31,11 @@ export async function analyzePerformance(
     agentId: opts.agentId,
     from: opts.from,
     to: opts.to,
-    limit: 500,
+    limit: 1000,
   });
+
+  // Track whether the query hit its limit (results may be truncated)
+  const possiblyTruncated = sessionResult.sessions.length === 1000;
 
   const sessions = sessionResult.sessions;
   const sessionsAnalyzed = sessions.length;
@@ -132,6 +135,7 @@ export async function analyzePerformance(
       sessionsAnalyzed,
       eventsAnalyzed: eventCount,
       timeRange,
+      ...(possiblyTruncated ? { truncated: true, note: 'Results may be incomplete — query limit reached' } : {}),
     },
   };
 }

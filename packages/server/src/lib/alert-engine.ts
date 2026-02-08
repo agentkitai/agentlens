@@ -144,8 +144,11 @@ export class AlertEngine {
     this.running = true;
 
     try {
-      // Fetch all rules then group by tenant so every subsequent
-      // operation uses the correct tenant-scoped store.
+      // NOTE (E1-H3): This intentionally calls listAlertRules() without a tenantId
+      // to fetch rules across ALL tenants. The alert engine is a system-level service
+      // that evaluates every tenant's rules, then scopes all subsequent reads/writes
+      // through per-tenant TenantScopedStore instances (see grouping below).
+      // This is the only place where cross-tenant global access is expected.
       const allRules = await this.store.listAlertRules();
       const rulesByTenant = new Map<string, AlertRule[]>();
       for (const rule of allRules) {

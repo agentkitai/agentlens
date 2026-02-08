@@ -34,7 +34,7 @@ export async function analyzeToolSequences(
     from: opts.from,
     to: opts.to,
     eventType: 'tool_call',
-    limit: 500,
+    limit: 1000,
     order: 'asc',
   });
 
@@ -44,9 +44,13 @@ export async function analyzeToolSequences(
     from: opts.from,
     to: opts.to,
     eventType: 'tool_error',
-    limit: 500,
+    limit: 1000,
     order: 'asc',
   });
+
+  // Track whether either query hit its limit (results may be truncated)
+  const possiblyTruncated =
+    toolCallResult.events.length === 1000 || toolErrorResult.events.length === 1000;
 
   const allToolCalls = toolCallResult.events;
   const allToolErrors = toolErrorResult.events;
@@ -181,6 +185,7 @@ export async function analyzeToolSequences(
     metadata: {
       eventsAnalyzed,
       timeRange,
+      ...(possiblyTruncated ? { truncated: true, note: 'Results may be incomplete — query limit reached' } : {}),
     },
   };
 }
