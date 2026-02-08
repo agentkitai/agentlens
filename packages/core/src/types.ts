@@ -380,6 +380,12 @@ export interface Agent {
   sessionCount: number;
   /** Tenant this agent belongs to (multi-tenant isolation) */
   tenantId: string;
+  /** Model override set by guardrail downgrade_model action (B1) */
+  modelOverride?: string;
+  /** ISO timestamp when agent was paused by a guardrail (B1) */
+  pausedAt?: string;
+  /** Human-readable reason for pausing (B1) */
+  pauseReason?: string;
 }
 
 // ─── Query Types ────────────────────────────────────────────────────

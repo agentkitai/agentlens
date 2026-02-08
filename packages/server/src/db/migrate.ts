@@ -515,6 +515,24 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_state_tenant ON guardrail_state(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_trigger_history_tenant ON guardrail_trigger_history(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_trigger_history_rule ON guardrail_trigger_history(rule_id, triggered_at)`);
+
+  // ─── Agent model override & pause columns (B1 — Story 1.2) ──────
+  // Idempotent: only adds columns if they don't already exist
+  const agentColsB1 = db.all<{ name: string }>(sql`PRAGMA table_info(agents)`);
+  const agentColNamesB1 = new Set(agentColsB1.map((c) => c.name));
+
+  if (!agentColNamesB1.has('model_override')) {
+    db.run(sql`ALTER TABLE agents ADD COLUMN model_override TEXT`);
+  }
+  if (!agentColNamesB1.has('paused_at')) {
+    db.run(sql`ALTER TABLE agents ADD COLUMN paused_at TEXT`);
+  }
+  if (!agentColNamesB1.has('pause_reason')) {
+    db.run(sql`ALTER TABLE agents ADD COLUMN pause_reason TEXT`);
+  }
+
+  // Partial index for finding paused agents efficiently
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_agents_paused ON agents(tenant_id, paused_at) WHERE paused_at IS NOT NULL`);
 }
 
 /**

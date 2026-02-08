@@ -85,6 +85,12 @@ export const agents = sqliteTable(
     lastSeenAt: text('last_seen_at').notNull(),
     sessionCount: integer('session_count').notNull().default(0),
     tenantId: text('tenant_id').notNull().default('default'),
+    /** Model override set by guardrail downgrade_model action (B1) */
+    modelOverride: text('model_override'),
+    /** ISO timestamp when agent was paused by a guardrail (B1) */
+    pausedAt: text('paused_at'),
+    /** Human-readable reason for pausing (B1) */
+    pauseReason: text('pause_reason'),
   },
   (table) => [
     primaryKey({ columns: [table.id, table.tenantId] }),

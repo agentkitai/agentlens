@@ -38,6 +38,7 @@ import { benchmarkRoutes } from './routes/benchmarks.js';
 import { guardrailRoutes } from './routes/guardrails.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
+import { setAgentStore } from './lib/guardrails/actions.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -353,6 +354,8 @@ export async function startServer() {
   alertEngine.start();
 
   // Start guardrail evaluation engine (v0.8.0)
+  // Wire the agent store so pause_agent/downgrade_model actions can UPDATE the agents table (B1)
+  setAgentStore(store);
   const guardrailEngine = new GuardrailEngine(store, db);
   guardrailEngine.start();
   console.log('  Guardrails: enabled');

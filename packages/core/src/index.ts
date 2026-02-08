@@ -22,3 +22,6 @@ export * from './constants.js';
 
 // Re-export alert schemas
 export * from './alert-schemas.js';
+
+// Re-export guardrail config schemas (B1 — Story 1.1)
+export * from './guardrail-config-schemas.js';

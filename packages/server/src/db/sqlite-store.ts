@@ -414,6 +414,54 @@ export class SqliteEventStore implements IEventStore {
     }
   }
 
+  // ─── Agents — Pause/Override (B1 — Story 1.2) ──────────────
+
+  /**
+   * Pause an agent: set paused_at and pause_reason.
+   */
+  async pauseAgent(tenantId: string, agentId: string, reason: string): Promise<boolean> {
+    const result = this.db
+      .update(agents)
+      .set({
+        pausedAt: new Date().toISOString(),
+        pauseReason: reason,
+      })
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
+      .run();
+    return result.changes > 0;
+  }
+
+  /**
+   * Unpause an agent: clear paused_at, pause_reason, and optionally model_override.
+   */
+  async unpauseAgent(tenantId: string, agentId: string, clearModelOverride?: boolean): Promise<boolean> {
+    const updates: Record<string, unknown> = {
+      pausedAt: null,
+      pauseReason: null,
+    };
+    if (clearModelOverride) {
+      updates.modelOverride = null;
+    }
+    const result = this.db
+      .update(agents)
+      .set(updates)
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
+      .run();
+    return result.changes > 0;
+  }
+
+  /**
+   * Set model override on an agent.
+   */
+  async setModelOverride(tenantId: string, agentId: string, model: string): Promise<boolean> {
+    const result = this.db
+      .update(agents)
+      .set({ modelOverride: model })
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
+      .run();
+    return result.changes > 0;
+  }
+
   // ─── Events — Read (Story 3.5 stubs, implemented later) ────
 
   async queryEvents(query: EventQuery): Promise<EventQueryResult> {
@@ -1083,6 +1131,9 @@ export class SqliteEventStore implements IEventStore {
       lastSeenAt: row.lastSeenAt,
       sessionCount: row.sessionCount,
       tenantId: row.tenantId,
+      modelOverride: row.modelOverride ?? undefined,
+      pausedAt: row.pausedAt ?? undefined,
+      pauseReason: row.pauseReason ?? undefined,
     };
   }
 
