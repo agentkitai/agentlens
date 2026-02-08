@@ -26,6 +26,9 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         toolCallCount: 15,
         errorCount: 2,
         totalCostUsd: 0.15,
+        llmCallCount: 5,
+        totalInputTokens: 1500,
+        totalOutputTokens: 800,
         tags: ['research', 'production'],
       };
 
@@ -52,6 +55,9 @@ describe('Story 2.2: Session, Agent, and Query Types', () => {
         toolCallCount: 0,
         errorCount: 0,
         totalCostUsd: 0,
+        llmCallCount: 0,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
         tags: [],
       };
 

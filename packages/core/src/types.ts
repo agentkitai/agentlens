@@ -354,11 +354,11 @@ export interface Session {
   errorCount: number;
   totalCostUsd: number;
   /** Number of LLM calls in this session */
-  llmCallCount?: number;
+  llmCallCount: number;
   /** Total input tokens across all LLM calls */
-  totalInputTokens?: number;
+  totalInputTokens: number;
   /** Total output tokens across all LLM calls */
-  totalOutputTokens?: number;
+  totalOutputTokens: number;
   tags: string[];
 }
 

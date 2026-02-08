@@ -5,7 +5,7 @@ AgentLens ships as an MCP server (`@agentlensai/mcp`) that agents add to their t
 ## How It Works
 
 1. Your agent connects to the AgentLens MCP server via stdio transport
-2. The MCP server exposes 4 tools that the agent can call
+2. The MCP server exposes 5 tools that the agent can call
 3. Events are sent to the AgentLens API server over HTTP
 4. Events appear in the dashboard in real time
 
@@ -36,7 +36,7 @@ Log an event within a session. Use this for tool calls, errors, custom events, a
 |---|---|---|---|
 | `sessionId` | string | ✅ | Session ID from `session_start` |
 | `agentId` | string | ✅ | Agent identifier |
-| `eventType` | string | ✅ | One of the 16 event types |
+| `eventType` | string | ✅ | One of the 18 event types |
 | `severity` | string | — | `debug` / `info` / `warn` / `error` / `critical` (default: `info`) |
 | `payload` | object | ✅ | Event-specific payload (see Event Types below) |
 | `metadata` | object | — | Additional metadata |
@@ -71,7 +71,7 @@ Log a complete LLM interaction (request + response) in a single call. Internally
 | `parameters` | object | — | Model parameters (`temperature`, `maxTokens`, etc.) |
 | `tools` | array | — | Tool definitions provided to the model |
 
-**Returns:** `{ callId: string, eventsIngested: 2 }`
+**Returns:** `{ callId: string, eventsLogged: 2 }`
 
 See the [LLM Call Tracking guide](/guide/llm-tracking) for detailed usage and provider examples.
 

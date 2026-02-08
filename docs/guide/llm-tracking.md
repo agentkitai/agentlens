@@ -176,7 +176,7 @@ Log a complete LLM interaction (request + response) in a single call.
 | `parameters` | object | — | Model parameters |
 | `tools` | array | — | Tool definitions provided |
 
-**Returns:** `{ callId: string, eventsIngested: 2 }`
+**Returns:** `{ callId: string, eventsLogged: 2 }`
 
 Example MCP tool call:
 

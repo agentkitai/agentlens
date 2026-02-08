@@ -31,7 +31,7 @@ Ingest a batch of events. Events are validated, assigned IDs, added to the sessi
 | `events` | array | ✅ | Array of 1–1000 events |
 | `events[].sessionId` | string | ✅ | Session identifier |
 | `events[].agentId` | string | ✅ | Agent identifier |
-| `events[].eventType` | string | ✅ | One of the 16 event types (see below) |
+| `events[].eventType` | string | ✅ | One of the 18 event types (see below) |
 | `events[].severity` | string | — | `debug` / `info` / `warn` / `error` / `critical` (default: `info`) |
 | `events[].payload` | object | ✅ | Event-type-specific payload |
 | `events[].metadata` | object | — | Additional metadata (default: `{}`) |

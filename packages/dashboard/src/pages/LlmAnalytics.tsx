@@ -142,7 +142,7 @@ export function LlmAnalytics(): React.ReactElement {
   const to = useMemo(() => new Date().toISOString(), [range]);
 
   // Fetch LLM analytics data
-  const { data, loading } = useApi<LlmAnalyticsResult>(
+  const { data, loading, error } = useApi<LlmAnalyticsResult>(
     () =>
       getLlmAnalytics({
         from,
@@ -311,6 +311,13 @@ export function LlmAnalytics(): React.ReactElement {
           </button>
         )}
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          Error loading LLM analytics: {error}
+        </div>
+      )}
 
       {/* Summary Metrics */}
       {data && (

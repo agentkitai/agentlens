@@ -427,6 +427,51 @@ export function EventDetailPanel({ event, onClose, allEvents }: EventDetailPanel
             />
           )}
 
+          {/* Orphan llm_response without paired llm_call — show response data directly */}
+          {isLlmEvent && llmPair && !llmPair.callPayload && llmPair.responsePayload && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                LLM Response (no paired call found)
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <MetaRow label="Provider" value={
+                  <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                    {llmPair.responsePayload.provider}
+                  </span>
+                } />
+                <MetaRow label="Model" value={
+                  <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                    {llmPair.responsePayload.model}
+                  </span>
+                } />
+                <MetaRow label="Finish Reason" value={llmPair.responsePayload.finishReason} />
+                <MetaRow label="Latency" value={formatMs(llmPair.responsePayload.latencyMs)} mono />
+                <MetaRow label="Cost" value={
+                  <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
+                    {formatCost(llmPair.responsePayload.costUsd)}
+                  </span>
+                } />
+                <div className="border-t border-gray-200 my-2" />
+                <div className="text-xs font-semibold text-gray-500 mb-1">Token Usage</div>
+                <MetaRow label="Input" value={formatTokenCount(llmPair.responsePayload.usage.inputTokens)} mono />
+                <MetaRow label="Output" value={formatTokenCount(llmPair.responsePayload.usage.outputTokens)} mono />
+                <MetaRow label="Total" value={formatTokenCount(llmPair.responsePayload.usage.totalTokens)} mono />
+              </div>
+              {llmPair.responsePayload.completion && (
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Completion
+                    </h3>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-3 text-sm text-green-900 whitespace-pre-wrap break-words">
+                    {llmPair.responsePayload.completion}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Standard metadata (shown for all events) */}
           <section>
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">

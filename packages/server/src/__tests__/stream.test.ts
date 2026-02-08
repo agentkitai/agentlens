@@ -36,6 +36,9 @@ function mockSession(overrides: Partial<Session> = {}): Session {
     toolCallCount: 0,
     errorCount: 0,
     totalCostUsd: 0,
+    llmCallCount: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
     tags: [],
     ...overrides,
   };
