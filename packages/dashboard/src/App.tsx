@@ -9,6 +9,7 @@ import { SessionDetail as SessionDetailPage } from './pages/SessionDetail';
 import { EventsExplorer } from './pages/EventsExplorer';
 import { Analytics } from './pages/Analytics';
 import { Alerts } from './pages/Alerts';
+import { LlmAnalytics } from './pages/LlmAnalytics';
 
 export function App(): React.ReactElement {
   return (
@@ -20,6 +21,7 @@ export function App(): React.ReactElement {
         <Route path="events" element={<EventsExplorer />} />
         <Route path="agents" element={<Agents />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="llm" element={<LlmAnalytics />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="settings" element={<Settings />} />
       </Route>

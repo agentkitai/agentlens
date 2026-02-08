@@ -48,6 +48,8 @@ const TYPE_LABELS: Record<EventType, string> = {
   form_completed: 'Form Completed',
   form_expired: 'Form Expired',
   cost_tracked: 'Cost Tracked',
+  llm_call: 'LLM Call',
+  llm_response: 'LLM Response',
   alert_triggered: 'Alert Triggered',
   alert_resolved: 'Alert Resolved',
   custom: 'Custom',

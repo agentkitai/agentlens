@@ -18,7 +18,8 @@ import type {
 } from '@agentlensai/core';
 import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';
-import { getStats, getEvents, getSessions } from '../api/client';
+import { getStats, getEvents, getSessions, getLlmAnalytics } from '../api/client';
+import type { LlmAnalyticsResult } from '../api/client';
 import { MetricsGrid } from '../components/MetricsGrid';
 import type { MetricCard } from '../components/MetricsGrid';
 
@@ -188,6 +189,12 @@ export function Overview(): React.ReactElement {
     [],
   );
 
+  // LLM analytics (today)
+  const llmToday = useApi<LlmAnalyticsResult>(
+    () => getLlmAnalytics({ from: todayStart, granularity: 'hour' }),
+    [todayStart],
+  );
+
   // ─── Computed metrics ───────────────────────────────────────────
 
   const todayErrorCount = errorsToday.data?.total ?? 0;
@@ -201,6 +208,10 @@ export function Overview(): React.ReactElement {
 
   // Add live event delta to "Events Today" for real-time counter (Story 14.4)
   const eventsTodayCount = (eventsToday.data?.total ?? 0) + liveEventDelta;
+
+  // LLM metrics
+  const llmCallCount = llmToday.data?.summary?.totalCalls ?? 0;
+  const llmCostUsd = llmToday.data?.summary?.totalCostUsd ?? 0;
 
   const cards: MetricCard[] = [
     {
@@ -226,6 +237,20 @@ export function Overview(): React.ReactElement {
       value: stats.data?.totalAgents ?? 0,
     },
   ];
+
+  // Add LLM metrics when LLM data is available
+  if (llmCallCount > 0 || (llmToday.data && !llmToday.loading)) {
+    cards.push(
+      {
+        label: 'LLM Calls Today',
+        value: llmCallCount,
+      },
+      {
+        label: 'LLM Cost Today',
+        value: llmCostUsd < 0.01 ? `$${llmCostUsd.toFixed(4)}` : llmCostUsd < 1 ? `$${llmCostUsd.toFixed(3)}` : `$${llmCostUsd.toFixed(2)}`,
+      },
+    );
+  }
 
   // Chart data
   const chartData = useMemo(() => {

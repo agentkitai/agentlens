@@ -485,7 +485,7 @@ export function SessionDetail(): React.ReactElement | null {
       ) : null}
 
       {/* Event detail side panel */}
-      <EventDetailPanel event={selectedEvent} onClose={handleClosePanel} />
+      <EventDetailPanel event={selectedEvent} onClose={handleClosePanel} allEvents={allEvents} />
     </div>
   );
 }

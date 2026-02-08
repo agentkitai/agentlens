@@ -11,13 +11,21 @@
 import React, { useCallback, useEffect } from 'react';
 import { JsonView, darkStyles, allExpanded, collapseAllNested } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
-import type { AgentLensEvent, EventSeverity } from '@agentlensai/core';
+import type {
+  AgentLensEvent,
+  EventSeverity,
+  LlmCallPayload,
+  LlmResponsePayload,
+  LlmMessage,
+} from '@agentlensai/core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
 export interface EventDetailPanelProps {
   event: AgentLensEvent | null;
   onClose: () => void;
+  /** All session events — used to find paired llm_response for llm_call events */
+  allEvents?: AgentLensEvent[];
 }
 
 // ─── Severity badge ─────────────────────────────────────────────────

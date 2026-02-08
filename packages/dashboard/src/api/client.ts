@@ -382,4 +382,57 @@ export async function getAlertHistory(opts?: { ruleId?: string; limit?: number; 
   return request<AlertHistoryResponse>(`/api/alerts/history${qs}`);
 }
 
+// ─── LLM Analytics ──────────────────────────────────────────────────
+
+export interface LlmModelBreakdown {
+  provider: string;
+  model: string;
+  calls: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  avgLatencyMs: number;
+}
+
+export interface LlmTimeBucket {
+  bucket: string;
+  calls: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  avgLatencyMs: number;
+}
+
+export interface LlmAnalyticsResult {
+  summary: {
+    totalCalls: number;
+    totalCostUsd: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    avgLatencyMs: number;
+    avgCostPerCall: number;
+  };
+  byModel: LlmModelBreakdown[];
+  byTime: LlmTimeBucket[];
+}
+
+export async function getLlmAnalytics(params: {
+  from?: string;
+  to?: string;
+  granularity?: string;
+  agentId?: string;
+  model?: string;
+  provider?: string;
+}): Promise<LlmAnalyticsResult> {
+  const qs = toQueryString({
+    from: params.from,
+    to: params.to,
+    granularity: params.granularity,
+    agentId: params.agentId,
+    model: params.model,
+    provider: params.provider,
+  });
+  return request<LlmAnalyticsResult>(`/api/analytics/llm${qs}`);
+}
+
 export { ApiError };

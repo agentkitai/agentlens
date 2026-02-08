@@ -21,6 +21,9 @@ import type {
   FormSubmittedPayload,
   FormCompletedPayload,
   FormExpiredPayload,
+  LlmCallPayload,
+  LlmResponsePayload,
+  LlmMessage,
 } from '@agentlensai/core';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -33,11 +36,11 @@ export interface TimelineProps {
 }
 
 interface TimelineNode {
-  kind: 'single' | 'paired' | 'approval_paired' | 'form_paired';
+  kind: 'single' | 'paired' | 'approval_paired' | 'form_paired' | 'llm_paired';
   event: AgentLensEvent;
   /** For paired nodes: the matching response/error/decision event */
   responseEvent?: AgentLensEvent;
-  /** Computed duration for paired tool_call → response, approval request → decision, or form submission → completed */
+  /** Computed duration for paired tool_call → response, approval request → decision, form submission → completed, or llm_call → llm_response */
   durationMs?: number;
 }
 
@@ -67,6 +70,9 @@ const EVENT_STYLES: Record<string, EventStyle> = {
   form_submitted: { icon: '📋', color: 'text-teal-700', bgColor: 'bg-teal-50', borderColor: 'border-teal-300' },
   form_completed: { icon: '✅', color: 'text-teal-700', bgColor: 'bg-teal-50', borderColor: 'border-teal-300' },
   form_expired:   { icon: '⏰', color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-300' },
+  // LLM calls (indigo palette)
+  llm_call:     { icon: '🧠', color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-300' },
+  llm_response: { icon: '💬', color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-300' },
   // Cost
   cost_tracked: { icon: '💰', color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-300' },
   // Alerts
@@ -141,6 +147,17 @@ function eventName(event: AgentLensEvent): string {
   if (event.eventType === 'form_expired') {
     return 'Form Expired';
   }
+  // LLM events — show provider / model
+  if (event.eventType === 'llm_call') {
+    const llmPayload = p as LlmCallPayload;
+    return llmPayload.redacted
+      ? `${llmPayload.provider} / ${llmPayload.model} [redacted]`
+      : `${llmPayload.provider} / ${llmPayload.model}`;
+  }
+  if (event.eventType === 'llm_response') {
+    const llmPayload = p as LlmResponsePayload;
+    return `${llmPayload.provider} / ${llmPayload.model}`;
+  }
   if ('toolName' in p && typeof p.toolName === 'string') return p.toolName;
   if ('action' in p && typeof p.action === 'string') return p.action;
   if ('alertName' in p && typeof p.alertName === 'string') return p.alertName;
@@ -185,6 +202,17 @@ function buildTimelineNodes(events: AgentLensEvent[]): TimelineNode[] {
       const payload = ev.payload as FormCompletedPayload | FormExpiredPayload;
       if (payload.submissionId) {
         formOutcomeMap.set(payload.submissionId, ev);
+      }
+    }
+  }
+
+  // Build a map of callId → llm_response event (LLM call tracking, Story 4.1)
+  const llmResponseMap = new Map<string, AgentLensEvent>();
+  for (const ev of events) {
+    if (ev.eventType === 'llm_response') {
+      const payload = ev.payload as LlmResponsePayload;
+      if (payload.callId) {
+        llmResponseMap.set(payload.callId, ev);
       }
     }
   }
@@ -258,6 +286,25 @@ function buildTimelineNodes(events: AgentLensEvent[]): TimelineNode[] {
         // No outcome yet — show as single (pending submission)
         nodes.push({ kind: 'single', event: ev });
       }
+    } else if (ev.eventType === 'llm_call') {
+      // Pair llm_call with its llm_response (Story 4.1)
+      const callPayload = ev.payload as LlmCallPayload;
+      const llmResponse = llmResponseMap.get(callPayload.callId);
+      if (llmResponse) {
+        consumedIds.add(llmResponse.id);
+        const respPayload = llmResponse.payload as LlmResponsePayload;
+        nodes.push({
+          kind: 'llm_paired',
+          event: ev,
+          responseEvent: llmResponse,
+          durationMs: respPayload.latencyMs,
+        });
+      } else {
+        nodes.push({ kind: 'single', event: ev });
+      }
+    } else if (ev.eventType === 'llm_response' && !consumedIds.has(ev.id)) {
+      // Orphan llm_response — show as single
+      nodes.push({ kind: 'single', event: ev });
     } else if (
       (ev.eventType === 'tool_response' || ev.eventType === 'tool_error') &&
       !consumedIds.has(ev.id)
@@ -286,6 +333,32 @@ function buildTimelineNodes(events: AgentLensEvent[]): TimelineNode[] {
   return nodes;
 }
 
+// ─── LLM helpers ────────────────────────────────────────────────────
+
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function formatCost(usd: number): string {
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(2)}`;
+}
+
+function getMessageContentText(content: LlmMessage['content']): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => ('text' in block && typeof block.text === 'string' ? block.text : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+}
+
+const LLM_CONTENT_TRUNCATE = 300;
+
 // ─── Chain validity badge ───────────────────────────────────────────
 
 function ChainBadge({ valid }: { valid: boolean }) {
@@ -312,11 +385,13 @@ interface TimelineRowProps {
 
 function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const style = getEventStyle(node.event.eventType);
   const isPaired = node.kind === 'paired';
   const isApprovalPaired = node.kind === 'approval_paired';
   const isFormPaired = node.kind === 'form_paired';
-  const hasResponse = isPaired || isApprovalPaired || isFormPaired;
+  const isLlmPaired = node.kind === 'llm_paired';
+  const hasResponse = isPaired || isApprovalPaired || isFormPaired || isLlmPaired;
 
   const handleClick = useCallback(() => {
     onClick(node.event);
@@ -335,19 +410,21 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
   }, [handleClick]);
 
   // Compute a label for the expand button based on the pair type
-  const expandLabel = isApprovalPaired
-    ? node.responseEvent?.eventType === 'approval_granted'
-      ? 'approved'
-      : node.responseEvent?.eventType === 'approval_denied'
-        ? 'denied'
-        : 'expired'
-    : isFormPaired
-      ? node.responseEvent?.eventType === 'form_completed'
-        ? 'completed'
-        : 'expired'
-      : node.responseEvent?.eventType === 'tool_error'
-        ? 'error'
-        : 'response';
+  const expandLabel = isLlmPaired
+    ? 'completion'
+    : isApprovalPaired
+      ? node.responseEvent?.eventType === 'approval_granted'
+        ? 'approved'
+        : node.responseEvent?.eventType === 'approval_denied'
+          ? 'denied'
+          : 'expired'
+      : isFormPaired
+        ? node.responseEvent?.eventType === 'form_completed'
+          ? 'completed'
+          : 'expired'
+        : node.responseEvent?.eventType === 'tool_error'
+          ? 'error'
+          : 'response';
 
   return (
     <div className="flex gap-3">
@@ -409,10 +486,36 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
               ⏳ Waiting for decision…
             </div>
           )}
+
+          {/* LLM call summary badges (Story 4.1) */}
+          {(isLlmPaired || node.event.eventType === 'llm_call') && (() => {
+            const callPayload = node.event.payload as LlmCallPayload;
+            const respPayload = isLlmPaired && node.responseEvent
+              ? (node.responseEvent.payload as LlmResponsePayload)
+              : undefined;
+            return (
+              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium">
+                  {callPayload.provider} / {callPayload.model}
+                </span>
+                <span className="text-xs px-1.5 py-0.5 rounded bg-white/60 text-gray-600">
+                  {callPayload.messages.length} message{callPayload.messages.length !== 1 ? 's' : ''}
+                  {respPayload && (
+                    <> → {formatTokenCount(respPayload.usage.inputTokens)} in / {formatTokenCount(respPayload.usage.outputTokens)} out</>
+                  )}
+                </span>
+                {respPayload && respPayload.costUsd > 0 && (
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 font-medium">
+                    {formatCost(respPayload.costUsd)}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Expanded paired response / decision */}
-        {hasResponse && expanded && node.responseEvent && (
+        {hasResponse && expanded && node.responseEvent && !isLlmPaired && (
           <div className="mt-1 ml-4">
             <button
               onClick={() => onClick(node.responseEvent!)}
@@ -432,6 +535,96 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
             </button>
           </div>
         )}
+
+        {/* Expanded LLM pair — prompt messages + completion (Story 4.1) */}
+        {isLlmPaired && expanded && (() => {
+          const callPayload = node.event.payload as LlmCallPayload;
+          const respPayload = node.responseEvent
+            ? (node.responseEvent.payload as LlmResponsePayload)
+            : undefined;
+          const isRedacted = callPayload.redacted || respPayload?.redacted;
+
+          return (
+            <div
+              className="mt-1 ml-4 rounded-lg border border-indigo-200 bg-white p-3 space-y-2 text-sm cursor-pointer hover:shadow-sm"
+              role="button"
+              tabIndex={0}
+              onClick={() => onClick(node.event)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(node.event); } }}
+            >
+              {/* Prompt messages */}
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Prompt</div>
+                {isRedacted ? (
+                  <div className="text-xs text-gray-400 italic">[Content redacted]</div>
+                ) : (
+                  <div className="space-y-1">
+                    {callPayload.systemPrompt && (
+                      <div className="text-xs bg-gray-100 text-gray-700 rounded px-2 py-1 font-mono">
+                        <span className="font-semibold text-gray-500">system: </span>
+                        {callPayload.systemPrompt.length > LLM_CONTENT_TRUNCATE && !showMore
+                          ? callPayload.systemPrompt.slice(0, LLM_CONTENT_TRUNCATE) + '…'
+                          : callPayload.systemPrompt}
+                      </div>
+                    )}
+                    {callPayload.messages.map((msg, i) => {
+                      const text = getMessageContentText(msg.content);
+                      const truncated = text.length > LLM_CONTENT_TRUNCATE && !showMore;
+                      const roleColors: Record<string, string> = {
+                        system: 'bg-gray-100 text-gray-700',
+                        user: 'bg-blue-50 text-blue-800',
+                        assistant: 'bg-green-50 text-green-800',
+                        tool: 'bg-gray-100 text-gray-700 font-mono',
+                      };
+                      return (
+                        <div key={i} className={`text-xs rounded px-2 py-1 ${roleColors[msg.role] ?? 'bg-gray-50 text-gray-700'}`}>
+                          <span className="font-semibold text-gray-500">{msg.role}: </span>
+                          {truncated ? text.slice(0, LLM_CONTENT_TRUNCATE) + '…' : text}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Completion */}
+              {respPayload && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Completion</div>
+                  {respPayload.redacted ? (
+                    <div className="text-xs text-gray-400 italic">[Content redacted]</div>
+                  ) : (
+                    <div className="text-xs bg-green-50 text-green-800 rounded px-2 py-1">
+                      {respPayload.completion
+                        ? (respPayload.completion.length > LLM_CONTENT_TRUNCATE && !showMore
+                            ? respPayload.completion.slice(0, LLM_CONTENT_TRUNCATE) + '…'
+                            : respPayload.completion)
+                        : <span className="italic text-gray-400">(no text — tool_use)</span>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Show more / less toggle */}
+              {!isRedacted && (
+                (() => {
+                  const hasLong =
+                    (callPayload.systemPrompt && callPayload.systemPrompt.length > LLM_CONTENT_TRUNCATE) ||
+                    callPayload.messages.some((m) => getMessageContentText(m.content).length > LLM_CONTENT_TRUNCATE) ||
+                    (respPayload?.completion && respPayload.completion.length > LLM_CONTENT_TRUNCATE);
+                  return hasLong ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowMore((prev) => !prev); }}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 underline"
+                    >
+                      {showMore ? 'show less' : 'show more'}
+                    </button>
+                  ) : null;
+                })()
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

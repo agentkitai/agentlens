@@ -54,6 +54,11 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    to: '/llm',
+    label: 'LLM',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">🧠</span>,
+  },
+  {
     to: '/alerts',
     label: 'Alerts',
     icon: (
