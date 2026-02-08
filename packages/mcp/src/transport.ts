@@ -421,6 +421,141 @@ export class AgentLensTransport {
     return response.json();
   }
 
+  // ─── Replay API method (Story 4.1) ─────────────────────────────
+
+  /**
+   * Get a replay of a session.
+   */
+  async replay(
+    sessionId: string,
+    options?: {
+      fromStep?: number;
+      toStep?: number;
+      eventTypes?: string;
+    },
+  ): Promise<unknown> {
+    const searchParams = new URLSearchParams();
+    if (options?.fromStep !== undefined) searchParams.set('offset', String(options.fromStep));
+    if (options?.toStep !== undefined && options?.fromStep !== undefined) {
+      searchParams.set('limit', String(options.toStep - options.fromStep + 1));
+    } else if (options?.toStep !== undefined) {
+      searchParams.set('limit', String(options.toStep + 1));
+    }
+    if (options?.eventTypes) searchParams.set('eventTypes', options.eventTypes);
+
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/replay${qs ? `?${qs}` : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Replay API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
+  }
+
+  // ─── Benchmark API methods (Stories 4.2, 4.3) ────────────────────
+
+  /**
+   * Create a new benchmark.
+   */
+  async createBenchmark(body: Record<string, unknown>): Promise<unknown> {
+    const url = `${this.baseUrl}/api/benchmarks`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const respBody = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Benchmark API error ${response.status}: ${respBody}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * List benchmarks with optional status filter.
+   */
+  async listBenchmarks(status?: string): Promise<unknown> {
+    const searchParams = new URLSearchParams();
+    if (status) searchParams.set('status', status);
+
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/benchmarks${qs ? `?${qs}` : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Benchmark API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get a single benchmark by ID (with session counts).
+   */
+  async getBenchmark(benchmarkId: string): Promise<unknown> {
+    const url = `${this.baseUrl}/api/benchmarks/${encodeURIComponent(benchmarkId)}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Benchmark API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get benchmark results (statistical comparison).
+   */
+  async getBenchmarkResults(benchmarkId: string): Promise<unknown> {
+    const url = `${this.baseUrl}/api/benchmarks/${encodeURIComponent(benchmarkId)}/results`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Benchmark API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Update benchmark status (start, complete).
+   */
+  async updateBenchmarkStatus(benchmarkId: string, status: string): Promise<unknown> {
+    const url = `${this.baseUrl}/api/benchmarks/${encodeURIComponent(benchmarkId)}/status`;
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: this.buildHeaders(),
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Benchmark API error ${response.status}: ${body}`);
+    }
+
+    return response.json();
+  }
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

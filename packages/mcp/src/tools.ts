@@ -18,6 +18,8 @@ import { registerOptimizeTool } from './tools/optimize.js';
 import { registerRecallTool } from './tools/recall.js';
 import { registerReflectTool } from './tools/reflect.js';
 import { registerHealthTool } from './tools/health.js';
+import { registerReplayTool } from './tools/replay.js';
+import { registerBenchmarkTool } from './tools/benchmark.js';
 
 // ─── Tool Registration ─────────────────────────────────────────────
 
@@ -36,6 +38,8 @@ export function registerTools(server: McpServer, transport: AgentLensTransport):
   registerOptimizeTool(server, transport);
   registerContextTool(server, transport);
   registerHealthTool(server, transport);
+  registerReplayTool(server, transport);
+  registerBenchmarkTool(server, transport);
 }
 
 // ─── 5.2: agentlens_session_start ──────────────────────────────────
