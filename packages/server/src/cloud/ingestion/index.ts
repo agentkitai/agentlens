@@ -23,3 +23,26 @@ export {
   type BatchEventResponse,
   type ValidationError,
 } from './gateway.js';
+
+export {
+  BatchWriter,
+  InMemoryBatchWriter,
+  calculateCost,
+  computeHash,
+  type StreamMessage,
+  type BatchWriterConfig,
+  type WriterStats,
+  type InMemoryBatchWriterDeps,
+  type ConsumerRedisClient,
+} from './batch-writer.js';
+
+export {
+  RedisRateLimiter,
+  InMemoryRateLimiter,
+  TIER_LIMITS,
+  type Tier,
+  type RateLimitResult,
+  type RateLimitCheckParams,
+  type RateLimitConfig,
+  type RateLimitRedisClient,
+} from './rate-limiter.js';
