@@ -357,6 +357,14 @@ export const capabilityRegistry = sqliteTable(
   ],
 );
 
+// ─── Phase 4: Discovery Permission Config ────────────────
+export const discoveryConfig = sqliteTable('discovery_config', {
+  tenantId: text('tenant_id').primaryKey(),
+  minTrustThreshold: integer('min_trust_threshold').notNull().default(60),
+  delegationEnabled: integer('delegation_enabled', { mode: 'boolean' }).notNull().default(false),
+  updatedAt: text('updated_at').notNull(),
+});
+
 // ─── Phase 4: Delegation Log ─────────────────────────────
 export const delegationLog = sqliteTable(
   'delegation_log',

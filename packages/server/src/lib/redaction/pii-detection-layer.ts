@@ -47,14 +47,26 @@ export const PII_PATTERNS: PIIPattern[] = [
     confidence: 0.95,
   },
   {
-    name: 'ssn',
+    name: 'ssn_dashed',
     category: 'ssn',
     regex: /\b\d{3}-\d{2}-\d{4}\b/g,
     replacement: '[SSN]',
     confidence: 0.95,
   },
   {
-    name: 'credit_card',
+    name: 'ssn_plain',
+    category: 'ssn',
+    regex: /\b(?<!\d)(?!000|666|9\d\d)\d{3}(?!00)\d{2}(?!0000)\d{4}(?!\d)\b/g,
+    replacement: '[SSN]',
+    confidence: 0.70,
+    validate: (match) => {
+      const digits = match.replace(/\D/g, '');
+      // Must be exactly 9 digits, not all same, not sequential
+      return digits.length === 9 && !/^(\d)\1{8}$/.test(digits);
+    },
+  },
+  {
+    name: 'credit_card_16',
     category: 'credit_card',
     regex: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
     replacement: '[CREDIT_CARD]',
@@ -62,16 +74,52 @@ export const PII_PATTERNS: PIIPattern[] = [
     validate: (match) => luhnCheck(match),
   },
   {
+    name: 'credit_card_amex',
+    category: 'credit_card',
+    regex: /\b3[47]\d{2}[-\s]?\d{6}[-\s]?\d{5}\b/g,
+    replacement: '[CREDIT_CARD]',
+    confidence: 0.90,
+    validate: (match) => luhnCheck(match),
+  },
+  {
     name: 'phone_us',
     category: 'phone',
-    regex: /(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
+    regex: /(?:\+?1[-.\s])?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g,
     replacement: '[PHONE]',
     confidence: 0.85,
   },
   {
-    name: 'ip_address',
+    name: 'phone_international',
+    category: 'phone',
+    regex: /\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{2,4}[-.\s]?\d{2,4}[-.\s]?\d{0,4}\b/g,
+    replacement: '[PHONE]',
+    confidence: 0.80,
+  },
+  {
+    name: 'ip_address_v4',
     category: 'ip_address',
     regex: /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g,
+    replacement: '[IP_ADDRESS]',
+    confidence: 0.80,
+  },
+  {
+    name: 'ip_address_v6',
+    category: 'ip_address',
+    regex: /\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b/g,
+    replacement: '[IP_ADDRESS]',
+    confidence: 0.80,
+  },
+  {
+    name: 'ip_address_v6_compressed',
+    category: 'ip_address',
+    regex: /\b(?:[0-9a-fA-F]{1,4}:){1,6}(?::[0-9a-fA-F]{1,4}){1,6}\b/g,
+    replacement: '[IP_ADDRESS]',
+    confidence: 0.75,
+  },
+  {
+    name: 'ip_address_v4_mapped_v6',
+    category: 'ip_address',
+    regex: /::ffff:\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g,
     replacement: '[IP_ADDRESS]',
     confidence: 0.80,
   },

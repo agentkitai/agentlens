@@ -669,6 +669,16 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_tenant_ts ON delegation_log(tenant_id, created_at)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_agent ON delegation_log(tenant_id, agent_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_status ON delegation_log(tenant_id, status)`);
+
+  // ─── Discovery Config (Story 5.4) ──────────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS discovery_config (
+      tenant_id TEXT PRIMARY KEY,
+      min_trust_threshold INTEGER NOT NULL DEFAULT 60,
+      delegation_enabled INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
+    )
+  `);
 }
 
 /**

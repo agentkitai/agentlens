@@ -108,7 +108,13 @@ export const SECRET_PATTERNS: SecretPattern[] = [
   { name: 'cloudflare_api_token', category: 'api_key', regex: /[a-zA-Z0-9_]{40}/, confidence: 0.2 }, // low confidence - too generic alone
 
   // ─── Generic password assignment ────────────────────
-  { name: 'password_assignment', category: 'password', regex: /(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[=:]\s*['"]?[^\s'"]{8,}['"]?/i, confidence: 0.80 },
+  { name: 'password_assignment', category: 'password', regex: /(?:password|passwd|pwd|secret|token|api_key|apikey)['"]?\s*[=:]\s*['"]?[^\s'"<>]{8,}['"]?/i, confidence: 0.80 },
+
+  // XML-style password: <password>value</password>
+  { name: 'xml_password', category: 'password', regex: /<(?:password|secret|token|api[_-]?key)>([^<]{8,})<\//i, confidence: 0.80 },
+
+  // SQL PASSWORD keyword: PASSWORD 'value'
+  { name: 'sql_password', category: 'password', regex: /PASSWORD\s+['"]([^'"]{8,})['"]/i, confidence: 0.80 },
 ];
 
 // Only use patterns with confidence >= threshold (skip very generic ones)

@@ -37,6 +37,8 @@ import { registerReplayRoutes } from './routes/replay.js';
 import { benchmarkRoutes } from './routes/benchmarks.js';
 import { guardrailRoutes } from './routes/guardrails.js';
 import { capabilityRoutes } from './routes/capabilities.js';
+import { discoveryRoutes } from './routes/discovery.js';
+import { redactionTestRoutes } from './routes/redaction-test.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
 import { setAgentStore } from './lib/guardrails/actions.js';
@@ -269,10 +271,12 @@ export function createApp(
   app.route('/api/sessions', sessionsRoutes(store));
   // Health routes registered directly on main app (before generic agents routes)
   registerHealthRoutes(app, store, db);
-  app.route('/api/agents', agentsRoutes(store));
   if (db) {
+    const { app: discApp } = discoveryRoutes(db);
+    app.route('/api/agents', discApp);
     app.route('/api/agents', capabilityRoutes(store, db));
   }
+  app.route('/api/agents', agentsRoutes(store));
   app.route('/api/stats', statsRoutes(store));
   if (db) {
     app.route('/api/config', configRoutes(db));
@@ -315,6 +319,9 @@ export function createApp(
       }));
     }
   }
+
+  // ─── Redaction Test (Story 2.4) ────────────────────────
+  app.route('/api/community/redaction', redactionTestRoutes());
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();

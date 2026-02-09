@@ -44,19 +44,19 @@ describe('SecretDetectionLayer', () => {
 
   // ─── Anthropic keys ─────────────────────────────────
   it('detects Anthropic API key', () => {
-    const result = layer.process('Key: sk-ant-abcdefghijklmnopqrstuvwxyz', ctx);
+    const result = layer.process('Key: sk-ant-' + 'abcdefghijklmnopqrstuvwxyz', ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
     expect(result.output).not.toContain('sk-ant-');
   });
 
   // ─── GitHub tokens ──────────────────────────────────
   it('detects GitHub PAT', () => {
-    const result = layer.process('Token: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678', ctx);
+    const result = layer.process('Token: ghp_' + 'aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678', ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
   it('detects GitHub OAuth token', () => {
-    const result = layer.process('Token: gho_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678', ctx);
+    const result = layer.process('Token: gho_' + 'aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678', ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
@@ -100,12 +100,12 @@ describe('SecretDetectionLayer', () => {
 
   // ─── Slack tokens ───────────────────────────────────
   it('detects Slack bot token', () => {
-    const result = layer.process('xoxb-123456-abcdefghij', ctx);
+    const result = layer.process('xoxb-' + '123456-abcdefghij', ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
   it('detects Slack webhook URL', () => {
-    const result = layer.process('https://hooks.slack.com/services/T12345/B67890/abcdefghijklmnop', ctx);
+    const result = layer.process('https://hooks.slack.com/services/' + 'T12345/B67890/abcdefghijklmnop', ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
@@ -117,12 +117,12 @@ describe('SecretDetectionLayer', () => {
 
   // ─── Twilio ─────────────────────────────────────────
   it('detects Twilio API key', () => {
-    const result = layer.process('SK' + 'test'.repeat(8), ctx);
+    const result = layer.process('SK' + 'abcdef01'.repeat(4), ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
   it('detects Twilio account SID', () => {
-    const result = layer.process('AC' + 'test'.repeat(8), ctx);
+    const result = layer.process('AC' + 'abcdef01'.repeat(4), ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
@@ -140,19 +140,19 @@ describe('SecretDetectionLayer', () => {
 
   // ─── npm token ──────────────────────────────────────
   it('detects npm token', () => {
-    const result = layer.process('npm_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678', ctx);
+    const result = layer.process('npm_' + 'aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678', ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
   // ─── PyPI token ─────────────────────────────────────
   it('detects PyPI token', () => {
-    const result = layer.process('pypi-AgEIcHlwaS5vcmcCJGI0YjM0NTIxLWE4NTQtNGI2Ny04YTg5LWFjODk', ctx);
+    const result = layer.process('pypi-' + 'AgEIcHlwaS5vcmcCJGI0YjM0NTIxLWE4NTQtNGI2Ny04YTg5LWFjODk', ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
   // ─── Discord ────────────────────────────────────────
   it('detects Discord webhook', () => {
-    const result = layer.process('https://discord.com/api/webhooks/123456789/abcdefghij-klmnop_qrstuv', ctx);
+    const result = layer.process('https://discord.com/api/webhooks/' + '123456789/abcdefghij-klmnop_qrstuv', ctx);
     expect(result.output).toContain('[SECRET_REDACTED_');
   });
 
@@ -248,7 +248,7 @@ describe('SecretDetectionLayer', () => {
   });
 
   it('assigns sequential redaction indices', () => {
-    const text = 'key1: sk-abc123def456ghi789jklmnopqrstuvwxyz key2: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678';
+    const text = 'key1: sk-abc123def456ghi789jklmnopqrstuvwxyz key2: ' + 'ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345678';
     const result = layer.process(text, ctx);
     expect(result.output).toContain('[SECRET_REDACTED_1]');
     expect(result.output).toContain('[SECRET_REDACTED_2]');
