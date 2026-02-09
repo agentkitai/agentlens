@@ -1,0 +1,2 @@
+{"version": 2, "width": 80, "height": 24, "timestamp": 1770636555, "env": {"SHELL": "/usr/bin/zsh", "TERM": null}}
+[0.00235, "o", "TERM environment variable not set.\r\n"]

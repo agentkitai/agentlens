@@ -178,6 +178,41 @@ You'll see:
 - **Analytics** — Charts for event trends, cost breakdown, and agent comparisons
 - **Alerts** — Configure and view alert rules and history
 
+## Alternative: Python Auto-Instrumentation
+
+If you're building in Python, you can skip MCP entirely and use **auto-instrumentation** — one line captures every LLM call across 9 providers:
+
+```bash
+pip install agentlensai[all-providers]   # all 9 providers
+# or pick specific ones:
+pip install agentlensai[openai]          # just OpenAI
+pip install agentlensai[bedrock,ollama]  # Bedrock + Ollama
+```
+
+```python
+import agentlensai
+
+agentlensai.init(
+    url="http://localhost:3400",
+    api_key="als_your_key",
+    agent_id="my-agent",
+    integrations="auto",  # auto-discovers all installed provider SDKs
+)
+
+# Every LLM call is now captured automatically
+import openai
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+# ^ Logged: model, tokens, cost, latency, full prompt/completion
+
+agentlensai.shutdown()
+```
+
+Supported providers: OpenAI, Anthropic, LiteLLM, AWS Bedrock, Google Vertex AI, Google Gemini, Mistral AI, Cohere, and Ollama. See the [Python SDK README](../../packages/python-sdk/README.md) for full provider documentation.
+
 ## Next Steps
 
 - [Configuration Reference](/guide/configuration) — Environment variables and options

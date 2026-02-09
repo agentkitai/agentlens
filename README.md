@@ -428,6 +428,12 @@ Register and browse **agent capabilities** — what each agent can do, their tas
 
 The Delegation Log tracks the **4-phase delegation protocol** (request → accept → execute → return) with status, assigned agent, timing, and fallback history.
 
+### 🎬 v0.10.0 Multi-Provider Demo
+
+<img src="demo/agentlens-v0.10-demo.gif" alt="AgentLens v0.10.0 Multi-Provider Demo" width="720">
+
+> Auto-instrumentation across 9 LLM providers with a single `init()` call. ([View cast file](demo/demo-v0.10.cast))
+
 ### 🎬 v0.9.0 CLI Demo
 
 <img src="demo/agentlens-v0.9-demo.gif" alt="AgentLens v0.9.0 Demo" width="720">

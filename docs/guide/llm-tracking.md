@@ -14,9 +14,35 @@ LLM Call Tracking adds first-class `llm_call` and `llm_response` event types to 
 
 This complements the existing `cost_tracked` event type (which remains valid for backward compatibility) by adding the full prompt/completion content alongside cost data.
 
-## Quick Start
+## Auto-Instrumentation (Recommended)
 
-The fastest way to log an LLM call is with the SDK:
+The easiest way to capture LLM calls is **Python auto-instrumentation** — zero manual logging needed:
+
+```bash
+pip install agentlensai[all-providers]
+```
+
+```python
+import agentlensai
+
+agentlensai.init(
+    url="http://localhost:3400",
+    api_key="als_your_key",
+    agent_id="my-agent",
+    integrations="auto",  # auto-discovers all installed provider SDKs
+)
+
+# Every LLM call is now captured automatically across 9 providers:
+# OpenAI, Anthropic, LiteLLM, Bedrock, Vertex AI, Gemini, Mistral, Cohere, Ollama
+```
+
+This captures prompts, completions, tokens, cost, and latency with zero code changes to your LLM calls. See the [Python SDK docs](../../packages/python-sdk/README.md) for per-provider examples.
+
+The sections below cover **manual logging** via the SDK and MCP — useful when auto-instrumentation isn't available (e.g., TypeScript apps) or when you need fine-grained control.
+
+## Quick Start (Manual)
+
+The fastest way to manually log an LLM call is with the SDK:
 
 ```typescript
 import { AgentLensClient } from '@agentlensai/sdk';
