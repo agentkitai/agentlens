@@ -17,6 +17,7 @@ import { runRecallCommand } from './commands/recall.js';
 import { runReflectCommand } from './commands/reflect.js';
 import { runSessionsCommand } from './commands/sessions.js';
 import { runTailCommand } from './commands/tail.js';
+import { runMigrateCommand } from './commands/migrate.js';
 
 const HELP = `AgentLens CLI — Observability for AI agents
 
@@ -30,6 +31,7 @@ Commands:
   health              Agent health scores and trends
   lessons             Manage agent lessons (list, create, get, update, delete, search)
   llm                 LLM call tracking (stats, models, recent)
+  migrate             Migrate data between self-hosted and cloud
   optimize            Cost optimization recommendations
   recall              Semantic search over agent memory
   reflect             Pattern analysis across agent sessions
@@ -76,6 +78,10 @@ async function main(): Promise<void> {
 
     case 'llm':
       await runLlmCommand(rest);
+      break;
+
+    case 'migrate':
+      await runMigrateCommand(rest);
       break;
 
     case 'optimize':
