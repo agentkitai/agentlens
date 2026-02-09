@@ -126,7 +126,6 @@ All errors follow this format:
 | `DELETE` | `/api/guardrails/:id` | Delete guardrail rule |
 | `GET` | `/api/guardrails/:id/status` | Get rule status + recent triggers |
 | `GET` | `/api/guardrails/history` | List trigger history |
-| `GET` | `/api/agents/:id` | Get agent detail (includes pausedAt, modelOverride) |
 | `GET` | `/api/config` | Get configuration |
 | `PUT` | `/api/config` | Update configuration |
 

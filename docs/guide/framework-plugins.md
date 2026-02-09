@@ -70,7 +70,7 @@ The CrewAI plugin hooks into Crew's task execution pipeline.
 
 ```python
 import agentlensai
-from agentlensai.integrations.crewai import AgentLensCrewPlugin
+from agentlensai.integrations.crewai import AgentLensCrewAIHandler
 
 agentlensai.init(
     url="http://localhost:3400",
@@ -78,16 +78,22 @@ agentlensai.init(
     agent_id="my-crew",
 )
 
-plugin = AgentLensCrewPlugin()
+handler = AgentLensCrewAIHandler(crew_name="my-crew")
 
 from crewai import Agent, Task, Crew
 
 researcher = Agent(role="Researcher", goal="Find information", backstory="...")
 task = Task(description="Research AI trends", agent=researcher)
-crew = Crew(agents=[researcher], tasks=[task])
+crew = Crew(
+    agents=[researcher],
+    tasks=[task],
+    step_callback=handler.step_callback,  # capture each agent step
+)
 
-# Plugin auto-detects and instruments the crew
+# Lifecycle hooks for session tracking
+handler.on_crew_start(crew)
 result = crew.kickoff()
+handler.on_crew_end(crew, result)
 ```
 
 ### What's Captured
@@ -105,7 +111,7 @@ The AutoGen plugin instruments multi-agent conversations.
 
 ```python
 import agentlensai
-from agentlensai.integrations.autogen import AgentLensAutoGenPlugin
+from agentlensai.integrations.autogen import AgentLensAutoGenHandler
 
 agentlensai.init(
     url="http://localhost:3400",
@@ -113,15 +119,20 @@ agentlensai.init(
     agent_id="my-autogen-group",
 )
 
-plugin = AgentLensAutoGenPlugin()
+handler = AgentLensAutoGenHandler()
 
 import autogen
 
 assistant = autogen.AssistantAgent("assistant", llm_config={"model": "gpt-4o"})
 user_proxy = autogen.UserProxyAgent("user", code_execution_config=False)
 
-# Plugin instruments message exchanges
+# Register hook to capture message exchanges
+assistant.register_hook("process_message_before_send", handler.on_message_sent)
+
+# Lifecycle hooks for session tracking
+handler.on_conversation_start(user_proxy, [assistant])
 user_proxy.initiate_chat(assistant, message="Write a poem about AI")
+handler.on_conversation_end("Done")
 ```
 
 ### What's Captured
@@ -139,7 +150,7 @@ The Semantic Kernel plugin integrates via SK's filter/hook system.
 
 ```python
 import agentlensai
-from agentlensai.integrations.semantic_kernel import AgentLensSemanticKernelPlugin
+from agentlensai.integrations.semantic_kernel import AgentLensSKHandler, init as sk_init
 
 agentlensai.init(
     url="http://localhost:3400",
@@ -150,7 +161,13 @@ agentlensai.init(
 import semantic_kernel as sk
 
 kernel = sk.Kernel()
-plugin = AgentLensSemanticKernelPlugin(kernel)
+
+# Option 1: Use the convenience init helper (adds filter automatically)
+sk_init(kernel)
+
+# Option 2: Add filter manually
+# handler = AgentLensSKHandler(kernel_name="my-kernel")
+# kernel.add_filter("function_invocation", handler.filter)
 
 # All kernel function calls and LLM invocations are now captured
 result = await kernel.invoke_prompt("Tell me a joke about {{$topic}}", topic="programming")
@@ -165,27 +182,7 @@ result = await kernel.invoke_prompt("Tell me a joke about {{$topic}}", topic="pr
 
 ## Auto-Detection
 
-When you call `agentlensai.init()`, the SDK automatically detects which frameworks are installed and enables the corresponding plugins. You can disable auto-detection:
-
-```python
-agentlensai.init(
-    url="http://localhost:3400",
-    api_key="als_your_key",
-    agent_id="my-agent",
-    auto_instrument=False,  # disable auto-detection
-)
-```
-
-Or selectively enable/disable specific frameworks:
-
-```python
-agentlensai.init(
-    url="http://localhost:3400",
-    api_key="als_your_key",
-    agent_id="my-agent",
-    frameworks=["langchain", "crewai"],  # only these two
-)
-```
+When you call `agentlensai.init()`, the SDK automatically detects which frameworks are installed and enables the corresponding plugins. No extra configuration is needed — if a framework package is importable, it will be instrumented.
 
 ## Fail-Safe Guarantees
 
@@ -198,29 +195,16 @@ All framework plugins follow these safety principles:
 
 ## Configuration Options
 
-All plugins accept these common options:
+The `init()` function accepts these parameters:
 
 ```python
 agentlensai.init(
-    url="http://localhost:3400",
-    api_key="als_your_key",
-    agent_id="my-agent",
-
-    # Privacy
-    redact=True,              # strip prompt/completion content, keep metadata
-
-    # Batching
-    batch_size=50,            # events per batch (default: 50)
-    flush_interval=5.0,       # seconds between flushes (default: 5.0)
-
-    # Filtering
-    capture_prompts=True,     # include full prompt text (default: True)
-    capture_completions=True, # include full completion text (default: True)
-    min_severity="info",      # minimum severity to capture (default: "info")
-
-    # Connection
-    timeout=10,               # HTTP timeout in seconds (default: 10)
-    retries=3,                # retry count for failed sends (default: 3)
+    url="http://localhost:3400",       # AgentLens server URL (required)
+    api_key="als_your_key",            # API key for authentication
+    agent_id="my-agent",               # Agent identifier (default: "default")
+    session_id=None,                   # Session ID (auto-generated if omitted)
+    redact=True,                       # Strip prompt/completion content, keep metadata
+    sync_mode=False,                   # Send events synchronously (useful for testing)
 )
 ```
 

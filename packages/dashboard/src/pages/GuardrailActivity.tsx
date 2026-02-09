@@ -71,6 +71,7 @@ export default function GuardrailActivity() {
       </div>
 
       {(rulesQuery.loading || historyQuery.loading) && <p>Loading...</p>}
+      {rulesQuery.error && <p style={{ color: '#ef4444' }}>Error loading rules: {rulesQuery.error}</p>}
       {historyQuery.error && <p style={{ color: '#ef4444' }}>Error: {historyQuery.error}</p>}
 
       {filtered.length === 0 && !historyQuery.loading && (

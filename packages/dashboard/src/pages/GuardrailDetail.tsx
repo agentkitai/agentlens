@@ -41,7 +41,7 @@ function renderConfig(config: Record<string, unknown>): React.ReactNode {
       {entries.map(([k, v]) => (
         <React.Fragment key={k}>
           <span style={{ color: '#64748b', fontWeight: 500 }}>{k}</span>
-          <span>{String(v)}</span>
+          <span>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
         </React.Fragment>
       ))}
     </div>
@@ -52,6 +52,8 @@ function renderConfig(config: Record<string, unknown>): React.ReactNode {
 
 export default function GuardrailDetail() {
   const { id } = useParams<{ id: string }>();
+
+  if (!id) return <p>No guardrail ID specified</p>;
 
   const query = useApi(
     () => getGuardrailStatus(id!),

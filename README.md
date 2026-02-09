@@ -340,7 +340,19 @@ Navigate to **http://localhost:3400** — see sessions, timelines, analytics, an
 
 ## 🧠 Agent Memory
 
-AgentLens ships **14 MCP tools** — 4 for memory and self-improvement, 5 for observability, 4 for analytics, and 1 for safety:
+AgentLens ships **14 MCP tools** — 5 core observability tools, 4 for memory and self-improvement, 4 for analytics, and 1 for safety:
+
+#### Core Observability
+
+| Tool | Purpose | Description |
+|---|---|---|
+| `agentlens_session_start` | **Start Session** | Begin a new observability session for an agent run. Returns a session ID for correlating subsequent events. |
+| `agentlens_log_event` | **Log Event** | Record a custom event (tool call, error, approval, etc.) into the current session timeline. |
+| `agentlens_log_llm_call` | **Log LLM Call** | Record an LLM call with model, messages, tokens, cost, and latency. Pairs with completions via `callId`. |
+| `agentlens_query_events` | **Query Events** | Search and filter events across sessions by type, severity, agent, time range, and payload content. |
+| `agentlens_session_end` | **End Session** | Close the current session, flush pending events, and finalize the hash chain. |
+
+#### Intelligence & Analytics
 
 | Tool | Purpose | Description |
 |---|---|---|
@@ -419,6 +431,13 @@ See the [Agent Memory Guide](./docs/guide/agent-memory.md) for integration patte
 | `PUT /api/benchmarks/:id/status` | Transition benchmark status |
 | `GET /api/benchmarks/:id/results` | Get benchmark comparison results |
 | `DELETE /api/benchmarks/:id` | Delete a benchmark |
+| `POST /api/guardrails` | Create guardrail rule |
+| `GET /api/guardrails` | List guardrail rules |
+| `GET /api/guardrails/:id` | Get guardrail rule |
+| `PUT /api/guardrails/:id` | Update guardrail rule |
+| `DELETE /api/guardrails/:id` | Delete guardrail rule |
+| `GET /api/guardrails/history` | List guardrail trigger history |
+| `GET /api/agents/:id` | Get agent detail (includes pausedAt, modelOverride) |
 | `POST /api/keys` | Create API keys |
 
 [Full API Reference →](./docs/reference/api.md)
