@@ -719,10 +719,9 @@ describe('S-6.4: Plan Upgrade/Downgrade', () => {
 
     expect(result.prorationApplied).toBe(true);
     expect(result.action).toBe('upgraded');
-    // Old sub cancelled immediately
-    expect(stripe.subscriptions[0].status).toBe('canceled');
-    // New sub created
-    expect(stripe.subscriptions).toHaveLength(2);
+    // Existing sub updated atomically (not cancel+recreate)
+    expect(stripe.subscriptions[0].status).toBe('active');
+    expect(stripe.subscriptions).toHaveLength(1);
   });
 
   it('downgrades from pro to free at end of period', async () => {

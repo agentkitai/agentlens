@@ -48,16 +48,14 @@ export function OrgProvider({ children }: { children: React.ReactNode }): React.
       const list = await getMyOrgs();
       setOrgs(list);
       // If no current org, select the first one
-      if (!currentOrg && list.length > 0) {
-        setCurrentOrg(list[0]);
-      }
+      setCurrentOrg(prev => prev ?? list[0] ?? null);
     } catch {
       // In self-hosted mode, cloud endpoints won't exist — that's fine
       setOrgs([]);
     } finally {
       setLoading(false);
     }
-  }, [currentOrg]);
+  }, []);
 
   useEffect(() => {
     refreshOrgs();

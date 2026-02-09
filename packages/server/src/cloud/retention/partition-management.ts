@@ -111,7 +111,7 @@ export async function managePartitions(
  */
 export async function getGlobalMinRetentionMonths(pool: Pool): Promise<number> {
   const { rows } = await pool.query(
-    `SELECT DISTINCT plan FROM organizations WHERE deleted_at IS NULL`,
+    `SELECT DISTINCT plan FROM orgs WHERE deleted_at IS NULL`,
   );
 
   if (rows.length === 0) return 12; // default safe value

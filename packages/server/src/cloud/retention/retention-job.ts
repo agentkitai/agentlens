@@ -141,7 +141,7 @@ export async function runRetentionJob(deps: RetentionJobDeps): Promise<Retention
 async function getActiveOrgs(pool: Pool): Promise<OrgRetentionInfo[]> {
   const { rows } = await pool.query(
     `SELECT id AS "orgId", plan, custom_retention_days AS "customRetentionDays"
-     FROM organizations
+     FROM orgs
      WHERE deleted_at IS NULL`,
   );
   return (rows as Array<{ orgId: string; plan: string; customRetentionDays: number | null }>).map(
@@ -216,17 +216,25 @@ export async function purgeExpiredData(
 
     const timestampCol = table === 'audit_log' ? 'created_at' : 'timestamp';
 
-    // Per-org DELETE (partitions are shared, can't drop per-org)
-    const deleteResult = await pool.query(
-      `DELETE FROM ${table} WHERE org_id = $1 AND ${timestampCol} < $2`,
-      [orgId, cutoff.toISOString()],
-    );
+    // Per-org batched DELETE (partitions are shared, can't drop per-org)
+    const BATCH_SIZE = 10000;
+    let totalDeleted = 0;
+    let batchDeleted: number;
+    do {
+      const deleteResult = await pool.query(
+        `DELETE FROM ${table} WHERE ctid IN (
+          SELECT ctid FROM ${table} WHERE org_id = $1 AND ${timestampCol} < $2 LIMIT ${BATCH_SIZE}
+        )`,
+        [orgId, cutoff.toISOString()],
+      );
+      batchDeleted = (deleteResult as { rowCount: number }).rowCount ?? 0;
+      totalDeleted += batchDeleted;
+    } while (batchDeleted >= BATCH_SIZE);
 
-    const deleted = (deleteResult as { rowCount: number }).rowCount ?? 0;
-    result.rowsDeleted += deleted;
+    result.rowsDeleted += totalDeleted;
 
-    if (deleted > 0) {
-      logger.info(`Deleted ${deleted} rows from ${table} for org ${orgId}`);
+    if (totalDeleted > 0) {
+      logger.info(`Deleted ${totalDeleted} rows from ${table} for org ${orgId}`);
     }
   }
 

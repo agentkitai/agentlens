@@ -21,7 +21,7 @@ import {
 // ═══════════════════════════════════════════
 
 export function DlqDashboard() {
-  const { org } = useOrg();
+  const { currentOrg: org } = useOrg();
   const [health, setHealth] = useState<DlqHealth | null>(null);
   const [entries, setEntries] = useState<DlqEntry[]>([]);
   const [loading, setLoading] = useState(true);

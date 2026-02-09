@@ -327,15 +327,17 @@ async function importRecord(
       return (res.rowCount ?? 0) > 0;
     }
     case 'event': {
-      const { id, session_id, type, timestamp, data: eventData, ...extra } =
+      const { id, session_id, event_type, type, timestamp, payload, data: eventData, ...extra } =
         data as Record<string, unknown>;
+      const resolvedType = event_type ?? type;
+      const resolvedPayload = payload ?? eventData;
       const res = await client.query(
-        `INSERT INTO events (id, org_id, session_id, type, timestamp, data)
+        `INSERT INTO events (id, org_id, session_id, event_type, timestamp, payload)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (id) DO NOTHING`,
         [
-          id, orgId, session_id, type, timestamp,
-          typeof eventData === 'object' ? JSON.stringify(eventData) : eventData ?? '{}',
+          id, orgId, session_id, resolvedType, timestamp,
+          typeof resolvedPayload === 'object' ? JSON.stringify(resolvedPayload) : resolvedPayload ?? '{}',
         ],
       );
       return (res.rowCount ?? 0) > 0;

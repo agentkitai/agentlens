@@ -190,7 +190,7 @@ async function migrateDown(args: string[]): Promise<void> {
   }
 
   console.log('Exporting from cloud...');
-  const response = await fetch(`${cloudUrl}/v1/export`, {
+  const response = await fetch(`${cloudUrl}/api/export`, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: 'application/x-ndjson',
@@ -315,7 +315,7 @@ export async function exportFromSqlite(dbPath: string): Promise<string[]> {
 
 async function uploadBatch(cloudUrl: string, apiKey: string, lines: string[]): Promise<void> {
   const body = lines.join('\n') + '\n';
-  const response = await fetch(`${cloudUrl}/v1/import`, {
+  const response = await fetch(`${cloudUrl}/api/import`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -347,7 +347,7 @@ async function verifyMigration(
   }
 
   try {
-    const response = await fetch(`${cloudUrl}/v1/export/counts`, {
+    const response = await fetch(`${cloudUrl}/api/export/counts`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!response.ok) return false;

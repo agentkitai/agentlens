@@ -77,12 +77,7 @@ export class PlanManager {
     const previousPlan = org.plan as TierName;
     const tierConfig = TIER_CONFIG[newTier];
 
-    // Cancel existing subscription immediately if any
-    if (org.stripe_subscription_id) {
-      await this.deps.stripe.cancelSubscription(org.stripe_subscription_id, false);
-    }
-
-    // Build subscription items
+    // Build subscription items for the new tier
     const priceId = billing === 'annual' && ANNUAL_PRICE_IDS[newTier]
       ? ANNUAL_PRICE_IDS[newTier]!
       : tierConfig.price_id;
@@ -92,11 +87,16 @@ export class PlanManager {
       items.push({ price: tierConfig.overage_price_id });
     }
 
-    // Create new subscription (Stripe handles proration automatically)
-    const subscription = await this.deps.stripe.createSubscription({
-      customer: org.stripe_customer_id!,
-      items,
-    });
+    // Atomically update existing subscription (proration) instead of cancel+recreate
+    let subscription: { id: string };
+    if (org.stripe_subscription_id) {
+      subscription = await this.deps.stripe.updateSubscription(org.stripe_subscription_id, items);
+    } else {
+      subscription = await this.deps.stripe.createSubscription({
+        customer: org.stripe_customer_id!,
+        items,
+      });
+    }
 
     // Update org immediately
     await this.deps.db.query(
