@@ -11,4 +11,5 @@ export { DlqDashboard } from './DlqDashboard';
 export { BillingPage } from './BillingPage';
 export { AuditLogPage } from './AuditLogPage';
 export { OnboardingFlow } from './OnboardingFlow';
+export { PricingPage } from './PricingPage';
 export * from './api';
