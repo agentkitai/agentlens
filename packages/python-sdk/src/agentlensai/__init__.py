@@ -9,7 +9,10 @@ from agentlensai.exceptions import (
     AgentLensConnectionError,
     AgentLensError,
     AuthenticationError,
+    BackpressureError,
     NotFoundError,
+    QuotaExceededError,
+    RateLimitError,
     ValidationError,
 )
 from agentlensai.models import (
@@ -127,6 +130,9 @@ __all__ = [
     "AgentLensConnectionError",
     "AgentLensError",
     "AuthenticationError",
+    "BackpressureError",
     "NotFoundError",
+    "QuotaExceededError",
+    "RateLimitError",
     "ValidationError",
 ]

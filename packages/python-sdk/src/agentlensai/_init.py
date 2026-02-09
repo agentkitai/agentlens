@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import os
 import uuid
 from typing import Union
 
@@ -12,9 +13,44 @@ from agentlensai.client import AgentLensClient
 
 logger = logging.getLogger("agentlensai")
 
+CLOUD_URL = "https://api.agentlens.ai"
+_DEFAULT_URL = "http://localhost:3400"
+
+
+def _mask_key(key: str) -> str:
+    """Mask an API key for safe logging, showing only last 4 chars."""
+    if len(key) <= 4:
+        return "****"
+    return f"****{key[-4:]}"
+
+
+def _resolve_url(
+    server_url: str | None,
+    cloud: bool,
+) -> str:
+    """Resolve the server URL with priority: explicit > cloud flag > env > default."""
+    if server_url is not None:
+        return server_url
+    if cloud:
+        return CLOUD_URL
+    env_url = os.environ.get("AGENTLENS_SERVER_URL")
+    if env_url:
+        return env_url
+    return _DEFAULT_URL
+
+
+def _resolve_api_key(api_key: str | None) -> str | None:
+    """Resolve API key: explicit param > env var."""
+    if api_key is not None:
+        return api_key
+    return os.environ.get("AGENTLENS_API_KEY")
+
 
 def init(
-    url: str,
+    url: str | None = None,
+    *,
+    server_url: str | None = None,
+    cloud: bool = False,
     api_key: str | None = None,
     agent_id: str = "default",
     session_id: str | None = None,
@@ -28,12 +64,14 @@ def init(
     (OpenAI, Anthropic, etc.) to capture all LLM calls.
 
     Args:
-        url: AgentLens server URL (e.g., "http://localhost:3400")
-        api_key: API key for authentication
-        agent_id: Agent identifier for events
-        session_id: Session ID (auto-generated if not provided)
-        redact: If True, strip prompt/completion content from events
-        sync_mode: If True, send events synchronously (useful for testing)
+        url: AgentLens server URL (positional, for backward compat).
+        server_url: Explicit server URL (keyword, takes precedence over url).
+        cloud: If True, use AgentLens Cloud (https://api.agentlens.ai).
+        api_key: API key for authentication. Falls back to AGENTLENS_API_KEY env var.
+        agent_id: Agent identifier for events.
+        session_id: Session ID (auto-generated if not provided).
+        redact: If True, strip prompt/completion content from events.
+        sync_mode: If True, send events synchronously (useful for testing).
         integrations: Which LLM providers to instrument:
             - ``None`` or ``"auto"`` — instrument all available (default)
             - ``["openai", "anthropic"]`` — explicit list
@@ -47,8 +85,17 @@ def init(
         logger.warning("AgentLens already initialized. Call shutdown() first to reinitialize.")
         return existing.session_id
 
+    # Resolve URL: server_url kwarg > url positional > cloud > env > default
+    resolved_url = _resolve_url(server_url or url, cloud)
+
+    # Resolve API key: explicit > env var
+    resolved_key = _resolve_api_key(api_key)
+
+    if resolved_key:
+        logger.debug("AgentLens: using API key %s", _mask_key(resolved_key))
+
     # Create client
-    client = AgentLensClient(url, api_key=api_key)
+    client = AgentLensClient(resolved_url, api_key=resolved_key)
 
     # Generate session ID if not provided
     sid = session_id or str(uuid.uuid4())

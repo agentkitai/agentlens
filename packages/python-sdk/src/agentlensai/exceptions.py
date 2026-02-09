@@ -48,3 +48,25 @@ class AgentLensConnectionError(AgentLensError):
     def __init__(self, message: str, cause: BaseException | None = None) -> None:
         super().__init__(message, status=0, code="CONNECTION_ERROR", details=cause)
         self.__cause__ = cause
+
+
+class QuotaExceededError(AgentLensError):
+    """Raised on 402 Payment Required (quota exceeded)."""
+
+    def __init__(self, message: str = "Quota exceeded") -> None:
+        super().__init__(message, status=402, code="QUOTA_EXCEEDED")
+
+
+class RateLimitError(AgentLensError):
+    """Raised on 429 Too Many Requests."""
+
+    def __init__(self, message: str = "Rate limit exceeded", retry_after: float | None = None) -> None:
+        super().__init__(message, status=429, code="RATE_LIMITED")
+        self.retry_after = retry_after
+
+
+class BackpressureError(AgentLensError):
+    """Raised on 503 Service Unavailable (backpressure)."""
+
+    def __init__(self, message: str = "Service temporarily unavailable") -> None:
+        super().__init__(message, status=503, code="BACKPRESSURE")

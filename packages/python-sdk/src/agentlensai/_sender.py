@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Union
 
 from agentlensai._state import InstrumentationState
+from agentlensai.exceptions import QuotaExceededError
 
 logger = logging.getLogger("agentlensai")
 
@@ -181,7 +182,25 @@ class EventSender:
             },
         ]
 
-        state.client._request("POST", "/api/events", json={"events": events})
+        try:
+            state.client._request("POST", "/api/events", json={"events": events})
+        except QuotaExceededError:
+            # Buffer locally — don't lose data on quota exceeded
+            self._buffer_locally(events)
+            logger.warning("AgentLens: quota exceeded, events buffered locally")
+
+    def _buffer_locally(self, events: list[dict[str, Any]]) -> None:
+        """Buffer events locally when cloud quota is exceeded."""
+        import json
+        import os
+        import tempfile
+
+        buffer_dir = os.environ.get("AGENTLENS_BUFFER_DIR", os.path.join(tempfile.gettempdir(), "agentlens_buffer"))
+        os.makedirs(buffer_dir, exist_ok=True)
+        filename = os.path.join(buffer_dir, f"events_{uuid.uuid4().hex}.json")
+        with open(filename, "w") as f:
+            json.dump(events, f)
+        logger.debug("AgentLens: buffered %d events to %s", len(events), filename)
 
 
 # Module-level singleton

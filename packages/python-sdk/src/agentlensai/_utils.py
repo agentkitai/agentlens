@@ -9,7 +9,10 @@ from typing import Any
 from agentlensai.exceptions import (
     AgentLensError,
     AuthenticationError,
+    BackpressureError,
     NotFoundError,
+    QuotaExceededError,
+    RateLimitError,
     ValidationError,
 )
 
@@ -49,10 +52,16 @@ def map_http_error(status: int, body_text: str) -> AgentLensError:
 
     if status == 401:
         return AuthenticationError(message)
+    elif status == 402:
+        return QuotaExceededError(message)
     elif status == 404:
         return NotFoundError(message)
     elif status == 400:
         return ValidationError(message, details)
+    elif status == 429:
+        return RateLimitError(message)
+    elif status == 503:
+        return BackpressureError(message)
     else:
         return AgentLensError(message, status=status, code="API_ERROR", details=details)
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -19,7 +21,13 @@ from agentlensai._utils import (
     build_session_query_params,
     map_http_error,
 )
-from agentlensai.exceptions import AgentLensConnectionError
+from agentlensai.exceptions import (
+    AgentLensConnectionError,
+    AuthenticationError,
+    BackpressureError,
+    QuotaExceededError,
+    RateLimitError,
+)
 from agentlensai.models import (
     Agent,
     AgentLensEvent,
@@ -68,9 +76,14 @@ class AgentLensClient:
             events = client.query_events()
     """
 
+    _MAX_RETRIES = 3
+    _BACKOFF_BASE = 1.0  # seconds
+    _BACKOFF_MAX = 30.0
+
     def __init__(self, url: str, api_key: str | None = None) -> None:
         self._base_url = url.rstrip("/")
         self._api_key = api_key
+        self._logger = logging.getLogger("agentlensai")
         headers: dict[str, str] = {"Accept": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -97,15 +110,79 @@ class AgentLensClient:
         json: Any = None,
         skip_auth: bool = False,
     ) -> Any:
+        last_exc: Exception | None = None
+        for attempt in range(self._MAX_RETRIES + 1):
+            try:
+                response = self._do_request(method, path, params=params, json=json, skip_auth=skip_auth)
+            except AgentLensConnectionError:
+                raise
+
+            if response.is_success:
+                return response.json()
+
+            error = map_http_error(response.status_code, response.text)
+
+            # 401 — never retry, raise immediately
+            if isinstance(error, AuthenticationError):
+                raise error
+
+            # 402 — quota exceeded, raise (caller should buffer locally)
+            if isinstance(error, QuotaExceededError):
+                raise error
+
+            # 429 — rate limited, retry with Retry-After header
+            if isinstance(error, RateLimitError):
+                retry_after = response.headers.get("Retry-After")
+                if retry_after is not None:
+                    try:
+                        error.retry_after = float(retry_after)
+                    except (ValueError, TypeError):
+                        pass
+                if attempt < self._MAX_RETRIES:
+                    wait = error.retry_after if error.retry_after else self._backoff(attempt)
+                    self._logger.debug("AgentLens: 429 rate limited, retrying in %.1fs", wait)
+                    time.sleep(wait)
+                    last_exc = error
+                    continue
+                raise error
+
+            # 503 — backpressure, retry with exponential backoff
+            if isinstance(error, BackpressureError):
+                if attempt < self._MAX_RETRIES:
+                    wait = self._backoff(attempt)
+                    self._logger.debug("AgentLens: 503 backpressure, retrying in %.1fs", wait)
+                    time.sleep(wait)
+                    last_exc = error
+                    continue
+                raise error
+
+            # All other errors — no retry
+            raise error
+
+        # Should not reach here, but just in case
+        raise last_exc  # type: ignore[misc]
+
+    def _backoff(self, attempt: int) -> float:
+        """Exponential backoff with cap."""
+        return min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_MAX)
+
+    def _do_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, str] | None = None,
+        json: Any = None,
+        skip_auth: bool = False,
+    ) -> httpx.Response:
+        """Execute a single HTTP request (no retry logic)."""
         if skip_auth and "Authorization" in self._client.headers:
-            # For health endpoint — exclude auth header.
-            # Build the request manually so we can strip the header before sending.
             try:
                 request = self._client.build_request(
                     method, path, params=params, json=json,
                 )
                 request.headers.pop("Authorization", None)
-                response = self._client.send(request)
+                return self._client.send(request)
             except httpx.ConnectError as exc:
                 raise AgentLensConnectionError(
                     f"Failed to connect to AgentLens at {self._base_url}: {exc}",
@@ -113,17 +190,12 @@ class AgentLensClient:
                 ) from exc
         else:
             try:
-                response = self._client.request(method, path, params=params, json=json)
+                return self._client.request(method, path, params=params, json=json)
             except httpx.ConnectError as exc:
                 raise AgentLensConnectionError(
                     f"Failed to connect to AgentLens at {self._base_url}: {exc}",
                     cause=exc,
                 ) from exc
-
-        if not response.is_success:
-            raise map_http_error(response.status_code, response.text)
-
-        return response.json()
 
     # ─── Events ───────────────────────────────────────────
 
