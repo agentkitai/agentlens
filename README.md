@@ -30,7 +30,7 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 
 ## ✨ Key Features
 
-- **🐍 Python Auto-Instrumentation** — `agentlensai.init()` and every OpenAI, Anthropic, or LangChain call is captured automatically. Deterministic — no reliance on LLM behavior.
+- **🐍 Python Auto-Instrumentation** — `agentlensai.init()` and every LLM call across 9 providers (OpenAI, Anthropic, LiteLLM, Bedrock, Vertex, Gemini, Mistral, Cohere, Ollama) is captured automatically. Deterministic — no reliance on LLM behavior.
 - **🔌 MCP-Native** — Ships as an MCP server. Agents connect to it like any other tool. Works with Claude Desktop, Cursor, and any MCP client.
 - **🧠 LLM Call Tracking** — Full prompt/completion visibility, token usage, cost aggregation, latency measurement, and privacy redaction.
 - **📊 Real-Time Dashboard** — Session timelines, event explorer, LLM analytics, cost tracking, and alerting in a beautiful web UI.
@@ -202,10 +202,14 @@ Save the `als_...` key from the response — it's shown only once.
 
 #### 🐍 Python Auto-Instrumentation
 
-One line — every LLM call captured automatically:
+One line — every LLM call captured automatically. **9 providers supported:**
+OpenAI, Anthropic, LiteLLM, AWS Bedrock, Google Vertex AI, Google Gemini, Mistral AI, Cohere, and Ollama.
 
 ```bash
-pip install agentlensai[all]   # or agentlensai[openai] / agentlensai[anthropic]
+pip install agentlensai[all-providers]   # all 9 providers
+# or pick specific ones:
+pip install agentlensai[openai]          # just OpenAI
+pip install agentlensai[bedrock,ollama]  # Bedrock + Ollama
 ```
 
 ```python
@@ -217,7 +221,7 @@ agentlensai.init(
     agent_id="my-agent",
 )
 
-# Every OpenAI/Anthropic call is now captured automatically
+# Every LLM call is now captured automatically (all installed providers)
 import openai
 client = openai.OpenAI()
 response = client.chat.completions.create(
@@ -444,7 +448,7 @@ The Delegation Log tracks the **4-phase delegation protocol** (request → accep
 
 | Package | Description | PyPI |
 |---|---|---|
-| [`agentlensai`](./packages/python-sdk) | Python SDK + auto-instrumentation for OpenAI, Anthropic, LangChain | [![PyPI](https://img.shields.io/pypi/v/agentlensai)](https://pypi.org/project/agentlensai/) |
+| [`agentlensai`](./packages/python-sdk) | Python SDK + auto-instrumentation for 9 LLM providers (OpenAI, Anthropic, LiteLLM, Bedrock, Vertex, Gemini, Mistral, Cohere, Ollama) | [![PyPI](https://img.shields.io/pypi/v/agentlensai)](https://pypi.org/project/agentlensai/) |
 
 ### TypeScript / Node.js (npm)
 

@@ -32,10 +32,36 @@ dependencies = [
 openai = ["openai>=1.0.0"]
 anthropic = ["anthropic>=0.20.0"]
 langchain = ["langchain-core>=0.1.0"]
+litellm = ["litellm>=1.0"]
+bedrock = ["boto3>=1.28"]
+vertex = ["google-cloud-aiplatform>=1.38"]
+gemini = ["google-generativeai>=0.3"]
+azure = ["openai>=1.0.0"]
+mistral = ["mistralai>=0.1"]
+cohere = ["cohere>=5.0"]
+ollama = ["ollama>=0.1"]
+all-providers = [
+  "openai>=1.0.0",
+  "anthropic>=0.20.0",
+  "litellm>=1.0",
+  "boto3>=1.28",
+  "google-cloud-aiplatform>=1.38",
+  "google-generativeai>=0.3",
+  "mistralai>=0.1",
+  "cohere>=5.0",
+  "ollama>=0.1",
+]
 all = [
   "openai>=1.0.0",
   "anthropic>=0.20.0",
   "langchain-core>=0.1.0",
+  "litellm>=1.0",
+  "boto3>=1.28",
+  "google-cloud-aiplatform>=1.38",
+  "google-generativeai>=0.3",
+  "mistralai>=0.1",
+  "cohere>=5.0",
+  "ollama>=0.1",
 ]
 dev = [
   "pytest>=7.0",

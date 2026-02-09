@@ -142,6 +142,23 @@ def _ensure_providers_imported() -> None:
         except Exception:
             pass
 
+    # All other providers — try importing each; failures are silently ignored
+    _optional_providers = [
+        ("litellm", "agentlensai.integrations.litellm"),
+        ("botocore", "agentlensai.integrations.bedrock"),
+        ("mistralai", "agentlensai.integrations.mistral"),
+        ("google.cloud.aiplatform", "agentlensai.integrations.vertex"),
+        ("google.generativeai", "agentlensai.integrations.gemini"),
+        ("cohere", "agentlensai.integrations.cohere"),
+        ("ollama", "agentlensai.integrations.ollama"),
+    ]
+    for sdk_name, integration_mod in _optional_providers:
+        try:
+            if importlib.util.find_spec(sdk_name) is not None:
+                __import__(integration_mod)
+        except Exception:
+            pass
+
 
 def _instrument_frameworks() -> None:
     """Auto-detect installed frameworks and instrument them."""

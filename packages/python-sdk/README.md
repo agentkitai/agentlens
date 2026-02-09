@@ -143,6 +143,88 @@ chain.invoke(input, config={"callbacks": [handler]})
 # ^ Every LLM call, tool call, and chain event captured
 ```
 
+## Supported Providers (v0.10.0+)
+
+AgentLens supports **9 LLM providers** with automatic instrumentation:
+
+| Provider | Install | Status |
+|----------|---------|--------|
+| OpenAI | `pip install agentlensai[openai]` | ✅ Sync + Async + Streaming |
+| Anthropic | `pip install agentlensai[anthropic]` | ✅ Sync + Async + Streaming |
+| LiteLLM | `pip install agentlensai[litellm]` | ✅ 100+ providers via proxy |
+| AWS Bedrock | `pip install agentlensai[bedrock]` | ✅ All Bedrock models |
+| Google Vertex AI | `pip install agentlensai[vertex]` | ✅ Vertex model garden |
+| Google Gemini | `pip install agentlensai[gemini]` | ✅ Gemini API |
+| Mistral AI | `pip install agentlensai[mistral]` | ✅ All Mistral models |
+| Cohere | `pip install agentlensai[cohere]` | ✅ v1 + v2 API |
+| Ollama | `pip install agentlensai[ollama]` | ✅ Local models (free) |
+
+Install all providers at once:
+
+```bash
+pip install agentlensai[all-providers]
+```
+
+### Auto-Discovery
+
+```python
+import agentlensai
+
+# Automatically discovers and instruments ALL installed provider SDKs
+agentlensai.init(
+    url="http://localhost:3400",
+    api_key="als_your_key",
+    agent_id="my-agent",
+    integrations="auto",  # default — instruments everything available
+)
+```
+
+Or pick specific providers:
+
+```python
+agentlensai.init(
+    url="http://localhost:3400",
+    integrations=["openai", "bedrock", "ollama"],
+)
+```
+
+### Provider Examples
+
+**Ollama (local, free):**
+```python
+import ollama
+response = ollama.chat(model="llama3", messages=[{"role": "user", "content": "Hello"}])
+# ^ Captured: model, tokens, latency (cost = $0)
+```
+
+**AWS Bedrock:**
+```python
+import boto3
+client = boto3.client("bedrock-runtime")
+response = client.invoke_model(modelId="anthropic.claude-3-haiku-20240307-v1:0", body=...)
+# ^ Captured with Bedrock-specific pricing
+```
+
+**LiteLLM (100+ providers):**
+```python
+import litellm
+response = litellm.completion(model="gpt-4", messages=[...])
+# ^ Captured with built-in cost calculation
+```
+
+### Migration from v0.4.0
+
+The old `instrument_openai()` / `instrument_anthropic()` functions still work:
+
+```python
+# Old way (still supported)
+from agentlensai.integrations.openai import instrument_openai
+instrument_openai()
+
+# New way (recommended)
+agentlensai.init(url="...", integrations="auto")
+```
+
 ### Key Guarantees
 
 - **Deterministic** — Every call captured, not dependent on LLM behavior
