@@ -426,7 +426,7 @@ The Delegation Log tracks the **4-phase delegation protocol** (request → accep
 
 ### 🎬 v0.9.0 CLI Demo
 
-<a href="https://asciinema.org/a/demo-v0.9"><img src="https://asciinema.org/a/demo-v0.9.svg" alt="AgentLens v0.9.0 Demo" width="720"></a>
+<a href="https://asciinema.org/a/BPVgG2NkbynmKbXI"><img src="https://asciinema.org/a/BPVgG2NkbynmKbXI.svg" alt="AgentLens v0.9.0 Demo" width="720"></a>
 
 > Community sharing, agent discovery, task delegation, and trust scores — all from the CLI. ([View cast file](demo/demo-v0.9.cast))
 
