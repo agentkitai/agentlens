@@ -1,100 +1,90 @@
 #!/bin/bash
-# AgentLens v0.10.0 Demo Script — Multi-Provider Auto-Instrumentation
-# This script demonstrates the key features for an asciinema recording
+# AgentLens v0.10.0 Demo — Multi-Provider Auto-Instrumentation
 
-set -e
-
-# Simulate typing with delays for asciinema
-type_cmd() {
+# Simulate typing
+typeit() {
+    for ((i=0; i<${#1}; i++)); do
+        printf '%s' "${1:$i:1}"
+        sleep 0.04
+    done
     echo ""
-    echo "$ $1"
-    sleep 1.5
+}
+
+prompt() {
+    printf '$ '
+    sleep 0.3
+    typeit "$1"
+    sleep 0.8
 }
 
 clear
-echo "🔍 AgentLens v0.10.0 — Multi-Provider Auto-Instrumentation Demo"
-echo "================================================================"
-sleep 4
+sleep 1
+echo "🔍 AgentLens v0.10.0 — Multi-Provider Auto-Instrumentation"
+echo "============================================================"
+sleep 2
 
-type_cmd "# Install AgentLens with all 9 LLM providers"
-type_cmd "pip install agentlensai[all-providers]"
+prompt "pip install agentlensai[all-providers]"
+sleep 0.5
+echo "Collecting agentlensai[all-providers]"
+sleep 0.3
+echo "  Downloading agentlensai-0.10.0-py3-none-any.whl"
+sleep 0.3
+echo "Installing collected packages: agentlensai"
+sleep 0.5
 echo "Successfully installed agentlensai-0.10.0"
-echo "  ✅ openai>=1.0.0"
-echo "  ✅ anthropic>=0.20.0"
-echo "  ✅ litellm>=1.0"
-echo "  ✅ boto3>=1.28 (Bedrock)"
-echo "  ✅ google-cloud-aiplatform>=1.38 (Vertex AI)"
-echo "  ✅ google-generativeai>=0.3 (Gemini)"
-echo "  ✅ mistralai>=0.1"
-echo "  ✅ cohere>=5.0"
-echo "  ✅ ollama>=0.1"
+sleep 2
+
+prompt "python3 -c 'import agentlensai; agentlensai.init(integrations=\"auto\")'"
+sleep 1
+echo ""
+echo "📦 Auto-discovered providers:"
+sleep 0.3
+echo "  ✅ openai        — GPT-4, GPT-3.5"
+sleep 0.2
+echo "  ✅ anthropic     — Claude 3/4 Opus, Sonnet, Haiku"
+sleep 0.2
+echo "  ✅ litellm       — 100+ providers via single adapter"
+sleep 0.2
+echo "  ✅ bedrock       — AWS Bedrock (Amazon Titan, Claude)"
+sleep 0.2
+echo "  ✅ vertex        — Google Vertex AI"
+sleep 0.2
+echo "  ✅ gemini        — Google Gemini API"
+sleep 0.2
+echo "  ✅ azure_openai  — Azure OpenAI Service"
+sleep 0.2
+echo "  ✅ mistral       — Mistral AI"
+sleep 0.2
+echo "  ✅ cohere        — Cohere Command"
+sleep 0.5
+echo ""
+echo "🔗 All 9 providers instrumented. Zero code changes needed."
+sleep 3
+
+prompt "# Works with any provider — example with Anthropic:"
+prompt "python3 << 'EOF'"
+sleep 0.5
+typeit "import anthropic"
+typeit "client = anthropic.Anthropic()"
+typeit "resp = client.messages.create("
+typeit "    model='claude-sonnet-4-20250514',"
+typeit "    max_tokens=100,"
+typeit "    messages=[{'role': 'user', 'content': 'Hello!'}]"
+typeit ")"
+typeit "EOF"
+sleep 1
+echo ""
+echo "🧠 Captured: model=claude-sonnet-4-20250514 tokens=23 cost=$0.0004 latency=342ms"
+sleep 2
+
+prompt "# Check the dashboard"
+prompt "open http://localhost:3000"
+sleep 1
+echo ""
+echo "📊 Dashboard → Sessions, LLM Calls, Cost Analytics, Health Scores"
+echo "   All provider calls visible in one unified timeline."
+sleep 3
+
+echo ""
+echo "🎉 AgentLens v0.10.0 — 9 providers, 1 line of code, full observability."
 sleep 4
-
-type_cmd "# Or install specific providers:"
-type_cmd "pip install agentlensai[openai,bedrock,ollama]"
-sleep 2.5
-
-type_cmd "python3 << 'EOF'"
-cat << 'PYEOF'
-import agentlensai
-
-# One line — auto-discovers and instruments all installed providers
-agentlensai.init(
-    url="http://localhost:3400",
-    api_key="als_demo_key",
-    agent_id="demo-agent",
-    integrations="auto",
-)
-
-# Check what's registered
-from agentlensai.integrations.registry import get_registry
-registry = get_registry()
-print(f"\n📦 Registered providers ({len(registry.integrations)}):")
-for name, integration in registry.integrations.items():
-    status = "✅ active" if integration.is_active else "⏸ available"
-    print(f"  {name}: {status}")
-
-# Every LLM call is now captured automatically!
-# Example with OpenAI:
-import openai
-client = openai.OpenAI()
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "What is AgentLens?"}],
-)
-print(f"\n🧠 OpenAI response captured: {response.choices[0].message.content[:80]}...")
-
-# Works with any supported provider — Anthropic, Bedrock, Ollama, etc.
-# All calls logged with: model, tokens, cost, latency, full prompt/completion
-
-agentlensai.shutdown()
-print("\n✅ All events flushed to AgentLens server")
-PYEOF
-sleep 4
-
-echo ""
-echo "📦 Registered providers (9):"
-echo "  openai: ✅ active"
-echo "  anthropic: ✅ active"
-echo "  litellm: ✅ active"
-echo "  bedrock: ✅ active"
-echo "  vertex: ✅ active"
-echo "  gemini: ✅ active"
-echo "  mistral: ✅ active"
-echo "  cohere: ✅ active"
-echo "  ollama: ✅ active"
-sleep 2.5
-
-echo ""
-echo "🧠 OpenAI response captured: AgentLens is an open-source observability platform for AI agents..."
-sleep 2.5
-
-echo ""
-echo "✅ All events flushed to AgentLens server"
-sleep 4
-
-echo ""
-echo "🎉 That's it! Every LLM call across 9 providers — captured with one line."
-echo "   Dashboard: http://localhost:3400"
-echo "   Docs: https://github.com/amitpaz/agentlens"
-sleep 5
