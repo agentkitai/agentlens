@@ -22,6 +22,8 @@ describe('Pool Server — Reputation & Moderation', () => {
         title: 'Test Lesson',
         content: 'Some content',
         embedding: [0.1, 0.2, 0.3],
+        redactionApplied: true,
+        redactionFindingsCount: 0,
       }),
     });
     const data = await res.json() as any;

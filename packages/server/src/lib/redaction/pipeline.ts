@@ -10,7 +10,7 @@ import type {
   RedactionFinding,
   RawLessonContent,
 } from '@agentlensai/core';
-import { createRedactedLessonContent } from '@agentlensai/core';
+import { createRedactedLessonContent, REDACTION_PIPELINE_KEY } from '@agentlensai/core';
 import { SecretDetectionLayer } from './secret-detection-layer.js';
 import { PIIDetectionLayer, type PresidioProvider } from './pii-detection-layer.js';
 import { UrlPathScrubbingLayer } from './url-path-scrubbing-layer.js';
@@ -117,7 +117,7 @@ export class RedactionPipeline {
 
     return {
       status: 'redacted',
-      content: createRedactedLessonContent(title, content, {}), // context always stripped
+      content: createRedactedLessonContent(title, content, {}, REDACTION_PIPELINE_KEY), // context always stripped
       findings: allFindings,
     };
   }

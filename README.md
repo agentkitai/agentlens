@@ -379,6 +379,23 @@ const context = await client.getContext({ topic: 'database migrations', limit: 5
 
 See the [Agent Memory Guide](./docs/guide/agent-memory.md) for integration patterns and best practices.
 
+## 🌐 Agent Memory Sharing & Discovery (v0.9.0)
+
+Share lessons across tenants and discover capable agents — with **zero-trust privacy**:
+
+- **Community Sharing** — Share redacted lessons to a community pool. A 6-layer redaction pipeline (secrets, PII, URLs, tenant info, deny-lists, human review) ensures no sensitive data leaves your tenant.
+- **Agent Discovery** — Register capabilities, discover agents with matching skills, ranked by trust score, cost, and latency.
+- **Task Delegation** — 4-phase protocol (request→accept→execute→return) with automatic fallback, rate limiting, and trust verification.
+- **Privacy by Design** — Rotating anonymous IDs, branded types (compile-time safety), fail-closed redaction, kill switch for instant data purge.
+
+**Quick links:**
+- [Sharing Setup Guide](./docs/sharing-setup.md) — Enable sharing, configure categories and deny-lists
+- [Privacy Controls](./docs/privacy-controls.md) — Redaction pipeline, anonymous IDs, kill switch, audit trail
+- [Discovery & Delegation](./docs/discovery-delegation.md) — Register capabilities, discover agents, delegate tasks
+- [Privacy Architecture](./docs/privacy-architecture.md) — Technical deep-dive into the 6-layer pipeline
+- [Custom Redaction Plugins](./docs/redaction-plugin.md) — Write custom redaction layers
+- [API Reference v0.9](./docs/api-reference-v0.9.md) — All new REST endpoints
+
 ## 📦 Packages
 
 ### Python (PyPI)

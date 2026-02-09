@@ -63,7 +63,7 @@ describe('Pool Server API', () => {
   describe('POST /pool/share', () => {
     it('creates a shared lesson', async () => {
       const res = await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'debug', title: 'Title', content: 'Content', embedding: [1, 0, 0],
+        anonymousContributorId: 'c1', category: 'debug', title: 'Title', content: 'Content', embedding: [1, 0, 0], redactionApplied: true, redactionFindingsCount: 0,
       }));
       expect(res.status).toBe(201);
       const body = await res.json();
@@ -86,7 +86,7 @@ describe('Pool Server API', () => {
     it('accepts qualitySignals', async () => {
       const res = await app.request('/pool/share', json({
         anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C',
-        embedding: [1], qualitySignals: { successRate: 0.95 },
+        embedding: [1], redactionApplied: true, redactionFindingsCount: 0, qualitySignals: { successRate: 0.95 },
       }));
       expect(res.status).toBe(201);
       const body = await res.json();
@@ -96,7 +96,7 @@ describe('Pool Server API', () => {
     it('enforces rate limiting', async () => {
       const rl = new RateLimiter(2, 60_000);
       const limited = createPoolApp({ store, rateLimiter: rl });
-      const payload = { anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1] };
+      const payload = { anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0 };
 
       await limited.request('/pool/share', json(payload));
       await limited.request('/pool/share', json(payload));
@@ -110,10 +110,10 @@ describe('Pool Server API', () => {
   describe('POST /pool/search', () => {
     it('returns matching lessons sorted by similarity', async () => {
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'a', title: 'Close', content: 'C', embedding: [0.9, 0.1],
+        anonymousContributorId: 'c1', category: 'a', title: 'Close', content: 'C', embedding: [0.9, 0.1], redactionApplied: true, redactionFindingsCount: 0,
       }));
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'a', title: 'Far', content: 'C', embedding: [0, 1],
+        anonymousContributorId: 'c1', category: 'a', title: 'Far', content: 'C', embedding: [0, 1], redactionApplied: true, redactionFindingsCount: 0,
       }));
 
       const res = await app.request('/pool/search', json({ embedding: [1, 0] }));
@@ -130,13 +130,13 @@ describe('Pool Server API', () => {
 
     it('filters by category', async () => {
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'debug', title: 'T1', content: 'C', embedding: [1],
+        anonymousContributorId: 'c1', category: 'debug', title: 'T1', content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0,
       }));
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'perf', title: 'T2', content: 'C', embedding: [1],
+        anonymousContributorId: 'c1', category: 'perf', title: 'T2', content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0,
       }));
 
-      const res = await app.request('/pool/search', json({ embedding: [1], category: 'debug' }));
+      const res = await app.request('/pool/search', json({ embedding: [1], redactionApplied: true, redactionFindingsCount: 0, category: 'debug' }));
       const body = await res.json();
       expect(body.results.length).toBe(1);
       expect(body.results[0].lesson.category).toBe('debug');
@@ -144,10 +144,10 @@ describe('Pool Server API', () => {
 
     it('filters by minReputation', async () => {
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1],
+        anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0,
       }));
 
-      const res = await app.request('/pool/search', json({ embedding: [1], minReputation: 60 }));
+      const res = await app.request('/pool/search', json({ embedding: [1], redactionApplied: true, redactionFindingsCount: 0, minReputation: 60 }));
       const body = await res.json();
       expect(body.results.length).toBe(0); // default reputation is 50
     });
@@ -155,10 +155,10 @@ describe('Pool Server API', () => {
     it('respects limit', async () => {
       for (let i = 0; i < 5; i++) {
         await app.request('/pool/share', json({
-          anonymousContributorId: 'c1', category: 'a', title: `T${i}`, content: 'C', embedding: [1],
+          anonymousContributorId: 'c1', category: 'a', title: `T${i}`, content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0,
         }));
       }
-      const res = await app.request('/pool/search', json({ embedding: [1], limit: 2 }));
+      const res = await app.request('/pool/search', json({ embedding: [1], redactionApplied: true, redactionFindingsCount: 0, limit: 2 }));
       const body = await res.json();
       expect(body.results.length).toBe(2);
     });
@@ -170,10 +170,10 @@ describe('Pool Server API', () => {
     it('purges lessons with valid token', async () => {
       await store.setPurgeToken('c1', 'secret');
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1],
+        anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0,
       }));
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'a', title: 'T2', content: 'C', embedding: [1],
+        anonymousContributorId: 'c1', category: 'a', title: 'T2', content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0,
       }));
 
       const res = await app.request('/pool/purge', jsonDelete({
@@ -210,7 +210,7 @@ describe('Pool Server API', () => {
   describe('GET /pool/count', () => {
     it('returns count for contributor', async () => {
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1],
+        anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0,
       }));
       const res = await app.request('/pool/count?contributorId=c1');
       expect(res.status).toBe(200);
@@ -221,7 +221,7 @@ describe('Pool Server API', () => {
     it('returns 0 after purge', async () => {
       await store.setPurgeToken('c1', 'secret');
       await app.request('/pool/share', json({
-        anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1],
+        anonymousContributorId: 'c1', category: 'a', title: 'T', content: 'C', embedding: [1], redactionApplied: true, redactionFindingsCount: 0,
       }));
       await app.request('/pool/purge', jsonDelete({ anonymousContributorId: 'c1', token: 'secret' }));
 

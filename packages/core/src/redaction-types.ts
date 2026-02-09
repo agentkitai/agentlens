@@ -101,11 +101,26 @@ export function createRawLessonContent(
   return { __brand: 'RawLessonContent' as const, title, content, context };
 }
 
-/** Create a RedactedLessonContent from plain data (only used by the pipeline) */
+/**
+ * Secret key required to create RedactedLessonContent.
+ * Only the RedactionPipeline should use this.
+ * @internal
+ */
+export const REDACTION_PIPELINE_KEY = Symbol.for('@@agentlens/redaction-pipeline-key');
+
+/**
+ * Create a RedactedLessonContent from plain data.
+ * @internal — Only the RedactionPipeline should call this. Requires the pipeline key.
+ * Calling without the key throws an error.
+ */
 export function createRedactedLessonContent(
   title: string,
   content: string,
   context: Record<string, unknown> = {},
+  _pipelineKey?: symbol,
 ): RedactedLessonContent {
+  if (_pipelineKey !== REDACTION_PIPELINE_KEY) {
+    throw new Error('createRedactedLessonContent is internal to the RedactionPipeline. Do not call directly.');
+  }
   return { __brand: 'RedactedLessonContent' as const, title, content, context };
 }

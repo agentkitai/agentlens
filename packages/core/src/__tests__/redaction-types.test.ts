@@ -17,6 +17,7 @@ import {
   REDACTION_LAYER_NAMES,
   createRawLessonContent,
   createRedactedLessonContent,
+  REDACTION_PIPELINE_KEY,
 } from '../redaction-types.js';
 
 describe('Redaction Types (Story 1.1)', () => {
@@ -31,14 +32,14 @@ describe('Redaction Types (Story 1.1)', () => {
   });
 
   it('should create RedactedLessonContent with correct brand', () => {
-    const redacted = createRedactedLessonContent('title', 'content');
+    const redacted = createRedactedLessonContent('title', 'content', {}, REDACTION_PIPELINE_KEY);
     expect(redacted.__brand).toBe('RedactedLessonContent');
     expect(redacted.context).toEqual({});
   });
 
   it('should have different brands for Raw and Redacted', () => {
     const raw = createRawLessonContent('t', 'c');
-    const redacted = createRedactedLessonContent('t', 'c');
+    const redacted = createRedactedLessonContent('t', 'c', {}, REDACTION_PIPELINE_KEY);
     expect(raw.__brand).not.toBe(redacted.__brand);
   });
 
@@ -46,7 +47,7 @@ describe('Redaction Types (Story 1.1)', () => {
     // This test verifies the branded type pattern works at runtime.
     // The compile-time guarantee is that the __brand literals differ.
     const raw: RawLessonContent = createRawLessonContent('t', 'c');
-    const redacted: RedactedLessonContent = createRedactedLessonContent('t', 'c');
+    const redacted: RedactedLessonContent = createRedactedLessonContent('t', 'c', {}, REDACTION_PIPELINE_KEY);
 
     // At runtime, brands are just strings — but TypeScript prevents assignment
     expect(raw.__brand).toBe('RawLessonContent');
@@ -56,6 +57,10 @@ describe('Redaction Types (Story 1.1)', () => {
     const rawBrand: string = raw.__brand;
     const redactedBrand: string = redacted.__brand;
     expect(rawBrand).not.toBe(redactedBrand);
+  });
+
+  it('should throw when createRedactedLessonContent is called without pipeline key (H1 fix)', () => {
+    expect(() => createRedactedLessonContent('t', 'c')).toThrow('internal to the RedactionPipeline');
   });
 
   it('should default context to empty object', () => {
@@ -97,7 +102,7 @@ describe('Redaction Types (Story 1.1)', () => {
   it('should support redacted result status', () => {
     const result: RedactionResult = {
       status: 'redacted',
-      content: createRedactedLessonContent('t', 'c'),
+      content: createRedactedLessonContent('t', 'c', {}, REDACTION_PIPELINE_KEY),
       findings: [],
     };
     expect(result.status).toBe('redacted');

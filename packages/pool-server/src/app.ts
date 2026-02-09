@@ -31,6 +31,11 @@ export function createPoolApp(options: PoolAppOptions): Hono {
       return c.json({ error: 'Missing required fields: anonymousContributorId, category, title, content, embedding' }, 400);
     }
 
+    // H3 FIX: Reject shares that don't declare redaction was applied
+    if (body.redactionApplied !== true || typeof body.redactionFindingsCount !== 'number') {
+      return c.json({ error: 'Content must include redactionApplied: true and redactionFindingsCount' }, 400);
+    }
+
     if (!rateLimiter.isAllowed(anonymousContributorId)) {
       return c.json({ error: 'Rate limit exceeded (100 req/min)' }, 429);
     }
@@ -44,6 +49,19 @@ export function createPoolApp(options: PoolAppOptions): Hono {
       qualitySignals,
     });
     return c.json(lesson, 201);
+  });
+
+  // C2 FIX: Endpoint to register a purge token
+  app.post('/pool/purge-token', async (c) => {
+    const body = await c.req.json();
+    const { anonymousContributorId, token } = body;
+
+    if (!anonymousContributorId || !token) {
+      return c.json({ error: 'Missing required fields: anonymousContributorId, token' }, 400);
+    }
+
+    await store.setPurgeToken(anonymousContributorId, token);
+    return c.json({ success: true }, 201);
   });
 
   app.post('/pool/search', async (c) => {
@@ -275,10 +293,9 @@ export function createPoolApp(options: PoolAppOptions): Hono {
   });
 
   app.get('/pool/moderation/queue', async (c) => {
-    // Return all hidden lessons (flagged or low reputation)
-    const results = await store.searchLessons({ embedding: [], limit: 100 });
-    // We need a method to get flagged lessons - for now filter from store
-    return c.json({ queue: results.filter((r) => r.lesson.hidden || r.lesson.flagCount >= 3) });
+    // M3 FIX: Use dedicated method instead of searchLessons (which filters out hidden)
+    const queue = await store.getModerationQueue();
+    return c.json({ queue });
   });
 
   app.post('/pool/moderation/:id/approve', async (c) => {

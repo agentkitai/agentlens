@@ -34,7 +34,15 @@ export interface PoolTransport {
     content: string;
     embedding: number[];
     qualitySignals?: Record<string, unknown>;
+    redactionApplied?: boolean;
+    redactionFindingsCount?: number;
   }): Promise<{ id: string }>;
+
+  /** Register a purge token with the pool so purge can be validated */
+  registerPurgeToken?(data: {
+    anonymousContributorId: string;
+    token: string;
+  }): Promise<void>;
 
   search(data: {
     embedding: number[];
@@ -103,7 +111,11 @@ export class LocalCommunityPoolTransport implements PoolTransport {
     flagCount: number;
     hidden: boolean;
     qualitySignals?: Record<string, unknown>;
+    redactionApplied?: boolean;
+    redactionFindingsCount?: number;
   }> = [];
+
+  private purgeTokens = new Map<string, string>();
 
   private reputationEvents: Array<{
     lessonId: string;
@@ -152,7 +164,17 @@ export class LocalCommunityPoolTransport implements PoolTransport {
     return { results: results.slice(0, data.limit ?? 50) };
   }
 
+  async registerPurgeToken(data: { anonymousContributorId: string; token: string }): Promise<void> {
+    this.purgeTokens.set(data.anonymousContributorId, data.token);
+  }
+
   async purge(data: { anonymousContributorId: string; token: string }): Promise<{ deleted: number }> {
+    // C2 FIX: Validate purge token before deleting
+    const storedToken = this.purgeTokens.get(data.anonymousContributorId);
+    if (!storedToken || storedToken !== data.token) {
+      throw new Error('Invalid purge token');
+    }
+
     let deleted = 0;
     for (let i = this.shared.length - 1; i >= 0; i--) {
       if (this.shared[i].anonymousContributorId === data.anonymousContributorId) {
@@ -160,6 +182,7 @@ export class LocalCommunityPoolTransport implements PoolTransport {
         deleted++;
       }
     }
+    this.purgeTokens.delete(data.anonymousContributorId);
     return { deleted };
   }
 
@@ -631,6 +654,9 @@ export class CommunityService {
     // 7. Generate anonymous contributor ID
     const anonymousContributorId = this.anonIdManager.getOrRotateContributorId(tenantId);
 
+    // 7b. C2 FIX: Ensure purge token is registered with pool on first share
+    await this.ensurePurgeTokenRegistered(tenantId, anonymousContributorId);
+
     // 8. Compute embedding
     const redactedContent = redactionResult.content;
     const embedding = computeSimpleEmbedding(`${redactedContent.title} ${redactedContent.content}`);
@@ -644,7 +670,10 @@ export class CommunityService {
         title: redactedContent.title,
         content: redactedContent.content,
         embedding,
-        qualitySignals: lesson.context ?? {},
+        // C1 FIX: Do NOT send qualitySignals to pool — lesson.context may contain
+        // unredacted tenant-specific data that bypasses the redaction pipeline.
+        redactionApplied: true,
+        redactionFindingsCount: redactionResult.findings.length,
       });
     } catch (err) {
       return { status: 'error', error: err instanceof Error ? err.message : String(err) };
@@ -664,6 +693,34 @@ export class CommunityService {
       anonymousLessonId: poolResult.id,
       redactionFindings: redactionResult.findings,
     };
+  }
+
+  // ─── C2 FIX: Purge Token Registration ──────────────
+
+  /**
+   * Ensure a purge token is registered with the pool for the given contributor ID.
+   * Creates and stores the token if one doesn't exist yet.
+   */
+  private async ensurePurgeTokenRegistered(tenantId: string, contributorId: string): Promise<void> {
+    const config = this.getSharingConfig(tenantId);
+    let purgeToken = config.purgeToken;
+
+    if (!purgeToken) {
+      purgeToken = randomUUID();
+      this.updateSharingConfig(tenantId, { purgeToken });
+    }
+
+    // Register with pool if transport supports it
+    if (this.transport.registerPurgeToken) {
+      try {
+        await this.transport.registerPurgeToken({
+          anonymousContributorId: contributorId,
+          token: purgeToken,
+        });
+      } catch {
+        // Non-fatal: purge registration failure shouldn't block sharing
+      }
+    }
   }
 
   // ─── Search (Story 4.2) ────────────────────────────
@@ -715,7 +772,23 @@ export class CommunityService {
     // Get contributor ID from anonymous ID manager (same source as share())
     const contributorId = this.anonIdManager.getOrRotateContributorId(tenantId);
     const config = this.getSharingConfig(tenantId);
-    const purgeToken = config.purgeToken ?? randomUUID();
+    let purgeToken = config.purgeToken;
+    if (!purgeToken) {
+      // No purge token means no shares have happened — create one now for the purge call
+      purgeToken = randomUUID();
+      this.updateSharingConfig(tenantId, { purgeToken });
+      // Register with pool
+      if (this.transport.registerPurgeToken) {
+        try {
+          await this.transport.registerPurgeToken({
+            anonymousContributorId: contributorId,
+            token: purgeToken,
+          });
+        } catch {
+          // Non-fatal
+        }
+      }
+    }
 
     try {
       const result = await this.transport.purge({
@@ -723,16 +796,19 @@ export class CommunityService {
         token: purgeToken,
       });
 
-      // Retire old contributor ID by invalidating it (set validUntil to now)
+      // Retire old contributor ID by invalidating it (set validUntil to past)
       // The next call to getOrRotateContributorId will create a new one
-      // Force rotation by setting validUntil to past in the DB
-      const nowIso = this.now().toISOString();
+      const pastIso = new Date(this.now().getTime() - 1000).toISOString();
+      // H4 FIX: agentId is stored hashed in the DB
+      const hashedContributorKey = createHash('sha256')
+        .update(`agentlens-anon-id-salt-v1:${tenantId}:__contributor__`)
+        .digest('hex');
       this.db
         .update(schema.anonymousIdMap)
-        .set({ validUntil: nowIso })
+        .set({ validUntil: pastIso })
         .where(and(
           eq(schema.anonymousIdMap.tenantId, tenantId),
-          eq(schema.anonymousIdMap.agentId, '__contributor__'),
+          eq(schema.anonymousIdMap.agentId, hashedContributorKey),
         ))
         .run();
 

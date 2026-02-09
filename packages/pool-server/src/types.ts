@@ -75,6 +75,8 @@ export interface ShareLessonInput {
   content: string;
   embedding: number[];
   qualitySignals?: Record<string, unknown>;
+  redactionApplied?: boolean;
+  redactionFindingsCount?: number;
 }
 
 export interface SearchInput {

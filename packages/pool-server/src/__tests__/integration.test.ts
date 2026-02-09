@@ -29,7 +29,7 @@ describe('Integration: full sharing lifecycle', () => {
     for (let i = 0; i < 3; i++) {
       const res = await app.request('/pool/share', json({
         anonymousContributorId: 'c1', category: 'debug', title: `Lesson ${i}`,
-        content: `Content ${i}`, embedding: [1, 0, 0],
+        content: `Content ${i}`, embedding: [1, 0, 0], redactionApplied: true, redactionFindingsCount: 0,
       }));
       expect(res.status).toBe(201);
     }
@@ -42,6 +42,9 @@ describe('Integration: full sharing lifecycle', () => {
     // Count
     let countRes = await app.request('/pool/count?contributorId=c1');
     expect((await countRes.json()).count).toBe(3);
+
+    // Register purge token first (C2 fix)
+    await app.request('/pool/purge-token', json({ anonymousContributorId: 'c1', token: 'tok' }));
 
     // Purge
     const purgeRes = await app.request('/pool/purge', jsonDelete({ anonymousContributorId: 'c1', token: 'tok' }));

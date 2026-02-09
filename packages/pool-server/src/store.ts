@@ -35,6 +35,9 @@ export interface PoolStore {
   getModerationFlags(lessonId: string): Promise<ModerationFlag[]>;
   hasAlreadyFlagged(lessonId: string, reporterId: string): Promise<boolean>;
 
+  // Moderation queue
+  getModerationQueue(): Promise<SearchResult[]>;
+
   // Purge tokens
   setPurgeToken(contributorId: string, tokenHash: string): Promise<void>;
   getPurgeToken(contributorId: string): Promise<PurgeToken | null>;
@@ -192,6 +195,18 @@ export class InMemoryPoolStore implements PoolStore {
   async hasAlreadyFlagged(lessonId: string, reporterId: string): Promise<boolean> {
     const flags = this.moderationFlags.get(lessonId) ?? [];
     return flags.some((f) => f.reporterAnonymousId === reporterId);
+  }
+
+  // ─── Moderation Queue (M3 fix) ───
+
+  async getModerationQueue(): Promise<SearchResult[]> {
+    const results: SearchResult[] = [];
+    for (const lesson of this.lessons.values()) {
+      if (lesson.hidden || lesson.flagCount >= 3) {
+        results.push({ lesson, similarity: 0 });
+      }
+    }
+    return results;
   }
 
   // ─── Purge Tokens ───

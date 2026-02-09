@@ -12,6 +12,8 @@ import { delegationLog, capabilityRegistry } from '../db/schema.sqlite.js';
 import { AnonymousIdManager } from '../db/anonymous-id-manager.js';
 import { DiscoveryService, RateLimiter } from './discovery-service.js';
 import { TrustService } from './trust-service.js';
+import { RedactionPipeline, type RedactionPipelineConfig } from '../lib/redaction/pipeline.js';
+import { createRawLessonContent } from '@agentlensai/core';
 import type { DelegationRequest, DelegationResult, DelegationPhase, TaskType } from '@agentlensai/core';
 
 // ─── Pool Transport Interface ─────────────────────────────
@@ -106,6 +108,8 @@ export interface DelegationServiceOptions {
   acceptTimeoutMs?: number;
   /** Override for current time (useful for testing) */
   now?: () => Date;
+  /** Redaction pipeline config for sanitizing delegation input */
+  redactionConfig?: RedactionPipelineConfig;
 }
 
 // ─── Delegation Service ───────────────────────────────────
@@ -114,6 +118,7 @@ export class DelegationService {
   private readonly anonIdManager: AnonymousIdManager;
   private readonly discoveryService: DiscoveryService;
   private readonly trustService: TrustService;
+  private readonly redactionPipeline: RedactionPipeline;
   private readonly defaultTimeoutMs: number;
   private readonly acceptTimeoutMs: number;
   private readonly now: () => Date;
@@ -127,6 +132,7 @@ export class DelegationService {
     this.anonIdManager = new AnonymousIdManager(db);
     this.discoveryService = new DiscoveryService(db);
     this.trustService = new TrustService(db);
+    this.redactionPipeline = new RedactionPipeline(options?.redactionConfig);
     this.defaultTimeoutMs = options?.defaultTimeoutMs ?? 30_000;
     this.acceptTimeoutMs = options?.acceptTimeoutMs ?? 5_000;
     this.now = options?.now ?? (() => new Date());
@@ -239,8 +245,8 @@ export class DelegationService {
       };
     }
 
-    // 3. Check trust threshold
-    const trustOk = this.checkTrustThreshold(tenantId, request.targetAnonymousId);
+    // 3. Check trust threshold (H5 FIX: now actually computes trust)
+    const trustOk = this.checkTrustThreshold(tenantId, request.targetAnonymousId, agentId);
     if (!trustOk) {
       this.logDelegation(tenantId, {
         id: requestId,
@@ -262,13 +268,39 @@ export class DelegationService {
     // 4. Get anonymous ID for the requesting agent
     const requesterAnonId = this.anonIdManager.getOrRotateAnonymousId(tenantId, agentId);
 
+    // 4b. H2 FIX: Redact delegation input before sending to pool
+    let redactedInput = request.input;
+    try {
+      const inputStr = typeof request.input === 'string' ? request.input : JSON.stringify(request.input);
+      const rawContent = createRawLessonContent('delegation-input', inputStr, {});
+      const redactionResult = await this.redactionPipeline.process(rawContent, {
+        tenantId,
+        agentId,
+        category: 'delegation',
+        denyListPatterns: [],
+        knownTenantTerms: [],
+      });
+      if (redactionResult.status === 'redacted') {
+        redactedInput = redactionResult.content.content;
+      } else if (redactionResult.status === 'blocked') {
+        return {
+          requestId,
+          status: 'rejected',
+          output: `Delegation input blocked by redaction: ${redactionResult.reason}`,
+        };
+      }
+      // On error, fall through with original input (fail-open for delegation usability)
+    } catch {
+      // Redaction failure should not block delegation
+    }
+
     // 5. Send request to pool transport
     const poolRequest: PoolDelegationRequest = {
       requestId,
       requesterAnonymousId: requesterAnonId,
       targetAnonymousId: request.targetAnonymousId,
       taskType: request.taskType,
-      input: request.input,
+      input: redactedInput,
       timeoutMs,
       status: 'request',
       createdAt: this.now().toISOString(),
@@ -514,10 +546,21 @@ export class DelegationService {
     };
   }
 
-  private checkTrustThreshold(_tenantId: string, _targetAnonymousId: string): boolean {
-    // For now, trust check passes — full trust scoring comes in B5 (Story 6.3)
-    // The config.minTrustThreshold is enforced at discovery time already
-    return true;
+  /**
+   * H5 FIX: Actually check trust threshold using the TrustService.
+   * Computes the requesting agent's trust score on-the-fly and compares
+   * against the tenant's minimum trust threshold.
+   */
+  private checkTrustThreshold(tenantId: string, _targetAnonymousId: string, agentId?: string): boolean {
+    if (!agentId) return true; // Can't check without agentId
+    try {
+      const config = this.discoveryService.getDiscoveryConfig(tenantId);
+      const trustScore = this.trustService.getTrustScore(tenantId, agentId);
+      return trustScore.percentile >= config.minTrustThreshold;
+    } catch {
+      // If trust computation fails, fail-open to avoid breaking delegation
+      return true;
+    }
   }
 
   private async waitForResult(

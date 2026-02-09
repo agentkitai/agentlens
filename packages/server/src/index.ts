@@ -43,6 +43,7 @@ import { trustRoutes } from './routes/trust.js';
 import { LocalPoolTransport } from './services/delegation-service.js';
 import { redactionTestRoutes } from './routes/redaction-test.js';
 import { communityRoutes } from './routes/community.js';
+import { auditRoutes } from './routes/audit.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
 import { setAgentStore } from './lib/guardrails/actions.js';
@@ -338,6 +339,9 @@ export function createApp(
     app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
     const { app: communityApp } = communityRoutes(db);
     app.route('/api/community', communityApp);
+
+    // Audit routes (Story 7.4)
+    app.route('/api/community/audit', auditRoutes(db));
   }
 
   // ─── Redaction Test (Story 2.4) ────────────────────────
