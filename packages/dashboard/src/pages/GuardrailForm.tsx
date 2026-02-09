@@ -53,8 +53,8 @@ function ConditionConfigFields({ type, config, onChange }: {
       return (
         <div style={fieldGroupStyle}>
           <label>Max Cost ($)<br />
-            <input type="number" min={0} step={0.01} value={config.maxCost as number ?? 10}
-              onChange={e => set('maxCost', Number(e.target.value))} style={inputStyle} />
+            <input type="number" min={0} step={0.01} value={config.maxCostUsd as number ?? 10}
+              onChange={e => set('maxCostUsd', Number(e.target.value))} style={inputStyle} />
           </label>
           <label>Period (ms)<br />
             <input type="number" min={1000} value={config.periodMs as number ?? 86400000}
@@ -126,7 +126,9 @@ function ActionConfigFields({ type, config, onChange }: {
           <label>Webhook URL<br />
             <input type="url" value={config.url as string ?? ''}
               onChange={e => set('url', e.target.value)} style={inputStyle}
-              placeholder="https://..." />
+              pattern="https?://.*"
+              title="Must be an http:// or https:// URL"
+              placeholder="https://..." required />
           </label>
         </div>
       );
@@ -200,8 +202,15 @@ export default function GuardrailForm() {
     setSaving(true);
     setError('');
 
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('Name is required');
+      setSaving(false);
+      return;
+    }
+
     const data: CreateGuardrailData = {
-      name,
+      name: trimmedName,
       conditionType,
       conditionConfig,
       actionType,
@@ -241,7 +250,7 @@ export default function GuardrailForm() {
           <div style={fieldGroupStyle}>
             <label>Name *<br />
               <input type="text" value={name} onChange={e => setName(e.target.value)}
-                required style={inputStyle} placeholder="My Guardrail Rule" />
+                required minLength={1} style={inputStyle} placeholder="My Guardrail Rule" />
             </label>
             <label>Agent<br />
               <select value={agentId} onChange={e => setAgentId(e.target.value)} style={inputStyle}>
@@ -269,7 +278,17 @@ export default function GuardrailForm() {
         <div style={sectionStyle}>
           <h3 style={sectionTitleStyle}>Condition</h3>
           <label>Type<br />
-            <select value={conditionType} onChange={e => { setConditionType(e.target.value); setConditionConfig({}); }} style={inputStyle}>
+            <select value={conditionType} onChange={e => {
+              const newType = e.target.value;
+              setConditionType(newType);
+              const defaults: Record<string, Record<string, unknown>> = {
+                error_rate_threshold: { threshold: 30, windowMs: 300000 },
+                cost_limit: { maxCostUsd: 100, periodMs: 3600000 },
+                health_score_threshold: { minScore: 50, dimension: '' },
+                custom_metric: { metricKey: '', operator: 'gt', value: 0 },
+              };
+              setConditionConfig(defaults[newType] ?? {});
+            }} style={inputStyle}>
               {CONDITION_TYPES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>

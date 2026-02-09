@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createTestApp, authHeaders, type TestContext } from './test-helpers.js';
+import { createTestApp, createApiKey, authHeaders, type TestContext } from './test-helpers.js';
 import type { Hono } from 'hono';
 
 async function ingestEvents(app: Hono, apiKey: string, events: object[]) {
@@ -118,6 +118,17 @@ describe('GET /api/agents/:id — Model Override Propagation (Story 3.2)', () =>
     expect(agent.modelOverride).toBe('claude-haiku');
     expect(agent.pausedAt).toBeTruthy();
     expect(agent.pauseReason).toBe('Health score low');
+  });
+
+  it('returns 404 when accessing agent from different tenant (L4)', async () => {
+    // Create a second API key for tenant B
+    const tenantBKey = createApiKey(ctx.db, { tenantId: 'tenant-b' });
+
+    // Agent was created under default tenant — tenant B should not see it
+    const res = await app.request('/api/agents/agent_mo_001', {
+      headers: authHeaders(tenantBKey),
+    });
+    expect(res.status).toBe(404);
   });
 
   it('unpause via REST endpoint clears paused state', async () => {

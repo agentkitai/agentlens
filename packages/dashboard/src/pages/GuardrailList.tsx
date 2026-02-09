@@ -62,16 +62,28 @@ export default function GuardrailList() {
     }
   }
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const handleToggle = useCallback(async (rule: GuardrailRuleData) => {
-    await updateGuardrailRule(rule.id, { enabled: !rule.enabled });
-    rulesQuery.refetch();
+    try {
+      setActionError(null);
+      await updateGuardrailRule(rule.id, { enabled: !rule.enabled });
+      rulesQuery.refetch();
+    } catch (err: any) {
+      setActionError(`Failed to toggle rule: ${err?.message ?? String(err)}`);
+    }
   }, [rulesQuery]);
 
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm('Delete this guardrail rule? This action cannot be undone.')) return;
-    await deleteGuardrailRule(id);
-    rulesQuery.refetch();
-    historyQuery.refetch();
+    try {
+      setActionError(null);
+      await deleteGuardrailRule(id);
+      rulesQuery.refetch();
+      historyQuery.refetch();
+    } catch (err: any) {
+      setActionError(`Failed to delete rule: ${err?.message ?? String(err)}`);
+    }
   }, [rulesQuery, historyQuery]);
 
   return (
@@ -81,6 +93,7 @@ export default function GuardrailList() {
         <Link to="/guardrails/new" style={btnStyle}>+ Create Rule</Link>
       </div>
 
+      {actionError && <p style={{ color: '#ef4444', padding: '8px', background: '#fef2f2', borderRadius: '4px', marginBottom: '12px' }}>{actionError}</p>}
       {rulesQuery.loading && <p>Loading...</p>}
       {rulesQuery.error && <p style={{ color: '#ef4444' }}>Error: {String(rulesQuery.error)}</p>}
 
@@ -106,7 +119,7 @@ export default function GuardrailList() {
             {rules.map((rule) => (
               <tr key={rule.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                 <td style={tdStyle}>
-                  <Link to={`/guardrails/${rule.id}/edit`} style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>
+                  <Link to={`/guardrails/${rule.id}`} style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 500 }}>
                     {rule.name}
                   </Link>
                   {rule.dryRun && <span style={{ color: '#f59e0b', marginLeft: '6px', fontSize: '11px' }}>[DRY RUN]</span>}

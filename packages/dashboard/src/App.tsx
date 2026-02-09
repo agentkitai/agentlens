@@ -22,6 +22,8 @@ import { BenchmarkDetail } from './pages/BenchmarkDetail';
 import Guardrails from './pages/Guardrails';
 import GuardrailList from './pages/GuardrailList';
 import GuardrailForm from './pages/GuardrailForm';
+import GuardrailDetail from './pages/GuardrailDetail';
+import GuardrailActivity from './pages/GuardrailActivity';
 
 export function App(): React.ReactElement {
   return (
@@ -45,7 +47,9 @@ export function App(): React.ReactElement {
         <Route path="insights" element={<Insights />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="guardrails" element={<GuardrailList />} />
+        <Route path="guardrails/activity" element={<GuardrailActivity />} />
         <Route path="guardrails/new" element={<GuardrailForm />} />
+        <Route path="guardrails/:id" element={<GuardrailDetail />} />
         <Route path="guardrails/:id/edit" element={<GuardrailForm />} />
         <Route path="settings" element={<Settings />} />
       </Route>

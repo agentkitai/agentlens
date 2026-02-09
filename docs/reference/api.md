@@ -119,7 +119,15 @@ All errors follow this format:
 | `PUT` | `/api/benchmarks/:id/status` | Transition benchmark status |
 | `GET` | `/api/benchmarks/:id/results` | Get benchmark comparison results |
 | `DELETE` | `/api/benchmarks/:id` | Delete a benchmark |
+| `POST` | `/api/guardrails` | Create guardrail rule |
+| `GET` | `/api/guardrails` | List guardrail rules |
+| `GET` | `/api/guardrails/:id` | Get guardrail rule |
+| `PUT` | `/api/guardrails/:id` | Update guardrail rule |
+| `DELETE` | `/api/guardrails/:id` | Delete guardrail rule |
+| `GET` | `/api/guardrails/:id/status` | Get rule status + recent triggers |
+| `GET` | `/api/guardrails/history` | List trigger history |
+| `GET` | `/api/agents/:id` | Get agent detail (includes pausedAt, modelOverride) |
 | `GET` | `/api/config` | Get configuration |
 | `PUT` | `/api/config` | Update configuration |
 
-Detailed documentation for each group: [Events](/reference/events) · [Sessions](/reference/sessions) · [Analytics](/reference/analytics) · [Recall](/reference/recall) · [Lessons](/reference/lessons) · [Reflect](/reference/reflect) · [Context](/reference/context) · [Alerts](/reference/alerts) · [Health](/reference/health) · [Optimize](/reference/optimize) · [Replay](/reference/replay) · [Benchmarks](/reference/benchmarks) · [Integrations](/reference/integrations) · [API Keys](/reference/api-keys)
+Detailed documentation for each group: [Events](/reference/events) · [Sessions](/reference/sessions) · [Analytics](/reference/analytics) · [Recall](/reference/recall) · [Lessons](/reference/lessons) · [Reflect](/reference/reflect) · [Context](/reference/context) · [Alerts](/reference/alerts) · [Health](/reference/health) · [Optimize](/reference/optimize) · [Replay](/reference/replay) · [Benchmarks](/reference/benchmarks) · [Guardrails](/guide/guardrails) · [Integrations](/reference/integrations) · [API Keys](/reference/api-keys)

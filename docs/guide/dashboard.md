@@ -101,6 +101,15 @@ A/B experiment management:
 - **Detail view** — per-variant session counts, progress toward minimum sessions, lifecycle action buttons
 - **Results view** — statistical comparison table with p-values, confidence stars, winner indication, and distribution charts per metric
 
+### Guardrails
+
+Automated safety rules management:
+
+- **Rule list** (`/guardrails`) — all guardrail rules with condition/action summaries, enabled toggle, trigger count, and last triggered time
+- **Create/Edit** (`/guardrails/new`, `/guardrails/:id/edit`) — form for defining condition type, thresholds, action type, cooldown, dry-run mode, and agent scope
+- **Detail view** (`/guardrails/:id`) — full rule configuration, runtime state (trigger count, last triggered, current value), and trigger history table
+- **Activity feed** (`/guardrails/activity`) — real-time feed of all guardrail triggers across all rules with filtering by agent and rule name
+
 ### Settings
 
 Configure integration secrets and server settings:

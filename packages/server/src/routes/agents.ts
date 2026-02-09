@@ -10,7 +10,6 @@ import { Hono } from 'hono';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantStore } from './tenant-helper.js';
-import type { SqliteEventStore } from '../db/sqlite-store.js';
 
 export function agentsRoutes(store: IEventStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -20,18 +19,7 @@ export function agentsRoutes(store: IEventStore) {
     const tenantStore = getTenantStore(store, c);
     const agents = await tenantStore.listAgents();
 
-    // Enrich agents with error rate computed from their sessions
-    const enriched = await Promise.all(
-      agents.map(async (agent) => {
-        const { sessions } = await tenantStore.querySessions({ agentId: agent.id, limit: 10000 });
-        const totalErrors = sessions.reduce((sum, s) => sum + s.errorCount, 0);
-        const totalEvents = sessions.reduce((sum, s) => sum + s.eventCount, 0);
-        const errorRate = totalEvents > 0 ? totalErrors / totalEvents : 0;
-        return { ...agent, errorRate };
-      }),
-    );
-
-    return c.json({ agents: enriched });
+    return c.json({ agents });
   });
 
   // PUT /api/agents/:id/unpause — Unpause an agent (B1 — Story 1.2)
@@ -54,12 +42,8 @@ export function agentsRoutes(store: IEventStore) {
       // No body or invalid JSON — that's fine
     }
 
-    // Use the underlying SqliteEventStore's unpauseAgent method
-    const innerStore = (store as unknown as SqliteEventStore);
-    if (typeof innerStore.unpauseAgent === 'function') {
-      const tenantId = agent.tenantId;
-      await innerStore.unpauseAgent(tenantId, id, clearModelOverride);
-    }
+    // Use tenant-scoped unpauseAgent
+    await tenantStore.unpauseAgent(id, clearModelOverride);
 
     // Return the updated agent
     const updated = await tenantStore.getAgent(id);

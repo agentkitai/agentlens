@@ -44,6 +44,8 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 - **💡 Cost Optimization** — Complexity-aware model recommendation engine. Classifies LLM calls by complexity tier and suggests cheaper alternatives with projected savings.
 - **📼 Session Replay** — Step-through any past session with full context reconstruction — LLM history, tool results, cost accumulation, and error tracking at every step.
 - **⚖️ A/B Benchmarking** — Statistical comparison of agent variants using Welch's t-test and chi-squared analysis across 8 metrics. Create experiments, collect data, get p-values.
+- **🛡️ Guardrails** — Automated safety rules that monitor error rates, costs, health scores, and custom metrics. Actions include pausing agents, sending webhooks, downgrading models, and applying AgentGate policies. Dry-run mode for safe testing.
+- **🔌 Framework Plugins** — Optional plugins for LangChain, CrewAI, AutoGen, and Semantic Kernel. Auto-detection, fail-safe, non-blocking instrumentation with zero code changes.
 - **🏠 Self-Hosted** — SQLite by default, no external dependencies. MIT licensed. Your data stays on your infrastructure.
 
 ## 📸 Dashboard
@@ -119,6 +121,13 @@ Session Replay lets you **step through any past session** event by event with fu
 ![Benchmarks](demo/dashboard-benchmarks.jpg)
 
 The Benchmarks page lets you **create and manage A/B experiments** comparing agent variants. Define 2–10 variants with session tags, pick metrics (cost, latency, error rate, success rate, tokens, duration), and collect data. Results include per-variant statistics, Welch's t-test p-values, confidence stars (★ ★★ ★★★), and distribution charts. The full workflow — draft → running → completed — is managed from the dashboard.
+
+### 🛡️ Guardrails — Automated Safety Rules
+
+<!-- TODO: capture screenshot → demo/dashboard-guardrails.jpg -->
+![Guardrails](demo/dashboard-guardrails.jpg)
+
+The Guardrails page lets you **create and manage automated safety rules** that monitor error rates, costs, health scores, and custom metrics. Each rule has a condition, action, cooldown, and optional dry-run mode. The list shows trigger counts and last triggered time. Click any rule for the detail page with full configuration, runtime state, and trigger history. The Activity Feed shows a real-time log of all triggers across all rules with filtering by agent and rule.
 
 ## 🏗️ Architecture
 
@@ -331,7 +340,7 @@ Navigate to **http://localhost:3400** — see sessions, timelines, analytics, an
 
 ## 🧠 Agent Memory
 
-AgentLens ships **13 MCP tools** — 4 for memory and self-improvement, 5 for observability, and 4 for analytics:
+AgentLens ships **14 MCP tools** — 4 for memory and self-improvement, 5 for observability, 4 for analytics, and 1 for safety:
 
 | Tool | Purpose | Description |
 |---|---|---|
@@ -343,6 +352,7 @@ AgentLens ships **13 MCP tools** — 4 for memory and self-improvement, 5 for ob
 | `agentlens_optimize` | **Cost Optimization** | Get model switch recommendations with projected monthly savings. Analyzes call complexity and suggests cheaper alternatives. |
 | `agentlens_replay` | **Session Replay** | Replay a past session as a structured timeline with numbered steps, context annotations, and cost accumulation. |
 | `agentlens_benchmark` | **A/B Benchmarking** | Create, manage, and analyze A/B experiments comparing agent variants with statistical significance testing. |
+| `agentlens_guardrails` | **Guardrails** | Create, list, and manage automated safety rules — conditions, actions, cooldowns, dry-run mode, and trigger history. |
 
 These tools are automatically available when using the MCP server. Agents can also access the underlying REST API directly via the SDK:
 

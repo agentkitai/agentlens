@@ -9,6 +9,7 @@ import pytest
 import respx
 
 from agentlensai import (
+    Agent,
     AgentLensClient,
     AsyncAgentLensClient,
     GuardrailDeleteResult,
@@ -325,6 +326,28 @@ class TestAsyncEnableGuardrail:
         async with AsyncAgentLensClient(BASE_URL, api_key=API_KEY) as client:
             result = await client.enable_guardrail("rule_001")
         assert result.enabled is True
+
+
+class TestAgentModelCamelCase:
+    """L1: Verify Agent model works with camelCase response from server."""
+
+    def test_agent_model_validate_camel_case(self) -> None:
+        agent = Agent.model_validate({
+            "id": "x",
+            "agentId": "a",
+            "tenantId": "t",
+            "name": "Test Agent",
+            "firstSeenAt": "2026-01-01T00:00:00Z",
+            "lastSeenAt": "2026-01-01T00:00:00Z",
+            "sessionCount": 5,
+            "modelOverride": "gpt-4",
+            "pausedAt": None,
+        })
+        assert agent.id == "x"
+        assert agent.tenant_id == "t"
+        assert agent.model_override == "gpt-4"
+        assert agent.paused_at is None
+        assert agent.session_count == 5
 
 
 class TestAsyncGuardrailHistory:

@@ -284,6 +284,20 @@ class TestAutoDetection:
                 assert event["agentId"] == "test-agent"
                 assert event["sessionId"] == "test-ses"
 
+    def test_plugin_does_not_crash_on_client_request_error(self):
+        """L2: When client._request raises, the plugin should not crash."""
+        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
+        from agentlensai.integrations.autogen import AgentLensAutoGenHandler
+        from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
+
+        for cls in [AgentLensCrewAIHandler, AgentLensAutoGenHandler, AgentLensSKHandler]:
+            client = MagicMock()
+            client._request = MagicMock(side_effect=RuntimeError("connection refused"))
+            handler = cls(client=client, agent_id="err-agent", session_id="err-ses")
+            # Should not raise
+            handler._send_custom_event("test_event", {"key": "value"})
+            handler._send_tool_call(tool_name="broken_tool", tool_input={"x": 1})
+
     def test_plugins_with_no_client_do_not_raise(self):
         """When no client is configured, plugins should silently no-op."""
         from agentlensai.integrations.crewai import AgentLensCrewAIHandler

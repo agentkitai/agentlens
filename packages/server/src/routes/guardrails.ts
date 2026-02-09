@@ -84,6 +84,14 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
       return c.json({ error: 'Validation failed', status: 400, details: [{ path: 'conditionConfig', message: configError }] }, 400);
     }
 
+    // H2: Validate webhook URL if action is notify_webhook
+    if (result.data.actionType === 'notify_webhook') {
+      const url = result.data.actionConfig?.url;
+      if (typeof url === 'string' && !/^https?:\/\//.test(url)) {
+        return c.json({ error: 'Validation failed', status: 400, details: [{ path: 'actionConfig.url', message: 'Webhook URL must start with http:// or https://' }] }, 400);
+      }
+    }
+
     const now = new Date().toISOString();
     const rule = {
       id: ulid(),
@@ -148,6 +156,14 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
         status: 400,
         details: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
       }, 400);
+    }
+
+    // H2: Validate webhook URL if action is notify_webhook
+    if (result.data.actionType === 'notify_webhook') {
+      const url = result.data.actionConfig?.url;
+      if (typeof url === 'string' && !/^https?:\/\//.test(url)) {
+        return c.json({ error: 'Validation failed', status: 400, details: [{ path: 'actionConfig.url', message: 'Webhook URL must start with http:// or https://' }] }, 400);
+      }
     }
 
     // Handle null agentId (clearing scope)

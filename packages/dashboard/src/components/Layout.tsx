@@ -105,6 +105,16 @@ const navItems: NavItem[] = [
     icon: <span className="w-5 h-5 flex items-center justify-center text-base">💡</span>,
   },
   {
+    to: '/guardrails',
+    label: 'Guardrails',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">🛡️</span>,
+  },
+  {
+    to: '/guardrails/activity',
+    label: 'Guard Activity',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">📋</span>,
+  },
+  {
     to: '/alerts',
     label: 'Alerts',
     icon: (

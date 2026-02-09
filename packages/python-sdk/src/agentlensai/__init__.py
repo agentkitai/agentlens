@@ -13,6 +13,7 @@ from agentlensai.exceptions import (
     ValidationError,
 )
 from agentlensai.models import (
+    Agent,
     AgentLensEvent,
     ContextKeyEvent,
     ContextLesson,
@@ -73,6 +74,7 @@ __all__ = [
     "AgentLensClient",
     "AsyncAgentLensClient",
     # Models
+    "Agent",
     "AgentLensEvent",
     "ContextKeyEvent",
     "ContextLesson",

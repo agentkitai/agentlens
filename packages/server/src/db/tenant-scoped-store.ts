@@ -83,6 +83,10 @@ export class TenantScopedStore implements IEventStore {
     return this.inner.getAgent(id, this.tenantId);
   }
 
+  async unpauseAgent(agentId: string, clearModelOverride: boolean): Promise<boolean> {
+    return this.inner.unpauseAgent(this.tenantId, agentId, clearModelOverride);
+  }
+
   // ─── Analytics ───────────────────────────────────────────
 
   async getAnalytics(params: {
