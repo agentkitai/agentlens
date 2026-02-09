@@ -25,10 +25,10 @@ export function auditRoutes(db: SqliteDb) {
 
   app.get('/', async (c) => {
     const tenantId = getTenantId(c);
-    const eventType = c.req.query('type');
+    const eventType = c.req.query('type') || c.req.query('eventType');
     const agentId = c.req.query('agentId');
-    const dateFrom = c.req.query('dateFrom');
-    const dateTo = c.req.query('dateTo');
+    const dateFrom = c.req.query('dateFrom') || c.req.query('from');
+    const dateTo = c.req.query('dateTo') || c.req.query('to');
     const limitStr = c.req.query('limit');
     const offsetStr = c.req.query('offset');
 

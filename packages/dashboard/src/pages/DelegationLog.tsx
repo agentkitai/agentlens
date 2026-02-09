@@ -99,10 +99,10 @@ export default function DelegationLog() {
                   <span style={statusStyle(d.status)}>{d.status}</span>
                 </td>
                 <td style={tdStyle}>
-                  {d.executionTimeMs !== undefined ? `${d.executionTimeMs}ms` : '—'}
+                  {d.executionTimeMs != null ? `${d.executionTimeMs}ms` : '—'}
                 </td>
                 <td style={tdStyle}>
-                  {d.costUsd !== undefined ? `$${d.costUsd.toFixed(4)}` : '—'}
+                  {d.costUsd != null ? `$${d.costUsd.toFixed(4)}` : '—'}
                 </td>
                 <td style={tdStyle}>{formatTimestamp(d.createdAt)}</td>
                 <td style={tdStyle}>{expandedId === d.id ? '▲' : '▼'}</td>

@@ -67,7 +67,7 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   app.get('/search', async (c) => {
     const tenantId = getTenantId(c);
-    const query = c.req.query('q');
+    const query = c.req.query('q') || c.req.query('query');
     if (!query) {
       return c.json({ error: 'q (query) parameter is required' }, 400);
     }
@@ -89,7 +89,7 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
   app.get('/config', async (c) => {
     const tenantId = getTenantId(c);
     const config = service.getSharingConfig(tenantId);
-    return c.json({ config });
+    return c.json(config);
   });
 
   app.put('/config', async (c) => {
@@ -125,7 +125,15 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
     }
 
     const config = service.updateSharingConfig(tenantId, updates as any);
-    return c.json({ config });
+    return c.json(config);
+  });
+
+  // ─── Agent Config (list all) ────────────────────────
+
+  app.get('/agents', async (c) => {
+    const tenantId = getTenantId(c);
+    const configs = service.getAgentSharingConfigs(tenantId);
+    return c.json({ configs });
   });
 
   // ─── Agent Config ──────────────────────────────────
@@ -161,6 +169,90 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
     const config = service.updateAgentSharingConfig(tenantId, agentId, updates as any);
     return c.json({ config });
+  });
+
+  // ─── Agent Config (dashboard shorthand) ─────────────
+
+  app.get('/agents/:agentId', async (c) => {
+    const tenantId = getTenantId(c);
+    const agentId = c.req.param('agentId');
+    const config = service.getAgentSharingConfig(tenantId, agentId);
+    return c.json(config);
+  });
+
+  app.put('/agents/:agentId', async (c) => {
+    const tenantId = getTenantId(c);
+    const agentId = c.req.param('agentId');
+    let body: Record<string, unknown>;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON body' }, 400);
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (body.enabled !== undefined) updates.enabled = Boolean(body.enabled);
+    if (body.categories !== undefined) {
+      if (!Array.isArray(body.categories)) return c.json({ error: 'categories must be an array' }, 400);
+      updates.categories = body.categories;
+    }
+
+    const config = service.updateAgentSharingConfig(tenantId, agentId, updates as any);
+    return c.json(config);
+  });
+
+  // ─── Rate ──────────────────────────────────────────
+
+  app.post('/rate', async (c) => {
+    const tenantId = getTenantId(c);
+    let body: Record<string, unknown>;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON body' }, 400);
+    }
+
+    const lessonId = body.lessonId as string;
+    const delta = Number(body.delta);
+    if (!lessonId) return c.json({ error: 'lessonId is required' }, 400);
+    if (isNaN(delta) || (delta !== 1 && delta !== -1)) return c.json({ error: 'delta must be 1 or -1' }, 400);
+
+    const result = await service.rate(tenantId, lessonId, delta, 'vote', 'api');
+    if (result.status === 'rated') {
+      return c.json({ status: 'rated', reputationScore: result.reputationScore });
+    }
+    return c.json({ error: result.error }, 500);
+  });
+
+  // ─── Stats ─────────────────────────────────────────
+
+  app.get('/stats', async (c) => {
+    const tenantId = getTenantId(c);
+    const stats = service.getStats(tenantId);
+    return c.json(stats);
+  });
+
+  // (Agent list endpoint already defined above as GET /agents)
+
+  // ─── Purge ─────────────────────────────────────────
+
+  app.post('/purge', async (c) => {
+    const tenantId = getTenantId(c);
+    let body: Record<string, unknown>;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON body' }, 400);
+    }
+
+    const confirmation = body.confirmation as string;
+    if (!confirmation) return c.json({ error: 'confirmation is required' }, 400);
+
+    const result = await service.purge(tenantId, confirmation, 'api');
+    if (result.status === 'purged') {
+      return c.json({ status: 'purged', deleted: result.deleted });
+    }
+    return c.json({ error: result.error }, 400);
   });
 
   // ─── Deny List ─────────────────────────────────────

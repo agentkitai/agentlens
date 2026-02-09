@@ -115,7 +115,7 @@ describe('Community REST API (Stories 4.1–4.3)', () => {
       });
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.config.enabled).toBe(false);
+      expect(body.enabled).toBe(false);
     });
   });
 
@@ -128,7 +128,7 @@ describe('Community REST API (Stories 4.1–4.3)', () => {
       });
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.config.enabled).toBe(true);
+      expect(body.enabled).toBe(true);
     });
 
     it('should reject invalid rateLimitPerHour', async () => {

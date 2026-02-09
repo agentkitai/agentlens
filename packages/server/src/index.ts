@@ -37,8 +37,10 @@ import { registerReplayRoutes } from './routes/replay.js';
 import { benchmarkRoutes } from './routes/benchmarks.js';
 import { guardrailRoutes } from './routes/guardrails.js';
 import { capabilityRoutes } from './routes/capabilities.js';
+import { capabilityTopRoutes } from './routes/capabilities-top.js';
 import { discoveryRoutes } from './routes/discovery.js';
 import { delegationRoutes } from './routes/delegation.js';
+import { delegationTopRoutes } from './routes/delegations-top.js';
 import { trustRoutes } from './routes/trust.js';
 import { LocalPoolTransport } from './services/delegation-service.js';
 import { redactionTestRoutes } from './routes/redaction-test.js';
@@ -263,6 +265,12 @@ export function createApp(
     app.use('/api/health/history', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/guardrails/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/guardrails', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/capabilities/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/capabilities', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/delegations/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/delegations', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/discovery/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/discovery', authMiddleware(db, resolvedConfig.authDisabled));
   }
 
   // ─── Routes ────────────────────────────────────────────
@@ -331,6 +339,15 @@ export function createApp(
         embeddingStore,
       }));
     }
+  }
+
+  // ─── Top-level Capabilities & Delegations (dashboard-facing) ──
+  if (db) {
+    app.route('/api/capabilities', capabilityTopRoutes(store, db));
+    app.route('/api/delegations', delegationTopRoutes(db));
+    // Discovery top-level (for /api/discovery?taskType=...)
+    const { app: discTopApp } = discoveryRoutes(db);
+    app.route('/api/discovery', discTopApp);
   }
 
   // ─── Community Sharing (Stories 4.1–4.3) ────────────────

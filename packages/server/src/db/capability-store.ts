@@ -186,6 +186,21 @@ export class CapabilityStore {
   /**
    * List all capabilities for an agent (tenant-scoped).
    */
+  listByTenant(tenantId: string, opts?: { taskType?: string; agentId?: string }): Capability[] {
+    let rows = this.db
+      .select()
+      .from(capabilityRegistry)
+      .where(eq(capabilityRegistry.tenantId, tenantId))
+      .all();
+    if (opts?.taskType) {
+      rows = rows.filter((r) => r.taskType === opts.taskType);
+    }
+    if (opts?.agentId) {
+      rows = rows.filter((r) => r.agentId === opts.agentId);
+    }
+    return rows.map(rowToCapability);
+  }
+
   listByAgent(tenantId: string, agentId: string): Capability[] {
     const rows = this.db
       .select()
@@ -229,6 +244,10 @@ export class CapabilityStore {
     if (input.estimatedCostUsd !== undefined) updates.estimatedCostUsd = input.estimatedCostUsd;
     if (input.maxInputBytes !== undefined) updates.maxInputBytes = input.maxInputBytes;
     if (input.scope !== undefined) updates.scope = input.scope;
+    // Allow toggling enabled/acceptDelegations via partial update
+    const extra = input as Record<string, unknown>;
+    if (extra.enabled !== undefined) updates.enabled = Boolean(extra.enabled);
+    if (extra.acceptDelegations !== undefined) updates.acceptDelegations = Boolean(extra.acceptDelegations);
 
     this.db
       .update(capabilityRegistry)

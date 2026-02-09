@@ -453,6 +453,42 @@ export class CommunityService {
 
   // ─── Agent Sharing Config ──────────────────────────
 
+  getAgentSharingConfigs(tenantId: string): AgentSharingConfig[] {
+    const rows = this.db
+      .select()
+      .from(schema.agentSharingConfig)
+      .where(eq(schema.agentSharingConfig.tenantId, tenantId))
+      .all();
+    return rows.map((row) => ({
+      tenantId: row.tenantId,
+      agentId: row.agentId,
+      enabled: row.enabled,
+      categories: JSON.parse(row.categories) as LessonSharingCategory[],
+      updatedAt: row.updatedAt,
+    }));
+  }
+
+  getStats(tenantId: string): { countShared: number; lastShared: string | null; auditSummary: Record<string, number> } {
+    const rows = this.db
+      .select()
+      .from(schema.sharingAuditLog)
+      .where(eq(schema.sharingAuditLog.tenantId, tenantId))
+      .all();
+
+    const shareEvents = rows.filter((r) => r.eventType === 'share');
+    const countShared = shareEvents.length;
+    const lastShared = shareEvents.length > 0
+      ? shareEvents.sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0].timestamp
+      : null;
+
+    const auditSummary: Record<string, number> = {};
+    for (const row of rows) {
+      auditSummary[row.eventType] = (auditSummary[row.eventType] ?? 0) + 1;
+    }
+
+    return { countShared, lastShared, auditSummary };
+  }
+
   getAgentSharingConfig(tenantId: string, agentId: string): AgentSharingConfig {
     const row = this.db
       .select()
