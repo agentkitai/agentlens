@@ -43,4 +43,4 @@ RUN pnpm install --frozen-lockfile --prod
 EXPOSE 3000
 
 # Migrations run automatically in startServer()
-CMD ["node", "packages/server/dist/index.js"]
+CMD ["node", "-e", "import('./packages/server/dist/index.js').then(m => m.startServer())"]
