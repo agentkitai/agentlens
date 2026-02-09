@@ -64,7 +64,7 @@ describe('agentlens_recall registration', () => {
   it('registers 14 tools total', async () => {
     const { client } = await createTestSetup();
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(14);
+    expect(result.tools).toHaveLength(17);
   });
 
   it('has a description mentioning semantic search', async () => {

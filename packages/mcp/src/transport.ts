@@ -584,6 +584,57 @@ export class AgentLensTransport {
     return response.json();
   }
 
+  // ─── Community API methods (Story 7.1) ──────────────────────
+
+  async communityShare(body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/community/share`;
+    return fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  async communitySearch(params: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params);
+    const url = `${this.baseUrl}/api/community/search?${searchParams.toString()}`;
+    return fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+  }
+
+  async communityRate(body: { lessonId: string; delta: number }): Promise<Response> {
+    const url = `${this.baseUrl}/api/community/rate`;
+    return fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ─── Discovery API methods (Story 7.1) ─────────────────────
+
+  async discover(params: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params);
+    const url = `${this.baseUrl}/api/discovery?${searchParams.toString()}`;
+    return fetch(url, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+    });
+  }
+
+  // ─── Delegation API methods (Story 7.1) ────────────────────
+
+  async delegate(body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/delegations`;
+    return fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

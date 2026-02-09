@@ -30,7 +30,7 @@ describe('MCP Server Entrypoint (Story 5.1)', () => {
     expect(transport).toBeDefined();
   });
 
-  it('lists all 14 tools via MCP protocol', async () => {
+  it('lists all 17 tools via MCP protocol', async () => {
     const { mcpServer } = createServer();
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -40,12 +40,15 @@ describe('MCP Server Entrypoint (Story 5.1)', () => {
     await client.connect(clientTransport);
 
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(14);
+    expect(result.tools).toHaveLength(17);
 
     const names = result.tools.map((t) => t.name).sort();
     expect(names).toEqual([
       'agentlens_benchmark',
+      'agentlens_community',
       'agentlens_context',
+      'agentlens_delegate',
+      'agentlens_discover',
       'agentlens_guardrails',
       'agentlens_health',
       'agentlens_learn',

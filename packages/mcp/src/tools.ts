@@ -21,6 +21,9 @@ import { registerHealthTool } from './tools/health.js';
 import { registerReplayTool } from './tools/replay.js';
 import { registerBenchmarkTool } from './tools/benchmark.js';
 import { registerGuardrailsTool } from './tools/guardrails.js';
+import { registerCommunityTool } from './tools/community.js';
+import { registerDiscoverTool } from './tools/discover.js';
+import { registerDelegateTool } from './tools/delegate.js';
 
 // ─── Tool Registration ─────────────────────────────────────────────
 
@@ -42,6 +45,9 @@ export function registerTools(server: McpServer, transport: AgentLensTransport):
   registerReplayTool(server, transport);
   registerBenchmarkTool(server, transport);
   registerGuardrailsTool(server, transport);
+  registerCommunityTool(server, transport);
+  registerDiscoverTool(server, transport);
+  registerDelegateTool(server, transport);
 }
 
 // ─── 5.2: agentlens_session_start ──────────────────────────────────

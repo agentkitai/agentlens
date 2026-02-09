@@ -24,6 +24,12 @@ import GuardrailList from './pages/GuardrailList';
 import GuardrailForm from './pages/GuardrailForm';
 import GuardrailDetail from './pages/GuardrailDetail';
 import GuardrailActivity from './pages/GuardrailActivity';
+import SharingControls from './pages/SharingControls';
+import CommunityBrowser from './pages/CommunityBrowser';
+import SharingActivity from './pages/SharingActivity';
+import AgentNetwork from './pages/AgentNetwork';
+import CapabilityRegistry from './pages/CapabilityRegistry';
+import DelegationLog from './pages/DelegationLog';
 
 export function App(): React.ReactElement {
   return (
@@ -51,6 +57,12 @@ export function App(): React.ReactElement {
         <Route path="guardrails/new" element={<GuardrailForm />} />
         <Route path="guardrails/:id" element={<GuardrailDetail />} />
         <Route path="guardrails/:id/edit" element={<GuardrailForm />} />
+        <Route path="sharing" element={<SharingControls />} />
+        <Route path="sharing/activity" element={<SharingActivity />} />
+        <Route path="community" element={<CommunityBrowser />} />
+        <Route path="network" element={<AgentNetwork />} />
+        <Route path="capabilities" element={<CapabilityRegistry />} />
+        <Route path="delegations" element={<DelegationLog />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>

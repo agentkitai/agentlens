@@ -115,6 +115,36 @@ const navItems: NavItem[] = [
     icon: <span className="w-5 h-5 flex items-center justify-center text-base">📋</span>,
   },
   {
+    to: '/sharing',
+    label: 'Sharing',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">🔗</span>,
+  },
+  {
+    to: '/community',
+    label: 'Community',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">🌐</span>,
+  },
+  {
+    to: '/sharing/activity',
+    label: 'Sharing Activity',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">📋</span>,
+  },
+  {
+    to: '/network',
+    label: 'Agent Network',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">🕸️</span>,
+  },
+  {
+    to: '/capabilities',
+    label: 'Capabilities',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">📦</span>,
+  },
+  {
+    to: '/delegations',
+    label: 'Delegations',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">📊</span>,
+  },
+  {
     to: '/alerts',
     label: 'Alerts',
     icon: (
