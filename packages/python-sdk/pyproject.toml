@@ -58,6 +58,9 @@ Issues = "https://github.com/amitpaz1/agentlens/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentlensai"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [".env", ".venv/", "dist/", "*.egg-info/"]
+
 [tool.ruff]
 target-version = "py39"
 line-length = 100
