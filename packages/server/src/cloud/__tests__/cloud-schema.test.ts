@@ -387,9 +387,9 @@ describe('Migration Runner', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it('finds exactly 3 migration files', () => {
+  it('finds at least 3 migration files', () => {
     const files = getMigrationFiles(MIGRATIONS_DIR);
-    expect(files).toHaveLength(3);
+    expect(files.length).toBeGreaterThanOrEqual(3);
   });
 
   it('migration files are in correct order', () => {

@@ -115,6 +115,9 @@ export function validateMigrations(dir: string = MIGRATIONS_DIR): {
   return { valid: errors.length === 0, files, errors };
 }
 
+// Partitioned tables (S-1.4)
+export const PARTITIONED_TABLES = ['events', 'audit_log', 'usage_records'] as const;
+
 // All tenant-scoped tables that should have RLS
 export const TENANT_SCOPED_TABLES = [
   'events',
