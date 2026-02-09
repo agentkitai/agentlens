@@ -60,8 +60,12 @@ export class UsageAccumulator {
    */
   async recordEvents(orgId: string, count: number, timestamp?: Date): Promise<void> {
     const date = timestamp ?? new Date();
+    // Truncate to hour to match batch-writer granularity and avoid double-counting
+    const hourDate = new Date(date);
+    hourDate.setUTCMinutes(0, 0, 0);
+    const hourKey = hourDate.toISOString();
     const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-    const key = `${orgId}:${month}`;
+    const key = `${orgId}:${hourKey}`;
 
     this.buffer.set(key, (this.buffer.get(key) ?? 0) + count);
     this.totalBuffered += count;
@@ -93,12 +97,12 @@ export class UsageAccumulator {
     this.lastFlush = Date.now();
 
     for (const [key, count] of entries) {
-      const [orgId, month] = key.split(':');
-      const hour = `${month}-01T00:00:00Z`; // Store at month start for monthly records
+      const [orgId, ...rest] = key.split(':');
+      const hour = rest.join(':'); // hour ISO string stored as key
 
       await this.deps.db.query(
         `INSERT INTO usage_records (org_id, hour, event_count, api_key_id)
-         VALUES ($1, $2, $3, NULL)
+         VALUES ($1, $2, $3, '00000000-0000-0000-0000-000000000000')
          ON CONFLICT (org_id, hour, api_key_id)
          DO UPDATE SET event_count = usage_records.event_count + $3`,
         [orgId, hour, count],

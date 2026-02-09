@@ -18,6 +18,15 @@ const PARTITIONED_TABLES = [
   { table: 'usage_records', column: 'hour' },
 ] as const;
 
+const VALID_TABLE_NAMES: Set<string> = new Set(PARTITIONED_TABLES.map((t) => t.table));
+const SAFE_IDENTIFIER_RE = /^[a-z_][a-z0-9_]*$/;
+
+function assertSafeIdentifier(name: string): void {
+  if (!SAFE_IDENTIFIER_RE.test(name)) {
+    throw new Error(`Unsafe SQL identifier: ${name}`);
+  }
+}
+
 /**
  * Create a monthly partition for a table if it doesn't exist.
  */
@@ -27,7 +36,14 @@ export async function createMonthlyPartition(
   year: number,
   month: number,
 ): Promise<string | null> {
+  if (!VALID_TABLE_NAMES.has(table)) {
+    throw new Error(`Invalid table for partitioning: ${table}`);
+  }
+  assertSafeIdentifier(table);
+
   const partitionName = `${table}_${year}_${String(month).padStart(2, '0')}`;
+  assertSafeIdentifier(partitionName);
+
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextYear = month === 12 ? year + 1 : year;
@@ -44,7 +60,8 @@ export async function createMonthlyPartition(
   }
 
   await pool.query(
-    `CREATE TABLE IF NOT EXISTS ${partitionName} PARTITION OF ${table} FOR VALUES FROM ('${startDate}') TO ('${endDate}')`,
+    `CREATE TABLE IF NOT EXISTS ${partitionName} PARTITION OF ${table} FOR VALUES FROM ($1) TO ($2)`,
+    [startDate, endDate],
   );
 
   return partitionName;
@@ -98,6 +115,7 @@ export async function maintainPartitions(
       if (match) {
         const startDate = new Date(match[1]);
         if (startDate < cutoff) {
+          assertSafeIdentifier(row.child_name);
           await pool.query(`DROP TABLE IF EXISTS ${row.child_name}`);
           actions.push({ action: 'dropped', partitionName: row.child_name });
         }

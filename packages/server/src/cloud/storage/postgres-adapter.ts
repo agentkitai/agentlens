@@ -189,8 +189,12 @@ function buildSessionWhere(orgId: string, query: SessionQuery): QueryParts {
 
 // ─── Analytics Helpers (S-4.3) ──────────────────────────────
 
+const ALLOWED_GRANULARITY: Record<string, string> = { hour: 'hour', day: 'day', week: 'week' };
+
 function pgDateTrunc(granularity: 'hour' | 'day' | 'week'): string {
-  return granularity; // Postgres date_trunc accepts 'hour', 'day', 'week' directly
+  const val = ALLOWED_GRANULARITY[granularity];
+  if (!val) throw new Error(`Invalid granularity: ${granularity}`);
+  return val;
 }
 
 // ─── PostgreSQL Storage Adapter ─────────────────────────────

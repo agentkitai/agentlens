@@ -84,13 +84,13 @@ describe('S-7.4: Usage route handlers', () => {
       query: async (sql: string) => {
         if (sql.includes('plan')) return { rows: [{ plan: 'pro' }] };
         if (sql.includes('SUM') && !sql.includes('GROUP BY')) {
-          return { rows: [{ events_count: 5000, api_calls: 1200, storage_bytes: 50_000_000 }] };
+          return { rows: [{ events_count: 5000 }] };
         }
         if (sql.includes('GROUP BY')) {
           return {
             rows: [
-              { timestamp: '2026-02-01', events: 100, api_calls: 50 },
-              { timestamp: '2026-02-02', events: 200, api_calls: 80 },
+              { timestamp: '2026-02-01', events: 100 },
+              { timestamp: '2026-02-02', events: 200 },
             ],
           };
         }
@@ -105,7 +105,6 @@ describe('S-7.4: Usage route handlers', () => {
     const body = result.body as any;
     expect(body.summary).toBeDefined();
     expect(body.summary.events_count).toBe(5000);
-    expect(body.summary.api_calls).toBe(1200);
     expect(body.summary.plan).toBe('pro');
     expect(body.summary.quota_events).toBe(1_000_000);
     expect(body.timeseries).toHaveLength(2);
@@ -120,7 +119,7 @@ describe('S-7.4: Usage route handlers', () => {
         capturedParams = params;
         if (sql.includes('plan')) return { rows: [{ plan: 'free' }] };
         if (sql.includes('SUM') && !sql.includes('GROUP BY')) {
-          return { rows: [{ events_count: 0, api_calls: 0, storage_bytes: 0 }] };
+          return { rows: [{ events_count: 0 }] };
         }
         return { rows: [] };
       },
@@ -138,7 +137,7 @@ describe('S-7.4: Usage route handlers', () => {
       query: async (sql: string) => {
         if (sql.includes('plan')) return { rows: [{ plan: 'team' }] };
         if (sql.includes('SUM') && !sql.includes('GROUP BY')) {
-          return { rows: [{ events_count: 0, api_calls: 0, storage_bytes: 0 }] };
+          return { rows: [{ events_count: 0 }] };
         }
         return { rows: [] };
       },
@@ -148,6 +147,5 @@ describe('S-7.4: Usage route handlers', () => {
     const result = await handlers.getUsage('org-1', '7d');
     const body = result.body as any;
     expect(body.summary.quota_events).toBe(10_000_000);
-    expect(body.summary.quota_storage_bytes).toBe(1_099_511_627_776);
   });
 });

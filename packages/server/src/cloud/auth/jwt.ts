@@ -3,7 +3,7 @@
  * No external dependencies.
  */
 
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export interface JwtPayload {
   sub: string; // user_id
@@ -58,7 +58,9 @@ export function verifyJwt(token: string, secret: string): JwtPayload | null {
       .update(`${header}.${body}`)
       .digest('base64url');
 
-    if (signature !== expectedSig) return null;
+    const sigBuf = Buffer.from(signature, 'base64url');
+    const expectedBuf = Buffer.from(expectedSig, 'base64url');
+    if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) return null;
 
     const payload: JwtPayload = JSON.parse(base64urlDecode(body));
 

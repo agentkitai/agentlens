@@ -3,7 +3,7 @@
  * Uses crypto.randomBytes for secure token generation.
  */
 
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 
 /**
  * Generate a secure random token (URL-safe).
@@ -24,5 +24,8 @@ export function hashToken(token: string): string {
  * Verify a raw token against its stored hash.
  */
 export function verifyToken(token: string, storedHash: string): boolean {
-  return hashToken(token) === storedHash;
+  const computed = Buffer.from(hashToken(token), 'hex');
+  const stored = Buffer.from(storedHash, 'hex');
+  if (computed.length !== stored.length) return false;
+  return timingSafeEqual(computed, stored);
 }

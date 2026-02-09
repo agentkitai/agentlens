@@ -131,7 +131,7 @@ describe('S-2.4: ApiKeyAuthMiddleware (unit)', () => {
     const mw = new ApiKeyAuthMiddleware(keyService);
     // al_live_ + 32 random chars
     const fakeKey = 'al_live_' + 'a'.repeat(32);
-    await expect(mw.authenticate(`Bearer ${fakeKey}`)).rejects.toThrow('Invalid API key');
+    await expect(mw.authenticate(`Bearer ${fakeKey}`)).rejects.toThrow('Invalid or revoked API key');
   });
 });
 

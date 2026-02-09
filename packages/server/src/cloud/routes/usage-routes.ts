@@ -48,29 +48,24 @@ export function createUsageRouteHandlers(deps: UsageRoutesDeps) {
       // Query usage_records for summary
       const summaryResult = await deps.db.query(
         `SELECT
-           COALESCE(SUM(event_count), 0)::int as events_count,
-           COALESCE(SUM(api_call_count), 0)::int as api_calls,
-           COALESCE(SUM(storage_bytes), 0)::bigint as storage_bytes
+           COALESCE(SUM(event_count), 0)::int as events_count
          FROM usage_records
-         WHERE org_id = $1 AND period_start >= $2`,
+         WHERE org_id = $1 AND hour >= $2`,
         [orgId, periodStart.toISOString()],
       );
 
       const summary = (summaryResult.rows as any[])[0] ?? {
         events_count: 0,
-        api_calls: 0,
-        storage_bytes: 0,
       };
 
       // Query timeseries (daily buckets)
       const timeseriesResult = await deps.db.query(
         `SELECT
-           date_trunc('day', period_start) as timestamp,
-           COALESCE(SUM(event_count), 0)::int as events,
-           COALESCE(SUM(api_call_count), 0)::int as api_calls
+           date_trunc('day', hour) as timestamp,
+           COALESCE(SUM(event_count), 0)::int as events
          FROM usage_records
-         WHERE org_id = $1 AND period_start >= $2
-         GROUP BY date_trunc('day', period_start)
+         WHERE org_id = $1 AND hour >= $2
+         GROUP BY date_trunc('day', hour)
          ORDER BY timestamp`,
         [orgId, periodStart.toISOString()],
       );
@@ -80,10 +75,7 @@ export function createUsageRouteHandlers(deps: UsageRoutesDeps) {
         body: {
           summary: {
             events_count: Number(summary.events_count),
-            api_calls: Number(summary.api_calls),
-            storage_bytes: Number(summary.storage_bytes),
             quota_events: quota.events,
-            quota_storage_bytes: quota.storage_bytes,
             plan,
             period_start: periodStart.toISOString().slice(0, 10),
             period_end: now.toISOString().slice(0, 10),
@@ -91,7 +83,6 @@ export function createUsageRouteHandlers(deps: UsageRoutesDeps) {
           timeseries: (timeseriesResult.rows as any[]).map((r) => ({
             timestamp: r.timestamp,
             events: Number(r.events),
-            api_calls: Number(r.api_calls),
           })),
         },
       };

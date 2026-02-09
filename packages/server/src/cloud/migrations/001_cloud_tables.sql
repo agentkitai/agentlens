@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS usage_records (
   org_id UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
   hour TIMESTAMPTZ NOT NULL,
   event_count INTEGER NOT NULL DEFAULT 0,
-  api_key_id UUID REFERENCES api_keys(id),
+  api_key_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
   PRIMARY KEY (org_id, hour, api_key_id)
 );
 

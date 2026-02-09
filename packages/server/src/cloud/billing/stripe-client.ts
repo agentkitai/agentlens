@@ -228,8 +228,30 @@ export function createStripeClient(secretKey?: string): IStripeClient {
   if (!key) {
     return new MockStripeClient();
   }
-  // Real Stripe integration would go here:
-  // return new RealStripeClient(key);
-  // For now, always return mock (real impl deferred to deployment)
-  return new MockStripeClient();
+  // Return a guarded mock that verifies webhook signatures via HMAC
+  // Real Stripe SDK integration deferred to deployment; this ensures
+  // webhook payloads are at least signature-verified in production.
+  const client = new MockStripeClient();
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (webhookSecret) {
+    const origConstruct = client.constructWebhookEvent.bind(client);
+    client.constructWebhookEvent = (payload: string, signature: string): StripeWebhookEvent => {
+      // Verify Stripe-style signature (v1=HMAC-SHA256)
+      const { createHmac } = require('node:crypto');
+      const parts = signature.split(',').reduce((acc: Record<string, string>, part: string) => {
+        const [k, v] = part.split('=');
+        acc[k] = v;
+        return acc;
+      }, {} as Record<string, string>);
+      const timestamp = parts['t'];
+      const sig = parts['v1'];
+      if (!timestamp || !sig) throw new Error('Invalid Stripe webhook signature format');
+      const expected = createHmac('sha256', webhookSecret)
+        .update(`${timestamp}.${payload}`)
+        .digest('hex');
+      if (sig !== expected) throw new Error('Stripe webhook signature verification failed');
+      return origConstruct(payload, signature);
+    };
+  }
+  return client;
 }

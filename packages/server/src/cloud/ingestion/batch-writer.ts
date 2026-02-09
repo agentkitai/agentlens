@@ -246,10 +246,10 @@ export class BatchWriter {
         msg.event.data = { ...msg.event.data, estimated_cost_usd: cost };
       }
 
-      // Hash chain
+      // Hash chain — persist both prev_hash and hash for verifiability
       const prevHash = this.lastHashByOrg.get(msg.event.org_id) ?? '0';
       const hash = computeHash(msg.event, prevHash);
-      msg.event.data = { ...msg.event.data, hash };
+      msg.event.data = { ...msg.event.data, prev_hash: prevHash, hash };
       this.lastHashByOrg.set(msg.event.org_id, hash);
     }
     return messages;
@@ -270,23 +270,26 @@ export class BatchWriter {
 
       for (const event of events) {
         placeholders.push(
-          `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`,
+          `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`,
         );
         values.push(
           event.id,
           orgId,
           event.session_id,
+          event.data.agent_id ?? 'unknown',
           event.type,
+          event.data.severity ?? 'info',
           event.timestamp,
           JSON.stringify(event.data),
+          event.data.prev_hash ?? null,
           event.data.hash ?? null,
         );
       }
 
       await client.query(
-        `INSERT INTO events (id, org_id, session_id, type, timestamp, data, hash)
+        `INSERT INTO events (id, org_id, session_id, agent_id, event_type, severity, timestamp, payload, prev_hash, hash)
          VALUES ${placeholders.join(', ')}
-         ON CONFLICT (id) DO NOTHING`,
+         ON CONFLICT (id, timestamp) DO NOTHING`,
         values,
       );
 
@@ -299,7 +302,7 @@ export class BatchWriter {
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (org_id, hour, api_key_id)
          DO UPDATE SET event_count = usage_records.event_count + $3`,
-        [orgId, hour.toISOString(), events.length, events[0].api_key_id],
+        [orgId, hour.toISOString(), events.length, events[0].api_key_id || '00000000-0000-0000-0000-000000000000'],
       );
 
       await client.query('COMMIT');

@@ -112,13 +112,13 @@ export class ApiKeyAuthMiddleware {
     const cached = this.cache.get(prefix);
     if (cached) {
       if (cached.revoked) {
-        throw new ApiKeyAuthError(401, `API key revoked (prefix: ${prefix})`);
+        throw new ApiKeyAuthError(401, 'Invalid or revoked API key');
       }
 
       // Verify hash even on cache hit (the cache stores hash, we verify full key)
       const valid = await this.keyService.verifyKey(fullKey, cached.keyHash);
       if (!valid) {
-        throw new ApiKeyAuthError(401, `Invalid API key (prefix: ${prefix})`);
+        throw new ApiKeyAuthError(401, 'Invalid or revoked API key');
       }
 
       // Update last_used_at non-blocking
@@ -136,7 +136,7 @@ export class ApiKeyAuthMiddleware {
     // 4. Cache miss → DB lookup
     const keyRecord = await this.keyService.findByPrefix(prefix);
     if (!keyRecord) {
-      throw new ApiKeyAuthError(401, `Invalid API key (prefix: ${prefix})`);
+      throw new ApiKeyAuthError(401, 'Invalid or revoked API key');
     }
 
     // 5. Check revocation
@@ -152,13 +152,13 @@ export class ApiKeyAuthMiddleware {
         revoked: true,
         cachedAt: Date.now(),
       });
-      throw new ApiKeyAuthError(401, `API key revoked (prefix: ${prefix})`);
+      throw new ApiKeyAuthError(401, 'Invalid or revoked API key');
     }
 
     // 6. Verify hash
     const valid = await this.keyService.verifyKey(fullKey, keyRecord.key_hash);
     if (!valid) {
-      throw new ApiKeyAuthError(401, `Invalid API key (prefix: ${prefix})`);
+      throw new ApiKeyAuthError(401, 'Invalid or revoked API key');
     }
 
     // 7. Cache the result

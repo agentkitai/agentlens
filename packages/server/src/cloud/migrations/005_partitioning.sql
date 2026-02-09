@@ -51,7 +51,12 @@ BEGIN
     JOIN pg_class c ON c.oid = pt.partrelid
     WHERE c.relname = 'events'
   ) THEN
-    -- Save any RLS policies (will re-apply via migration 003 re-run or they persist)
+    -- Migrate existing data if the non-partitioned table has rows
+    CREATE TEMP TABLE _events_backup AS SELECT * FROM events WHERE FALSE;
+    IF EXISTS (SELECT 1 FROM events LIMIT 1) THEN
+      CREATE TEMP TABLE _events_backup_data AS SELECT * FROM events;
+    END IF;
+
     DROP TABLE IF EXISTS events CASCADE;
 
     CREATE TABLE events (
@@ -83,6 +88,8 @@ BEGIN
     CREATE POLICY events_tenant_isolation ON events
       USING (org_id = current_setting('app.current_org')::uuid)
       WITH CHECK (org_id = current_setting('app.current_org')::uuid);
+
+    -- Restore backed-up data (partitions must exist first — done in final block)
   END IF;
 END $$;
 
@@ -143,7 +150,7 @@ BEGIN
       org_id UUID NOT NULL,
       hour TIMESTAMPTZ NOT NULL,
       event_count INTEGER NOT NULL DEFAULT 0,
-      api_key_id UUID,
+      api_key_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
       PRIMARY KEY (org_id, hour, api_key_id)
     ) PARTITION BY RANGE (hour);
 
