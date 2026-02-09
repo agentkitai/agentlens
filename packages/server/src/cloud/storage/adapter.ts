@@ -17,6 +17,7 @@ import type {
   Session,
   SessionQuery,
   Agent,
+  HealthSnapshot,
 } from '@agentlensai/core';
 import type { AnalyticsResult, StorageStats } from '@agentlensai/core';
 
@@ -24,6 +25,70 @@ import type { AnalyticsResult, StorageStats } from '@agentlensai/core';
 
 export interface PaginatedResult<T> {
   items: T[];
+  total: number;
+  hasMore: boolean;
+}
+
+// ─── Analytics Types (S-4.3) ────────────────────────────────
+
+export interface AnalyticsQuery {
+  from: string;
+  to: string;
+  agentId?: string;
+  granularity: 'hour' | 'day' | 'week';
+}
+
+export interface CostAnalyticsResult {
+  buckets: Array<{
+    timestamp: string;
+    totalCostUsd: number;
+    eventCount: number;
+    model?: string;
+  }>;
+  totalCostUsd: number;
+  totalEvents: number;
+}
+
+export interface HealthAnalyticsResult {
+  snapshots: HealthSnapshot[];
+}
+
+export interface TokenUsageResult {
+  buckets: Array<{
+    timestamp: string;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    llmCallCount: number;
+  }>;
+  totals: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    llmCallCount: number;
+  };
+}
+
+// ─── Search Types (S-4.4) ───────────────────────────────────
+
+export interface SearchQuery {
+  query: string;
+  scope?: 'events' | 'sessions' | 'all';
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface SearchResult {
+  items: Array<{
+    type: 'event' | 'session';
+    id: string;
+    score: number;
+    headline: string;
+    timestamp: string;
+    sessionId?: string;
+  }>;
   total: number;
   hasMore: boolean;
 }
@@ -50,6 +115,20 @@ export interface StorageAdapter {
   // ─── Stats ─────────────────────────────────────────────
   /** Get storage statistics for an org */
   getStats(orgId: string): Promise<StorageStats>;
+
+  // ─── Analytics (S-4.3) ────────────────────────────────
+  /** Cost analytics with time-bucketed aggregation */
+  getCostAnalytics(orgId: string, query: AnalyticsQuery): Promise<CostAnalyticsResult>;
+  /** Health score analytics over time */
+  getHealthAnalytics(orgId: string, query: AnalyticsQuery): Promise<HealthAnalyticsResult>;
+  /** Token usage analytics with time-bucketed aggregation */
+  getTokenUsage(orgId: string, query: AnalyticsQuery): Promise<TokenUsageResult>;
+  /** General analytics (buckets + totals) */
+  getAnalytics(orgId: string, query: AnalyticsQuery): Promise<AnalyticsResult>;
+
+  // ─── Search (S-4.4) ──────────────────────────────────
+  /** Full-text search across events and sessions */
+  search(orgId: string, query: SearchQuery): Promise<SearchResult>;
 }
 
 // ─── Factory ────────────────────────────────────────────────

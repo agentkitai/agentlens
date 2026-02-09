@@ -1,5 +1,5 @@
 /**
- * PostgreSQL Storage Adapter (S-4.2)
+ * PostgreSQL Storage Adapter (S-4.2, S-4.3, S-4.4)
  *
  * Implements StorageAdapter for the cloud Postgres backend.
  * Uses the tenant pool from B2A for automatic org scoping via
@@ -8,6 +8,9 @@
  * All queries use org_id composite indexes. RLS provides automatic
  * tenant scoping as defense-in-depth (queries also filter by org_id
  * explicitly for index usage).
+ *
+ * S-4.3: Analytics queries use date_trunc + window functions for Postgres.
+ * S-4.4: Full-text search uses tsvector/to_tsquery with GIN indexes.
  */
 
 import type {
@@ -17,9 +20,19 @@ import type {
   Session,
   SessionQuery,
   Agent,
+  HealthSnapshot,
 } from '@agentlensai/core';
-import type { StorageStats } from '@agentlensai/core';
-import type { StorageAdapter, PaginatedResult } from './adapter.js';
+import type { AnalyticsResult, StorageStats } from '@agentlensai/core';
+import type {
+  StorageAdapter,
+  PaginatedResult,
+  AnalyticsQuery,
+  CostAnalyticsResult,
+  HealthAnalyticsResult,
+  TokenUsageResult,
+  SearchQuery,
+  SearchResult,
+} from './adapter.js';
 import type { Pool } from '../tenant-pool.js';
 import { withTenantTransaction } from '../tenant-pool.js';
 
@@ -166,14 +179,18 @@ function buildSessionWhere(orgId: string, query: SessionQuery): QueryParts {
     idx++;
   }
   if (query.tags && query.tags.length > 0) {
-    // Postgres jsonb array containment: tags @> ANY of the specified tags
-    // Use ?| operator: does the jsonb array contain any of these strings?
     where.push(`tags ?| $${idx}`);
     params.push(query.tags);
     idx++;
   }
 
   return { where, params, paramIdx: idx };
+}
+
+// ─── Analytics Helpers (S-4.3) ──────────────────────────────
+
+function pgDateTrunc(granularity: 'hour' | 'day' | 'week'): string {
+  return granularity; // Postgres date_trunc accepts 'hour', 'day', 'week' directly
 }
 
 // ─── PostgreSQL Storage Adapter ─────────────────────────────
@@ -189,25 +206,19 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const limit = Math.min(query.limit ?? 50, 500);
       const offset = query.offset ?? 0;
 
-      // Count query
       const countResult = await client.query(
         `SELECT COUNT(*)::int AS total FROM events WHERE ${whereClause}`,
         params,
       );
       const total = (countResult.rows[0] as { total: number })?.total ?? 0;
 
-      // Data query
       const dataResult = await client.query(
         `SELECT * FROM events WHERE ${whereClause} ORDER BY timestamp ${orderDir} LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
         [...params, limit, offset],
       );
 
       const events = (dataResult.rows as Record<string, unknown>[]).map(mapEventRow);
-      return {
-        events,
-        total,
-        hasMore: offset + events.length < total,
-      };
+      return { events, total, hasMore: offset + events.length < total };
     });
   }
 
@@ -228,14 +239,12 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const limit = Math.min(query.limit ?? 50, 500);
       const offset = query.offset ?? 0;
 
-      // Count
       const countResult = await client.query(
         `SELECT COUNT(*)::int AS total FROM sessions WHERE ${whereClause}`,
         params,
       );
       const total = (countResult.rows[0] as { total: number })?.total ?? 0;
 
-      // Data
       const dataResult = await client.query(
         `SELECT * FROM sessions WHERE ${whereClause} ORDER BY started_at DESC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
         [...params, limit, offset],
@@ -284,8 +293,6 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const newest = await client.query(
         `SELECT timestamp FROM events WHERE org_id = $1 ORDER BY timestamp DESC LIMIT 1`, [orgId],
       );
-
-      // Postgres: estimate table size for this org (approximate via pg_total_relation_size)
       const sizeResult = await client.query(
         `SELECT pg_total_relation_size('events') AS size_bytes`,
       );
@@ -297,6 +304,379 @@ export class PostgresStorageAdapter implements StorageAdapter {
         oldestEvent: (oldest.rows[0] as { timestamp: string } | undefined)?.timestamp,
         newestEvent: (newest.rows[0] as { timestamp: string } | undefined)?.timestamp,
         storageSizeBytes: Number((sizeResult.rows[0] as { size_bytes: number })?.size_bytes ?? 0),
+      };
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // S-4.3: Analytics Queries (Postgres-optimized)
+  // ═══════════════════════════════════════════════════════════
+
+  async getCostAnalytics(orgId: string, query: AnalyticsQuery): Promise<CostAnalyticsResult> {
+    return withTenantTransaction(this.pool, orgId, async (client) => {
+      const trunc = pgDateTrunc(query.granularity);
+      const params: unknown[] = [orgId, query.from, query.to];
+      let agentFilter = '';
+      if (query.agentId) {
+        agentFilter = `AND agent_id = $4`;
+        params.push(query.agentId);
+      }
+
+      const result = await client.query(
+        `SELECT
+           date_trunc('${trunc}', timestamp) AS bucket,
+           COALESCE(SUM((payload->>'costUsd')::numeric), 0)::float AS total_cost,
+           COUNT(*)::int AS event_count
+         FROM events
+         WHERE org_id = $1
+           AND timestamp >= $2
+           AND timestamp <= $3
+           AND event_type = 'cost_tracked'
+           ${agentFilter}
+         GROUP BY bucket
+         ORDER BY bucket ASC`,
+        params,
+      );
+
+      const buckets = (result.rows as Record<string, unknown>[]).map((row) => ({
+        timestamp: String(row.bucket),
+        totalCostUsd: Number(row.total_cost ?? 0),
+        eventCount: Number(row.event_count ?? 0),
+      }));
+
+      const totalCostUsd = buckets.reduce((sum, b) => sum + b.totalCostUsd, 0);
+      const totalEvents = buckets.reduce((sum, b) => sum + b.eventCount, 0);
+
+      return { buckets, totalCostUsd, totalEvents };
+    });
+  }
+
+  async getHealthAnalytics(orgId: string, query: AnalyticsQuery): Promise<HealthAnalyticsResult> {
+    return withTenantTransaction(this.pool, orgId, async (client) => {
+      const params: unknown[] = [orgId, query.from, query.to];
+      let agentFilter = '';
+      if (query.agentId) {
+        agentFilter = `AND agent_id = $4`;
+        params.push(query.agentId);
+      }
+
+      const result = await client.query(
+        `SELECT
+           agent_id,
+           date::text AS date,
+           overall_score,
+           error_rate_score,
+           cost_efficiency_score,
+           tool_success_score,
+           latency_score,
+           completion_rate_score,
+           session_count
+         FROM health_snapshots
+         WHERE org_id = $1
+           AND date >= $2::date
+           AND date <= $3::date
+           ${agentFilter}
+         ORDER BY date ASC, agent_id ASC`,
+        params,
+      );
+
+      const snapshots: HealthSnapshot[] = (result.rows as Record<string, unknown>[]).map((row) => ({
+        agentId: row.agent_id as string,
+        date: row.date as string,
+        overallScore: Number(row.overall_score ?? 0),
+        errorRateScore: Number(row.error_rate_score ?? 0),
+        costEfficiencyScore: Number(row.cost_efficiency_score ?? 0),
+        toolSuccessScore: Number(row.tool_success_score ?? 0),
+        latencyScore: Number(row.latency_score ?? 0),
+        completionRateScore: Number(row.completion_rate_score ?? 0),
+        sessionCount: Number(row.session_count ?? 0),
+      }));
+
+      return { snapshots };
+    });
+  }
+
+  async getTokenUsage(orgId: string, query: AnalyticsQuery): Promise<TokenUsageResult> {
+    return withTenantTransaction(this.pool, orgId, async (client) => {
+      const trunc = pgDateTrunc(query.granularity);
+      const params: unknown[] = [orgId, query.from, query.to];
+      let agentFilter = '';
+      if (query.agentId) {
+        agentFilter = `AND agent_id = $4`;
+        params.push(query.agentId);
+      }
+
+      const result = await client.query(
+        `SELECT
+           date_trunc('${trunc}', timestamp) AS bucket,
+           COALESCE(SUM((payload->>'inputTokens')::int), 0)::int AS input_tokens,
+           COALESCE(SUM((payload->>'outputTokens')::int), 0)::int AS output_tokens,
+           COALESCE(SUM((payload->>'inputTokens')::int + (payload->>'outputTokens')::int), 0)::int AS total_tokens,
+           COUNT(*)::int AS llm_call_count
+         FROM events
+         WHERE org_id = $1
+           AND timestamp >= $2
+           AND timestamp <= $3
+           AND event_type = 'llm_response'
+           ${agentFilter}
+         GROUP BY bucket
+         ORDER BY bucket ASC`,
+        params,
+      );
+
+      const buckets = (result.rows as Record<string, unknown>[]).map((row) => ({
+        timestamp: String(row.bucket),
+        inputTokens: Number(row.input_tokens ?? 0),
+        outputTokens: Number(row.output_tokens ?? 0),
+        totalTokens: Number(row.total_tokens ?? 0),
+        llmCallCount: Number(row.llm_call_count ?? 0),
+      }));
+
+      const totals = buckets.reduce(
+        (acc, b) => ({
+          inputTokens: acc.inputTokens + b.inputTokens,
+          outputTokens: acc.outputTokens + b.outputTokens,
+          totalTokens: acc.totalTokens + b.totalTokens,
+          llmCallCount: acc.llmCallCount + b.llmCallCount,
+        }),
+        { inputTokens: 0, outputTokens: 0, totalTokens: 0, llmCallCount: 0 },
+      );
+
+      return { buckets, totals };
+    });
+  }
+
+  async getAnalytics(orgId: string, query: AnalyticsQuery): Promise<AnalyticsResult> {
+    return withTenantTransaction(this.pool, orgId, async (client) => {
+      const trunc = pgDateTrunc(query.granularity);
+      const params: unknown[] = [orgId, query.from, query.to];
+      let agentFilter = '';
+      if (query.agentId) {
+        agentFilter = `AND agent_id = $4`;
+        params.push(query.agentId);
+      }
+
+      // Bucketed query using date_trunc (Postgres-optimized)
+      const bucketResult = await client.query(
+        `SELECT
+           date_trunc('${trunc}', timestamp) AS bucket,
+           COUNT(*)::int AS event_count,
+           SUM(CASE WHEN event_type = 'tool_call' THEN 1 ELSE 0 END)::int AS tool_call_count,
+           SUM(CASE WHEN severity IN ('error', 'critical') OR event_type = 'tool_error' THEN 1 ELSE 0 END)::int AS error_count,
+           COUNT(DISTINCT session_id)::int AS unique_sessions,
+           COALESCE(AVG(CASE WHEN event_type = 'tool_response' THEN (payload->>'durationMs')::numeric ELSE NULL END), 0)::float AS avg_latency_ms,
+           COALESCE(SUM(CASE WHEN event_type = 'cost_tracked' THEN (payload->>'costUsd')::numeric ELSE 0 END), 0)::float AS total_cost_usd
+         FROM events
+         WHERE org_id = $1 AND timestamp >= $2 AND timestamp <= $3
+           ${agentFilter}
+         GROUP BY bucket
+         ORDER BY bucket ASC`,
+        params,
+      );
+
+      // Totals query
+      const totalsResult = await client.query(
+        `SELECT
+           COUNT(*)::int AS event_count,
+           SUM(CASE WHEN event_type = 'tool_call' THEN 1 ELSE 0 END)::int AS tool_call_count,
+           SUM(CASE WHEN severity IN ('error', 'critical') OR event_type = 'tool_error' THEN 1 ELSE 0 END)::int AS error_count,
+           COUNT(DISTINCT session_id)::int AS unique_sessions,
+           COUNT(DISTINCT agent_id)::int AS unique_agents,
+           COALESCE(AVG(CASE WHEN event_type = 'tool_response' THEN (payload->>'durationMs')::numeric ELSE NULL END), 0)::float AS avg_latency_ms,
+           COALESCE(SUM(CASE WHEN event_type = 'cost_tracked' THEN (payload->>'costUsd')::numeric ELSE 0 END), 0)::float AS total_cost_usd
+         FROM events
+         WHERE org_id = $1 AND timestamp >= $2 AND timestamp <= $3
+           ${agentFilter}`,
+        params,
+      );
+
+      const totalsRow = totalsResult.rows[0] as Record<string, unknown> | undefined;
+
+      return {
+        buckets: (bucketResult.rows as Record<string, unknown>[]).map((row) => ({
+          timestamp: String(row.bucket),
+          eventCount: Number(row.event_count ?? 0),
+          toolCallCount: Number(row.tool_call_count ?? 0),
+          errorCount: Number(row.error_count ?? 0),
+          avgLatencyMs: Number(row.avg_latency_ms ?? 0),
+          totalCostUsd: Number(row.total_cost_usd ?? 0),
+          uniqueSessions: Number(row.unique_sessions ?? 0),
+        })),
+        totals: {
+          eventCount: Number(totalsRow?.event_count ?? 0),
+          toolCallCount: Number(totalsRow?.tool_call_count ?? 0),
+          errorCount: Number(totalsRow?.error_count ?? 0),
+          avgLatencyMs: Number(totalsRow?.avg_latency_ms ?? 0),
+          totalCostUsd: Number(totalsRow?.total_cost_usd ?? 0),
+          uniqueSessions: Number(totalsRow?.unique_sessions ?? 0),
+          uniqueAgents: Number(totalsRow?.unique_agents ?? 0),
+        },
+      };
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // S-4.4: Full-Text Search (Postgres tsvector/to_tsquery)
+  // ═══════════════════════════════════════════════════════════
+
+  async search(orgId: string, query: SearchQuery): Promise<SearchResult> {
+    return withTenantTransaction(this.pool, orgId, async (client) => {
+      const limit = Math.min(query.limit ?? 20, 100);
+      const offset = query.offset ?? 0;
+      const scope = query.scope ?? 'all';
+
+      // Sanitize query for to_tsquery: replace spaces with & for AND semantics
+      const tsQuery = query.query
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((w) => w.replace(/[^\w]/g, ''))
+        .filter(Boolean)
+        .join(' & ');
+
+      if (!tsQuery) {
+        return { items: [], total: 0, hasMore: false };
+      }
+
+      const items: SearchResult['items'] = [];
+      let total = 0;
+
+      // Search events
+      if (scope === 'events' || scope === 'all') {
+        const timeFilters: string[] = [];
+        const params: unknown[] = [orgId, tsQuery];
+        let idx = 3;
+
+        if (query.from) {
+          timeFilters.push(`AND e.timestamp >= $${idx}`);
+          params.push(query.from);
+          idx++;
+        }
+        if (query.to) {
+          timeFilters.push(`AND e.timestamp <= $${idx}`);
+          params.push(query.to);
+          idx++;
+        }
+
+        const timeFilterStr = timeFilters.join(' ');
+
+        // Use to_tsvector on payload::text + event_type for full-text search
+        // ts_rank for scoring, ts_headline for highlighted snippets
+        const eventResult = await client.query(
+          `WITH matched AS (
+             SELECT
+               e.id,
+               e.session_id,
+               e.timestamp,
+               ts_rank(
+                 to_tsvector('english', COALESCE(e.event_type, '') || ' ' || COALESCE(e.payload::text, '')),
+                 to_tsquery('english', $2)
+               ) AS score,
+               ts_headline('english',
+                 COALESCE(e.event_type, '') || ' ' || COALESCE(e.payload::text, ''),
+                 to_tsquery('english', $2),
+                 'MaxWords=30, MinWords=10, StartSel=<<, StopSel=>>'
+               ) AS headline
+             FROM events e
+             WHERE e.org_id = $1
+               AND to_tsvector('english', COALESCE(e.event_type, '') || ' ' || COALESCE(e.payload::text, ''))
+                   @@ to_tsquery('english', $2)
+               ${timeFilterStr}
+           )
+           SELECT *, (SELECT COUNT(*)::int FROM matched) AS total_count
+           FROM matched
+           ORDER BY score DESC
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...params, limit, offset],
+        );
+
+        for (const row of eventResult.rows as Record<string, unknown>[]) {
+          items.push({
+            type: 'event',
+            id: row.id as string,
+            score: Number(row.score ?? 0),
+            headline: row.headline as string,
+            timestamp: row.timestamp as string,
+            sessionId: row.session_id as string,
+          });
+          total = Number(row.total_count ?? 0);
+        }
+      }
+
+      // Search sessions
+      if (scope === 'sessions' || scope === 'all') {
+        const timeFilters: string[] = [];
+        const params: unknown[] = [orgId, tsQuery];
+        let idx = 3;
+
+        if (query.from) {
+          timeFilters.push(`AND s.started_at >= $${idx}`);
+          params.push(query.from);
+          idx++;
+        }
+        if (query.to) {
+          timeFilters.push(`AND s.started_at <= $${idx}`);
+          params.push(query.to);
+          idx++;
+        }
+
+        const timeFilterStr = timeFilters.join(' ');
+
+        const sessionResult = await client.query(
+          `WITH matched AS (
+             SELECT
+               s.id,
+               s.started_at AS timestamp,
+               ts_rank(
+                 to_tsvector('english', COALESCE(s.agent_name, '') || ' ' || COALESCE(s.tags::text, '')),
+                 to_tsquery('english', $2)
+               ) AS score,
+               ts_headline('english',
+                 COALESCE(s.agent_name, '') || ' ' || COALESCE(s.tags::text, ''),
+                 to_tsquery('english', $2),
+                 'MaxWords=30, MinWords=10, StartSel=<<, StopSel=>>'
+               ) AS headline
+             FROM sessions s
+             WHERE s.org_id = $1
+               AND to_tsvector('english', COALESCE(s.agent_name, '') || ' ' || COALESCE(s.tags::text, ''))
+                   @@ to_tsquery('english', $2)
+               ${timeFilterStr}
+           )
+           SELECT *, (SELECT COUNT(*)::int FROM matched) AS total_count
+           FROM matched
+           ORDER BY score DESC
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...params, limit, offset],
+        );
+
+        const sessionTotal = Number(
+          (sessionResult.rows[0] as Record<string, unknown>)?.total_count ?? 0,
+        );
+
+        for (const row of sessionResult.rows as Record<string, unknown>[]) {
+          items.push({
+            type: 'session',
+            id: row.id as string,
+            score: Number(row.score ?? 0),
+            headline: row.headline as string,
+            timestamp: row.timestamp as string,
+          });
+        }
+
+        if (scope === 'all') {
+          total += sessionTotal;
+        } else {
+          total = sessionTotal;
+        }
+      }
+
+      // Sort combined results by score descending
+      items.sort((a, b) => b.score - a.score);
+
+      return {
+        items: items.slice(0, limit),
+        total,
+        hasMore: offset + items.length < total,
       };
     });
   }
