@@ -44,6 +44,7 @@ import { delegationTopRoutes } from './routes/delegations-top.js';
 import { trustRoutes } from './routes/trust.js';
 import { LocalPoolTransport } from './services/delegation-service.js';
 import { redactionTestRoutes } from './routes/redaction-test.js';
+import { otlpRoutes } from './routes/otlp.js';
 import { communityRoutes } from './routes/community.js';
 import { auditRoutes } from './routes/audit.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
@@ -95,6 +96,7 @@ export { contextRoutes } from './routes/context.js';
 export { registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
 export { communityRoutes } from './routes/community.js';
+export { otlpRoutes } from './routes/otlp.js';
 export { CommunityService, LocalCommunityPoolTransport, computeSimpleEmbedding } from './services/community-service.js';
 export type { PoolTransport, ShareResult, DenyListRule } from './services/community-service.js';
 export { guardrailRoutes } from './routes/guardrails.js';
@@ -363,6 +365,9 @@ export function createApp(
 
   // ─── Redaction Test (Story 2.4) ────────────────────────
   app.route('/api/community/redaction', redactionTestRoutes());
+
+  // ─── OTLP HTTP Receiver (no auth — standard OTel paths) ──
+  app.route('/v1', otlpRoutes(store));
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();
