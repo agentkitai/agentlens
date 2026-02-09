@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { OrgSwitcher } from '../cloud/OrgSwitcher';
 
 interface NavItem {
   to: string;
@@ -154,6 +155,11 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    to: '/team',
+    label: 'Team',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">👥</span>,
+  },
+  {
     to: '/settings',
     label: 'Settings',
     icon: (
@@ -199,6 +205,10 @@ export function Layout(): React.ReactElement {
         <div className="flex items-center gap-2 h-16 px-6 border-b border-gray-200">
           <span className="text-xl">🔍</span>
           <span className="text-lg font-bold text-gray-900">AgentLens</span>
+        </div>
+
+        <div className="px-4 pt-3 pb-1">
+          <OrgSwitcher />
         </div>
 
         <nav className="flex flex-col gap-1 p-4">

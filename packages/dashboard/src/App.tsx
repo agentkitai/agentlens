@@ -30,6 +30,7 @@ import SharingActivity from './pages/SharingActivity';
 import AgentNetwork from './pages/AgentNetwork';
 import CapabilityRegistry from './pages/CapabilityRegistry';
 import DelegationLog from './pages/DelegationLog';
+import { TeamManagement } from './cloud/TeamManagement';
 
 export function App(): React.ReactElement {
   return (
@@ -63,6 +64,7 @@ export function App(): React.ReactElement {
         <Route path="network" element={<AgentNetwork />} />
         <Route path="capabilities" element={<CapabilityRegistry />} />
         <Route path="delegations" element={<DelegationLog />} />
+        <Route path="team" element={<TeamManagement />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
