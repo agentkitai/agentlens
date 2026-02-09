@@ -25,3 +25,12 @@ export * from './alert-schemas.js';
 
 // Re-export guardrail config schemas (B1 — Story 1.1)
 export * from './guardrail-config-schemas.js';
+
+// Re-export redaction types (Phase 4 — Story 1.1)
+export * from './redaction-types.js';
+
+// Re-export community types (Phase 4 — Story 1.2)
+export * from './community-types.js';
+
+// Re-export discovery types (Phase 4 — Story 1.2)
+export * from './discovery-types.js';

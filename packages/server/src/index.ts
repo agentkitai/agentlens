@@ -36,6 +36,7 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerReplayRoutes } from './routes/replay.js';
 import { benchmarkRoutes } from './routes/benchmarks.js';
 import { guardrailRoutes } from './routes/guardrails.js';
+import { capabilityRoutes } from './routes/capabilities.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
 import { setAgentStore } from './lib/guardrails/actions.js';
@@ -87,6 +88,16 @@ export { ContextRetriever } from './lib/context/retrieval.js';
 export { guardrailRoutes } from './routes/guardrails.js';
 export { GuardrailEngine } from './lib/guardrails/engine.js';
 export { GuardrailStore } from './db/guardrail-store.js';
+export {
+  RedactionPipeline,
+  SecretDetectionLayer,
+  PIIDetectionLayer,
+  UrlPathScrubbingLayer,
+  TenantDeidentificationLayer,
+  SemanticDenyListLayer,
+  HumanReviewLayer,
+} from './lib/redaction/index.js';
+export type { RedactionPipelineConfig, PresidioProvider, ReviewQueueStore } from './lib/redaction/index.js';
 
 // ─── Dashboard SPA helpers ───────────────────────────────────
 
@@ -259,6 +270,9 @@ export function createApp(
   // Health routes registered directly on main app (before generic agents routes)
   registerHealthRoutes(app, store, db);
   app.route('/api/agents', agentsRoutes(store));
+  if (db) {
+    app.route('/api/agents', capabilityRoutes(store, db));
+  }
   app.route('/api/stats', statsRoutes(store));
   if (db) {
     app.route('/api/config', configRoutes(db));

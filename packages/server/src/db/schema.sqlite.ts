@@ -1,7 +1,9 @@
 /**
  * SQLite schema for AgentLens — defined with Drizzle ORM.
  *
- * Tables: events, sessions, agents, alertRules, alertHistory, apiKeys
+ * Tables: events, sessions, agents, alertRules, alertHistory, apiKeys,
+ *         sharing_config, agent_sharing_config, deny_list_rules, sharing_audit_log,
+ *         sharing_review_queue, anonymous_id_map, capability_registry, delegation_log
  * All indexes per Architecture §6.2.
  */
 
@@ -217,5 +219,166 @@ export const sessionSummaries = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.sessionId, table.tenantId] }),
     index('idx_session_summaries_tenant').on(table.tenantId),
+  ],
+);
+
+// ─── Phase 4: Sharing Configuration ──────────────────────
+export const sharingConfig = sqliteTable('sharing_config', {
+  tenantId: text('tenant_id').primaryKey(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  humanReviewEnabled: integer('human_review_enabled', { mode: 'boolean' }).notNull().default(false),
+  poolEndpoint: text('pool_endpoint'),
+  anonymousContributorId: text('anonymous_contributor_id'),
+  purgeToken: text('purge_token'),
+  rateLimitPerHour: integer('rate_limit_per_hour').notNull().default(50),
+  volumeAlertThreshold: integer('volume_alert_threshold').notNull().default(100),
+  updatedAt: text('updated_at').notNull(),
+});
+
+// ─── Phase 4: Per-Agent Sharing Toggle ───────────────────
+export const agentSharingConfig = sqliteTable(
+  'agent_sharing_config',
+  {
+    tenantId: text('tenant_id').notNull(),
+    agentId: text('agent_id').notNull(),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+    categories: text('categories').notNull().default('[]'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.agentId] }),
+  ],
+);
+
+// ─── Phase 4: Deny-List Rules ────────────────────────────
+export const denyListRules = sqliteTable(
+  'deny_list_rules',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    pattern: text('pattern').notNull(),
+    isRegex: integer('is_regex', { mode: 'boolean' }).notNull().default(false),
+    reason: text('reason').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_deny_list_rules_tenant').on(table.tenantId),
+  ],
+);
+
+// ─── Phase 4: Sharing Audit Log ──────────────────────────
+export const sharingAuditLog = sqliteTable(
+  'sharing_audit_log',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    eventType: text('event_type').notNull(),
+    lessonId: text('lesson_id'),
+    anonymousLessonId: text('anonymous_lesson_id'),
+    lessonHash: text('lesson_hash'),
+    redactionFindings: text('redaction_findings'),
+    queryText: text('query_text'),
+    resultIds: text('result_ids'),
+    poolEndpoint: text('pool_endpoint'),
+    initiatedBy: text('initiated_by'),
+    timestamp: text('timestamp').notNull(),
+  },
+  (table) => [
+    index('idx_sharing_audit_tenant_ts').on(table.tenantId, table.timestamp),
+    index('idx_sharing_audit_type').on(table.tenantId, table.eventType),
+  ],
+);
+
+// ─── Phase 4: Human Review Queue ─────────────────────────
+export const sharingReviewQueue = sqliteTable(
+  'sharing_review_queue',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    lessonId: text('lesson_id').notNull(),
+    originalTitle: text('original_title').notNull(),
+    originalContent: text('original_content').notNull(),
+    redactedTitle: text('redacted_title').notNull(),
+    redactedContent: text('redacted_content').notNull(),
+    redactionFindings: text('redaction_findings').notNull(),
+    status: text('status').notNull().default('pending'),
+    reviewedBy: text('reviewed_by'),
+    reviewedAt: text('reviewed_at'),
+    createdAt: text('created_at').notNull(),
+    expiresAt: text('expires_at').notNull(),
+  },
+  (table) => [
+    index('idx_review_queue_tenant_status').on(table.tenantId, table.status),
+  ],
+);
+
+// ─── Phase 4: Anonymous ID Mapping ───────────────────────
+export const anonymousIdMap = sqliteTable(
+  'anonymous_id_map',
+  {
+    tenantId: text('tenant_id').notNull(),
+    agentId: text('agent_id').notNull(),
+    anonymousAgentId: text('anonymous_agent_id').notNull(),
+    validFrom: text('valid_from').notNull(),
+    validUntil: text('valid_until').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.agentId, table.validFrom] }),
+    index('idx_anon_map_anon_id').on(table.anonymousAgentId),
+  ],
+);
+
+// ─── Phase 4: Capability Registry (local) ────────────────
+export const capabilityRegistry = sqliteTable(
+  'capability_registry',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    agentId: text('agent_id').notNull(),
+    taskType: text('task_type').notNull(),
+    customType: text('custom_type'),
+    inputSchema: text('input_schema').notNull(),
+    outputSchema: text('output_schema').notNull(),
+    qualityMetrics: text('quality_metrics').notNull().default('{}'),
+    estimatedLatencyMs: integer('estimated_latency_ms'),
+    estimatedCostUsd: real('estimated_cost_usd'),
+    maxInputBytes: integer('max_input_bytes'),
+    scope: text('scope').notNull().default('internal'),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    acceptDelegations: integer('accept_delegations', { mode: 'boolean' }).notNull().default(false),
+    inboundRateLimit: integer('inbound_rate_limit').notNull().default(10),
+    outboundRateLimit: integer('outbound_rate_limit').notNull().default(20),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    index('idx_capability_tenant_agent').on(table.tenantId, table.agentId),
+    index('idx_capability_task_type').on(table.tenantId, table.taskType),
+  ],
+);
+
+// ─── Phase 4: Delegation Log ─────────────────────────────
+export const delegationLog = sqliteTable(
+  'delegation_log',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    direction: text('direction').notNull(),
+    agentId: text('agent_id').notNull(),
+    anonymousTargetId: text('anonymous_target_id'),
+    anonymousSourceId: text('anonymous_source_id'),
+    taskType: text('task_type').notNull(),
+    status: text('status').notNull(),
+    requestSizeBytes: integer('request_size_bytes'),
+    responseSizeBytes: integer('response_size_bytes'),
+    executionTimeMs: integer('execution_time_ms'),
+    costUsd: real('cost_usd'),
+    createdAt: text('created_at').notNull(),
+    completedAt: text('completed_at'),
+  },
+  (table) => [
+    index('idx_delegation_tenant_ts').on(table.tenantId, table.createdAt),
+    index('idx_delegation_agent').on(table.tenantId, table.agentId),
+    index('idx_delegation_status').on(table.tenantId, table.status),
   ],
 );

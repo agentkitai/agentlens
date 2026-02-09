@@ -533,6 +533,142 @@ export function runMigrations(db: SqliteDb): void {
 
   // Partial index for finding paused agents efficiently
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_agents_paused ON agents(tenant_id, paused_at) WHERE paused_at IS NOT NULL`);
+
+  // ─── Phase 4: Sharing & Discovery tables (Stories 1.3) ──────────
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS sharing_config (
+      tenant_id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      human_review_enabled INTEGER NOT NULL DEFAULT 0,
+      pool_endpoint TEXT,
+      anonymous_contributor_id TEXT,
+      purge_token TEXT,
+      rate_limit_per_hour INTEGER NOT NULL DEFAULT 50,
+      volume_alert_threshold INTEGER NOT NULL DEFAULT 100,
+      updated_at TEXT NOT NULL
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS agent_sharing_config (
+      tenant_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      categories TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (tenant_id, agent_id)
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS deny_list_rules (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      pattern TEXT NOT NULL,
+      is_regex INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_deny_list_rules_tenant ON deny_list_rules(tenant_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS sharing_audit_log (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      lesson_id TEXT,
+      anonymous_lesson_id TEXT,
+      lesson_hash TEXT,
+      redaction_findings TEXT,
+      query_text TEXT,
+      result_ids TEXT,
+      pool_endpoint TEXT,
+      initiated_by TEXT,
+      timestamp TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_sharing_audit_tenant_ts ON sharing_audit_log(tenant_id, timestamp)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_sharing_audit_type ON sharing_audit_log(tenant_id, event_type)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS sharing_review_queue (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      lesson_id TEXT NOT NULL,
+      original_title TEXT NOT NULL,
+      original_content TEXT NOT NULL,
+      redacted_title TEXT NOT NULL,
+      redacted_content TEXT NOT NULL,
+      redaction_findings TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_review_queue_tenant_status ON sharing_review_queue(tenant_id, status)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS anonymous_id_map (
+      tenant_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      anonymous_agent_id TEXT NOT NULL,
+      valid_from TEXT NOT NULL,
+      valid_until TEXT NOT NULL,
+      PRIMARY KEY (tenant_id, agent_id, valid_from)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_anon_map_anon_id ON anonymous_id_map(anonymous_agent_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS capability_registry (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      task_type TEXT NOT NULL,
+      custom_type TEXT,
+      input_schema TEXT NOT NULL,
+      output_schema TEXT NOT NULL,
+      quality_metrics TEXT NOT NULL DEFAULT '{}',
+      estimated_latency_ms INTEGER,
+      estimated_cost_usd REAL,
+      max_input_bytes INTEGER,
+      scope TEXT NOT NULL DEFAULT 'internal',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      accept_delegations INTEGER NOT NULL DEFAULT 0,
+      inbound_rate_limit INTEGER NOT NULL DEFAULT 10,
+      outbound_rate_limit INTEGER NOT NULL DEFAULT 20,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_capability_tenant_agent ON capability_registry(tenant_id, agent_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_capability_task_type ON capability_registry(tenant_id, task_type)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS delegation_log (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      anonymous_target_id TEXT,
+      anonymous_source_id TEXT,
+      task_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      request_size_bytes INTEGER,
+      response_size_bytes INTEGER,
+      execution_time_ms INTEGER,
+      cost_usd REAL,
+      created_at TEXT NOT NULL,
+      completed_at TEXT
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_tenant_ts ON delegation_log(tenant_id, created_at)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_agent ON delegation_log(tenant_id, agent_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_status ON delegation_log(tenant_id, status)`);
 }
 
 /**

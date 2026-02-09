@@ -42,16 +42,10 @@ export function agentsRoutes(store: IEventStore) {
       // No body or invalid JSON — that's fine
     }
 
-    // Unpause by clearing pause fields
-    const updates: Partial<import('@agentlensai/core').Agent> & { id: string } = {
-      id,
-      pausedAt: undefined,
-      pauseReason: undefined,
-    };
-    if (clearModelOverride) {
-      updates.modelOverride = undefined;
+    // Unpause by clearing pause fields via dedicated method
+    if ('unpauseAgent' in tenantStore && typeof tenantStore.unpauseAgent === 'function') {
+      await (tenantStore as { unpauseAgent(agentId: string, clear: boolean): Promise<boolean> }).unpauseAgent(id, clearModelOverride);
     }
-    await tenantStore.upsertAgent(updates);
 
     // Return the updated agent
     const updated = await tenantStore.getAgent(id);
