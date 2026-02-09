@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 import uuid
+from typing import Union
 
 from agentlensai._sender import get_sender, reset_sender
 from agentlensai._state import InstrumentationState, clear_state, get_state, set_state
@@ -19,11 +20,12 @@ def init(
     session_id: str | None = None,
     redact: bool = False,
     sync_mode: bool = False,
+    integrations: Union[str, list[str], None] = None,
 ) -> str:
     """Initialize AgentLens auto-instrumentation.
 
     Automatically instruments any installed LLM provider SDKs
-    (OpenAI, Anthropic) to capture all LLM calls.
+    (OpenAI, Anthropic, etc.) to capture all LLM calls.
 
     Args:
         url: AgentLens server URL (e.g., "http://localhost:3400")
@@ -32,6 +34,10 @@ def init(
         session_id: Session ID (auto-generated if not provided)
         redact: If True, strip prompt/completion content from events
         sync_mode: If True, send events synchronously (useful for testing)
+        integrations: Which LLM providers to instrument:
+            - ``None`` or ``"auto"`` — instrument all available (default)
+            - ``["openai", "anthropic"]`` — explicit list
+            - ``[]`` — none
 
     Returns:
         The session ID being used
@@ -59,8 +65,8 @@ def init(
     # Initialize sender
     get_sender(sync_mode=sync_mode)
 
-    # Auto-detect and instrument providers
-    _instrument_providers()
+    # Auto-detect and instrument providers via registry
+    _instrument_providers(integrations)
 
     # Auto-detect and instrument frameworks (v0.8.0)
     _instrument_frameworks()
@@ -83,7 +89,7 @@ def shutdown() -> None:
     sender.flush(timeout=5.0)
     reset_sender()
 
-    # Uninstrument providers
+    # Uninstrument providers via registry
     _uninstrument_providers()
 
     # Uninstrument frameworks
@@ -102,29 +108,39 @@ def current_session_id() -> str | None:
     return state.session_id if state else None
 
 
-def _instrument_providers() -> None:
-    """Auto-detect installed providers and instrument them."""
+def _instrument_providers(integrations: Union[str, list[str], None] = None) -> None:
+    """Auto-detect installed providers and instrument them via the registry."""
+    # Ensure provider modules are imported so @register decorators fire
+    _ensure_providers_imported()
+
+    from agentlensai.integrations.registry import instrument_providers
+
+    if integrations is None or integrations == "auto":
+        # Instrument all available
+        instrument_providers(names=None)
+    elif isinstance(integrations, list):
+        if len(integrations) == 0:
+            return  # Explicitly no providers
+        instrument_providers(names=integrations)
+    else:
+        logger.warning("AgentLens: invalid integrations value: %r", integrations)
+
+
+def _ensure_providers_imported() -> None:
+    """Import provider modules so their @register decorators execute."""
+    # OpenAI
     if importlib.util.find_spec("openai") is not None:
         try:
-            from agentlensai.integrations.openai import (  # type: ignore[import-not-found]
-                instrument_openai,
-            )
-
-            instrument_openai()
-            logger.info("AgentLens: OpenAI instrumented")
+            import agentlensai.integrations.openai  # noqa: F401
         except Exception:
-            logger.debug("AgentLens: failed to instrument OpenAI", exc_info=True)
+            pass
 
+    # Anthropic
     if importlib.util.find_spec("anthropic") is not None:
         try:
-            from agentlensai.integrations.anthropic import (  # type: ignore[import-not-found]
-                instrument_anthropic,
-            )
-
-            instrument_anthropic()
-            logger.info("AgentLens: Anthropic instrumented")
+            import agentlensai.integrations.anthropic  # noqa: F401
         except Exception:
-            logger.debug("AgentLens: failed to instrument Anthropic", exc_info=True)
+            pass
 
 
 def _instrument_frameworks() -> None:
@@ -179,23 +195,6 @@ def _uninstrument_frameworks() -> None:
 
 
 def _uninstrument_providers() -> None:
-    """Restore original methods on all providers."""
-    if importlib.util.find_spec("openai") is not None:
-        try:
-            from agentlensai.integrations.openai import (
-                uninstrument_openai,
-            )
-
-            uninstrument_openai()
-        except Exception:
-            logger.debug("AgentLens: failed to uninstrument OpenAI", exc_info=True)
-
-    if importlib.util.find_spec("anthropic") is not None:
-        try:
-            from agentlensai.integrations.anthropic import (
-                uninstrument_anthropic,
-            )
-
-            uninstrument_anthropic()
-        except Exception:
-            logger.debug("AgentLens: failed to uninstrument Anthropic", exc_info=True)
+    """Restore original methods on all providers via registry."""
+    from agentlensai.integrations.registry import uninstrument_providers
+    uninstrument_providers()

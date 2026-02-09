@@ -17,6 +17,10 @@ import logging
 import time
 from typing import Any
 
+from agentlensai._sender import LlmCallData
+from agentlensai.integrations.base_llm import BaseLLMInstrumentation, PatchTarget
+from agentlensai.integrations.registry import register
+
 logger = logging.getLogger("agentlensai")
 
 # Store originals so we can restore them in uninstrument_openai()
@@ -103,10 +107,8 @@ def _build_call_data(
     messages: Any,
     params: dict[str, Any] | None,
     latency_ms: float,
-) -> Any:
+) -> LlmCallData:
     """Build an ``LlmCallData`` from a completed (non-streaming) response."""
-    from agentlensai._sender import LlmCallData
-
     # Response fields ---------------------------------------------------
     choice = response.choices[0] if response.choices else None
     completion = choice.message.content if choice and choice.message else None
@@ -151,113 +153,183 @@ def _build_call_data(
 
 
 # ---------------------------------------------------------------------------
-# Instrumentation entry-points
+# BaseLLMInstrumentation subclass
 # ---------------------------------------------------------------------------
+
+@register("openai")
+class OpenAIInstrumentation(BaseLLMInstrumentation):
+    """OpenAI chat completions instrumentation.
+
+    Overrides the base ``instrument``/``uninstrument`` to maintain the
+    module-level ``_original_create`` / ``_original_async_create`` references
+    used by backward-compatible wrapper functions.
+    """
+
+    provider_name = "openai"
+
+    def _get_patch_targets(self) -> list[PatchTarget]:
+        return [
+            PatchTarget(
+                module_path="openai.resources.chat.completions",
+                class_name="Completions",
+                attr_name="create",
+                is_async=False,
+            ),
+            PatchTarget(
+                module_path="openai.resources.chat.completions",
+                class_name="AsyncCompletions",
+                attr_name="create",
+                is_async=True,
+            ),
+        ]
+
+    def _is_streaming(self, kwargs: dict[str, Any]) -> bool:
+        return bool(kwargs.get("stream", False))
+
+    def _extract_model(self, kwargs: dict[str, Any], args: tuple[Any, ...]) -> str:
+        return str(kwargs.get("model", args[0] if args else "unknown"))
+
+    def _extract_call_data(
+        self, response: Any, kwargs: dict[str, Any], latency_ms: float
+    ) -> LlmCallData:
+        model_hint = kwargs.get("model", "unknown")
+        messages = kwargs.get("messages", [])
+        params = _extract_params(kwargs)
+        return _build_call_data(response, model_hint, messages, params, latency_ms)
+
+    def instrument(self) -> None:
+        """Patch OpenAI SDK using module-level original references."""
+        global _original_create, _original_async_create  # noqa: PLW0603
+
+        if self._instrumented:
+            return
+
+        from openai.resources.chat.completions import (
+            AsyncCompletions,
+            Completions,
+        )
+
+        _original_create = Completions.create
+        _original_async_create = AsyncCompletions.create
+
+        # -- Sync wrapper -----------------------------------------------
+        @functools.wraps(_original_create)
+        def patched_create(self_sdk: Any, *args: Any, **kwargs: Any) -> Any:
+            from agentlensai._sender import get_sender
+            from agentlensai._state import get_state
+
+            state = get_state()
+            if state is None:
+                return _original_create(self_sdk, *args, **kwargs)
+            if kwargs.get("stream", False):
+                return _original_create(self_sdk, *args, **kwargs)
+
+            start_time = time.perf_counter()
+            model_hint = kwargs.get("model", args[0] if args else "unknown")
+            messages = kwargs.get("messages", args[1] if len(args) > 1 else [])
+            params = _extract_params(kwargs)
+
+            response = _original_create(self_sdk, *args, **kwargs)
+
+            try:
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                data = _build_call_data(response, model_hint, messages, params, latency_ms)
+                get_sender().send(state, data)
+            except Exception:  # noqa: BLE001
+                logger.debug("AgentLens: failed to capture OpenAI call", exc_info=True)
+
+            return response
+
+        Completions.create = patched_create  # type: ignore[assignment,method-assign]
+
+        # -- Async wrapper ----------------------------------------------
+        @functools.wraps(_original_async_create)
+        async def patched_async_create(self_sdk: Any, *args: Any, **kwargs: Any) -> Any:
+            from agentlensai._sender import get_sender
+            from agentlensai._state import get_state
+
+            state = get_state()
+            if state is None:
+                return await _original_async_create(self_sdk, *args, **kwargs)
+            if kwargs.get("stream", False):
+                return await _original_async_create(self_sdk, *args, **kwargs)
+
+            start_time = time.perf_counter()
+            model_hint = kwargs.get("model", args[0] if args else "unknown")
+            messages = kwargs.get("messages", args[1] if len(args) > 1 else [])
+            params = _extract_params(kwargs)
+
+            response = await _original_async_create(self_sdk, *args, **kwargs)
+
+            try:
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                data = _build_call_data(response, model_hint, messages, params, latency_ms)
+                get_sender().send(state, data)
+            except Exception:  # noqa: BLE001
+                logger.debug("AgentLens: failed to capture async OpenAI call", exc_info=True)
+
+            return response
+
+        AsyncCompletions.create = patched_async_create  # type: ignore[assignment,method-assign]
+
+        self._instrumented = True
+        logger.debug("AgentLens: OpenAI integration instrumented")
+
+    def uninstrument(self) -> None:
+        """Restore the original OpenAI SDK methods."""
+        global _original_create, _original_async_create  # noqa: PLW0603
+
+        if not self._instrumented:
+            return
+
+        if _original_create is not None:
+            from openai.resources.chat.completions import Completions
+            Completions.create = _original_create  # type: ignore[method-assign]
+
+        if _original_async_create is not None:
+            from openai.resources.chat.completions import AsyncCompletions
+            AsyncCompletions.create = _original_async_create  # type: ignore[method-assign]
+
+        _original_create = None
+        _original_async_create = None
+        self._instrumented = False
+        logger.debug("AgentLens: OpenAI integration uninstrumented")
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible thin wrappers
+# ---------------------------------------------------------------------------
+
+_instance: OpenAIInstrumentation | None = None
+
 
 def instrument_openai() -> None:
     """Monkey-patch the OpenAI SDK to capture all chat completion calls."""
-    global _original_create, _original_async_create  # noqa: PLW0603
-
-    from openai.resources.chat.completions import (
-        AsyncCompletions,
-        Completions,
-    )
+    global _instance  # noqa: PLW0603
 
     # Guard against double-instrumentation
     if _original_create is not None:
         return
 
-    _original_create = Completions.create
-    _original_async_create = AsyncCompletions.create
-
-    # -- Sync wrapper ---------------------------------------------------
-
-    @functools.wraps(_original_create)
-    def patched_create(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-        from agentlensai._sender import get_sender
-        from agentlensai._state import get_state
-
-        state = get_state()
-
-        # Not initialised → pass-through
-        if state is None:
-            return _original_create(self, *args, **kwargs)
-
-        # Streaming → pass-through (complex; handled separately later)
-        if kwargs.get("stream", False):
-            return _original_create(self, *args, **kwargs)
-
-        # Pre-call data
-        start_time = time.perf_counter()
-        model_hint = kwargs.get("model", args[0] if args else "unknown")
-        messages = kwargs.get("messages", args[1] if len(args) > 1 else [])
-        params = _extract_params(kwargs)
-
-        # Call original — let exceptions propagate untouched
-        response = _original_create(self, *args, **kwargs)
-
-        # Post-call capture (never break user code)
-        try:
-            latency_ms = (time.perf_counter() - start_time) * 1000
-            data = _build_call_data(response, model_hint, messages, params, latency_ms)
-            get_sender().send(state, data)
-        except Exception:  # noqa: BLE001
-            logger.debug("AgentLens: failed to capture OpenAI call", exc_info=True)
-
-        return response
-
-    Completions.create = patched_create  # type: ignore[method-assign]
-
-    # -- Async wrapper --------------------------------------------------
-
-    @functools.wraps(_original_async_create)
-    async def patched_async_create(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-        from agentlensai._sender import get_sender
-        from agentlensai._state import get_state
-
-        state = get_state()
-
-        if state is None:
-            return await _original_async_create(self, *args, **kwargs)
-
-        if kwargs.get("stream", False):
-            return await _original_async_create(self, *args, **kwargs)
-
-        start_time = time.perf_counter()
-        model_hint = kwargs.get("model", args[0] if args else "unknown")
-        messages = kwargs.get("messages", args[1] if len(args) > 1 else [])
-        params = _extract_params(kwargs)
-
-        response = await _original_async_create(self, *args, **kwargs)
-
-        try:
-            latency_ms = (time.perf_counter() - start_time) * 1000
-            data = _build_call_data(response, model_hint, messages, params, latency_ms)
-            get_sender().send(state, data)
-        except Exception:  # noqa: BLE001
-            logger.debug("AgentLens: failed to capture async OpenAI call", exc_info=True)
-
-        return response
-
-    AsyncCompletions.create = patched_async_create  # type: ignore[method-assign]
-
-    logger.debug("AgentLens: OpenAI integration instrumented")
+    _instance = OpenAIInstrumentation()
+    _instance.instrument()
 
 
 def uninstrument_openai() -> None:
     """Restore the original OpenAI SDK methods."""
-    global _original_create, _original_async_create  # noqa: PLW0603
+    global _instance  # noqa: PLW0603
 
-    if _original_create is not None:
-        from openai.resources.chat.completions import Completions
-
-        Completions.create = _original_create  # type: ignore[method-assign]
-        _original_create = None
-
-    if _original_async_create is not None:
-        from openai.resources.chat.completions import AsyncCompletions
-
-        AsyncCompletions.create = _original_async_create  # type: ignore[method-assign]
-        _original_async_create = None
-
-    logger.debug("AgentLens: OpenAI integration uninstrumented")
+    if _instance is not None:
+        _instance.uninstrument()
+        _instance = None
+    else:
+        # Legacy cleanup: reset module globals even without instance
+        global _original_create, _original_async_create  # noqa: PLW0603
+        if _original_create is not None:
+            from openai.resources.chat.completions import Completions
+            Completions.create = _original_create  # type: ignore[method-assign]
+            _original_create = None
+        if _original_async_create is not None:
+            from openai.resources.chat.completions import AsyncCompletions
+            AsyncCompletions.create = _original_async_create  # type: ignore[method-assign]
+            _original_async_create = None
