@@ -101,12 +101,63 @@ def _extract_params(kwargs: dict[str, Any]) -> dict[str, Any] | None:
     return params or None
 
 
+def _detect_azure(self_sdk: Any) -> tuple[bool, dict[str, Any]]:
+    """Detect if an OpenAI client is actually an Azure OpenAI client.
+
+    Returns ``(is_azure, azure_metadata)`` where *azure_metadata* may contain
+    ``deployment_name``, ``api_version``, and ``region``.
+    """
+    import re
+
+    azure_meta: dict[str, Any] = {}
+
+    # Walk up to the root client — self_sdk may be a sub-resource
+    client = self_sdk
+    for _attr in ("_client", "_client"):
+        parent = getattr(client, "_client", None)
+        if parent is None:
+            break
+        client = parent
+
+    base_url = str(getattr(client, "base_url", "") or "")
+
+    # Check for Azure deployment attribute (AzureOpenAI sets this)
+    azure_deployment = getattr(client, "_azure_deployment", None)
+    # Only trust _azure_deployment if it's a real string (not a MagicMock / auto-generated attr)
+    has_deployment = isinstance(azure_deployment, str) and len(azure_deployment) > 0
+    is_azure = has_deployment or ".openai.azure.com" in base_url
+
+    if not is_azure:
+        return False, {}
+
+    if azure_deployment:
+        azure_meta["deployment_name"] = str(azure_deployment)
+
+    # Extract api_version from client or URL query params
+    api_version = getattr(client, "_api_version", None)
+    if api_version:
+        azure_meta["api_version"] = str(api_version)
+    else:
+        # Try to parse from URL query string
+        match = re.search(r"api-version=([^&]+)", base_url)
+        if match:
+            azure_meta["api_version"] = match.group(1)
+
+    # Extract region from base_url: https://<resource>.openai.azure.com/...
+    region_match = re.search(r"https?://([^.]+)\.openai\.azure\.com", base_url)
+    if region_match:
+        azure_meta["region"] = region_match.group(1)
+
+    return True, azure_meta
+
+
 def _build_call_data(
     response: Any,
     model_hint: Any,
     messages: Any,
     params: dict[str, Any] | None,
     latency_ms: float,
+    self_sdk: Any = None,
 ) -> LlmCallData:
     """Build an ``LlmCallData`` from a completed (non-streaming) response."""
     # Response fields ---------------------------------------------------
@@ -135,8 +186,21 @@ def _build_call_data(
     # Messages
     system_prompt, user_messages = _extract_messages(messages)
 
+    # Azure detection
+    provider = "openai"
+    combined_params = params
+    if self_sdk is not None:
+        try:
+            is_azure, azure_meta = _detect_azure(self_sdk)
+            if is_azure:
+                provider = "azure_openai"
+                if azure_meta:
+                    combined_params = {**(params or {}), "azure": azure_meta}
+        except Exception:
+            logger.debug("AgentLens: Azure detection failed", exc_info=True)
+
     return LlmCallData(
-        provider="openai",
+        provider=provider,
         model=response.model or str(model_hint),
         messages=user_messages,
         system_prompt=system_prompt,
@@ -148,7 +212,7 @@ def _build_call_data(
         total_tokens=total_tokens,
         cost_usd=0.0,
         latency_ms=latency_ms,
-        parameters=params,
+        parameters=combined_params,
     )
 
 
@@ -233,7 +297,7 @@ class OpenAIInstrumentation(BaseLLMInstrumentation):
 
             try:
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                data = _build_call_data(response, model_hint, messages, params, latency_ms)
+                data = _build_call_data(response, model_hint, messages, params, latency_ms, self_sdk=self_sdk)
                 get_sender().send(state, data)
             except Exception:  # noqa: BLE001
                 logger.debug("AgentLens: failed to capture OpenAI call", exc_info=True)
@@ -263,7 +327,7 @@ class OpenAIInstrumentation(BaseLLMInstrumentation):
 
             try:
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                data = _build_call_data(response, model_hint, messages, params, latency_ms)
+                data = _build_call_data(response, model_hint, messages, params, latency_ms, self_sdk=self_sdk)
                 get_sender().send(state, data)
             except Exception:  # noqa: BLE001
                 logger.debug("AgentLens: failed to capture async OpenAI call", exc_info=True)
