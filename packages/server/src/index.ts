@@ -39,8 +39,10 @@ import { guardrailRoutes } from './routes/guardrails.js';
 import { capabilityRoutes } from './routes/capabilities.js';
 import { discoveryRoutes } from './routes/discovery.js';
 import { delegationRoutes } from './routes/delegation.js';
+import { trustRoutes } from './routes/trust.js';
 import { LocalPoolTransport } from './services/delegation-service.js';
 import { redactionTestRoutes } from './routes/redaction-test.js';
+import { communityRoutes } from './routes/community.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
 import { setAgentStore } from './lib/guardrails/actions.js';
@@ -89,6 +91,9 @@ export { SessionSummaryStore } from './db/session-summary-store.js';
 export { contextRoutes } from './routes/context.js';
 export { registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
+export { communityRoutes } from './routes/community.js';
+export { CommunityService, LocalCommunityPoolTransport, computeSimpleEmbedding } from './services/community-service.js';
+export type { PoolTransport, ShareResult, DenyListRule } from './services/community-service.js';
 export { guardrailRoutes } from './routes/guardrails.js';
 export { GuardrailEngine } from './lib/guardrails/engine.js';
 export { GuardrailStore } from './db/guardrail-store.js';
@@ -280,6 +285,8 @@ export function createApp(
     const poolTransport = new LocalPoolTransport();
     const { app: delApp } = delegationRoutes(db, poolTransport);
     app.route('/api/agents', delApp);
+    const { app: trustApp } = trustRoutes(db);
+    app.route('/api/agents', trustApp);
   }
   app.route('/api/agents', agentsRoutes(store));
   app.route('/api/stats', statsRoutes(store));
@@ -323,6 +330,14 @@ export function createApp(
         embeddingStore,
       }));
     }
+  }
+
+  // ─── Community Sharing (Stories 4.1–4.3) ────────────────
+  if (db) {
+    app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
+    const { app: communityApp } = communityRoutes(db);
+    app.route('/api/community', communityApp);
   }
 
   // ─── Redaction Test (Story 2.4) ────────────────────────

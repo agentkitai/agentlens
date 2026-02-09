@@ -11,6 +11,7 @@ import type { SqliteDb } from '../db/index.js';
 import { delegationLog, capabilityRegistry } from '../db/schema.sqlite.js';
 import { AnonymousIdManager } from '../db/anonymous-id-manager.js';
 import { DiscoveryService, RateLimiter } from './discovery-service.js';
+import { TrustService } from './trust-service.js';
 import type { DelegationRequest, DelegationResult, DelegationPhase, TaskType } from '@agentlensai/core';
 
 // ─── Pool Transport Interface ─────────────────────────────
@@ -112,6 +113,7 @@ export interface DelegationServiceOptions {
 export class DelegationService {
   private readonly anonIdManager: AnonymousIdManager;
   private readonly discoveryService: DiscoveryService;
+  private readonly trustService: TrustService;
   private readonly defaultTimeoutMs: number;
   private readonly acceptTimeoutMs: number;
   private readonly now: () => Date;
@@ -124,6 +126,7 @@ export class DelegationService {
   ) {
     this.anonIdManager = new AnonymousIdManager(db);
     this.discoveryService = new DiscoveryService(db);
+    this.trustService = new TrustService(db);
     this.defaultTimeoutMs = options?.defaultTimeoutMs ?? 30_000;
     this.acceptTimeoutMs = options?.acceptTimeoutMs ?? 5_000;
     this.now = options?.now ?? (() => new Date());
@@ -134,8 +137,69 @@ export class DelegationService {
   /**
    * Send a delegation request to a target agent (outbound).
    * Implements the 4-phase protocol: REQUEST → ACCEPT → EXECUTE → RETURN
+   * Supports fallback: on failure/timeout, retries with next-ranked discovery result.
    */
   async delegate(
+    tenantId: string,
+    agentId: string,
+    request: Omit<DelegationRequest, 'requestId'> & { requestId?: string },
+  ): Promise<DelegationResult> {
+    const fallbackEnabled = request.fallbackEnabled ?? false;
+    const maxRetries = Math.min(request.maxRetries ?? 3, 10);
+
+    // Build list of targets to try: primary target first, then fallback candidates
+    const targets: string[] = [request.targetAnonymousId];
+
+    if (fallbackEnabled && maxRetries > 0) {
+      // Discover alternative targets for fallback
+      const alternatives = this.discoveryService.discover(tenantId, {
+        taskType: request.taskType,
+        scope: 'internal',
+        limit: maxRetries + 5,
+      });
+      for (const alt of alternatives) {
+        if (alt.anonymousAgentId !== request.targetAnonymousId && !targets.includes(alt.anonymousAgentId)) {
+          targets.push(alt.anonymousAgentId);
+        }
+        if (targets.length >= maxRetries + 1) break; // +1 for original
+      }
+    }
+
+    let retriesUsed = 0;
+    let lastResult: DelegationResult | undefined;
+
+    for (let attempt = 0; attempt < targets.length; attempt++) {
+      const targetAnonId = targets[attempt];
+      const result = await this.delegateSingle(tenantId, agentId, {
+        ...request,
+        targetAnonymousId: targetAnonId,
+        requestId: attempt === 0 ? request.requestId : undefined,
+      });
+
+      // Update trust after each delegation outcome
+      this.updateTrustAfterDelegation(tenantId, agentId);
+
+      lastResult = result;
+
+      if (result.status === 'success') {
+        return { ...result, retriesUsed };
+      }
+
+      // If fallback not enabled or this was the last attempt, return
+      if (!fallbackEnabled || attempt >= targets.length - 1) {
+        return { ...result, retriesUsed };
+      }
+
+      retriesUsed++;
+    }
+
+    return { ...lastResult!, retriesUsed };
+  }
+
+  /**
+   * Execute a single delegation attempt (no fallback).
+   */
+  private async delegateSingle(
     tenantId: string,
     agentId: string,
     request: Omit<DelegationRequest, 'requestId'> & { requestId?: string },
@@ -241,6 +305,17 @@ export class DelegationService {
       requestId,
       executionTimeMs,
     };
+  }
+
+  /**
+   * Update trust score after a delegation outcome.
+   */
+  private updateTrustAfterDelegation(tenantId: string, agentId: string): void {
+    try {
+      this.trustService.updateAfterDelegation(tenantId, agentId);
+    } catch {
+      // Trust updates should not break delegation
+    }
   }
 
   // ─── Inbound: inbox & acceptance ──────────────────────
