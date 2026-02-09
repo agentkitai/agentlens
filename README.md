@@ -124,6 +124,29 @@ The Benchmarks page lets you **create and manage A/B experiments** comparing age
 
 The Guardrails page lets you **create and manage automated safety rules** that monitor error rates, costs, health scores, and custom metrics. Each rule has a condition, action, cooldown, and optional dry-run mode. The list shows trigger counts and last triggered time. Click any rule for the detail page with full configuration, runtime state, and trigger history. The Activity Feed shows a real-time log of all triggers across all rules with filtering by agent and rule.
 
+## ☁️ AgentLens Cloud
+
+Don't want to self-host? **AgentLens Cloud** is a fully managed SaaS — same SDK, zero infrastructure:
+
+```python
+import agentlensai
+
+agentlensai.init(
+    cloud=True,
+    api_key="als_cloud_your_key_here",
+    agent_id="my-agent",
+)
+# That's it — all LLM calls are captured and sent to the cloud
+```
+
+- **Same SDK, one parameter change** — switch `url=` to `cloud=True`
+- **Managed Postgres** — multi-tenant with row-level security
+- **Team features** — organizations, RBAC, audit logs, usage billing
+- **No server to run** — dashboard at [app.agentlens.ai](https://app.agentlens.ai)
+
+📖 **[Cloud Setup Guide](./docs/guide/cloud-setup.md)** — sign up, create API key, verify first event
+📖 **[Migration Guide](./docs/guide/cloud-migration.md)** — move from self-hosted to cloud in 5 minutes
+
 ## 🏗️ Architecture
 
 ```
