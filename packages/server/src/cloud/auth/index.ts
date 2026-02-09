@@ -21,6 +21,26 @@ export {
   type CacheEntry,
 } from './api-key-middleware.js';
 export {
+  AuditLogService,
+  type AuditAction,
+  type ActorType,
+  type AuditResult,
+  type AuditEntry,
+  type WriteAuditEntry,
+  type AuditQueryFilters,
+} from './audit-log.js';
+export {
+  requireRole,
+  requireActionCategory,
+  isRoleAllowed,
+  categorizeAction,
+  PERMISSION_MATRIX,
+  type Role,
+  type ActionCategory,
+  type RbacRequest,
+  type RbacResult,
+} from './rbac.js';
+export {
   type OAuthConfig,
   type OAuthProviderConfig,
   type OAuthUserProfile,
