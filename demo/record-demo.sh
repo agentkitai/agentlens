@@ -8,6 +8,8 @@ CYAN='\033[0;36m'
 RED='\033[0;31m'
 DIM='\033[2m'
 BOLD='\033[1m'
+MAGENTA='\033[0;35m'
+WHITE='\033[1;37m'
 NC='\033[0m'
 
 type_it() {
@@ -22,183 +24,122 @@ type_it() {
 
 clear
 sleep 0.5
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-sleep 0.1
-echo -e "${BLUE}  🔍 AgentLens — Observability & Audit Trail for AI Agents${NC}"
-sleep 0.1
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-sleep 2
 
+# ─── Step 1: Intro Banner ───
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${WHITE}  🔍 AgentLens v0.8.0 — Self-Aware AI Agent Platform${NC}"
+echo -e "${DIM}     Agents that watch themselves get better.${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+sleep 3
+
+# ─── Step 2: Install & Auto-Instrument ───
 echo
-echo -e "${GREEN}# Your AI agent runs tasks, calls tools, spends tokens...${NC}"
+echo -e "${BOLD}▶ Step 1:${NC} Install & auto-instrument ${DIM}(v0.4.0)${NC}"
+echo -e "${DIM}─────────────────────────────────────────────${NC}"
 sleep 0.5
-echo -e "${DIM}# But can you see what it actually did?${NC}"
+type_it '$ pip install agentlensai[openai]'
 sleep 0.3
-echo -e "${DIM}# AgentLens captures everything as tamper-evident events.${NC}"
-sleep 2
-
-# ─── Step 1: Start server ───
-echo
-echo -e "${BOLD}▶ Step 1:${NC} Start AgentLens server"
-echo -e "${DIM}─────────────────────────────────────────${NC}"
-sleep 1
-type_it '$ agentlens serve --port 3400 --auth-disabled'
-sleep 0.5
-echo -e "   ${GREEN}✓${NC} AgentLens server listening on ${CYAN}http://localhost:3400${NC}"
-echo -e "   ${DIM}  Auth: disabled (dev mode) | DB: agentlens.db${NC}"
-sleep 2
-
-# ─── Step 2: Agent starts session ───
-echo
-echo -e "${BOLD}▶ Step 2:${NC} AI agent starts a session"
-echo -e "${DIM}─────────────────────────────────────────${NC}"
-sleep 1
-echo -e "${BOLD}🤖 Agent${NC} ${DIM}(via SDK / MCP tool)${NC}"
-sleep 0.5
-type_it '   "Starting research task. Let me log into AgentLens."'
+echo -e "   ${GREEN}✓${NC} Successfully installed agentlensai-0.8.0"
 sleep 1
 
 echo
-echo -e "${DIM}─── POST /api/events ───${NC}"
-sleep 0.5
-echo -e "${YELLOW}  {${NC}"
-sleep 0.15
-echo -e "${YELLOW}    \"sessionId\":  \"sess-research-42\",${NC}"
-sleep 0.15
-echo -e "${YELLOW}    \"agentId\":    \"research-agent\",${NC}"
-sleep 0.15
-echo -e "${YELLOW}    \"eventType\":  \"session_started\",${NC}"
-sleep 0.15
-echo -e "${YELLOW}    \"payload\": {${NC}"
-sleep 0.15
-echo -e "${YELLOW}      \"agentName\":    \"Research Agent\",${NC}"
-sleep 0.15
-echo -e "${YELLOW}      \"agentVersion\": \"2.0.1\"${NC}"
-sleep 0.15
-echo -e "${YELLOW}    }${NC}"
-sleep 0.15
-echo -e "${YELLOW}  }${NC}"
-sleep 1
-
-echo
-echo -e "${DIM}─── Response ───${NC}"
+echo -e "${DIM}   # 3 lines to capture everything:${NC}"
 sleep 0.3
-echo -e "${GREEN}  ✓ ${NC}id: ${CYAN}01KGY513FFXF6WWVQ3EXX87JCZ${NC}"
-echo -e "${GREEN}  ✓ ${NC}hash: ${CYAN}04c71242cb3f...67370c8d${NC}"
+echo -e "${YELLOW}   import agentlensai${NC}"
+sleep 0.2
+echo -e "${YELLOW}   agentlensai.init(url=\"http://localhost:3400\", api_key=\"als_xxx\", agent_id=\"my-agent\")${NC}"
+sleep 0.2
+echo -e "${DIM}   # Every LLM call now captured automatically${NC}"
 sleep 2
 
-# ─── Step 3: Tool calls ───
+# ─── Step 3: Agent runs with full capture ───
 echo
-echo -e "${BOLD}▶ Step 3:${NC} Agent makes tool calls — all captured"
-echo -e "${DIM}─────────────────────────────────────────${NC}"
-sleep 1
-
-echo -e "${BOLD}🤖 Agent${NC} calls ${CYAN}web_search${NC}"
-sleep 0.3
-echo -e "   ${YELLOW}toolName: \"web_search\"${NC}"
-echo -e "   ${YELLOW}args: { query: \"latest AI safety research 2026\" }${NC}"
+echo -e "${BOLD}▶ Step 2:${NC} Agent runs — events flow in"
+echo -e "${DIM}─────────────────────────────────────────────${NC}"
 sleep 0.5
-echo -e "   ${GREEN}✓${NC} hash: ${CYAN}12c1f335275a...59547d0f${NC}  ${DIM}← chains to previous${NC}"
+
+echo -e "   ${GREEN}●${NC} session_started    ${DIM}agent=my-agent${NC}"
+sleep 0.4
+echo -e "   ${GREEN}●${NC} llm_call           ${CYAN}claude-opus${NC}  1.2K tokens  ${GREEN}\$0.09${NC}"
+sleep 0.4
+echo -e "     ${DIM}hash: a3f7c2...  prev: 04c712...${NC} ${GREEN}✓${NC}"
+sleep 0.3
+echo -e "   ${GREEN}●${NC} tool_call          ${CYAN}web_search${NC}  ${DIM}query=\"latest benchmarks\"${NC}"
+sleep 0.4
+echo -e "   ${GREEN}●${NC} llm_response       ${DIM}820 tokens${NC}"
+sleep 0.4
+echo -e "   ${GREEN}●${NC} tool_call          ${CYAN}file_write${NC}  ${DIM}path=report.md${NC}"
+sleep 0.4
+echo -e "   ${GREEN}●${NC} cost_tracked       ${WHITE}\$0.42 total${NC}  ${DIM}hash chain valid${NC} ${GREEN}✓${NC}"
+sleep 2
+
+# ─── Step 4: Agent Self-Query ───
+echo
+echo -e "${BOLD}▶ Step 3:${NC} Agent recalls past mistakes ${DIM}(v0.5.0)${NC}"
+echo -e "${DIM}─────────────────────────────────────────────${NC}"
+sleep 0.5
+
+echo -e "   🤖 Agent uses ${CYAN}agentlens_recall${NC}"
+sleep 0.3
+echo -e "      query: ${YELLOW}\"database migration errors\"${NC}"
+sleep 0.5
+echo -e "      → Found ${WHITE}3${NC} similar sessions, ${RED}2${NC} with failures"
+sleep 0.4
+echo -e "      → Lesson: ${GREEN}\"Always run migrations in a transaction\"${NC}"
+sleep 2
+
+# ─── Step 5: Guardrail Fires ───
+echo
+echo -e "${BOLD}▶ Step 4:${NC} Guardrail fires ${DIM}(v0.8.0)${NC}"
+echo -e "${DIM}─────────────────────────────────────────────${NC}"
+sleep 0.5
+
+echo -e "   🛡️  Guardrail: ${RED}\"Cost Limit\"${NC} triggered"
+sleep 0.3
+echo -e "      condition: ${YELLOW}cost_limit > \$5.00/hour${NC}"
+sleep 0.3
+echo -e "      action:    ${CYAN}downgrade_model → claude-sonnet${NC}"
+sleep 0.3
+echo -e "      dry_run:   ${RED}false${NC}"
+sleep 0.3
+echo -e "      → ${WHITE}Agent model overridden${NC}"
+sleep 2
+
+# ─── Step 6: Dashboard & Analytics ───
+echo
+echo -e "${BOLD}▶ Step 5:${NC} Dashboard & analytics"
+echo -e "${DIM}─────────────────────────────────────────────${NC}"
+sleep 0.5
+type_it '$ agentlens sessions'
+sleep 0.3
+
+echo -e "${CYAN}  ┌──────────────────┬────────────────┬────────┬────────┬──────────┐${NC}"
+echo -e "${CYAN}  │${NC} Session          ${CYAN}│${NC} Agent          ${CYAN}│${NC} Events ${CYAN}│${NC} Health ${CYAN}│${NC} Cost     ${CYAN}│${NC}"
+echo -e "${CYAN}  ├──────────────────┼────────────────┼────────┼────────┼──────────┤${NC}"
+echo -e "${CYAN}  │${NC} sess-deploy-71   ${CYAN}│${NC} deploy-bot     ${CYAN}│${NC}    12  ${CYAN}│${NC} ${GREEN}94${NC}     ${CYAN}│${NC} ${GREEN}\$0.42${NC}    ${CYAN}│${NC}"
+echo -e "${CYAN}  │${NC} sess-review-58   ${CYAN}│${NC} code-reviewer  ${CYAN}│${NC}     8  ${CYAN}│${NC} ${YELLOW}72${NC}     ${CYAN}│${NC} ${GREEN}\$1.87${NC}    ${CYAN}│${NC}"
+echo -e "${CYAN}  │${NC} sess-research-33 ${CYAN}│${NC} research-agent ${CYAN}│${NC}    21  ${CYAN}│${NC} ${RED}51${NC}     ${CYAN}│${NC} ${YELLOW}\$4.90${NC}    ${CYAN}│${NC}"
+echo -e "${CYAN}  └──────────────────┴────────────────┴────────┴────────┴──────────┘${NC}"
 sleep 1.5
 
-echo -e "${BOLD}🤖 Agent${NC} calls ${CYAN}file_write${NC}"
+echo
+type_it '$ agentlens health my-agent'
 sleep 0.3
-echo -e "   ${YELLOW}toolName: \"file_write\"${NC}"
-echo -e "   ${YELLOW}args: { path: \"research-notes.md\" }${NC}"
-sleep 0.5
-echo -e "   ${GREEN}✓${NC} hash: ${CYAN}0a5d753f5cdd...8a6a24${NC}  ${DIM}← chains to previous${NC}"
-sleep 1.5
-
-echo -e "${BOLD}🤖 Agent${NC} calls ${CYAN}exec${NC} ${RED}— ERROR${NC}"
-sleep 0.3
-echo -e "   ${YELLOW}toolName: \"exec\"${NC}"
-echo -e "   ${RED}error: \"Permission denied: sudo blocked by policy\"${NC}"
-sleep 0.5
-echo -e "   ${GREEN}✓${NC} hash: ${CYAN}a74d3f1be3bd...fbc199${NC}  ${DIM}← chains to previous${NC}"
+echo -e "   ${BOLD}Health Score: ${GREEN}87/100${NC}"
+echo -e "   ${DIM}├─${NC} Errors:     ${GREEN}2%${NC}   (target <5%)"
+echo -e "   ${DIM}├─${NC} Cost:       ${GREEN}\$1.20/hr${NC}  (limit \$5.00)"
+echo -e "   ${DIM}├─${NC} Latency:    ${YELLOW}1.8s avg${NC}  (target <2s)"
+echo -e "   ${DIM}├─${NC} Tools:      ${GREEN}98%${NC} success"
+echo -e "   ${DIM}└─${NC} Completion: ${GREEN}94%${NC} tasks done"
 sleep 2
 
-# ─── Step 4: Cost tracking ───
+# ─── Step 7: Closing Banner ───
 echo
-echo -e "${BOLD}▶ Step 4:${NC} Costs tracked per model, per session"
-echo -e "${DIM}─────────────────────────────────────────${NC}"
-sleep 1
-echo -e "   ${YELLOW}provider:     ${NC}anthropic"
-echo -e "   ${YELLOW}model:        ${NC}claude-opus-4-6"
-echo -e "   ${YELLOW}inputTokens:  ${NC}5,200"
-echo -e "   ${YELLOW}outputTokens: ${NC}1,800"
-echo -e "   ${YELLOW}costUsd:      ${NC}${GREEN}\$0.135${NC}"
-sleep 2
-
-# ─── Step 5: Query it all back ───
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${WHITE}  Every decision. Every token. Every lesson learned.${NC}"
+echo -e "${BOLD}  Agents that watch themselves get better.${NC}"
 echo
-echo -e "${BOLD}▶ Step 5:${NC} Query sessions, events, analytics"
-echo -e "${DIM}─────────────────────────────────────────${NC}"
-sleep 1
-type_it '$ curl localhost:3400/api/sessions'
-sleep 0.5
-
-echo -e "${CYAN}  ┌─────────────────────┬──────────────────┬────────┬───────┬──────────┐${NC}"
-sleep 0.1
-echo -e "${CYAN}  │ Session             │ Agent            │ Events │ Errors│ Cost     │${NC}"
-sleep 0.1
-echo -e "${CYAN}  ├─────────────────────┼──────────────────┼────────┼───────┼──────────┤${NC}"
-sleep 0.1
-echo -e "${CYAN}  │${NC} sess-research-42    ${CYAN}│${NC} Research Agent   ${CYAN}│${NC}    5   ${CYAN}│${NC} ${RED}1${NC}     ${CYAN}│${NC} ${GREEN}\$0.135${NC}   ${CYAN}│${NC}"
-sleep 0.1
-echo -e "${CYAN}  │${NC} sess-review-17      ${CYAN}│${NC} Code Reviewer    ${CYAN}│${NC}    3   ${CYAN}│${NC} 0     ${CYAN}│${NC} ${GREEN}\$0.420${NC}   ${CYAN}│${NC}"
-sleep 0.1
-echo -e "${CYAN}  └─────────────────────┴──────────────────┴────────┴───────┴──────────┘${NC}"
-sleep 2
-
-# ─── Step 6: Hash chain integrity ───
-echo
-echo -e "${BOLD}▶ Step 6:${NC} Verify tamper-evident hash chain"
-echo -e "${DIM}─────────────────────────────────────────${NC}"
-sleep 1
-type_it '$ curl localhost:3400/api/sessions/sess-research-42/timeline'
-sleep 0.5
-
-echo -e "   Event 1 → hash: ${CYAN}04c712...${NC}  prevHash: ${DIM}null${NC}"
-sleep 0.3
-echo -e "   Event 2 → hash: ${CYAN}12c1f3...${NC}  prevHash: ${CYAN}04c712...${NC} ${GREEN}✓${NC}"
-sleep 0.3
-echo -e "   Event 3 → hash: ${CYAN}0a5d75...${NC}  prevHash: ${CYAN}12c1f3...${NC} ${GREEN}✓${NC}"
-sleep 0.3
-echo -e "   Event 4 → hash: ${CYAN}a74d3f...${NC}  prevHash: ${CYAN}0a5d75...${NC} ${GREEN}✓${NC}"
-sleep 0.3
-echo -e "   Event 5 → hash: ${CYAN}89ec33...${NC}  prevHash: ${CYAN}a74d3f...${NC} ${GREEN}✓${NC}"
-sleep 0.5
-echo
-echo -e "   ${GREEN}${BOLD}chainValid: true${NC}  ${DIM}— every event cryptographically linked${NC}"
-sleep 2
-
-# ─── Step 7: Alerting ───
-echo
-echo -e "${BOLD}▶ Step 7:${NC} Set up alerts"
-echo -e "${DIM}─────────────────────────────────────────${NC}"
-sleep 1
-type_it '$ curl -X POST localhost:3400/api/alerts/rules'
-sleep 0.5
-echo -e "   ${YELLOW}name:${NC}      \"High Error Rate\""
-echo -e "   ${YELLOW}condition:${NC} error_rate_exceeds 10%"
-echo -e "   ${YELLOW}window:${NC}    last 60 minutes"
-echo -e "   ${YELLOW}webhook:${NC}   ${CYAN}https://hooks.slack.com/...${NC}"
-sleep 0.5
-echo
-echo -e "   ${RED}🔔 Alert triggered:${NC} Error rate ${RED}20%${NC} exceeds threshold ${YELLOW}10%${NC}"
-sleep 0.5
-echo -e "   ${DIM}→ Webhook fired to Slack${NC}"
-sleep 2
-
-# ─── Closing ───
-echo
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-sleep 0.1
-echo -e "${BLUE}  Every tool call. Every token. Every decision.${NC}"
-sleep 0.1
-echo -e "${BLUE}  Tamper-evident. Hash-chained. MCP-native.${NC}"
-sleep 0.1
-echo -e "${BLUE}  → github.com/amitpaz1/agentlens${NC}"
-sleep 0.1
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-sleep 12
+echo -e "${DIM}  github.com/amitpaz/agentlens${NC}"
+echo -e "${DIM}  npm i agentlens  •  pip install agentlensai${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+sleep 8
