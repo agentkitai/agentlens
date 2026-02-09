@@ -6,7 +6,7 @@
  * POST /v1/logs    — ingest OpenTelemetry logs
  *
  * Maps OTLP data → AgentLens events, primarily for OpenClaw's diagnostics-otel plugin.
- * No auth required (like webhook ingest). JSON format only.
+ * No auth required (like webhook ingest). Supports both JSON and Protobuf content types.
  */
 
 import { Hono } from 'hono';
@@ -15,6 +15,50 @@ import { computeEventHash, truncatePayload } from '@agentlensai/core';
 import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentlensai/core';
 import type { IEventStore } from '@agentlensai/core';
 import { eventBus } from '../lib/event-bus.js';
+
+// ─── Protobuf Decoders (lazy-loaded) ────────────────────────────────
+
+let _protoRoot: any = null;
+
+async function getProtoRoot(): Promise<any> {
+  if (_protoRoot) return _protoRoot;
+  const mod = await import('@opentelemetry/otlp-transformer/build/src/generated/root.js' as any);
+  _protoRoot = ((mod as any).default || mod).opentelemetry.proto;
+  return _protoRoot;
+}
+
+async function decodeProtobuf(type: 'traces' | 'metrics' | 'logs', buf: Uint8Array): Promise<any> {
+  const root = await getProtoRoot();
+  const typeMap = {
+    traces: root.collector.trace.v1.ExportTraceServiceRequest,
+    metrics: root.collector.metrics.v1.ExportMetricsServiceRequest,
+    logs: root.collector.logs.v1.ExportLogsServiceRequest,
+  };
+  const MessageType = typeMap[type];
+  const decoded = MessageType.decode(buf);
+  return MessageType.toObject(decoded, {
+    longs: String,   // BigInt-safe: return longs as strings
+    enums: String,
+    bytes: String,
+    defaults: true,
+  });
+}
+
+async function parseOtlpBody<T>(c: any, type: 'traces' | 'metrics' | 'logs'): Promise<T | null> {
+  const contentType = c.req.header('content-type') ?? '';
+  if (contentType.includes('application/x-protobuf') || contentType.includes('application/protobuf')) {
+    const arrayBuf = await c.req.arrayBuffer();
+    const buf = new Uint8Array(arrayBuf);
+    if (buf.length === 0) return null;
+    try {
+      return await decodeProtobuf(type, buf) as T;
+    } catch (e) {
+      return null;
+    }
+  }
+  // Default: JSON
+  return await (c.req.json() as Promise<T>).catch(() => null);
+}
 
 // ─── OTLP JSON Types ────────────────────────────────────────────────
 
@@ -354,7 +398,7 @@ export function otlpRoutes(store: IEventStore) {
 
   // POST /v1/traces
   app.post('/traces', async (c) => {
-    const body = await c.req.json<OtlpTracesPayload>().catch(() => null);
+    const body = await parseOtlpBody<OtlpTracesPayload>(c, 'traces');
     if (!body?.resourceSpans) {
       return c.json({ error: 'Invalid OTLP traces payload' }, 400);
     }
@@ -382,7 +426,7 @@ export function otlpRoutes(store: IEventStore) {
 
   // POST /v1/metrics
   app.post('/metrics', async (c) => {
-    const body = await c.req.json<OtlpMetricsPayload>().catch(() => null);
+    const body = await parseOtlpBody<OtlpMetricsPayload>(c, 'metrics');
     if (!body?.resourceMetrics) {
       return c.json({ error: 'Invalid OTLP metrics payload' }, 400);
     }
@@ -452,7 +496,7 @@ export function otlpRoutes(store: IEventStore) {
 
   // POST /v1/logs
   app.post('/logs', async (c) => {
-    const body = await c.req.json<OtlpLogsPayload>().catch(() => null);
+    const body = await parseOtlpBody<OtlpLogsPayload>(c, 'logs');
     if (!body?.resourceLogs) {
       return c.json({ error: 'Invalid OTLP logs payload' }, 400);
     }
