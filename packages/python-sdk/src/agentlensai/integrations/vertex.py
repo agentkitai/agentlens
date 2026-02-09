@@ -115,19 +115,17 @@ class VertexInstrumentation(BaseLLMInstrumentation):
             model_name = "unknown"
             if args:
                 model_name = getattr(args[0], "model_name", getattr(args[0], "_model_name", "unknown"))
-            kwargs["_agentlens_model"] = model_name
 
             start_time = time.perf_counter()
             response = original(*args, **kwargs)
 
             try:
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                data = instrumentation._extract_call_data(response, kwargs, latency_ms)
+                extract_kwargs = {**kwargs, "_agentlens_model": model_name}
+                data = instrumentation._extract_call_data(response, extract_kwargs, latency_ms)
                 get_sender().send(state, data)
             except Exception:
                 logger.debug("AgentLens: failed to capture vertex call", exc_info=True)
-            finally:
-                kwargs.pop("_agentlens_model", None)
 
             return response
 
@@ -153,19 +151,17 @@ class VertexInstrumentation(BaseLLMInstrumentation):
             model_name = "unknown"
             if args:
                 model_name = getattr(args[0], "model_name", getattr(args[0], "_model_name", "unknown"))
-            kwargs["_agentlens_model"] = model_name
 
             start_time = time.perf_counter()
             response = await original(*args, **kwargs)
 
             try:
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                data = instrumentation._extract_call_data(response, kwargs, latency_ms)
+                extract_kwargs = {**kwargs, "_agentlens_model": model_name}
+                data = instrumentation._extract_call_data(response, extract_kwargs, latency_ms)
                 get_sender().send(state, data)
             except Exception:
                 logger.debug("AgentLens: failed to capture async vertex call", exc_info=True)
-            finally:
-                kwargs.pop("_agentlens_model", None)
 
             return response
 

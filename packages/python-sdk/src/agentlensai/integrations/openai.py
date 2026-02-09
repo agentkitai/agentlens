@@ -256,6 +256,8 @@ class OpenAIInstrumentation(BaseLLMInstrumentation):
     def _extract_call_data(
         self, response: Any, kwargs: dict[str, Any], latency_ms: float
     ) -> LlmCallData:
+        """Interface compliance — not used by the custom instrument() which calls
+        _build_call_data directly to support Azure detection via self_sdk."""
         model_hint = kwargs.get("model", "unknown")
         messages = kwargs.get("messages", [])
         params = _extract_params(kwargs)

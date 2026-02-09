@@ -123,8 +123,6 @@ class MistralInstrumentation(BaseLLMInstrumentation):
     provider_name = "mistral"
     _original_complete: Any = None
     _original_complete_async: Any = None
-    _original_stream: Any = None
-    _original_stream_async: Any = None
 
     def _get_patch_targets(self) -> list[PatchTarget]:
         # Not used — we override instrument() directly for the nested chat object
@@ -154,11 +152,9 @@ class MistralInstrumentation(BaseLLMInstrumentation):
 
         instrumentation = self
 
-        # Save originals
+        # Save originals (only methods we actually patch)
         self._original_complete = Chat.complete
         self._original_complete_async = Chat.complete_async
-        self._original_stream = Chat.stream
-        self._original_stream_async = Chat.stream_async
 
         # --- Sync complete ---
         orig_complete = self._original_complete
@@ -230,16 +226,10 @@ class MistralInstrumentation(BaseLLMInstrumentation):
                 Chat.complete = self._original_complete  # type: ignore[method-assign]
             if self._original_complete_async is not None:
                 Chat.complete_async = self._original_complete_async  # type: ignore[method-assign]
-            if self._original_stream is not None:
-                Chat.stream = self._original_stream  # type: ignore[method-assign]
-            if self._original_stream_async is not None:
-                Chat.stream_async = self._original_stream_async  # type: ignore[method-assign]
         except ImportError:
             pass
 
         self._original_complete = None
         self._original_complete_async = None
-        self._original_stream = None
-        self._original_stream_async = None
         self._instrumented = False
         logger.debug("AgentLens: Mistral integration uninstrumented")

@@ -187,8 +187,30 @@ class CohereInstrumentation(BaseLLMInstrumentation):
     def _extract_call_data(
         self, response: Any, kwargs: dict[str, Any], latency_ms: float
     ) -> LlmCallData:
-        # Dispatched per-method in custom wrappers
-        raise NotImplementedError("Use method-specific extractors")
+        # Best-effort fallback — normally dispatched per-method in custom wrappers.
+        # Try v2 first, fall back to v1 chat, then return a default.
+        try:
+            return _extract_v2_call_data(response, kwargs, latency_ms)
+        except Exception:
+            pass
+        try:
+            return _extract_v1_chat_data(response, kwargs, latency_ms)
+        except Exception:
+            pass
+        return LlmCallData(
+            provider="cohere",
+            model=str(kwargs.get("model", "unknown")),
+            messages=_extract_messages(kwargs.get("messages", [])),
+            system_prompt=None,
+            completion=None,
+            tool_calls=None,
+            finish_reason="unknown",
+            input_tokens=0,
+            output_tokens=0,
+            total_tokens=0,
+            cost_usd=0.0,
+            latency_ms=latency_ms,
+        )
 
     def instrument(self) -> None:
         if self._instrumented:

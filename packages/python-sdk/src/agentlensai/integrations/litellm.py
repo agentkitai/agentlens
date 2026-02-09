@@ -71,33 +71,28 @@ def _build_call_data(
     system_prompt, user_messages = _extract_messages(kwargs)
     params = _extract_params(kwargs)
 
-    # Extract completion text
+    # Extract completion text, finish reason, tokens, model
     if is_streaming:
         completion = accumulated_content or ""
+        finish_reason = "stop"
+        if accumulated_usage:
+            input_tokens = accumulated_usage.get("prompt_tokens", 0)
+            output_tokens = accumulated_usage.get("completion_tokens", 0)
+            total_tokens = accumulated_usage.get("total_tokens", 0)
+        else:
+            input_tokens = 0
+            output_tokens = 0
+            total_tokens = 0
+        model = str(model_hint)
     else:
         choice = response.choices[0] if getattr(response, "choices", None) else None
         completion = choice.message.content if choice and hasattr(choice, "message") and choice.message else None
-
-    # Finish reason
-    if not is_streaming:
-        choice = response.choices[0] if getattr(response, "choices", None) else None
         finish_reason = str(choice.finish_reason) if choice and hasattr(choice, "finish_reason") else "unknown"
-    else:
-        finish_reason = "stop"
-
-    # Tokens
-    if is_streaming and accumulated_usage:
-        input_tokens = accumulated_usage.get("prompt_tokens", 0)
-        output_tokens = accumulated_usage.get("completion_tokens", 0)
-        total_tokens = accumulated_usage.get("total_tokens", 0)
-    else:
         usage = getattr(response, "usage", None)
         input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
         output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
         total_tokens = getattr(usage, "total_tokens", 0) if usage else 0
-
-    # Model from response
-    model = getattr(response, "model", None) or str(model_hint) if not is_streaming else str(model_hint)
+        model = getattr(response, "model", None) or str(model_hint)
 
     # Cost via litellm.completion_cost
     cost_usd = 0.0
@@ -121,9 +116,9 @@ def _build_call_data(
     if api_base:
         metadata["api_base"] = api_base
 
-    # Tool calls
+    # Tool calls (only available for non-streaming responses)
     tool_calls: list[dict[str, Any]] | None = None
-    if not is_streaming:
+    if not is_streaming and response is not None:
         choice = response.choices[0] if getattr(response, "choices", None) else None
         if choice and hasattr(choice, "message") and choice.message and getattr(choice.message, "tool_calls", None):
             tool_calls = []
@@ -141,7 +136,7 @@ def _build_call_data(
 
     return LlmCallData(
         provider=provider,
-        model=model if not is_streaming else str(model_hint),
+        model=model,
         messages=user_messages,
         system_prompt=system_prompt,
         completion=completion,

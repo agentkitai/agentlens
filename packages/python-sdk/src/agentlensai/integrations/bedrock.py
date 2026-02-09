@@ -249,10 +249,15 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
             logger.debug("AgentLens: botocore not installed, skipping bedrock")
             raise
 
-        original_make_api_call = botocore.client.ClientCreator.create_client
         instrumentation = self
 
-        # We'll patch ClientCreator.create_client to intercept bedrock-runtime clients
+        # NOTE: We patch BaseClient.__init__ which fires for *every* boto3 client
+        # creation (S3, DynamoDB, etc.), not just bedrock-runtime.  The inner check
+        # filters on service_name == "bedrock-runtime" so only matching clients are
+        # instrumented.  This adds minimal overhead (one attribute check per client
+        # creation) but is the most reliable approach since boto3 dynamically
+        # generates client classes.  Alternatives like botocore's event system
+        # (session.register) would require access to each session instance.
         original_init = botocore.client.BaseClient.__init__
         self._originals["botocore.client.BaseClient.__init__"] = (
             botocore.client.BaseClient, "__init__", original_init
@@ -294,9 +299,13 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
 
                 try:
                     latency_ms = (time.perf_counter() - start) * 1000
-                    # Read and re-wrap the body
+                    # Read and re-wrap the body preserving StreamingBody interface
                     body_bytes = response["body"].read()
-                    response["body"] = io.BytesIO(body_bytes)
+                    try:
+                        from botocore.response import StreamingBody
+                        response["body"] = StreamingBody(io.BytesIO(body_bytes), len(body_bytes))
+                    except ImportError:
+                        response["body"] = io.BytesIO(body_bytes)
                     body = json.loads(body_bytes)
                     data = instrumentation._build_invoke_call_data(body, kwargs, latency_ms)
                     get_sender().send(state, data)

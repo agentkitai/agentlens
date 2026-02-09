@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentlensai"
-version = "0.9.0"
+version = "0.10.0"
 description = "Python SDK for AgentLens — observability and audit trail for AI agents"
 readme = "README.md"
 license = {text = "MIT"}

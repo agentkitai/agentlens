@@ -14,6 +14,7 @@ Usage::
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Type
 
 from agentlensai.integrations.base_llm import BaseLLMInstrumentation
@@ -23,8 +24,9 @@ logger = logging.getLogger("agentlensai")
 # Maps provider name → instrumentation class
 REGISTRY: dict[str, Type[BaseLLMInstrumentation]] = {}
 
-# Active (instrumented) instances
+# Active (instrumented) instances — guarded by _lock
 _active: dict[str, BaseLLMInstrumentation] = {}
+_lock = threading.Lock()
 
 
 def register(name: str):  # type: ignore[no-untyped-def]
@@ -51,26 +53,27 @@ def instrument_providers(names: list[str] | None = None) -> list[str]:
     instrumented: list[str] = []
     targets = names if names is not None else list(REGISTRY.keys())
 
-    for name in targets:
-        cls = REGISTRY.get(name)
-        if cls is None:
-            logger.warning("AgentLens: unknown provider '%s'", name)
-            continue
+    with _lock:
+        for name in targets:
+            cls = REGISTRY.get(name)
+            if cls is None:
+                logger.warning("AgentLens: unknown provider '%s'", name)
+                continue
 
-        if name in _active:
-            instrumented.append(name)
-            continue
+            if name in _active:
+                instrumented.append(name)
+                continue
 
-        try:
-            instance = cls()
-            instance.instrument()
-            _active[name] = instance
-            instrumented.append(name)
-            logger.info("AgentLens: %s instrumented", name)
-        except ImportError:
-            logger.debug("AgentLens: %s SDK not installed, skipping", name)
-        except Exception:
-            logger.debug("AgentLens: failed to instrument %s", name, exc_info=True)
+            try:
+                instance = cls()
+                instance.instrument()
+                _active[name] = instance
+                instrumented.append(name)
+                logger.info("AgentLens: %s instrumented", name)
+            except ImportError:
+                logger.debug("AgentLens: %s SDK not installed, skipping", name)
+            except Exception:
+                logger.debug("AgentLens: failed to instrument %s", name, exc_info=True)
 
     return instrumented
 
@@ -81,23 +84,26 @@ def uninstrument_providers(names: list[str] | None = None) -> None:
     Args:
         names: Explicit list, or ``None`` to uninstrument all active providers.
     """
-    targets = names if names is not None else list(_active.keys())
+    with _lock:
+        targets = names if names is not None else list(_active.keys())
 
-    for name in targets:
-        instance = _active.pop(name, None)
-        if instance is not None:
-            try:
-                instance.uninstrument()
-            except Exception:
-                logger.debug("AgentLens: failed to uninstrument %s", name, exc_info=True)
+        for name in targets:
+            instance = _active.pop(name, None)
+            if instance is not None:
+                try:
+                    instance.uninstrument()
+                except Exception:
+                    logger.debug("AgentLens: failed to uninstrument %s", name, exc_info=True)
 
 
 def get_active_providers() -> list[str]:
     """Return names of currently instrumented providers."""
-    return list(_active.keys())
+    with _lock:
+        return list(_active.keys())
 
 
 def reset_registry() -> None:
     """Uninstrument all and clear active instances. For testing."""
     uninstrument_providers()
-    _active.clear()
+    with _lock:
+        _active.clear()
