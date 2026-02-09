@@ -96,35 +96,30 @@ Click any LLM call to see the **full prompt and completion** in a chat-bubble st
 
 ### ❤️‍🩹 Health Overview — Agent Reliability at a Glance
 
-<!-- TODO: capture screenshot → demo/dashboard-health.jpg -->
 ![Health Overview](demo/dashboard-health.jpg)
 
 The Health Overview page shows a **5-dimension health score** (0–100) for every agent: error rate, cost efficiency, tool success, latency, and completion rate. Each dimension is scored independently and combined into a weighted overall score. Trend arrows (↑ improving, → stable, ↓ degrading) show direction over time. Click any agent to see a historical sparkline of their score.
 
 ### 💡 Cost Optimization — Model Recommendations
 
-<!-- TODO: capture screenshot → demo/dashboard-cost-optimization.jpg -->
 ![Cost Optimization](demo/dashboard-cost-optimization.jpg)
 
 The Cost Optimization page analyzes your **LLM call patterns** and recommends cheaper model alternatives. Calls are classified by complexity tier (simple / moderate / complex), and the recommendation engine suggests where you can safely downgrade — e.g., "Switch gpt-4o → gpt-4o-mini for SIMPLE tasks, saving $89/month." Confidence levels and success rate comparisons are shown for each recommendation.
 
 ### 📼 Session Replay — Step-Through Debugger
 
-<!-- TODO: capture screenshot → demo/dashboard-session-replay.jpg -->
 ![Session Replay](demo/dashboard-session-replay.jpg)
 
 Session Replay lets you **step through any past session** event by event with full context reconstruction. A scrubber/timeline control moves through steps chronologically. At each step, the context panel shows cumulative cost, LLM conversation history, tool call results, pending approvals, and error count. Filter by event type, jump to specific steps, or replay just the summary.
 
 ### ⚖️ Benchmarks — A/B Testing for Agents
 
-<!-- TODO: capture screenshot → demo/dashboard-benchmarks.jpg -->
 ![Benchmarks](demo/dashboard-benchmarks.jpg)
 
 The Benchmarks page lets you **create and manage A/B experiments** comparing agent variants. Define 2–10 variants with session tags, pick metrics (cost, latency, error rate, success rate, tokens, duration), and collect data. Results include per-variant statistics, Welch's t-test p-values, confidence stars (★ ★★ ★★★), and distribution charts. The full workflow — draft → running → completed — is managed from the dashboard.
 
 ### 🛡️ Guardrails — Automated Safety Rules
 
-<!-- TODO: capture screenshot → demo/dashboard-guardrails.jpg -->
 ![Guardrails](demo/dashboard-guardrails.jpg)
 
 The Guardrails page lets you **create and manage automated safety rules** that monitor error rates, costs, health scores, and custom metrics. Each rule has a condition, action, cooldown, and optional dry-run mode. The list shows trigger counts and last triggered time. Click any rule for the detail page with full configuration, runtime state, and trigger history. The Activity Feed shows a real-time log of all triggers across all rules with filtering by agent and rule.
