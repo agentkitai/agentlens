@@ -90,6 +90,21 @@ class ToolDef(_BaseModel):
     parameters: dict[str, Any] | None = None
 
 
+class Agent(_BaseModel):
+    """Agent record with guardrail-related fields."""
+
+    id: str
+    name: str
+    description: str | None = None
+    first_seen_at: str
+    last_seen_at: str
+    session_count: int
+    tenant_id: str
+    model_override: str | None = None
+    paused_at: str | None = None
+    pause_reason: str | None = None
+
+
 class AgentLensEvent(_BaseModel):
     """The core event record — the fundamental unit of data in AgentLens."""
 
@@ -572,7 +587,7 @@ class GuardrailState(_BaseModel):
     current_value: float | None = None
 
 
-class GuardrailTrigger(_BaseModel):
+class GuardrailTriggerHistory(_BaseModel):
     """Record of a guardrail trigger event."""
 
     id: str
@@ -589,7 +604,7 @@ class GuardrailTrigger(_BaseModel):
 class GuardrailTriggerHistoryResult(_BaseModel):
     """Result of listing guardrail trigger history."""
 
-    triggers: list[GuardrailTrigger]
+    triggers: list[GuardrailTriggerHistory]
     total: int
 
 
@@ -598,7 +613,7 @@ class GuardrailStatusResult(_BaseModel):
 
     rule: GuardrailRule
     state: GuardrailState | None = None
-    recent_triggers: list[GuardrailTrigger]
+    recent_triggers: list[GuardrailTriggerHistory]
 
 
 class GuardrailDeleteResult(_BaseModel):

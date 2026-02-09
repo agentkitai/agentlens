@@ -216,7 +216,7 @@ async function handleCreate(argv: string[]): Promise<void> {
   });
 
   if (values.help) {
-    console.log('Usage: agentlens guardrails create --name <n> --condition-type <type> --condition-config <json> --action-type <type> --action-config <json> [--agent <id>] [--dry-run] [--cooldown <min>]');
+    console.log('Usage: agentlens guardrails create --name <n> --condition-type <type> --condition-config <json> --action-type <type> --action-config <json> [--agent <id>] [--dry-run (default: true)] [--enabled (default: false)] [--cooldown <min>]');
     return;
   }
 

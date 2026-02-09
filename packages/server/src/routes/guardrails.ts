@@ -100,7 +100,8 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
   // GET / — List guardrail rules
   app.get('/', async (c) => {
     const tenantId = getTenantId(c);
-    const rules = guardrailStore.listRules(tenantId);
+    const agentId = c.req.query('agentId');
+    const rules = guardrailStore.listRules(tenantId, agentId || undefined);
     return c.json({ rules });
   });
 

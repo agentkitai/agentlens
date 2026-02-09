@@ -21,6 +21,7 @@ from agentlensai._utils import (
 )
 from agentlensai.exceptions import AgentLensConnectionError
 from agentlensai.models import (
+    Agent,
     AgentLensEvent,
     ContextQuery,
     ContextResult,
@@ -156,6 +157,13 @@ class AgentLensClient:
         """Get the full timeline for a session with hash chain verification."""
         data = self._request("GET", f"/api/sessions/{session_id}/timeline")
         return TimelineResult.model_validate(data)
+
+    # ─── Agents ───────────────────────────────────────────
+
+    def get_agent(self, agent_id: str) -> Agent:
+        """Get a single agent by ID, including model_override and paused_at."""
+        data = self._request("GET", f"/api/agents/{agent_id}")
+        return Agent.model_validate(data)
 
     # ─── LLM Call Tracking ────────────────────────────────
 
@@ -365,9 +373,10 @@ class AgentLensClient:
         self,
         rule_id: str | None = None,
         limit: int = 50,
+        offset: int = 0,
     ) -> GuardrailTriggerHistoryResult:
         """Get trigger history for guardrail rules."""
-        params: dict[str, str] = {"limit": str(limit)}
+        params: dict[str, str] = {"limit": str(limit), "offset": str(offset)}
         if rule_id is not None:
             params["ruleId"] = rule_id
         data = self._request("GET", "/api/guardrails/history", params=params)

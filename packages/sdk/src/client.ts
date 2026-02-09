@@ -10,6 +10,7 @@ import type {
   EventQuery,
   EventQueryResult,
   AgentLensEvent,
+  Agent,
   Session,
   SessionQuery,
   LlmMessage,
@@ -454,6 +455,17 @@ export class AgentLensClient {
     if (query.limit != null) params.set('limit', String(query.limit));
 
     return this.request<ContextResult>(`/api/context?${params.toString()}`);
+  }
+
+  // ─── Agents ────────────────────────────────────────────────
+
+  /**
+   * Get a single agent by ID, including modelOverride and pausedAt.
+   */
+  async getAgent(agentId: string): Promise<Agent> {
+    return this.request<Agent>(
+      `/api/agents/${encodeURIComponent(agentId)}`,
+    );
   }
 
   // ─── Agent Health Scores ──────────────────────────────────

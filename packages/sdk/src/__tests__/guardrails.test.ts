@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { AgentLensClient } from '../client.js';
+import { AuthenticationError, NotFoundError, ValidationError } from '../errors.js';
 
 function mockFetch(status: number, body: unknown): typeof globalThis.fetch {
   return vi.fn().mockResolvedValue({
@@ -220,5 +221,38 @@ describe('AgentLensClient.getGuardrailStatus', () => {
     expect(result.rule.id).toBe('rule_001');
     expect(result.state!.triggerCount).toBe(3);
     expect(result.recentTriggers).toHaveLength(1);
+  });
+});
+
+// ─── Error-path tests ───────────────────────────────────────────────
+
+describe('AgentLensClient guardrail error paths', () => {
+  it('throws AuthenticationError on 401', async () => {
+    const fn = mockFetch(401, { error: 'Unauthorized' });
+    const client = createClient(fn);
+
+    await expect(client.listGuardrails()).rejects.toThrow(AuthenticationError);
+  });
+
+  it('throws NotFoundError on 404 for getGuardrail', async () => {
+    const fn = mockFetch(404, { error: 'Guardrail rule not found' });
+    const client = createClient(fn);
+
+    await expect(client.getGuardrail('nonexistent')).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws ValidationError on 400 for createGuardrail', async () => {
+    const fn = mockFetch(400, { error: 'Validation failed', details: [{ path: 'name', message: 'Required' }] });
+    const client = createClient(fn);
+
+    await expect(
+      client.createGuardrail({
+        name: '',
+        conditionType: 'error_rate_threshold',
+        conditionConfig: {},
+        actionType: 'pause_agent',
+        actionConfig: {},
+      }),
+    ).rejects.toThrow(ValidationError);
   });
 });

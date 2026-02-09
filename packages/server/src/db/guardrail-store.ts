@@ -43,7 +43,13 @@ export class GuardrailStore {
     return row ? this._mapRule(row) : null;
   }
 
-  listRules(tenantId: string): GuardrailRule[] {
+  listRules(tenantId: string, agentId?: string): GuardrailRule[] {
+    if (agentId) {
+      const rows = this.db.all<Record<string, unknown>>(sql`
+        SELECT * FROM guardrail_rules WHERE tenant_id = ${tenantId} AND agent_id = ${agentId} ORDER BY created_at DESC
+      `);
+      return rows.map((r) => this._mapRule(r));
+    }
     const rows = this.db.all<Record<string, unknown>>(sql`
       SELECT * FROM guardrail_rules WHERE tenant_id = ${tenantId} ORDER BY created_at DESC
     `);

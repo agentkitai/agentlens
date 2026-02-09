@@ -377,9 +377,10 @@ class AsyncAgentLensClient:
         self,
         rule_id: str | None = None,
         limit: int = 50,
+        offset: int = 0,
     ) -> GuardrailTriggerHistoryResult:
         """Get trigger history for guardrail rules."""
-        params: dict[str, str] = {"limit": str(limit)}
+        params: dict[str, str] = {"limit": str(limit), "offset": str(offset)}
         if rule_id is not None:
             params["ruleId"] = rule_id
         data = await self._request("GET", "/api/guardrails/history", params=params)

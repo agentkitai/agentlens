@@ -16,7 +16,7 @@ from agentlensai import (
     GuardrailRuleListResult,
     GuardrailState,
     GuardrailStatusResult,
-    GuardrailTrigger,
+    GuardrailTriggerHistory,
     GuardrailTriggerHistoryResult,
     NotFoundError,
 )
@@ -245,7 +245,7 @@ class TestGuardrailHistory:
         assert result.total == 1
         assert len(result.triggers) == 1
         trig = result.triggers[0]
-        assert isinstance(trig, GuardrailTrigger)
+        assert isinstance(trig, GuardrailTriggerHistory)
         assert trig.action_executed is True
         url = respx.calls[0].request.url
         assert url.params["ruleId"] == "rule_001"

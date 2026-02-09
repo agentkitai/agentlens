@@ -208,6 +208,17 @@ describe('guardrails command', () => {
     expect(mockGetGuardrailHistory).toHaveBeenCalledWith({ ruleId: 'rule_001', limit: 10 });
   });
 
+  it('deletes a guardrail rule with --force', async () => {
+    mockDeleteGuardrail.mockResolvedValue({ ok: true });
+    const { runGuardrailsCommand } = await import('../commands/guardrails.js');
+
+    await runGuardrailsCommand(['delete', 'rule_001', '--force']);
+
+    const output = consoleOutput.join('\n');
+    expect(output).toContain('Deleted guardrail');
+    expect(mockDeleteGuardrail).toHaveBeenCalledWith('rule_001');
+  });
+
   it('outputs JSON when --format json on list', async () => {
     mockListGuardrails.mockResolvedValue({ rules: [sampleRule] });
     const { runGuardrailsCommand } = await import('../commands/guardrails.js');
