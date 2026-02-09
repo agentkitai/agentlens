@@ -31,6 +31,8 @@ import AgentNetwork from './pages/AgentNetwork';
 import CapabilityRegistry from './pages/CapabilityRegistry';
 import DelegationLog from './pages/DelegationLog';
 import { TeamManagement } from './cloud/TeamManagement';
+import { ApiKeyManagement } from './cloud/ApiKeyManagement';
+import { UsageDashboard } from './cloud/UsageDashboard';
 
 export function App(): React.ReactElement {
   return (
@@ -65,6 +67,8 @@ export function App(): React.ReactElement {
         <Route path="capabilities" element={<CapabilityRegistry />} />
         <Route path="delegations" element={<DelegationLog />} />
         <Route path="team" element={<TeamManagement />} />
+        <Route path="api-keys" element={<ApiKeyManagement />} />
+        <Route path="usage" element={<UsageDashboard />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
