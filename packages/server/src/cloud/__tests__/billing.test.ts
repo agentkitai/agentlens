@@ -10,6 +10,13 @@ import {
   UsageAccumulator,
   UsageQuery,
   QuotaEnforcer,
+  PlanManager,
+  InvoiceService,
+  TrialService,
+  ANNUAL_DISCOUNT,
+  calculateAnnualPrice,
+  TRIAL_DURATION_DAYS,
+  ANNUAL_PRICE_IDS,
   type StripeWebhookEvent,
   type RedisUsageStore,
 } from '../billing/index.js';
@@ -47,9 +54,52 @@ function createMockDb() {
         return { rows: [] };
       }
 
-      // UPDATE orgs SET plan (upgrade: 4 params, downgrade-to-free: 2 params)
+      // UPDATE orgs SET plan (various patterns)
       if (sqlLower.includes('update orgs set plan')) {
-        if (params && params.length === 4) {
+        // Trial start: plan = 'pro', event_quota, settings with jsonb_set + trial_started_at
+        if (sqlLower.includes('trial_started_at') && sqlLower.includes("plan = 'pro'")) {
+          const org = tables.orgs.find((o) => o.id === params?.[3]);
+          if (org) {
+            org.plan = 'pro';
+            org.event_quota = params?.[0];
+            if (!org.settings) org.settings = {};
+            (org.settings as any).trial_started_at = JSON.parse(params?.[1] as string);
+            (org.settings as any).trial_ends_at = JSON.parse(params?.[2] as string);
+          }
+          return { rows: [] };
+        }
+      }
+      if (sqlLower.includes('update orgs set plan')) {
+        if (sqlLower.includes("plan = 'free'") && sqlLower.includes('stripe_subscription_id = null') && sqlLower.includes("- 'pending_downgrade'")) {
+          // applyPendingDowngrade to free: quota=$1, org_id=$2
+          const org = tables.orgs.find((o) => o.id === params?.[1]);
+          if (org) {
+            org.plan = 'free';
+            org.stripe_subscription_id = null;
+            org.event_quota = params?.[0];
+            if (org.settings) delete (org.settings as any).pending_downgrade;
+          }
+        } else if (sqlLower.includes("- 'pending_downgrade'") && params && params.length === 4) {
+          // applyPendingDowngrade to paid tier: plan=$1, sub=$2, quota=$3, org=$4
+          const org = tables.orgs.find((o) => o.id === params[3]);
+          if (org) {
+            org.plan = params[0];
+            org.stripe_subscription_id = params[1];
+            org.event_quota = params[2];
+            if (org.settings) delete (org.settings as any).pending_downgrade;
+          }
+        } else if (sqlLower.includes("plan = 'free'") && sqlLower.includes("- 'trial_started_at'")) {
+          // expire trial: quota=$1, org=$2
+          const org = tables.orgs.find((o) => o.id === params?.[1]);
+          if (org) {
+            org.plan = 'free';
+            org.event_quota = params?.[0];
+            if (org.settings) {
+              delete (org.settings as any).trial_started_at;
+              delete (org.settings as any).trial_ends_at;
+            }
+          }
+        } else if (params && params.length === 4) {
           // upgrade: plan=$1, sub_id=$2, quota=$3, org_id=$4
           const org = tables.orgs.find((o) => o.id === params[3]);
           if (org) {
@@ -70,15 +120,39 @@ function createMockDb() {
       }
 
       // UPDATE orgs SET settings (pending_downgrade or payment_status)
-      if (sqlLower.includes('update orgs set settings')) {
-        const orgId = params?.[0];
+      if (sqlLower.includes('update orgs set settings') && !sqlLower.includes('update orgs set plan')) {
+        // Figure out which param is orgId (last param for jsonb_set patterns)
+        const orgId = params?.[params.length - 1] ?? params?.[0];
         const org = tables.orgs.find((o) => o.id === orgId);
         if (org) {
-          if (sqlLower.includes('pending_downgrade')) {
-            org.pending_downgrade = 'free';
-          }
-          if (sqlLower.includes('payment_status')) {
+          if (!org.settings) org.settings = {};
+          if (sqlLower.includes('pending_downgrade') && sqlLower.includes('billing_interval')) {
+            // Plan management upgrade: sets billing_interval and clears pending_downgrade
+            (org.settings as any).billing_interval = JSON.parse(params?.[3] as string ?? '"monthly"');
+            delete (org.settings as any).pending_downgrade;
+            org.plan = params?.[0];
+            org.stripe_subscription_id = params?.[1];
+            org.event_quota = params?.[2];
+          } else if (sqlLower.includes('pending_downgrade') && !sqlLower.includes('billing_interval')) {
+            // Downgrade scheduling
+            const pendingVal = params?.[0];
+            try {
+              (org.settings as any).pending_downgrade = JSON.parse(pendingVal as string);
+            } catch {
+              org.pending_downgrade = 'free';
+            }
+          } else if (sqlLower.includes('payment_status')) {
             org.payment_status = 'past_due';
+          } else if (sqlLower.includes('trial_started_at')) {
+            // Trial start
+            (org.settings as any).trial_started_at = JSON.parse(params?.[1] as string ?? 'null');
+            (org.settings as any).trial_ends_at = JSON.parse(params?.[2] as string ?? 'null');
+            org.plan = 'pro';
+            org.event_quota = TIER_CONFIG.pro.event_quota;
+          } else if (sqlLower.includes("- 'trial_started_at'")) {
+            // Cancel trial / expire trial
+            delete (org.settings as any).trial_started_at;
+            delete (org.settings as any).trial_ends_at;
           }
         }
         return { rows: [] };
@@ -95,6 +169,16 @@ function createMockDb() {
       if (sqlLower.includes('from orgs') && sqlLower.includes('select')) {
         if (sqlLower.includes('stripe_customer_id = $1')) {
           return { rows: tables.orgs.filter((o) => o.stripe_customer_id === params?.[0]) };
+        }
+        // Trial expiry query
+        if (sqlLower.includes("settings->>'trial_ends_at'") && sqlLower.includes('< $1')) {
+          const now = params?.[0] as string;
+          return {
+            rows: tables.orgs.filter((o) => {
+              const s = o.settings as any;
+              return o.plan === 'pro' && s?.trial_ends_at && s.trial_ends_at < now && !o.stripe_subscription_id;
+            }),
+          };
         }
         if (sqlLower.includes('where id = $1') || sqlLower.includes('where o.id = $1')) {
           return { rows: tables.orgs.filter((o) => o.id === params?.[0]) };
@@ -146,14 +230,44 @@ function createMockDb() {
         return { rows: [{ total }] };
       }
 
+      // SELECT from invoices
+      if (sqlLower.includes('from invoices') && sqlLower.includes('select')) {
+        return { rows: tables.invoices.filter((i) => i.org_id === params?.[0]) };
+      }
+
       // INSERT INTO invoices
       if (sqlLower.includes('insert into invoices')) {
-        tables.invoices.push({
-          org_id: params?.[0],
-          stripe_invoice_id: params?.[1],
-          status: 'paid',
-          total_amount_cents: params?.[4],
-        });
+        if (params && params.length >= 10) {
+          // S-6.5 invoice service: 10 params
+          const existing = tables.invoices.find((i) => i.stripe_invoice_id === params[1]);
+          if (existing) {
+            existing.status = params[7];
+            existing.total_amount_cents = params[6];
+            existing.overage_amount_cents = params[5];
+            existing.line_items = JSON.parse(params[9] as string);
+          } else {
+            tables.invoices.push({
+              org_id: params[0],
+              stripe_invoice_id: params[1],
+              period_start: params[2],
+              period_end: params[3],
+              base_amount_cents: params[4],
+              overage_amount_cents: params[5],
+              total_amount_cents: params[6],
+              status: params[7],
+              billing_interval: params[8],
+              line_items: JSON.parse(params[9] as string),
+            });
+          }
+        } else {
+          // S-6.1 billing service: 5 params
+          tables.invoices.push({
+            org_id: params?.[0],
+            stripe_invoice_id: params?.[1],
+            status: 'paid',
+            total_amount_cents: params?.[4],
+          });
+        }
         return { rows: [] };
       }
 
@@ -555,6 +669,420 @@ describe('S-6.3: Quota Enforcement', () => {
     const result = await enforcerNoRedis.checkQuota('org-q8');
     expect(result.allowed).toBe(true);
     expect(result.usage).toBe(500);
+  });
+});
+
+// ═══════════════════════════════════════════
+// S-6.4: Plan Upgrade/Downgrade
+// ═══════════════════════════════════════════
+
+describe('S-6.4: Plan Upgrade/Downgrade', () => {
+  let stripe: MockStripeClient;
+  let db: ReturnType<typeof createMockDb>;
+  let planMgr: PlanManager;
+
+  beforeEach(() => {
+    stripe = new MockStripeClient();
+    db = createMockDb();
+    planMgr = new PlanManager({ stripe, db });
+  });
+
+  it('upgrades from free to pro immediately', async () => {
+    const org = addOrg(db, { id: 'org-up1', plan: 'free', stripe_customer_id: 'cus_up1', settings: {} });
+
+    const result = await planMgr.changePlan('org-up1', 'pro');
+
+    expect(result.success).toBe(true);
+    expect(result.action).toBe('upgraded');
+    expect(result.effectiveAt).toBe('immediate');
+    expect(result.previousPlan).toBe('free');
+    expect(result.newPlan).toBe('pro');
+    expect(stripe.subscriptions).toHaveLength(1);
+  });
+
+  it('upgrades from pro to team with proration', async () => {
+    stripe.subscriptions.push({
+      id: 'sub_existing',
+      customer: 'cus_up2',
+      status: 'active',
+      items: { data: [] },
+      current_period_start: 0,
+      current_period_end: 0,
+      cancel_at_period_end: false,
+    });
+    addOrg(db, {
+      id: 'org-up2', plan: 'pro', stripe_customer_id: 'cus_up2',
+      stripe_subscription_id: 'sub_existing', settings: {},
+    });
+
+    const result = await planMgr.changePlan('org-up2', 'team');
+
+    expect(result.prorationApplied).toBe(true);
+    expect(result.action).toBe('upgraded');
+    // Old sub cancelled immediately
+    expect(stripe.subscriptions[0].status).toBe('canceled');
+    // New sub created
+    expect(stripe.subscriptions).toHaveLength(2);
+  });
+
+  it('downgrades from pro to free at end of period', async () => {
+    stripe.subscriptions.push({
+      id: 'sub_down1',
+      customer: 'cus_d1',
+      status: 'active',
+      items: { data: [] },
+      current_period_start: 0,
+      current_period_end: 0,
+      cancel_at_period_end: false,
+    });
+    addOrg(db, {
+      id: 'org-d1', plan: 'pro', stripe_customer_id: 'cus_d1',
+      stripe_subscription_id: 'sub_down1', settings: {},
+    });
+
+    const result = await planMgr.changePlan('org-d1', 'free');
+
+    expect(result.action).toBe('scheduled_downgrade');
+    expect(result.effectiveAt).toBe('end_of_period');
+    expect(stripe.subscriptions[0].cancel_at_period_end).toBe(true);
+  });
+
+  it('downgrades from team to pro at end of period', async () => {
+    stripe.subscriptions.push({
+      id: 'sub_down2',
+      customer: 'cus_d2',
+      status: 'active',
+      items: { data: [] },
+      current_period_start: 0,
+      current_period_end: 0,
+      cancel_at_period_end: false,
+    });
+    addOrg(db, {
+      id: 'org-d2', plan: 'team', stripe_customer_id: 'cus_d2',
+      stripe_subscription_id: 'sub_down2', settings: {},
+    });
+
+    const result = await planMgr.changePlan('org-d2', 'pro');
+
+    expect(result.action).toBe('scheduled_downgrade');
+    expect(result.effectiveAt).toBe('end_of_period');
+  });
+
+  it('rejects changing to the same plan', async () => {
+    addOrg(db, { id: 'org-same', plan: 'pro', stripe_customer_id: 'cus_s', settings: {} });
+    await expect(planMgr.changePlan('org-same', 'pro')).rejects.toThrow('already on');
+  });
+
+  it('rejects when no Stripe customer exists', async () => {
+    addOrg(db, { id: 'org-nocust', plan: 'free', settings: {} });
+    await expect(planMgr.changePlan('org-nocust', 'pro')).rejects.toThrow('no Stripe customer');
+  });
+
+  it('supports annual billing on upgrade', async () => {
+    addOrg(db, { id: 'org-ann', plan: 'free', stripe_customer_id: 'cus_ann', settings: {} });
+
+    await planMgr.changePlan('org-ann', 'pro', 'annual');
+
+    const sub = stripe.subscriptions[0];
+    expect(sub.items.data[0].price.id).toBe(ANNUAL_PRICE_IDS.pro);
+  });
+
+  it('applies pending downgrade to free via applyPendingDowngrade', async () => {
+    const org = addOrg(db, {
+      id: 'org-apd', plan: 'pro', stripe_customer_id: 'cus_apd',
+      stripe_subscription_id: null, settings: { pending_downgrade: 'free' },
+    });
+
+    await planMgr.applyPendingDowngrade('org-apd');
+
+    expect(org.plan).toBe('free');
+    expect(org.event_quota).toBe(TIER_CONFIG.free.event_quota);
+  });
+});
+
+// ═══════════════════════════════════════════
+// S-6.5: Invoice Generation & Annual Billing
+// ═══════════════════════════════════════════
+
+describe('S-6.5: Invoice Generation & Annual Billing', () => {
+  let stripe: MockStripeClient;
+  let db: ReturnType<typeof createMockDb>;
+  let invoiceSvc: InvoiceService;
+
+  beforeEach(() => {
+    stripe = new MockStripeClient();
+    db = createMockDb();
+    invoiceSvc = new InvoiceService({ stripe, db });
+  });
+
+  it('syncs invoice from webhook with line items', async () => {
+    addOrg(db, { id: 'org-inv1', stripe_customer_id: 'cus_inv1' });
+
+    const event: StripeWebhookEvent = {
+      id: 'evt_inv1',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'inv_001',
+          customer: 'cus_inv1',
+          status: 'paid',
+          amount_due: 2900,
+          amount_paid: 2900,
+          period_start: 1700000000,
+          period_end: 1702592000,
+          lines: {
+            data: [
+              { description: 'Pro Plan - Monthly', amount: 2900, quantity: 1 },
+            ],
+          },
+        },
+      },
+    };
+
+    const record = await invoiceSvc.syncInvoiceFromWebhook(event);
+
+    expect(record).not.toBeNull();
+    expect(record!.status).toBe('paid');
+    expect(record!.base_amount_cents).toBe(2900);
+    expect(record!.overage_amount_cents).toBe(0);
+    expect(record!.line_items).toHaveLength(1);
+    expect(db.tables.invoices).toHaveLength(1);
+  });
+
+  it('separates base and overage amounts in invoice', async () => {
+    addOrg(db, { id: 'org-inv2', stripe_customer_id: 'cus_inv2' });
+
+    const event: StripeWebhookEvent = {
+      id: 'evt_inv2',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'inv_002',
+          customer: 'cus_inv2',
+          status: 'paid',
+          amount_due: 3100,
+          amount_paid: 3100,
+          period_start: 1700000000,
+          period_end: 1702592000,
+          lines: {
+            data: [
+              { description: 'Pro Plan - Monthly', amount: 2900, quantity: 1 },
+              { description: 'Overage Events', amount: 200, quantity: 200 },
+            ],
+          },
+        },
+      },
+    };
+
+    const record = await invoiceSvc.syncInvoiceFromWebhook(event);
+
+    expect(record!.base_amount_cents).toBe(2900);
+    expect(record!.overage_amount_cents).toBe(200);
+    expect(record!.total_amount_cents).toBe(3100);
+  });
+
+  it('detects annual billing from period length', async () => {
+    addOrg(db, { id: 'org-inv3', stripe_customer_id: 'cus_inv3' });
+
+    const yearStart = 1700000000;
+    const yearEnd = yearStart + 365 * 86400;
+
+    const event: StripeWebhookEvent = {
+      id: 'evt_inv3',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'inv_003',
+          customer: 'cus_inv3',
+          status: 'paid',
+          amount_due: 27840,
+          amount_paid: 27840,
+          period_start: yearStart,
+          period_end: yearEnd,
+          lines: { data: [{ description: 'Pro Plan - Annual', amount: 27840, quantity: 1 }] },
+        },
+      },
+    };
+
+    const record = await invoiceSvc.syncInvoiceFromWebhook(event);
+    expect(record!.billing_interval).toBe('annual');
+  });
+
+  it('calculates annual price with 20% discount', () => {
+    const monthlyPro = TIER_CONFIG.pro.base_price_cents;
+    const annualPro = calculateAnnualPrice(monthlyPro);
+    const expected = Math.round(monthlyPro * 12 * 0.8);
+    expect(annualPro).toBe(expected);
+    expect(ANNUAL_DISCOUNT).toBe(0.20);
+  });
+
+  it('returns null when org not found for invoice webhook', async () => {
+    const event: StripeWebhookEvent = {
+      id: 'evt_no_org',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'inv_no_org',
+          customer: 'cus_nonexistent',
+          status: 'paid',
+          amount_due: 100,
+          amount_paid: 100,
+          period_start: 1700000000,
+          period_end: 1702592000,
+          lines: { data: [] },
+        },
+      },
+    };
+
+    const record = await invoiceSvc.syncInvoiceFromWebhook(event);
+    expect(record).toBeNull();
+  });
+
+  it('lists invoices for an org', async () => {
+    addOrg(db, { id: 'org-inv4', stripe_customer_id: 'cus_inv4' });
+    db.tables.invoices.push(
+      { org_id: 'org-inv4', stripe_invoice_id: 'inv_a', status: 'paid', total_amount_cents: 2900 },
+      { org_id: 'org-inv4', stripe_invoice_id: 'inv_b', status: 'paid', total_amount_cents: 3100 },
+    );
+
+    const invoices = await invoiceSvc.listInvoices('org-inv4');
+    expect(invoices).toHaveLength(2);
+  });
+
+  it('calculates overage charges correctly', async () => {
+    addOrg(db, { id: 'org-ov', plan: 'pro', event_quota: 1000 });
+    db.tables.usage_records.push({
+      org_id: 'org-ov', hour: '2026-02-01T00:00:00Z', event_count: 1500, api_key_id: null,
+    });
+
+    const charges = await invoiceSvc.calculateOverageCharges('org-ov');
+    expect(charges.overage_events).toBe(500);
+    expect(charges.rate_per_1k_cents).toBe(TIER_CONFIG.pro.overage_rate_per_1k_cents);
+    expect(charges.overage_cost_cents).toBe(Math.ceil(500 / 1000) * TIER_CONFIG.pro.overage_rate_per_1k_cents);
+  });
+
+  it('upserts invoice on duplicate stripe_invoice_id', async () => {
+    addOrg(db, { id: 'org-inv5', stripe_customer_id: 'cus_inv5' });
+
+    const makeEvent = (status: string, amount: number): StripeWebhookEvent => ({
+      id: 'evt_dup',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'inv_dup', customer: 'cus_inv5', status,
+          amount_due: amount, amount_paid: amount,
+          period_start: 1700000000, period_end: 1702592000,
+          lines: { data: [{ description: 'Pro', amount, quantity: 1 }] },
+        },
+      },
+    });
+
+    await invoiceSvc.syncInvoiceFromWebhook(makeEvent('open', 2900));
+    await invoiceSvc.syncInvoiceFromWebhook(makeEvent('paid', 2900));
+
+    expect(db.tables.invoices).toHaveLength(1);
+    expect(db.tables.invoices[0].status).toBe('paid');
+  });
+});
+
+// ═══════════════════════════════════════════
+// S-6.6: Free Trial (14-day Pro)
+// ═══════════════════════════════════════════
+
+describe('S-6.6: Free Trial (14-day Pro)', () => {
+  let stripe: MockStripeClient;
+  let db: ReturnType<typeof createMockDb>;
+  let trialSvc: TrialService;
+
+  beforeEach(() => {
+    stripe = new MockStripeClient();
+    db = createMockDb();
+    trialSvc = new TrialService({ stripe, db });
+  });
+
+  it('starts a 14-day Pro trial on new org', async () => {
+    addOrg(db, { id: 'org-t1', plan: 'free', settings: {} });
+
+    const status = await trialSvc.startTrial('org-t1');
+
+    expect(status.is_trial).toBe(true);
+    expect(status.days_remaining).toBe(TRIAL_DURATION_DAYS);
+    expect(status.expired).toBe(false);
+    expect(status.trial_started_at).toBeTruthy();
+    expect(status.trial_ends_at).toBeTruthy();
+
+    const org = db.tables.orgs.find((o) => o.id === 'org-t1')!;
+    expect(org.plan).toBe('pro');
+    expect(org.event_quota).toBe(TIER_CONFIG.pro.event_quota);
+  });
+
+  it('returns trial status with days remaining', async () => {
+    const now = new Date();
+    const ends = new Date(now.getTime() + 7 * 86400 * 1000);
+    addOrg(db, {
+      id: 'org-t2', plan: 'pro',
+      settings: { trial_started_at: now.toISOString(), trial_ends_at: ends.toISOString() },
+    });
+
+    const status = await trialSvc.getTrialStatus('org-t2');
+
+    expect(status.is_trial).toBe(true);
+    expect(status.days_remaining).toBeLessThanOrEqual(7);
+    expect(status.days_remaining).toBeGreaterThan(0);
+    expect(status.expired).toBe(false);
+  });
+
+  it('reports expired trial correctly', async () => {
+    const past = new Date(Date.now() - 2 * 86400 * 1000);
+    const pastEnd = new Date(Date.now() - 1 * 86400 * 1000);
+    addOrg(db, {
+      id: 'org-t3', plan: 'pro',
+      settings: { trial_started_at: past.toISOString(), trial_ends_at: pastEnd.toISOString() },
+    });
+
+    const status = await trialSvc.getTrialStatus('org-t3');
+
+    expect(status.is_trial).toBe(false);
+    expect(status.expired).toBe(true);
+    expect(status.days_remaining).toBe(0);
+  });
+
+  it('expires trials and downgrades to free', async () => {
+    const past = new Date(Date.now() - 15 * 86400 * 1000).toISOString();
+    const pastEnd = new Date(Date.now() - 1 * 86400 * 1000).toISOString();
+    addOrg(db, {
+      id: 'org-t4', plan: 'pro', stripe_subscription_id: null,
+      settings: { trial_started_at: past, trial_ends_at: pastEnd },
+    });
+
+    const count = await trialSvc.expireTrials();
+
+    expect(count).toBe(1);
+    const org = db.tables.orgs.find((o) => o.id === 'org-t4')!;
+    expect(org.plan).toBe('free');
+    expect(org.event_quota).toBe(TIER_CONFIG.free.event_quota);
+  });
+
+  it('does not expire orgs that upgraded (have subscription)', async () => {
+    const past = new Date(Date.now() - 15 * 86400 * 1000).toISOString();
+    const pastEnd = new Date(Date.now() - 1 * 86400 * 1000).toISOString();
+    addOrg(db, {
+      id: 'org-t5', plan: 'pro', stripe_subscription_id: 'sub_paid',
+      settings: { trial_started_at: past, trial_ends_at: pastEnd },
+    });
+
+    const count = await trialSvc.expireTrials();
+    expect(count).toBe(0);
+  });
+
+  it('returns non-trial status for orgs without trial', async () => {
+    addOrg(db, { id: 'org-t6', plan: 'free', settings: {} });
+
+    const status = await trialSvc.getTrialStatus('org-t6');
+
+    expect(status.is_trial).toBe(false);
+    expect(status.trial_started_at).toBeNull();
+    expect(status.days_remaining).toBe(0);
   });
 });
 

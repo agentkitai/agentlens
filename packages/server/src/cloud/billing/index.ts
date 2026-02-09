@@ -1,5 +1,5 @@
 /**
- * Billing Module Index (S-6.1, S-6.2, S-6.3)
+ * Billing Module Index (S-6.1 through S-6.6)
  */
 
 export {
@@ -34,3 +34,26 @@ export {
   type QuotaEnforcerDeps,
   type OrgQuotaInfo,
 } from './quota-enforcement.js';
+
+export {
+  PlanManager,
+  ANNUAL_PRICE_IDS,
+  type PlanManagementDeps,
+  type PlanChangeResult,
+} from './plan-management.js';
+
+export {
+  InvoiceService,
+  ANNUAL_DISCOUNT,
+  calculateAnnualPrice,
+  type InvoiceServiceDeps,
+  type InvoiceRecord,
+  type InvoiceLineItem,
+} from './invoice-service.js';
+
+export {
+  TrialService,
+  TRIAL_DURATION_DAYS,
+  type TrialServiceDeps,
+  type TrialStatus,
+} from './trial-service.js';
