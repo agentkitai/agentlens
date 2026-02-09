@@ -55,6 +55,17 @@ export class RedactionPipeline {
     return this.layers;
   }
 
+  /**
+   * Register a custom redaction layer at runtime.
+   * The layer is inserted at the correct position based on its `order` field.
+   * Multiple custom layers are supported.
+   * Plugin errors trigger fail-closed behavior (same as built-in layers).
+   */
+  registerCustomLayer(layer: RedactionLayer): void {
+    this.layers.push(layer);
+    this.layers.sort((a, b) => a.order - b.order);
+  }
+
   async process(raw: RawLessonContent, ctx: RedactionContext): Promise<RedactionResult> {
     // Combine title and content for processing
     let text = `${raw.title}\n---\n${raw.content}`;

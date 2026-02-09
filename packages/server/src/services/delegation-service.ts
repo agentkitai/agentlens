@@ -661,4 +661,94 @@ export class DelegationService {
       .where(eq(delegationLog.tenantId, tenantId))
       .all();
   }
+
+  // ─── Story 6.5: Delegation Audit & Logging ────────────
+
+  /**
+   * Get delegations for a specific agent with filters.
+   */
+  getDelegationsForAgent(
+    tenantId: string,
+    agentId: string,
+    filters?: {
+      direction?: 'inbound' | 'outbound';
+      status?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    },
+  ): Array<typeof delegationLog.$inferSelect> {
+    let rows = this.db
+      .select()
+      .from(delegationLog)
+      .where(and(eq(delegationLog.tenantId, tenantId), eq(delegationLog.agentId, agentId)))
+      .all();
+
+    if (filters?.direction) {
+      rows = rows.filter((r) => r.direction === filters.direction);
+    }
+    if (filters?.status) {
+      rows = rows.filter((r) => r.status === filters.status);
+    }
+    if (filters?.dateFrom) {
+      rows = rows.filter((r) => r.createdAt >= filters.dateFrom!);
+    }
+    if (filters?.dateTo) {
+      rows = rows.filter((r) => r.createdAt <= filters.dateTo!);
+    }
+
+    return rows;
+  }
+
+  /**
+   * Export delegation logs as JSON for a tenant.
+   */
+  exportDelegationLogs(tenantId: string): string {
+    const logs = this.getDelegationLogs(tenantId);
+    return JSON.stringify(logs, null, 2);
+  }
+
+  /**
+   * Cleanup delegation logs older than retention period.
+   * Default: 90 days. Configurable via retentionDays parameter.
+   */
+  cleanupOldLogs(tenantId: string, retentionDays: number = 90): number {
+    const cutoff = new Date(this.now().getTime() - retentionDays * 24 * 60 * 60 * 1000);
+    const cutoffIso = cutoff.toISOString();
+
+    // Get count before delete
+    const oldLogs = this.db
+      .select()
+      .from(delegationLog)
+      .where(eq(delegationLog.tenantId, tenantId))
+      .all()
+      .filter((r) => r.createdAt < cutoffIso);
+
+    for (const log of oldLogs) {
+      this.db
+        .delete(delegationLog)
+        .where(and(eq(delegationLog.id, log.id), eq(delegationLog.tenantId, tenantId)))
+        .run();
+    }
+
+    return oldLogs.length;
+  }
+
+  /**
+   * Detect volume alerts: >100 delegations/hour triggers alert flag.
+   * Returns true if alert should fire.
+   */
+  checkVolumeAlert(tenantId: string, threshold: number = 100): { alert: boolean; count: number } {
+    const oneHourAgo = new Date(this.now().getTime() - 60 * 60 * 1000).toISOString();
+    const recentLogs = this.db
+      .select()
+      .from(delegationLog)
+      .where(eq(delegationLog.tenantId, tenantId))
+      .all()
+      .filter((r) => r.createdAt >= oneHourAgo);
+
+    return {
+      alert: recentLogs.length > threshold,
+      count: recentLogs.length,
+    };
+  }
 }

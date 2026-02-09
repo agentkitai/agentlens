@@ -176,6 +176,130 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ requests });
   });
 
+  // ─── Pool Reputation API ───
+
+  app.post('/pool/reputation/rate', async (c) => {
+    const body = await c.req.json();
+    const { lessonId, voterAnonymousId, delta, reason } = body;
+
+    if (!lessonId || !voterAnonymousId || delta === undefined || !reason) {
+      return c.json({ error: 'Missing required fields: lessonId, voterAnonymousId, delta, reason' }, 400);
+    }
+
+    // Check daily cap: ±5 per voter per day
+    const events = await store.getReputationEvents(lessonId);
+    const todayStart = Math.floor(Date.now() / 86400000) * 86400; // epoch seconds for start of day
+    const todayVoterEvents = events.filter(
+      (e) => e.voterAnonymousId === voterAnonymousId && e.createdEpoch >= todayStart,
+    );
+    if (todayVoterEvents.length >= 5) {
+      return c.json({ error: 'Daily rating cap exceeded (max 5 per voter per day)' }, 429);
+    }
+
+    const event = await store.addReputationEvent({
+      lessonId,
+      voterAnonymousId,
+      delta,
+      reason,
+      createdEpoch: Math.floor(Date.now() / 1000),
+    });
+
+    // Recompute lesson reputation
+    const allEvents = await store.getReputationEvents(lessonId);
+    const totalDelta = allEvents.reduce((sum, e) => sum + e.delta, 0);
+    const newScore = 50 + totalDelta; // base 50
+    await store.updateLessonReputation(lessonId, newScore);
+
+    // Auto-hide if below threshold
+    const REPUTATION_THRESHOLD = 20;
+    if (newScore < REPUTATION_THRESHOLD) {
+      await store.setLessonHidden(lessonId, true);
+    } else {
+      await store.setLessonHidden(lessonId, false);
+    }
+
+    const lesson = await store.getLessonById(lessonId);
+
+    return c.json({ event, lesson }, 200);
+  });
+
+  app.get('/pool/reputation/:lessonId', async (c) => {
+    const lessonId = c.req.param('lessonId');
+    const events = await store.getReputationEvents(lessonId);
+    const lesson = await store.getLessonById(lessonId);
+    return c.json({
+      lessonId,
+      reputationScore: lesson?.reputationScore ?? 50,
+      events,
+    });
+  });
+
+  // ─── Pool Moderation API ───
+
+  app.post('/pool/flag', async (c) => {
+    const body = await c.req.json();
+    const { lessonId, reporterAnonymousId, reason } = body;
+
+    if (!lessonId || !reporterAnonymousId || !reason) {
+      return c.json({ error: 'Missing required fields: lessonId, reporterAnonymousId, reason' }, 400);
+    }
+
+    const validReasons = ['spam', 'harmful', 'low_quality', 'sensitive_data'];
+    if (!validReasons.includes(reason)) {
+      return c.json({ error: `reason must be one of: ${validReasons.join(', ')}` }, 400);
+    }
+
+    // Check if already flagged by this reporter
+    const alreadyFlagged = await store.hasAlreadyFlagged(lessonId, reporterAnonymousId);
+    if (alreadyFlagged) {
+      return c.json({ error: 'Already flagged by this reporter' }, 409);
+    }
+
+    const flag = await store.addModerationFlag({
+      lessonId,
+      reporterAnonymousId,
+      reason: reason as 'spam' | 'harmful' | 'low_quality' | 'sensitive_data',
+      createdEpoch: Math.floor(Date.now() / 1000),
+    });
+
+    // Check auto-hide threshold (3+ flags)
+    const allFlags = await store.getModerationFlags(lessonId);
+    const distinctReporters = new Set(allFlags.map((f) => f.reporterAnonymousId));
+    await store.updateLessonFlagCount(lessonId, distinctReporters.size);
+
+    if (distinctReporters.size >= 3) {
+      await store.setLessonHidden(lessonId, true);
+    }
+
+    return c.json({ flag, flagCount: distinctReporters.size }, 201);
+  });
+
+  app.get('/pool/moderation/queue', async (c) => {
+    // Return all hidden lessons (flagged or low reputation)
+    const results = await store.searchLessons({ embedding: [], limit: 100 });
+    // We need a method to get flagged lessons - for now filter from store
+    return c.json({ queue: results.filter((r) => r.lesson.hidden || r.lesson.flagCount >= 3) });
+  });
+
+  app.post('/pool/moderation/:id/approve', async (c) => {
+    const lessonId = c.req.param('id');
+    const lesson = await store.getLessonById(lessonId);
+    if (!lesson) return c.json({ error: 'Lesson not found' }, 404);
+
+    await store.setLessonHidden(lessonId, false);
+    await store.updateLessonFlagCount(lessonId, 0);
+    return c.json({ success: true, lessonId });
+  });
+
+  app.post('/pool/moderation/:id/remove', async (c) => {
+    const lessonId = c.req.param('id');
+    const lesson = await store.getLessonById(lessonId);
+    if (!lesson) return c.json({ error: 'Lesson not found' }, 404);
+
+    await store.setLessonHidden(lessonId, true);
+    return c.json({ success: true, lessonId });
+  });
+
   app.put('/pool/delegate/:id/status', async (c) => {
     const delegationId = c.req.param('id');
     const body = await c.req.json();

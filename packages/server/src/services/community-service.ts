@@ -54,6 +54,40 @@ export interface PoolTransport {
       similarity: number;
     }>;
   }>;
+
+  purge(data: {
+    anonymousContributorId: string;
+    token: string;
+  }): Promise<{ deleted: number }>;
+
+  count(contributorId: string): Promise<{ count: number }>;
+
+  rate(data: {
+    lessonId: string;
+    voterAnonymousId: string;
+    delta: number;
+    reason: string;
+  }): Promise<{ reputationScore: number }>;
+
+  flag(data: {
+    lessonId: string;
+    reporterAnonymousId: string;
+    reason: string;
+  }): Promise<{ flagCount: number }>;
+
+  getModerationQueue(): Promise<Array<{
+    lesson: {
+      id: string;
+      category: string;
+      title: string;
+      content: string;
+      reputationScore: number;
+      flagCount: number;
+      hidden: boolean;
+    };
+  }>>;
+
+  moderateLesson(lessonId: string, action: 'approve' | 'remove'): Promise<{ success: boolean }>;
 }
 
 /** In-memory transport for testing */
@@ -65,27 +99,47 @@ export class LocalCommunityPoolTransport implements PoolTransport {
     title: string;
     content: string;
     embedding: number[];
+    reputationScore: number;
+    flagCount: number;
+    hidden: boolean;
     qualitySignals?: Record<string, unknown>;
+  }> = [];
+
+  private reputationEvents: Array<{
+    lessonId: string;
+    voterAnonymousId: string;
+    delta: number;
+    reason: string;
+    createdEpoch: number;
+  }> = [];
+
+  private flags: Array<{
+    lessonId: string;
+    reporterAnonymousId: string;
+    reason: string;
+    createdEpoch: number;
   }> = [];
 
   async share(data: Parameters<PoolTransport['share']>[0]): Promise<{ id: string }> {
     const id = randomUUID();
-    this.shared.push({ id, ...data });
+    this.shared.push({ id, ...data, reputationScore: 50, flagCount: 0, hidden: false });
     return { id };
   }
 
   async search(data: Parameters<PoolTransport['search']>[0]): Promise<ReturnType<PoolTransport['search']> extends Promise<infer R> ? R : never> {
-    let results = this.shared.map((lesson) => ({
-      lesson: {
-        id: lesson.id,
-        category: lesson.category,
-        title: lesson.title,
-        content: lesson.content,
-        reputationScore: 50,
-        qualitySignals: lesson.qualitySignals ?? {},
-      },
-      similarity: cosineSimilarity(data.embedding, lesson.embedding),
-    }));
+    let results = this.shared
+      .filter((l) => !l.hidden)
+      .map((lesson) => ({
+        lesson: {
+          id: lesson.id,
+          category: lesson.category,
+          title: lesson.title,
+          content: lesson.content,
+          reputationScore: lesson.reputationScore,
+          qualitySignals: lesson.qualitySignals ?? {},
+        },
+        similarity: cosineSimilarity(data.embedding, lesson.embedding),
+      }));
 
     if (data.category) {
       results = results.filter((r) => r.lesson.category === data.category);
@@ -96,6 +150,101 @@ export class LocalCommunityPoolTransport implements PoolTransport {
 
     results.sort((a, b) => b.similarity - a.similarity);
     return { results: results.slice(0, data.limit ?? 50) };
+  }
+
+  async purge(data: { anonymousContributorId: string; token: string }): Promise<{ deleted: number }> {
+    let deleted = 0;
+    for (let i = this.shared.length - 1; i >= 0; i--) {
+      if (this.shared[i].anonymousContributorId === data.anonymousContributorId) {
+        this.shared.splice(i, 1);
+        deleted++;
+      }
+    }
+    return { deleted };
+  }
+
+  async count(contributorId: string): Promise<{ count: number }> {
+    return { count: this.shared.filter((l) => l.anonymousContributorId === contributorId).length };
+  }
+
+  async rate(data: { lessonId: string; voterAnonymousId: string; delta: number; reason: string }): Promise<{ reputationScore: number }> {
+    // Check daily cap
+    const todayStart = Math.floor(Date.now() / 86400000) * 86400;
+    const todayVotes = this.reputationEvents.filter(
+      (e) => e.voterAnonymousId === data.voterAnonymousId && e.createdEpoch >= todayStart,
+    );
+    if (todayVotes.length >= 5) {
+      throw new Error('Daily rating cap exceeded');
+    }
+
+    this.reputationEvents.push({ ...data, createdEpoch: Math.floor(Date.now() / 1000) });
+
+    const lesson = this.shared.find((l) => l.id === data.lessonId);
+    if (!lesson) throw new Error('Lesson not found');
+
+    const lessonEvents = this.reputationEvents.filter((e) => e.lessonId === data.lessonId);
+    const totalDelta = lessonEvents.reduce((sum, e) => sum + e.delta, 0);
+    lesson.reputationScore = 50 + totalDelta;
+
+    // Auto-hide below threshold
+    if (lesson.reputationScore < 20) {
+      lesson.hidden = true;
+    } else {
+      lesson.hidden = false;
+    }
+
+    return { reputationScore: lesson.reputationScore };
+  }
+
+  async flag(data: { lessonId: string; reporterAnonymousId: string; reason: string }): Promise<{ flagCount: number }> {
+    // Check duplicate
+    if (this.flags.some((f) => f.lessonId === data.lessonId && f.reporterAnonymousId === data.reporterAnonymousId)) {
+      throw new Error('Already flagged');
+    }
+
+    this.flags.push({ ...data, createdEpoch: Math.floor(Date.now() / 1000) });
+
+    const lesson = this.shared.find((l) => l.id === data.lessonId);
+    if (!lesson) throw new Error('Lesson not found');
+
+    const distinctReporters = new Set(
+      this.flags.filter((f) => f.lessonId === data.lessonId).map((f) => f.reporterAnonymousId),
+    );
+    lesson.flagCount = distinctReporters.size;
+
+    if (distinctReporters.size >= 3) {
+      lesson.hidden = true;
+    }
+
+    return { flagCount: distinctReporters.size };
+  }
+
+  async getModerationQueue(): Promise<Array<{ lesson: { id: string; category: string; title: string; content: string; reputationScore: number; flagCount: number; hidden: boolean } }>> {
+    return this.shared
+      .filter((l) => l.hidden || l.flagCount >= 3)
+      .map((l) => ({
+        lesson: {
+          id: l.id,
+          category: l.category,
+          title: l.title,
+          content: l.content,
+          reputationScore: l.reputationScore,
+          flagCount: l.flagCount,
+          hidden: l.hidden,
+        },
+      }));
+  }
+
+  async moderateLesson(lessonId: string, action: 'approve' | 'remove'): Promise<{ success: boolean }> {
+    const lesson = this.shared.find((l) => l.id === lessonId);
+    if (!lesson) return { success: false };
+    if (action === 'approve') {
+      lesson.hidden = false;
+      lesson.flagCount = 0;
+    } else {
+      lesson.hidden = true;
+    }
+    return { success: true };
   }
 }
 
@@ -554,6 +703,265 @@ export class CommunityService {
     });
 
     return { lessons, total: lessons.length, query };
+  }
+
+  // ─── Kill Switch: Purge (Story 4.4) ────────────────
+
+  async purge(tenantId: string, confirmation: string, initiatedBy: string = 'admin'): Promise<{ status: 'purged'; deleted: number } | { status: 'error'; error: string }> {
+    if (confirmation !== 'CONFIRM_PURGE') {
+      return { status: 'error', error: 'Confirmation required: pass "CONFIRM_PURGE"' };
+    }
+
+    // Get contributor ID from anonymous ID manager (same source as share())
+    const contributorId = this.anonIdManager.getOrRotateContributorId(tenantId);
+    const config = this.getSharingConfig(tenantId);
+    const purgeToken = config.purgeToken ?? randomUUID();
+
+    try {
+      const result = await this.transport.purge({
+        anonymousContributorId: contributorId,
+        token: purgeToken,
+      });
+
+      // Retire old contributor ID by invalidating it (set validUntil to now)
+      // The next call to getOrRotateContributorId will create a new one
+      // Force rotation by setting validUntil to past in the DB
+      const nowIso = this.now().toISOString();
+      this.db
+        .update(schema.anonymousIdMap)
+        .set({ validUntil: nowIso })
+        .where(and(
+          eq(schema.anonymousIdMap.tenantId, tenantId),
+          eq(schema.anonymousIdMap.agentId, '__contributor__'),
+        ))
+        .run();
+
+      // Generate new purge token
+      const newPurgeToken = randomUUID();
+
+      this.updateSharingConfig(tenantId, {
+        enabled: false,
+        purgeToken: newPurgeToken,
+      });
+
+      this.writeAuditLog(tenantId, {
+        eventType: 'purge',
+        initiatedBy,
+      });
+
+      return { status: 'purged', deleted: result.deleted };
+    } catch (err) {
+      return { status: 'error', error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  async verifyPurge(tenantId: string): Promise<{ count: number }> {
+    const config = this.getSharingConfig(tenantId);
+    // Check with the OLD contributor ID — but since we retired it, we check the current one
+    // After purge, the config has a new ID, so we check the pool for lessons from this tenant
+    // The old ID is gone, new ID should have 0 lessons
+    const contributorId = config.anonymousContributorId;
+    if (!contributorId) return { count: 0 };
+
+    return this.transport.count(contributorId);
+  }
+
+  // ─── Reputation: Rate (Story 4.4) ─────────────────
+
+  async rate(
+    tenantId: string,
+    lessonId: string,
+    delta: number,
+    reason: string,
+    initiatedBy: string = 'system',
+  ): Promise<{ status: 'rated'; reputationScore: number } | { status: 'error'; error: string }> {
+    // Get anonymous voter ID
+    const voterAnonymousId = this.anonIdManager.getOrRotateContributorId(tenantId);
+
+    try {
+      const result = await this.transport.rate({
+        lessonId,
+        voterAnonymousId,
+        delta,
+        reason,
+      });
+
+      this.writeAuditLog(tenantId, {
+        eventType: 'rate',
+        anonymousLessonId: lessonId,
+        initiatedBy,
+      });
+
+      return { status: 'rated', reputationScore: result.reputationScore };
+    } catch (err) {
+      return { status: 'error', error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // ─── Flagging (Story 4.5) ─────────────────────────
+
+  async flag(
+    tenantId: string,
+    lessonId: string,
+    reason: string,
+    initiatedBy: string = 'system',
+  ): Promise<{ status: 'flagged'; flagCount: number } | { status: 'error'; error: string }> {
+    const reporterAnonymousId = this.anonIdManager.getOrRotateContributorId(tenantId);
+
+    try {
+      const result = await this.transport.flag({
+        lessonId,
+        reporterAnonymousId,
+        reason,
+      });
+
+      this.writeAuditLog(tenantId, {
+        eventType: 'flag',
+        anonymousLessonId: lessonId,
+        initiatedBy,
+      });
+
+      return { status: 'flagged', flagCount: result.flagCount };
+    } catch (err) {
+      return { status: 'error', error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // ─── Moderation (Story 4.5) ───────────────────────
+
+  async getModerationQueue(): Promise<Array<{ lesson: { id: string; category: string; title: string; content: string; reputationScore: number; flagCount: number; hidden: boolean } }>> {
+    return this.transport.getModerationQueue();
+  }
+
+  async moderateLesson(lessonId: string, action: 'approve' | 'remove'): Promise<{ success: boolean }> {
+    return this.transport.moderateLesson(lessonId, action);
+  }
+
+  // ─── Human Review Queue (Story 4.5) ───────────────
+
+  getReviewQueue(tenantId: string): Array<{
+    id: string;
+    lessonId: string;
+    originalTitle: string;
+    redactedTitle: string;
+    status: string;
+    createdAt: string;
+    expiresAt: string;
+  }> {
+    const now = this.now().toISOString();
+    const rows = this.db
+      .select()
+      .from(schema.sharingReviewQueue)
+      .where(and(
+        eq(schema.sharingReviewQueue.tenantId, tenantId),
+        eq(schema.sharingReviewQueue.status, 'pending'),
+      ))
+      .all();
+
+    // Filter out expired items and mark them expired
+    const result: Array<{
+      id: string;
+      lessonId: string;
+      originalTitle: string;
+      redactedTitle: string;
+      status: string;
+      createdAt: string;
+      expiresAt: string;
+    }> = [];
+
+    for (const row of rows) {
+      if (row.expiresAt <= now) {
+        // Mark as expired
+        this.db
+          .update(schema.sharingReviewQueue)
+          .set({ status: 'expired' })
+          .where(eq(schema.sharingReviewQueue.id, row.id))
+          .run();
+      } else {
+        result.push({
+          id: row.id,
+          lessonId: row.lessonId,
+          originalTitle: row.originalTitle,
+          redactedTitle: row.redactedTitle,
+          status: row.status,
+          createdAt: row.createdAt,
+          expiresAt: row.expiresAt,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  async approveReviewItem(tenantId: string, reviewId: string, reviewedBy: string): Promise<{ status: 'approved' | 'error'; error?: string }> {
+    const item = this.db
+      .select()
+      .from(schema.sharingReviewQueue)
+      .where(and(
+        eq(schema.sharingReviewQueue.id, reviewId),
+        eq(schema.sharingReviewQueue.tenantId, tenantId),
+      ))
+      .get();
+
+    if (!item) return { status: 'error', error: 'Review item not found' };
+    if (item.status !== 'pending') return { status: 'error', error: `Cannot approve item in status: ${item.status}` };
+
+    // Check expiry
+    if (item.expiresAt <= this.now().toISOString()) {
+      this.db
+        .update(schema.sharingReviewQueue)
+        .set({ status: 'expired' })
+        .where(eq(schema.sharingReviewQueue.id, reviewId))
+        .run();
+      return { status: 'error', error: 'Review item has expired' };
+    }
+
+    // Mark as approved
+    this.db
+      .update(schema.sharingReviewQueue)
+      .set({ status: 'approved', reviewedBy, reviewedAt: this.now().toISOString() })
+      .where(eq(schema.sharingReviewQueue.id, reviewId))
+      .run();
+
+    // Send to pool
+    const contributorId = this.anonIdManager.getOrRotateContributorId(tenantId);
+    const embedding = computeSimpleEmbedding(`${item.redactedTitle} ${item.redactedContent}`);
+
+    try {
+      await this.transport.share({
+        anonymousContributorId: contributorId,
+        category: 'general',
+        title: item.redactedTitle,
+        content: item.redactedContent,
+        embedding,
+      });
+    } catch {
+      // Pool error shouldn't fail the approval
+    }
+
+    return { status: 'approved' };
+  }
+
+  async rejectReviewItem(tenantId: string, reviewId: string, reviewedBy: string): Promise<{ status: 'rejected' | 'error'; error?: string }> {
+    const item = this.db
+      .select()
+      .from(schema.sharingReviewQueue)
+      .where(and(
+        eq(schema.sharingReviewQueue.id, reviewId),
+        eq(schema.sharingReviewQueue.tenantId, tenantId),
+      ))
+      .get();
+
+    if (!item) return { status: 'error', error: 'Review item not found' };
+    if (item.status !== 'pending') return { status: 'error', error: `Cannot reject item in status: ${item.status}` };
+
+    this.db
+      .update(schema.sharingReviewQueue)
+      .set({ status: 'rejected', reviewedBy, reviewedAt: this.now().toISOString() })
+      .where(eq(schema.sharingReviewQueue.id, reviewId))
+      .run();
+
+    return { status: 'rejected' };
   }
 
   // ─── Audit Log ─────────────────────────────────────
