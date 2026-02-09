@@ -45,7 +45,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@agentlensai/core": "^0.8.0",
+    "@agentlensai/core": "workspace:*",
     "drizzle-orm": "^0.44.2",
     "better-sqlite3": "^11.9.1",
     "hono": "^4.7.10",

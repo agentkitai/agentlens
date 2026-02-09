@@ -38,6 +38,8 @@ import { benchmarkRoutes } from './routes/benchmarks.js';
 import { guardrailRoutes } from './routes/guardrails.js';
 import { capabilityRoutes } from './routes/capabilities.js';
 import { discoveryRoutes } from './routes/discovery.js';
+import { delegationRoutes } from './routes/delegation.js';
+import { LocalPoolTransport } from './services/delegation-service.js';
 import { redactionTestRoutes } from './routes/redaction-test.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
@@ -275,6 +277,9 @@ export function createApp(
     const { app: discApp } = discoveryRoutes(db);
     app.route('/api/agents', discApp);
     app.route('/api/agents', capabilityRoutes(store, db));
+    const poolTransport = new LocalPoolTransport();
+    const { app: delApp } = delegationRoutes(db, poolTransport);
+    app.route('/api/agents', delApp);
   }
   app.route('/api/agents', agentsRoutes(store));
   app.route('/api/stats', statsRoutes(store));
