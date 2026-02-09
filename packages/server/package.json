@@ -1,6 +1,6 @@
 {
   "name": "@agentlensai/server",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "AgentLens API server — event ingestion, querying, dashboard, and alerting for AI agents",
   "type": "module",
   "license": "MIT",
@@ -45,7 +45,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@agentlensai/core": "^0.7.0",
+    "@agentlensai/core": "^0.8.0",
     "drizzle-orm": "^0.44.2",
     "better-sqlite3": "^11.9.1",
     "hono": "^4.7.10",
