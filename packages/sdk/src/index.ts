@@ -15,6 +15,11 @@ export type {
   LlmAnalyticsSummary,
   LlmAnalyticsByModel,
   LlmAnalyticsByTime,
+  GuardrailRuleListResult,
+  GuardrailStatusResult,
+  GuardrailTriggerHistoryResult,
+  CreateGuardrailRuleParams,
+  UpdateGuardrailRuleParams,
 } from './client.js';
 
 // Errors
@@ -61,4 +66,10 @@ export type {
   HealthTrend,
   OptimizationResult,
   CostRecommendation,
+  GuardrailRule,
+  GuardrailConditionType,
+  GuardrailActionType,
+  GuardrailState,
+  GuardrailTriggerHistory,
+  GuardrailConditionResult,
 } from '@agentlensai/core';

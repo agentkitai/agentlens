@@ -517,3 +517,91 @@ class OptimizationResult(_BaseModel):
     total_potential_savings: float
     period: int
     analyzed_calls: int
+
+
+# ─── Guardrail Models (v0.8.0 — Phase 3) ───────────────────────────
+
+GuardrailConditionType = Literal[
+    "error_rate_threshold",
+    "cost_limit",
+    "health_score_threshold",
+    "custom_metric",
+]
+
+GuardrailActionType = Literal[
+    "pause_agent",
+    "notify_webhook",
+    "downgrade_model",
+    "agentgate_policy",
+]
+
+
+class GuardrailRule(_BaseModel):
+    """A guardrail rule — configurable condition + action with cooldown."""
+
+    id: str
+    tenant_id: str
+    name: str
+    description: str | None = None
+    enabled: bool
+    condition_type: GuardrailConditionType
+    condition_config: dict[str, Any]
+    action_type: GuardrailActionType
+    action_config: dict[str, Any]
+    agent_id: str | None = None
+    cooldown_minutes: int
+    dry_run: bool
+    created_at: str
+    updated_at: str
+
+
+class GuardrailRuleListResult(_BaseModel):
+    """Result of listing guardrail rules."""
+
+    rules: list[GuardrailRule]
+
+
+class GuardrailState(_BaseModel):
+    """Runtime state for a guardrail rule."""
+
+    rule_id: str
+    tenant_id: str
+    last_triggered_at: str | None = None
+    trigger_count: int
+    last_evaluated_at: str | None = None
+    current_value: float | None = None
+
+
+class GuardrailTrigger(_BaseModel):
+    """Record of a guardrail trigger event."""
+
+    id: str
+    rule_id: str
+    tenant_id: str
+    triggered_at: str
+    condition_value: float
+    condition_threshold: float
+    action_executed: bool
+    action_result: str | None = None
+    metadata: dict[str, Any]
+
+
+class GuardrailTriggerHistoryResult(_BaseModel):
+    """Result of listing guardrail trigger history."""
+
+    triggers: list[GuardrailTrigger]
+    total: int
+
+
+class GuardrailStatusResult(_BaseModel):
+    """Result of getting guardrail rule status."""
+
+    rule: GuardrailRule
+    state: GuardrailState | None = None
+    recent_triggers: list[GuardrailTrigger]
+
+
+class GuardrailDeleteResult(_BaseModel):
+    """Result of deleting a guardrail rule."""
+
+    ok: bool

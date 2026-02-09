@@ -13,6 +13,8 @@ Usage:
         agent_id="my-agent",
         session_id="ses_abc",
     )
+
+CRITICAL: All methods are FAIL-SAFE — never break user LangChain code.
 """
 
 from __future__ import annotations
@@ -27,6 +29,63 @@ from langchain_core.outputs import LLMResult
 
 logger = logging.getLogger("agentlensai")
 
+# ─── LangGraph Detection Helpers ──────────────────────────────
+
+_LANGGRAPH_CHAIN_MARKERS = frozenset({
+    "RunnableSequence",
+    "ChannelWrite",
+    "ChannelRead",
+    "PregelNode",
+    "CompiledGraph",
+    "StateGraph",
+})
+
+
+def _is_langgraph_node(serialized: dict[str, Any], tags: list[str] | None = None) -> bool:
+    """Detect whether a chain invocation is part of a LangGraph graph node."""
+    try:
+        ids = serialized.get("id", [])
+        for part in ids:
+            if isinstance(part, str) and ("langgraph" in part.lower() or part in _LANGGRAPH_CHAIN_MARKERS):
+                return True
+        name = serialized.get("name", "")
+        if isinstance(name, str) and "langgraph" in name.lower():
+            return True
+        for tag in (tags or []):
+            if "graph:" in tag or "langgraph" in tag.lower():
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _extract_chain_name(serialized: dict[str, Any]) -> str:
+    """Extract a human-readable chain name from serialized metadata."""
+    try:
+        name = serialized.get("name")
+        if name:
+            return str(name)
+        ids = serialized.get("id", [])
+        if ids:
+            return str(ids[-1])
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _extract_graph_name(serialized: dict[str, Any], tags: list[str] | None = None) -> str | None:
+    """Try to extract the graph name from LangGraph metadata."""
+    try:
+        name = serialized.get("graph", {}).get("name") if isinstance(serialized.get("graph"), dict) else None
+        if name:
+            return str(name)
+        for tag in (tags or []):
+            if tag.startswith("graph:"):
+                return tag[6:]
+    except Exception:
+        pass
+    return None
+
 
 class AgentLensCallbackHandler(BaseCallbackHandler):
     """LangChain callback handler that sends events to AgentLens.
@@ -34,6 +93,14 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
     Works in two modes:
     1. With agentlensai.init() — uses global state automatically
     2. Standalone — pass client, agent_id, session_id to constructor
+
+    Enhanced in v0.8.0:
+    - Chain start/end/error callbacks with chain_type, chain_name, run_id, duration_ms
+    - Agent action/finish callbacks
+    - Retriever start/end callbacks
+    - LangGraph detection (is_graph_node flag)
+    - agentId auto-set from chain/graph name
+    - Framework metadata (metadata.framework = "langchain", metadata.framework_component)
     """
 
     def __init__(
@@ -48,22 +115,50 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         self._agent_id = agent_id
         self._session_id = session_id or str(uuid.uuid4())
         self._redact = redact
-        # Track active LLM calls for latency measurement
+        # Track active runs for latency measurement
         self._run_timers: dict[str, float] = {}  # run_id -> start_time
         self._run_prompts: dict[str, list[list[str]]] = {}  # run_id -> prompts
         self._run_models: dict[str, str] = {}  # run_id -> model name
+        self._run_chain_names: dict[str, str] = {}  # run_id -> chain name
 
     def _get_client_and_config(self) -> tuple[Any, str, str, bool] | None:
         """Get client, agent_id, session_id, redact — from constructor or global state."""
         if self._client is not None:
             return (self._client, self._agent_id or "default", self._session_id, self._redact)
 
-        from agentlensai._state import get_state
+        try:
+            from agentlensai._state import get_state
 
-        state = get_state()
-        if state is None:
+            state = get_state()
+            if state is None:
+                return None
+            return (state.client, state.agent_id, state.session_id, state.redact or self._redact)
+        except Exception:
             return None
-        return (state.client, state.agent_id, state.session_id, state.redact or self._redact)
+
+    def _resolve_agent_id(self, config: tuple[Any, str, str, bool], chain_name: str | None = None, graph_name: str | None = None) -> str:
+        """Resolve agentId: explicit > graph name > chain name > configured."""
+        _client, agent_id, _session_id, _redact = config
+        # If user explicitly set an agent_id, respect it
+        if self._agent_id:
+            return self._agent_id
+        # Auto-set from graph name or chain name
+        if graph_name:
+            return graph_name
+        if chain_name and chain_name != "unknown":
+            return chain_name
+        return agent_id
+
+    def _framework_metadata(self, component: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Build standard framework metadata."""
+        meta: dict[str, Any] = {
+            "source": "langchain",
+            "framework": "langchain",
+            "framework_component": component,
+        }
+        if extra:
+            meta.update(extra)
+        return meta
 
     # ─── LLM Callbacks ─────────────────────────────────
 
@@ -235,7 +330,7 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                     "callId": call_id,
                     "arguments": {"input": input_str},
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("tool"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -272,7 +367,7 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                     "result": output[:1000],  # Truncate long outputs
                     "durationMs": round(duration_ms, 2),
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("tool"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -309,7 +404,7 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                     "error": str(error)[:500],
                     "durationMs": round(duration_ms, 2),
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("tool"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -329,17 +424,28 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        """Called when a chain starts running."""
+        """Called when a chain starts running.
+
+        Emits a custom ``chain_start`` event with chain_type, chain_name,
+        run_id, LangGraph detection, and framework metadata.
+        """
         try:
             config = self._get_client_and_config()
             if config is None:
                 return
 
-            client, agent_id, session_id, _redact = config
+            client, _agent_id, session_id, _redact = config
             rid = str(run_id)
             self._run_timers[rid] = time.perf_counter()
 
-            chain_type = serialized.get("id", ["unknown"])[-1] if serialized.get("id") else serialized.get("name", "unknown")
+            chain_name = _extract_chain_name(serialized)
+            self._run_chain_names[rid] = chain_name
+
+            chain_type = serialized.get("id", ["unknown"])[-1] if serialized.get("id") else chain_name
+            is_graph_node = _is_langgraph_node(serialized, tags)
+            graph_name = _extract_graph_name(serialized, tags) if is_graph_node else None
+
+            agent_id = self._resolve_agent_id(config, chain_name, graph_name)
 
             event = {
                 "sessionId": session_id,
@@ -350,13 +456,15 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                     "type": "chain_start",
                     "data": {
                         "chain_type": str(chain_type),
+                        "chain_name": chain_name,
                         "run_id": rid,
                         "parent_run_id": str(parent_run_id) if parent_run_id else None,
                         "input_keys": list(inputs.keys()) if isinstance(inputs, dict) else [],
                         "tags": tags or [],
+                        "is_graph_node": is_graph_node,
                     },
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("chain", {"graph_name": graph_name} if graph_name else None),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -371,16 +479,22 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         parent_run_id: uuid.UUID | None = None,
         **kwargs: Any,
     ) -> None:
-        """Called when a chain finishes."""
+        """Called when a chain finishes.
+
+        Emits a custom ``chain_end`` event with run_id, duration_ms,
+        chain_name, and framework metadata.
+        """
         try:
             config = self._get_client_and_config()
             if config is None:
                 return
 
-            client, agent_id, session_id, _redact = config
+            client, _agent_id, session_id, _redact = config
             rid = str(run_id)
             start = self._run_timers.pop(rid, None)
             duration_ms = (time.perf_counter() - start) * 1000 if start else 0.0
+            chain_name = self._run_chain_names.pop(rid, "unknown")
+            agent_id = self._resolve_agent_id(config, chain_name)
 
             event = {
                 "sessionId": session_id,
@@ -390,12 +504,13 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                 "payload": {
                     "type": "chain_end",
                     "data": {
+                        "chain_name": chain_name,
                         "run_id": rid,
                         "duration_ms": round(duration_ms, 2),
                         "output_keys": list(outputs.keys()) if isinstance(outputs, dict) else [],
                     },
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("chain"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -410,16 +525,22 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         parent_run_id: uuid.UUID | None = None,
         **kwargs: Any,
     ) -> None:
-        """Called when a chain errors."""
+        """Called when a chain errors.
+
+        Emits a custom ``chain_error`` event with error message, duration_ms,
+        and framework metadata.
+        """
         try:
             config = self._get_client_and_config()
             if config is None:
                 return
 
-            client, agent_id, session_id, _redact = config
+            client, _agent_id, session_id, _redact = config
             rid = str(run_id)
             start = self._run_timers.pop(rid, None)
             duration_ms = (time.perf_counter() - start) * 1000 if start else 0.0
+            chain_name = self._run_chain_names.pop(rid, "unknown")
+            agent_id = self._resolve_agent_id(config, chain_name)
 
             event = {
                 "sessionId": session_id,
@@ -429,12 +550,14 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                 "payload": {
                     "type": "chain_error",
                     "data": {
+                        "chain_name": chain_name,
                         "run_id": rid,
                         "error": str(error)[:500],
+                        "error_type": type(error).__name__,
                         "duration_ms": round(duration_ms, 2),
                     },
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("chain"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -449,7 +572,11 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         parent_run_id: uuid.UUID | None = None,
         **kwargs: Any,
     ) -> None:
-        """Called when an agent takes an action."""
+        """Called when an agent takes an action.
+
+        Emits a custom ``agent_action`` event with tool, tool_input,
+        and optional log/reasoning.
+        """
         try:
             config = self._get_client_and_config()
             if config is None:
@@ -459,6 +586,7 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
 
             tool = getattr(action, "tool", "unknown")
             tool_input = str(getattr(action, "tool_input", ""))[:200]
+            log = str(getattr(action, "log", ""))[:500]
 
             event = {
                 "sessionId": session_id,
@@ -470,10 +598,11 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                     "data": {
                         "tool": str(tool),
                         "tool_input": tool_input,
+                        "reasoning": log,
                         "run_id": str(run_id),
                     },
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("agent"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -488,7 +617,10 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         parent_run_id: uuid.UUID | None = None,
         **kwargs: Any,
     ) -> None:
-        """Called when an agent finishes."""
+        """Called when an agent finishes.
+
+        Emits a custom ``agent_finish`` event with output and optional log/reasoning.
+        """
         try:
             config = self._get_client_and_config()
             if config is None:
@@ -497,6 +629,7 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
             client, agent_id, session_id, _redact = config
 
             output = str(getattr(finish, "return_values", ""))[:500]
+            log = str(getattr(finish, "log", ""))[:500]
 
             event = {
                 "sessionId": session_id,
@@ -507,10 +640,11 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                     "type": "agent_finish",
                     "data": {
                         "output": output,
+                        "reasoning": log,
                         "run_id": str(run_id),
                     },
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("agent"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -526,7 +660,10 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         parent_run_id: uuid.UUID | None = None,
         **kwargs: Any,
     ) -> None:
-        """Called when a retriever starts."""
+        """Called when a retriever starts.
+
+        Emits a custom ``retriever_start`` event with the query text.
+        """
         try:
             config = self._get_client_and_config()
             if config is None:
@@ -548,7 +685,7 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                         "run_id": rid,
                     },
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("retriever"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -563,7 +700,11 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         parent_run_id: uuid.UUID | None = None,
         **kwargs: Any,
     ) -> None:
-        """Called when a retriever finishes."""
+        """Called when a retriever finishes.
+
+        Emits a custom ``retriever_end`` event with document_count, sources,
+        and duration_ms.
+        """
         try:
             config = self._get_client_and_config()
             if config is None:
@@ -576,6 +717,16 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
 
             doc_count = len(documents) if documents else 0
 
+            # Extract sources from document metadata
+            sources: list[str] = []
+            try:
+                for doc in (documents or []):
+                    src = getattr(doc, "metadata", {}).get("source")
+                    if src and str(src) not in sources:
+                        sources.append(str(src))
+            except Exception:
+                pass
+
             event = {
                 "sessionId": session_id,
                 "agentId": agent_id,
@@ -586,10 +737,11 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                     "data": {
                         "run_id": rid,
                         "document_count": doc_count,
+                        "sources": sources[:20],  # Cap at 20 sources
                         "duration_ms": round(duration_ms, 2),
                     },
                 },
-                "metadata": {"source": "langchain"},
+                "metadata": self._framework_metadata("retriever"),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)

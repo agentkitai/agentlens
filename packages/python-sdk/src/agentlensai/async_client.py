@@ -28,6 +28,11 @@ from agentlensai.models import (
     DeleteLessonResult,
     EventQuery,
     EventQueryResult,
+    GuardrailDeleteResult,
+    GuardrailRule,
+    GuardrailRuleListResult,
+    GuardrailStatusResult,
+    GuardrailTriggerHistoryResult,
     HealthResult,
     HealthScore,
     Lesson,
@@ -283,3 +288,104 @@ class AsyncAgentLensClient:
             "GET", "/api/optimize/recommendations", params=params,
         )
         return OptimizationResult.model_validate(data)
+
+    # ─── Guardrails (v0.8.0 — Phase 3) ───────────────────────
+
+    async def list_guardrails(
+        self,
+        agent_id: str | None = None,
+    ) -> GuardrailRuleListResult:
+        """List all guardrail rules, optionally filtered by agent."""
+        params: dict[str, str] = {}
+        if agent_id is not None:
+            params["agentId"] = agent_id
+        data = await self._request("GET", "/api/guardrails", params=params or None)
+        return GuardrailRuleListResult.model_validate(data)
+
+    async def get_guardrail(self, rule_id: str) -> GuardrailRule:
+        """Get a single guardrail rule by ID."""
+        data = await self._request("GET", f"/api/guardrails/{rule_id}")
+        return GuardrailRule.model_validate(data)
+
+    async def create_guardrail(
+        self,
+        *,
+        name: str,
+        condition_type: str,
+        condition_config: dict[str, Any],
+        action_type: str,
+        action_config: dict[str, Any],
+        description: str | None = None,
+        agent_id: str | None = None,
+        enabled: bool = False,
+        dry_run: bool = True,
+        cooldown_minutes: int = 5,
+    ) -> GuardrailRule:
+        """Create a new guardrail rule."""
+        body: dict[str, Any] = {
+            "name": name,
+            "conditionType": condition_type,
+            "conditionConfig": condition_config,
+            "actionType": action_type,
+            "actionConfig": action_config,
+            "enabled": enabled,
+            "dryRun": dry_run,
+            "cooldownMinutes": cooldown_minutes,
+        }
+        if description is not None:
+            body["description"] = description
+        if agent_id is not None:
+            body["agentId"] = agent_id
+        data = await self._request("POST", "/api/guardrails", json=body)
+        return GuardrailRule.model_validate(data)
+
+    async def update_guardrail(self, rule_id: str, **kwargs: Any) -> GuardrailRule:
+        """Update a guardrail rule. Pass camelCase or snake_case kwargs."""
+        key_map = {
+            "name": "name",
+            "description": "description",
+            "condition_type": "conditionType",
+            "condition_config": "conditionConfig",
+            "action_type": "actionType",
+            "action_config": "actionConfig",
+            "agent_id": "agentId",
+            "enabled": "enabled",
+            "dry_run": "dryRun",
+            "cooldown_minutes": "cooldownMinutes",
+        }
+        body: dict[str, Any] = {}
+        for k, v in kwargs.items():
+            camel_key = key_map.get(k, k)
+            body[camel_key] = v
+        data = await self._request("PUT", f"/api/guardrails/{rule_id}", json=body)
+        return GuardrailRule.model_validate(data)
+
+    async def delete_guardrail(self, rule_id: str) -> GuardrailDeleteResult:
+        """Delete a guardrail rule."""
+        data = await self._request("DELETE", f"/api/guardrails/{rule_id}")
+        return GuardrailDeleteResult.model_validate(data)
+
+    async def enable_guardrail(self, rule_id: str) -> GuardrailRule:
+        """Enable a guardrail rule."""
+        return await self.update_guardrail(rule_id, enabled=True)
+
+    async def disable_guardrail(self, rule_id: str) -> GuardrailRule:
+        """Disable a guardrail rule."""
+        return await self.update_guardrail(rule_id, enabled=False)
+
+    async def get_guardrail_history(
+        self,
+        rule_id: str | None = None,
+        limit: int = 50,
+    ) -> GuardrailTriggerHistoryResult:
+        """Get trigger history for guardrail rules."""
+        params: dict[str, str] = {"limit": str(limit)}
+        if rule_id is not None:
+            params["ruleId"] = rule_id
+        data = await self._request("GET", "/api/guardrails/history", params=params)
+        return GuardrailTriggerHistoryResult.model_validate(data)
+
+    async def get_guardrail_status(self, rule_id: str) -> GuardrailStatusResult:
+        """Get status + recent triggers for a guardrail rule."""
+        data = await self._request("GET", f"/api/guardrails/{rule_id}/status")
+        return GuardrailStatusResult.model_validate(data)

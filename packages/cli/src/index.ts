@@ -8,6 +8,7 @@
 import { runConfigCommand } from './commands/config.js';
 import { runContextCommand } from './commands/context.js';
 import { runEventsCommand } from './commands/events.js';
+import { runGuardrailsCommand } from './commands/guardrails.js';
 import { runHealthCommand } from './commands/health.js';
 import { runLessonsCommand } from './commands/lessons.js';
 import { runLlmCommand } from './commands/llm.js';
@@ -25,6 +26,7 @@ Commands:
   config              Get or set configuration (url, api-key)
   context             Retrieve cross-session context for a topic
   events              Query events
+  guardrails          Manage guardrail rules (list, get, create, enable, disable, history, delete)
   health              Agent health scores and trends
   lessons             Manage agent lessons (list, create, get, update, delete, search)
   llm                 LLM call tracking (stats, models, recent)
@@ -58,6 +60,10 @@ async function main(): Promise<void> {
 
     case 'events':
       await runEventsCommand(rest);
+      break;
+
+    case 'guardrails':
+      await runGuardrailsCommand(rest);
       break;
 
     case 'health':
