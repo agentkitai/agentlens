@@ -214,4 +214,57 @@ export async function getUsage(orgId: string, range: UsageTimeRange = '30d'): Pr
   return request<UsageBreakdown>(`/api/cloud/orgs/${orgId}/usage?range=${range}`);
 }
 
+// ─── DLQ Types (S-3.6) ──────────────────────────────────────────
+
+export interface DlqEntry {
+  streamId: string;
+  event: {
+    id: string;
+    type: string;
+    timestamp: string;
+    session_id: string;
+    org_id: string;
+    data: Record<string, unknown>;
+  };
+  dlqReason: string;
+  originalStreamId: string;
+  dlqTimestamp: string;
+}
+
+export interface DlqHealth {
+  dlqDepth: number;
+  dlqHealthy: boolean;
+  dlqWarning?: string;
+}
+
+export interface DlqReplayResult {
+  replayed: number;
+  failed: number;
+  errors: string[];
+}
+
+// ─── DLQ Endpoints (S-3.6) ──────────────────────────────────────
+
+export async function getDlqHealth(orgId: string): Promise<DlqHealth> {
+  return request<DlqHealth>(`/api/cloud/orgs/${orgId}/dlq/health`);
+}
+
+export async function listDlqEntries(orgId: string, limit = 50): Promise<DlqEntry[]> {
+  return request<DlqEntry[]>(`/api/cloud/orgs/${orgId}/dlq?limit=${limit}`);
+}
+
+export async function replayDlqEntry(orgId: string, streamId: string): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`/api/cloud/orgs/${orgId}/dlq/replay`, {
+    method: 'POST',
+    body: JSON.stringify({ streamId }),
+  });
+}
+
+export async function replayDlqBatch(orgId: string, streamIds: string[]): Promise<DlqReplayResult> {
+  return request<DlqReplayResult>(`/api/cloud/orgs/${orgId}/dlq/replay/batch`, {
+    method: 'POST',
+    body: JSON.stringify({ streamIds }),
+  });
+}
+
 export { ApiError };

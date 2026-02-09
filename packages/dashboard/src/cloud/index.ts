@@ -7,4 +7,5 @@ export { OrgSwitcher } from './OrgSwitcher';
 export { TeamManagement } from './TeamManagement';
 export { ApiKeyManagement } from './ApiKeyManagement';
 export { UsageDashboard } from './UsageDashboard';
+export { DlqDashboard } from './DlqDashboard';
 export * from './api';

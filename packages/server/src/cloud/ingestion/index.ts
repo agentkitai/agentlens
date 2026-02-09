@@ -46,3 +46,22 @@ export {
   type RateLimitConfig,
   type RateLimitRedisClient,
 } from './rate-limiter.js';
+
+export {
+  BackpressureMonitor,
+  generateCloudWatchAlarmConfig,
+  generateAutoScalingPolicy,
+  type BackpressureStatus,
+  type BackpressureConfig,
+  type CloudWatchAlarmConfig,
+  type AutoScalingPolicy,
+} from './backpressure.js';
+
+export {
+  DlqManager,
+  InMemoryDlqManager,
+  type DlqEntry,
+  type DlqStats,
+  type DlqHealthInfo,
+  type DlqRedisClient,
+} from './dlq-manager.js';
