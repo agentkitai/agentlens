@@ -20,6 +20,8 @@ import { Benchmarks } from './pages/Benchmarks';
 import { BenchmarkNew } from './pages/BenchmarkNew';
 import { BenchmarkDetail } from './pages/BenchmarkDetail';
 import Guardrails from './pages/Guardrails';
+import GuardrailList from './pages/GuardrailList';
+import GuardrailForm from './pages/GuardrailForm';
 
 export function App(): React.ReactElement {
   return (
@@ -42,7 +44,9 @@ export function App(): React.ReactElement {
         <Route path="search" element={<Search />} />
         <Route path="insights" element={<Insights />} />
         <Route path="alerts" element={<Alerts />} />
-        <Route path="guardrails" element={<Guardrails />} />
+        <Route path="guardrails" element={<GuardrailList />} />
+        <Route path="guardrails/new" element={<GuardrailForm />} />
+        <Route path="guardrails/:id/edit" element={<GuardrailForm />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
