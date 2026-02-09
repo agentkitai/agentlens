@@ -93,16 +93,16 @@ class TestLangChainIntegration:
         assert len(events) >= 1
         assert_event_schema(events[0])
 
-    def test_llm_start_sends_event(self):
+    def test_llm_start_stores_state(self):
         handler, client = self._make_handler()
+        rid = uuid.uuid4()
         handler.on_llm_start(
             {"name": "ChatOpenAI"},
-            ["Hello"],
-            run_id=uuid.uuid4(),
+            prompts=["Hello"],
+            run_id=rid,
         )
-        events = get_sent_events(client)
-        assert len(events) >= 1
-        assert_event_schema(events[0])
+        # on_llm_start stores state but doesn't send events (sent on on_llm_end)
+        assert str(rid) in handler._run_timers
 
     def test_framework_metadata_is_langchain(self):
         handler, client = self._make_handler()
@@ -142,8 +142,8 @@ class TestCrewAIIntegration:
         handler, client = self._make_handler()
         handler._send_tool_call(
             tool_name="web_search",
-            tool_input={"query": "agentlens"},
-            extra_metadata={"crew_task": "research"},
+            call_id="call-1",
+            arguments={"query": "agentlens"},
         )
         events = get_sent_events(client)
         assert len(events) >= 1
@@ -154,7 +154,9 @@ class TestCrewAIIntegration:
         handler, client = self._make_handler()
         handler._send_tool_response(
             tool_name="web_search",
-            tool_output="results...",
+            call_id="call-1",
+            result="results...",
+            duration_ms=100.0,
         )
         events = get_sent_events(client)
         assert len(events) >= 1
@@ -190,7 +192,7 @@ class TestAutoGenIntegration:
 
     def test_send_tool_call(self):
         handler, client = self._make_handler()
-        handler._send_tool_call(tool_name="code_exec", tool_input={"code": "print(1)"})
+        handler._send_tool_call(tool_name="code_exec", call_id="call-1", arguments={"code": "print(1)"})
         events = get_sent_events(client)
         assert len(events) >= 1
         assert events[0]["eventType"] == "tool_call"
@@ -228,7 +230,9 @@ class TestSemanticKernelIntegration:
         handler, client = self._make_handler()
         handler._send_tool_error(
             tool_name="plugin_func",
+            call_id="call-1",
             error="timeout",
+            duration_ms=50.0,
         )
         events = get_sent_events(client)
         assert len(events) >= 1
@@ -243,18 +247,18 @@ class TestAutoDetection:
     """Tests for auto-detection: correct plugin activates based on framework_name."""
 
     def test_each_plugin_has_unique_framework_name(self):
-        from agentlensai.integrations.langchain import AgentLensCallbackHandler
         from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.autogen import AgentLensAutoGenHandler
         from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
 
         client = make_mock_client()
         names = set()
-        for cls in [AgentLensCallbackHandler, AgentLensCrewAIHandler, AgentLensAutoGenHandler, AgentLensSKHandler]:
+        for cls in [AgentLensCrewAIHandler, AgentLensAutoGenHandler, AgentLensSKHandler]:
             handler = cls(client=client, agent_id="a", session_id="s")
             names.add(handler.framework_name)
 
-        assert len(names) == 4, f"Expected 4 unique framework names, got {names}"
+        # LangChain uses BaseCallbackHandler (not BaseFrameworkPlugin), so 3 unique names
+        assert len(names) == 3, f"Expected 3 unique framework names, got {names}"
 
     def test_all_plugins_inherit_from_base(self):
         from agentlensai.integrations.langchain import AgentLensCallbackHandler
@@ -296,7 +300,7 @@ class TestAutoDetection:
             handler = cls(client=client, agent_id="err-agent", session_id="err-ses")
             # Should not raise
             handler._send_custom_event("test_event", {"key": "value"})
-            handler._send_tool_call(tool_name="broken_tool", tool_input={"x": 1})
+            handler._send_tool_call(tool_name="broken_tool", call_id="c1", arguments={"x": 1})
 
     def test_plugins_with_no_client_do_not_raise(self):
         """When no client is configured, plugins should silently no-op."""
@@ -308,4 +312,4 @@ class TestAutoDetection:
             handler = cls()  # No client, no init
             # Should not raise
             handler._send_custom_event("test", {"key": "val"})
-            handler._send_tool_call(tool_name="t", tool_input={})
+            handler._send_tool_call(tool_name="t", call_id="c1", arguments={})
