@@ -14,6 +14,23 @@
 
 ---
 
+## 🐳 Quick Start (Docker)
+
+```bash
+git clone https://github.com/amitpaz1/agentlens
+cd agentlens
+cp .env.example .env
+docker compose up
+# Open http://localhost:3000
+```
+
+For production (auth enabled, Stripe, TLS):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+```
+
+---
+
 <p align="center">
   <img src="demo/agentlens-demo.gif" alt="AgentLens Demo" width="720">
 </p>

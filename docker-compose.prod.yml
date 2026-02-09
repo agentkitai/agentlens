@@ -1,0 +1,23 @@
+# Production override — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+#
+# TLS/HTTPS: Put a reverse proxy (nginx, Caddy, Traefik) in front of the
+# agentlens service. Caddy example:
+#   caddy reverse-proxy --from yourdomain.com --to localhost:3000
+
+version: "3.9"
+
+services:
+  agentlens:
+    environment:
+      AUTH_DISABLED: "false"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    restart: unless-stopped
+
+  postgres:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
