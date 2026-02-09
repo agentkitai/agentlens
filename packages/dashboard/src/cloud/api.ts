@@ -267,4 +267,148 @@ export async function replayDlqBatch(orgId: string, streamIds: string[]): Promis
   });
 }
 
+// ─── Billing Types (S-7.5) ──────────────────────────────────────
+
+export interface TrialStatus {
+  is_trial: boolean;
+  trial_started_at: string | null;
+  trial_ends_at: string | null;
+  days_remaining: number;
+  expired: boolean;
+}
+
+export interface BillingOverview {
+  plan: string;
+  plan_name: string;
+  base_price_cents: number;
+  event_quota: number;
+  current_usage: number;
+  has_payment_method: boolean;
+  stripe_subscription_id: string | null;
+  trial: TrialStatus;
+  pending_downgrade: string | null;
+  payment_status: string;
+}
+
+export interface InvoiceRecord {
+  id: string;
+  org_id: string;
+  stripe_invoice_id: string;
+  period_start: string;
+  period_end: string;
+  base_amount_cents: number;
+  overage_amount_cents: number;
+  total_amount_cents: number;
+  status: 'draft' | 'open' | 'paid' | 'void' | 'uncollectible';
+  billing_interval: 'monthly' | 'annual';
+  line_items: Array<{ description: string; amount_cents: number; quantity: number }>;
+  created_at: string;
+}
+
+// ─── Billing Endpoints (S-7.5) ──────────────────────────────────
+
+export async function getBillingOverview(orgId: string): Promise<BillingOverview> {
+  return request<BillingOverview>(`/api/cloud/orgs/${orgId}/billing`);
+}
+
+export async function getBillingInvoices(orgId: string): Promise<InvoiceRecord[]> {
+  return request<InvoiceRecord[]>(`/api/cloud/orgs/${orgId}/billing/invoices`);
+}
+
+export async function upgradePlan(orgId: string, plan: string): Promise<{ ok: boolean; plan: string }> {
+  return request<{ ok: boolean; plan: string }>(`/api/cloud/orgs/${orgId}/billing/upgrade`, {
+    method: 'POST',
+    body: JSON.stringify({ plan }),
+  });
+}
+
+export async function downgradePlan(orgId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/cloud/orgs/${orgId}/billing/downgrade`, {
+    method: 'POST',
+  });
+}
+
+export async function createPortalSession(orgId: string): Promise<{ url: string }> {
+  return request<{ url: string }>(`/api/cloud/orgs/${orgId}/billing/portal`, {
+    method: 'POST',
+  });
+}
+
+// ─── Audit Log Types (S-7.6) ────────────────────────────────────
+
+export interface AuditEntry {
+  id: string;
+  org_id: string;
+  actor_type: string;
+  actor_id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  result: string;
+  created_at: string;
+}
+
+export interface AuditLogResponse {
+  entries: AuditEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AuditLogFilters {
+  action?: string;
+  actor?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// ─── Audit Log Endpoints (S-7.6) ────────────────────────────────
+
+export async function queryAuditLog(orgId: string, filters: AuditLogFilters = {}): Promise<AuditLogResponse> {
+  const params = new URLSearchParams();
+  if (filters.action) params.set('action', filters.action);
+  if (filters.actor) params.set('actor', filters.actor);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  if (filters.limit) params.set('limit', String(filters.limit));
+  if (filters.offset) params.set('offset', String(filters.offset));
+  const qs = params.toString();
+  return request<AuditLogResponse>(`/api/cloud/orgs/${orgId}/audit-log${qs ? `?${qs}` : ''}`);
+}
+
+export async function exportAuditLog(orgId: string, from?: string, to?: string): Promise<AuditEntry[]> {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const qs = params.toString();
+  return request<AuditEntry[]>(`/api/cloud/orgs/${orgId}/audit-log/export${qs ? `?${qs}` : ''}`);
+}
+
+// ─── Onboarding Types (S-7.7) ───────────────────────────────────
+
+export interface OnboardingStatus {
+  has_org: boolean;
+  has_api_key: boolean;
+  has_first_event: boolean;
+  org_id: string | null;
+  api_key_prefix: string | null;
+}
+
+// ─── Onboarding Endpoints (S-7.7) ───────────────────────────────
+
+export async function getOnboardingStatus(): Promise<OnboardingStatus> {
+  return request<OnboardingStatus>('/api/cloud/onboarding/status');
+}
+
+export async function verifyFirstEvent(orgId: string): Promise<{ received: boolean; event_count: number }> {
+  return request<{ received: boolean; event_count: number }>(`/api/cloud/onboarding/verify`, {
+    method: 'POST',
+    body: JSON.stringify({ orgId }),
+  });
+}
+
 export { ApiError };
