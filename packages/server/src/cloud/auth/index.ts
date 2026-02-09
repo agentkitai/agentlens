@@ -4,6 +4,23 @@ export { hashPassword, verifyPassword, validatePasswordComplexity } from './pass
 export { generateToken, hashToken, verifyToken } from './tokens.js';
 export { BruteForceProtection } from './brute-force.js';
 export {
+  ApiKeyService,
+  ApiKeyError,
+  generateApiKey,
+  type ApiKeyRecord,
+  type CreateApiKeyInput,
+  type CreateApiKeyResult,
+  type ApiKeyEnvironment,
+} from './api-keys.js';
+export {
+  ApiKeyAuthMiddleware,
+  ApiKeyAuthError,
+  InMemoryApiKeyCache,
+  type ApiKeyAuthContext,
+  type ApiKeyCache,
+  type CacheEntry,
+} from './api-key-middleware.js';
+export {
   type OAuthConfig,
   type OAuthProviderConfig,
   type OAuthUserProfile,
