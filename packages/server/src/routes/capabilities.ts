@@ -46,7 +46,7 @@ export function capabilityRoutes(store: IEventStore, db: SqliteDb) {
     }
 
     try {
-      const capability = capStore.create(tenantId, agentId, body as Parameters<typeof capStore.create>[2]);
+      const capability = capStore.create(tenantId, agentId, body as unknown as Parameters<typeof capStore.create>[2]);
       const anonymousAgentId = anonIdManager.getOrRotateAnonymousId(tenantId, agentId);
       return c.json({ capability, anonymousAgentId }, 201);
     } catch (err) {
