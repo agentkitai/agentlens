@@ -93,7 +93,9 @@ function CircularGauge({ score, size = 80 }: { score: number; size?: number }): 
 // ─── Dimension Breakdown ────────────────────────────────────────────
 
 function DimensionBreakdown({ dimensions }: { dimensions: Record<string, number> }): React.ReactElement {
-  const entries = Object.entries(dimensions).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(dimensions)
+    .filter(([, v]) => typeof v === 'number' && !isNaN(v))
+    .sort((a, b) => b[1] - a[1]);
 
   if (entries.length === 0) {
     return <div className="text-sm text-gray-400 py-2">No dimension data available.</div>;

@@ -18,46 +18,52 @@ import { eventBus } from '../lib/event-bus.js';
 
 // ─── Protobuf Decoders (lazy-loaded) ────────────────────────────────
 
-let _protoRoot: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _protoRoot: Record<string, any> | null = null;
 
-async function getProtoRoot(): Promise<any> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getProtoRoot(): Promise<Record<string, any>> {
   if (_protoRoot) return _protoRoot;
-  const mod = await import('@opentelemetry/otlp-transformer/build/src/generated/root.js' as any);
-  _protoRoot = ((mod as any).default || mod).opentelemetry.proto;
-  return _protoRoot;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mod: any = await import('@opentelemetry/otlp-transformer/build/src/generated/root.js');
+  const root = mod.default ?? mod;
+  _protoRoot = root.opentelemetry.proto;
+  return _protoRoot!;
 }
 
-async function decodeProtobuf(type: 'traces' | 'metrics' | 'logs', buf: Uint8Array): Promise<any> {
+async function decodeProtobuf(type: 'traces' | 'metrics' | 'logs', buf: Uint8Array): Promise<unknown> {
   const root = await getProtoRoot();
-  const typeMap = {
-    traces: root.collector.trace.v1.ExportTraceServiceRequest,
-    metrics: root.collector.metrics.v1.ExportMetricsServiceRequest,
-    logs: root.collector.logs.v1.ExportLogsServiceRequest,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const typeMap: Record<string, any> = {
+    traces: root['collector'].trace.v1.ExportTraceServiceRequest,
+    metrics: root['collector'].metrics.v1.ExportMetricsServiceRequest,
+    logs: root['collector'].logs.v1.ExportLogsServiceRequest,
   };
   const MessageType = typeMap[type];
   const decoded = MessageType.decode(buf);
   return MessageType.toObject(decoded, {
-    longs: String,   // BigInt-safe: return longs as strings
+    longs: String,
     enums: String,
     bytes: String,
     defaults: true,
   });
 }
 
-async function parseOtlpBody<T>(c: any, type: 'traces' | 'metrics' | 'logs'): Promise<T | null> {
-  const contentType = c.req.header('content-type') ?? '';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function parseOtlpBody(c: any, type: 'traces' | 'metrics' | 'logs'): Promise<any> {
+  const contentType: string = c.req.header('content-type') ?? '';
   if (contentType.includes('application/x-protobuf') || contentType.includes('application/protobuf')) {
     const arrayBuf = await c.req.arrayBuffer();
     const buf = new Uint8Array(arrayBuf);
     if (buf.length === 0) return null;
     try {
-      return await decodeProtobuf(type, buf) as T;
-    } catch (e) {
+      return await decodeProtobuf(type, buf);
+    } catch {
       return null;
     }
   }
   // Default: JSON
-  return await (c.req.json() as Promise<T>).catch(() => null);
+  try { return await c.req.json(); } catch { return null; }
 }
 
 // ─── OTLP JSON Types ────────────────────────────────────────────────
@@ -226,9 +232,6 @@ function mapSpanToEvent(
   if (span.name === 'openclaw.model.usage') {
     const model = getAttrStr(attrs, 'openclaw.model') ?? 'unknown';
     const provider = getAttrStr(attrs, 'openclaw.provider') ?? 'unknown';
-    const inputTokens = getAttrNum(attrs, 'openclaw.tokens.input');
-    const outputTokens = getAttrNum(attrs, 'openclaw.tokens.output');
-    const totalTokens = getAttrNum(attrs, 'openclaw.tokens.total');
     const cacheReadTokens = getAttrNum(attrs, 'openclaw.tokens.cache_read');
 
     return {
@@ -314,22 +317,24 @@ function mapSpanToEvent(
 
 // ─── Event Builder ──────────────────────────────────────────────────
 
+interface MappedEvent {
+  eventType: EventType;
+  severity: EventSeverity;
+  payload: EventPayload;
+  sessionId: string;
+  agentId: string;
+  timestamp: string;
+  metadata: Record<string, unknown>;
+}
+
 async function buildAndInsertEvents(
   tenantStore: IEventStore,
-  mappedEvents: Array<{
-    eventType: EventType;
-    severity: EventSeverity;
-    payload: EventPayload;
-    sessionId: string;
-    agentId: string;
-    timestamp: string;
-    metadata: Record<string, unknown>;
-  }>,
+  mappedEvents: MappedEvent[],
 ): Promise<AgentLensEvent[]> {
   if (mappedEvents.length === 0) return [];
 
   // Group by session for hash chain
-  const bySession = new Map<string, typeof mappedEvents>();
+  const bySession = new Map<string, MappedEvent[]>();
   for (const ev of mappedEvents) {
     const arr = bySession.get(ev.sessionId) ?? [];
     arr.push(ev);
@@ -340,6 +345,7 @@ async function buildAndInsertEvents(
 
   for (const [sessionId, sessionMapped] of bySession) {
     let prevHash: string | null = await tenantStore.getLastEventHash(sessionId);
+    const sessionEvents: AgentLensEvent[] = [];
 
     for (const input of sessionMapped) {
       const id = ulid();
@@ -370,12 +376,11 @@ async function buildAndInsertEvents(
         tenantId: 'default',
       };
 
+      sessionEvents.push(event);
       allEvents.push(event);
       prevHash = hash;
     }
 
-    // Insert this session's events
-    const sessionEvents = allEvents.filter((e) => e.sessionId === sessionId);
     await tenantStore.insertEvents(sessionEvents);
   }
 
@@ -392,18 +397,16 @@ async function buildAndInsertEvents(
 
 export function otlpRoutes(store: IEventStore) {
   const app = new Hono();
-
-  // Use store directly — for SqliteEventStore callers should wrap in TenantScopedStore if needed
   const tenantStore = store;
 
   // POST /v1/traces
   app.post('/traces', async (c) => {
-    const body = await parseOtlpBody<OtlpTracesPayload>(c, 'traces');
+    const body: OtlpTracesPayload | null = await parseOtlpBody(c, 'traces');
     if (!body?.resourceSpans) {
       return c.json({ error: 'Invalid OTLP traces payload' }, 400);
     }
 
-    const mapped: Parameters<typeof buildAndInsertEvents>[1] = [];
+    const mapped: MappedEvent[] = [];
 
     for (const rs of body.resourceSpans) {
       const resourceAttrs = rs.resource?.attributes;
@@ -419,19 +422,18 @@ export function otlpRoutes(store: IEventStore) {
       }
     }
 
-    const events = await buildAndInsertEvents(tenantStore, mapped);
-
+    await buildAndInsertEvents(tenantStore, mapped);
     return c.json({ partialSuccess: {} }, 200);
   });
 
   // POST /v1/metrics
   app.post('/metrics', async (c) => {
-    const body = await parseOtlpBody<OtlpMetricsPayload>(c, 'metrics');
+    const body: OtlpMetricsPayload | null = await parseOtlpBody(c, 'metrics');
     if (!body?.resourceMetrics) {
       return c.json({ error: 'Invalid OTLP metrics payload' }, 400);
     }
 
-    const mapped: Parameters<typeof buildAndInsertEvents>[1] = [];
+    const mapped: MappedEvent[] = [];
 
     for (const rm of body.resourceMetrics) {
       const resourceAttrs = rm.resource?.attributes;
@@ -462,7 +464,6 @@ export function otlpRoutes(store: IEventStore) {
               });
             }
           } else {
-            // Generic metric → custom event
             for (const dp of dataPoints) {
               const value = dp.asDouble ?? (dp.asInt !== undefined ? Number(dp.asInt) : 0);
               mapped.push({
@@ -490,18 +491,17 @@ export function otlpRoutes(store: IEventStore) {
     if (mapped.length > 0) {
       await buildAndInsertEvents(tenantStore, mapped);
     }
-
     return c.json({ partialSuccess: {} }, 200);
   });
 
   // POST /v1/logs
   app.post('/logs', async (c) => {
-    const body = await parseOtlpBody<OtlpLogsPayload>(c, 'logs');
+    const body: OtlpLogsPayload | null = await parseOtlpBody(c, 'logs');
     if (!body?.resourceLogs) {
       return c.json({ error: 'Invalid OTLP logs payload' }, 400);
     }
 
-    const mapped: Parameters<typeof buildAndInsertEvents>[1] = [];
+    const mapped: MappedEvent[] = [];
 
     for (const rl of body.resourceLogs) {
       const resourceAttrs = rl.resource?.attributes;
@@ -538,7 +538,6 @@ export function otlpRoutes(store: IEventStore) {
     if (mapped.length > 0) {
       await buildAndInsertEvents(tenantStore, mapped);
     }
-
     return c.json({ partialSuccess: {} }, 200);
   });
 

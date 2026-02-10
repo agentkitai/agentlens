@@ -67,10 +67,7 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   app.get('/search', async (c) => {
     const tenantId = getTenantId(c);
-    const query = c.req.query('q') || c.req.query('query');
-    if (!query) {
-      return c.json({ error: 'q (query) parameter is required' }, 400);
-    }
+    const query = c.req.query('q') || c.req.query('query') || '';
 
     const category = c.req.query('category') || undefined;
     if (category && !VALID_CATEGORIES.has(category as any)) {

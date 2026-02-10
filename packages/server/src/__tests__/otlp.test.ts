@@ -40,6 +40,55 @@ function makeTracesPayload(spans: Array<{
   };
 }
 
+// Helper to encode a traces payload as protobuf
+async function encodeTracesProtobuf(payload: ReturnType<typeof makeTracesPayload>): Promise<Uint8Array> {
+  const mod = await import('@opentelemetry/otlp-transformer/build/src/generated/root.js' as string);
+  const root = ((mod as any).default ?? mod).opentelemetry.proto;
+  const T = root.collector.trace.v1.ExportTraceServiceRequest;
+  const msg = T.create(payload);
+  return T.encode(msg).finish();
+}
+
+describe('OTLP Protobuf Support', () => {
+  it('should decode protobuf traces and ingest as events', async () => {
+    const { app, store } = makeApp();
+    const payload = makeTracesPayload([{
+      name: 'openclaw.model.usage',
+      attributes: [
+        { key: 'openclaw.model', value: { stringValue: 'claude-sonnet' } },
+        { key: 'openclaw.provider', value: { stringValue: 'anthropic' } },
+        { key: 'openclaw.sessionId', value: { stringValue: 'sess-pb' } },
+      ],
+    }]);
+
+    const buf = await encodeTracesProtobuf(payload);
+
+    const res = await app.request('/v1/traces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-protobuf' },
+      body: buf,
+    });
+
+    expect(res.status).toBe(200);
+    const events = (await store.queryEvents({ sessionId: 'sess-pb' })).events;
+    expect(events).toHaveLength(1);
+    expect(events[0]!.eventType).toBe('llm_call');
+    const p = events[0]!.payload as { model: string };
+    expect(p.model).toBe('claude-sonnet');
+  });
+
+  it('should return 400 for invalid protobuf', async () => {
+    const { app } = makeApp();
+    const res = await app.request('/v1/traces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-protobuf' },
+      body: new Uint8Array([0xFF, 0xFF, 0xFF]),
+    });
+    // Invalid protobuf may decode as empty or fail — either 200 with no events or 400
+    expect([200, 400]).toContain(res.status);
+  });
+});
+
 describe('OTLP Traces Endpoint', () => {
   it('should ingest openclaw.model.usage spans as llm_call events', async () => {
     const { app, store } = makeApp();

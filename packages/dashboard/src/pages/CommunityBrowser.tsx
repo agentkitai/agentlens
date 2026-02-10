@@ -20,7 +20,7 @@ export default function CommunityBrowser() {
 
   const resultsQuery = useApi(
     () => communitySearch({
-      query: searchQuery || undefined,
+      query: searchQuery || '',
       category: category || undefined,
       minReputation: minReputation > 0 ? minReputation : undefined,
       limit: 20,

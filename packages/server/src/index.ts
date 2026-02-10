@@ -396,15 +396,19 @@ export async function startServer() {
   // Create embedding service & worker (optional — fail-safe)
   let embeddingService: EmbeddingService | null = null;
   let embeddingWorker: EmbeddingWorker | null = null;
-  try {
-    const { createEmbeddingService } = await import('./lib/embeddings/index.js');
-    embeddingService = createEmbeddingService();
-    const embeddingStore = new EmbeddingStore(db);
-    embeddingWorker = new EmbeddingWorker(embeddingService, embeddingStore);
-    embeddingWorker.start();
-    console.log(`  Embeddings: enabled (${embeddingService.modelName})`);
-  } catch (err) {
-    console.log(`  Embeddings: disabled (${err instanceof Error ? err.message : 'unknown error'})`);
+  if (process.env.DISABLE_EMBEDDINGS) {
+    console.log('  Embeddings: disabled (DISABLE_EMBEDDINGS set)');
+  } else {
+    try {
+      const { createEmbeddingService } = await import('./lib/embeddings/index.js');
+      embeddingService = createEmbeddingService();
+      const embeddingStore = new EmbeddingStore(db);
+      embeddingWorker = new EmbeddingWorker(embeddingService, embeddingStore);
+      embeddingWorker.start();
+      console.log(`  Embeddings: enabled (${embeddingService.modelName})`);
+    } catch (err) {
+      console.log(`  Embeddings: disabled (${err instanceof Error ? err.message : 'unknown error'})`);
+    }
   }
 
   // Create app with db reference for auth
