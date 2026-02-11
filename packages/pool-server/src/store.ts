@@ -36,7 +36,7 @@ export interface PoolStore {
   hasAlreadyFlagged(lessonId: string, reporterId: string): Promise<boolean>;
 
   // Moderation queue
-  getModerationQueue(): Promise<SearchResult[]>;
+  getModerationQueue(opts?: { limit?: number; offset?: number }): Promise<SearchResult[]>;
 
   // Purge tokens
   setPurgeToken(contributorId: string, tokenHash: string): Promise<void>;
@@ -91,6 +91,68 @@ export class InMemoryPoolStore implements PoolStore {
   private capabilities = new Map<string, RegisteredCapability>();
   private delegations = new Map<string, DelegationRequest>();
 
+  // Secondary indexes
+  private lessonsByContributor = new Map<string, Set<string>>();
+  private lessonsByCategory = new Map<string, Set<string>>();
+
+  // LRU eviction: ordered list of lesson IDs (most recent at end)
+  private lruOrder: string[] = [];
+  readonly maxLessons: number;
+
+  constructor(opts?: { maxLessons?: number }) {
+    this.maxLessons = opts?.maxLessons ?? Infinity;
+  }
+
+  private addToIndexes(lesson: SharedLesson): void {
+    // Contributor index
+    let contSet = this.lessonsByContributor.get(lesson.anonymousContributorId);
+    if (!contSet) {
+      contSet = new Set();
+      this.lessonsByContributor.set(lesson.anonymousContributorId, contSet);
+    }
+    contSet.add(lesson.id);
+
+    // Category index
+    let catSet = this.lessonsByCategory.get(lesson.category);
+    if (!catSet) {
+      catSet = new Set();
+      this.lessonsByCategory.set(lesson.category, catSet);
+    }
+    catSet.add(lesson.id);
+  }
+
+  private removeFromIndexes(lesson: SharedLesson): void {
+    const contSet = this.lessonsByContributor.get(lesson.anonymousContributorId);
+    if (contSet) {
+      contSet.delete(lesson.id);
+      if (contSet.size === 0) this.lessonsByContributor.delete(lesson.anonymousContributorId);
+    }
+    const catSet = this.lessonsByCategory.get(lesson.category);
+    if (catSet) {
+      catSet.delete(lesson.id);
+      if (catSet.size === 0) this.lessonsByCategory.delete(lesson.category);
+    }
+  }
+
+  private evictIfNeeded(): void {
+    while (this.lessons.size > this.maxLessons && this.lruOrder.length > 0) {
+      const oldestId = this.lruOrder.shift()!;
+      const lesson = this.lessons.get(oldestId);
+      if (lesson) {
+        this.removeFromIndexes(lesson);
+        this.lessons.delete(oldestId);
+        this.reputationEvents.delete(oldestId);
+        this.moderationFlags.delete(oldestId);
+      }
+    }
+  }
+
+  private touchLru(id: string): void {
+    const idx = this.lruOrder.indexOf(id);
+    if (idx !== -1) this.lruOrder.splice(idx, 1);
+    this.lruOrder.push(id);
+  }
+
   // ─── Lessons ───
 
   async shareLesson(input: ShareLessonInput): Promise<SharedLesson> {
@@ -108,14 +170,26 @@ export class InMemoryPoolStore implements PoolStore {
       qualitySignals: input.qualitySignals ?? {},
     };
     this.lessons.set(lesson.id, lesson);
+    this.addToIndexes(lesson);
+    this.lruOrder.push(lesson.id);
+    this.evictIfNeeded();
     return lesson;
   }
 
   async searchLessons(input: SearchInput): Promise<SearchResult[]> {
+    // Pre-filter using category index when available
+    let candidates: Iterable<SharedLesson>;
+    if (input.category) {
+      const ids = this.lessonsByCategory.get(input.category);
+      if (!ids || ids.size === 0) return [];
+      candidates = [...ids].map((id) => this.lessons.get(id)!).filter(Boolean);
+    } else {
+      candidates = this.lessons.values();
+    }
+
     const results: SearchResult[] = [];
-    for (const lesson of this.lessons.values()) {
+    for (const lesson of candidates) {
       if (lesson.hidden) continue;
-      if (input.category && lesson.category !== input.category) continue;
       if (input.minReputation !== undefined && lesson.reputationScore < input.minReputation) continue;
       const similarity = cosineSimilarity(input.embedding, lesson.embedding);
       results.push({ lesson, similarity });
@@ -125,16 +199,23 @@ export class InMemoryPoolStore implements PoolStore {
   }
 
   async getLessonById(id: string): Promise<SharedLesson | null> {
-    return this.lessons.get(id) ?? null;
+    const lesson = this.lessons.get(id) ?? null;
+    if (lesson) this.touchLru(id);
+    return lesson;
   }
 
   async deleteLessonsByContributor(contributorId: string): Promise<number> {
+    const ids = this.lessonsByContributor.get(contributorId);
+    if (!ids) return 0;
     let count = 0;
-    for (const [id, lesson] of this.lessons) {
-      if (lesson.anonymousContributorId === contributorId) {
+    for (const id of [...ids]) {
+      const lesson = this.lessons.get(id);
+      if (lesson) {
+        this.removeFromIndexes(lesson);
         this.lessons.delete(id);
         this.reputationEvents.delete(id);
         this.moderationFlags.delete(id);
+        this.lruOrder = this.lruOrder.filter((x) => x !== id);
         count++;
       }
     }
@@ -142,11 +223,7 @@ export class InMemoryPoolStore implements PoolStore {
   }
 
   async countLessonsByContributor(contributorId: string): Promise<number> {
-    let count = 0;
-    for (const lesson of this.lessons.values()) {
-      if (lesson.anonymousContributorId === contributorId) count++;
-    }
-    return count;
+    return this.lessonsByContributor.get(contributorId)?.size ?? 0;
   }
 
   async updateLessonReputation(lessonId: string, score: number): Promise<void> {
@@ -199,14 +276,16 @@ export class InMemoryPoolStore implements PoolStore {
 
   // ─── Moderation Queue (M3 fix) ───
 
-  async getModerationQueue(): Promise<SearchResult[]> {
+  async getModerationQueue(opts?: { limit?: number; offset?: number }): Promise<SearchResult[]> {
     const results: SearchResult[] = [];
     for (const lesson of this.lessons.values()) {
       if (lesson.hidden || lesson.flagCount >= 3) {
         results.push({ lesson, similarity: 0 });
       }
     }
-    return results;
+    const offset = opts?.offset ?? 0;
+    const limit = opts?.limit ?? results.length;
+    return results.slice(offset, offset + limit);
   }
 
   // ─── Purge Tokens ───
@@ -346,5 +425,8 @@ export class InMemoryPoolStore implements PoolStore {
     this.purgeTokens.clear();
     this.capabilities.clear();
     this.delegations.clear();
+    this.lessonsByContributor.clear();
+    this.lessonsByCategory.clear();
+    this.lruOrder = [];
   }
 }

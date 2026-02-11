@@ -5,7 +5,7 @@
  * Handles connection state, auto-cleanup, and reconnection (via EventSource built-in).
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 export interface SSEEventData {
   /** SSE event type (e.g., 'event', 'session_update', 'alert', 'heartbeat') */
@@ -27,6 +27,8 @@ export interface UseSSEOptions {
   onAlert?: (data: unknown) => void;
   /** Whether the SSE connection should be active (default: true) */
   enabled?: boolean;
+  /** Debounce window in ms for batching rapid SSE callbacks. Default: 0 (no debounce). */
+  debounceMs?: number;
 }
 
 export interface UseSSEResult {
@@ -50,6 +52,29 @@ function buildUrl(base: string, params?: Record<string, string | undefined>): st
   return qs ? `${base}?${qs}` : base;
 }
 
+/**
+ * Creates a debounced version of a callback. When called multiple times within
+ * the debounce window, only the last invocation's data is passed through.
+ */
+export function createDebouncedHandler(
+  debounceMs: number,
+  callbackRef: React.RefObject<((data: unknown) => void) | undefined>,
+): (data: unknown) => void {
+  if (debounceMs <= 0) {
+    return (data: unknown) => callbackRef.current?.(data);
+  }
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let latestData: unknown;
+  return (data: unknown) => {
+    latestData = data;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      callbackRef.current?.(latestData);
+    }, debounceMs);
+  };
+}
+
 export function useSSE({
   url,
   params,
@@ -57,6 +82,7 @@ export function useSSE({
   onSessionUpdate,
   onAlert,
   enabled = true,
+  debounceMs = 0,
 }: UseSSEOptions): UseSSEResult {
   const [connected, setConnected] = useState(false);
   const sourceRef = useRef<EventSource | null>(null);
@@ -68,6 +94,11 @@ export function useSSE({
   onSessionUpdateRef.current = onSessionUpdate;
   const onAlertRef = useRef(onAlert);
   onAlertRef.current = onAlert;
+
+  // Create debounced handlers (stable across renders for same debounceMs)
+  const debouncedEvent = useMemo(() => createDebouncedHandler(debounceMs, onEventRef), [debounceMs]);
+  const debouncedSessionUpdate = useMemo(() => createDebouncedHandler(debounceMs, onSessionUpdateRef), [debounceMs]);
+  const debouncedAlert = useMemo(() => createDebouncedHandler(debounceMs, onAlertRef), [debounceMs]);
 
   // Stable serialized params for dependency
   const paramsKey = JSON.stringify(params ?? {});
@@ -91,11 +122,11 @@ export function useSSE({
       // EventSource auto-reconnects, onopen will set connected=true again
     };
 
-    // Listen for specific SSE event types
+    // Listen for specific SSE event types (debounced when configured)
     source.addEventListener('event', (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
-        onEventRef.current?.(data);
+        debouncedEvent(data);
       } catch {
         // Ignore malformed JSON
       }
@@ -104,7 +135,7 @@ export function useSSE({
     source.addEventListener('session_update', (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
-        onSessionUpdateRef.current?.(data);
+        debouncedSessionUpdate(data);
       } catch {
         // Ignore malformed JSON
       }
@@ -113,7 +144,7 @@ export function useSSE({
     source.addEventListener('alert', (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
-        onAlertRef.current?.(data);
+        debouncedAlert(data);
       } catch {
         // Ignore malformed JSON
       }
@@ -131,7 +162,7 @@ export function useSSE({
       setConnected(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, paramsKey, enabled]);
+  }, [url, paramsKey, enabled, debouncedEvent, debouncedSessionUpdate, debouncedAlert]);
 
   return { connected };
 }
