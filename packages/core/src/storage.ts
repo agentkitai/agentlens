@@ -78,6 +78,10 @@ export interface IEventStore {
   getLastEventHash(sessionId: string): Promise<string | null>;
   /** Count events matching a query (for pagination) */
   countEvents(query: Omit<EventQuery, 'limit' | 'offset'>): Promise<number>;
+  /** Batch count events by category in a single query */
+  countEventsBatch(query: { agentId: string; from: string; to: string; tenantId?: string }): Promise<{ total: number; error: number; critical: number; toolError: number }>;
+  /** Sum totalCostUsd for sessions matching filters */
+  sumSessionCost(query: { agentId: string; from: string; tenantId?: string }): Promise<number>;
 
   // ─── Sessions ────────────────────────────────────────────
   /** Upsert session (materialized from events) */

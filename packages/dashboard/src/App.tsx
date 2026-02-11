@@ -1,75 +1,82 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { Overview } from './pages/Overview';
-import { Sessions } from './pages/Sessions';
-import { Agents } from './pages/Agents';
-import Settings from './pages/Settings';
-import { SessionDetail as SessionDetailPage } from './pages/SessionDetail';
-import { EventsExplorer } from './pages/EventsExplorer';
-import { Analytics } from './pages/Analytics';
-import { Alerts } from './pages/Alerts';
-import { LlmAnalytics } from './pages/LlmAnalytics';
-import { Lessons } from './pages/Lessons';
-import { Search } from './pages/Search';
-import { Insights } from './pages/Insights';
-import { HealthOverview } from './pages/HealthOverview';
-import { CostOptimization } from './pages/CostOptimization';
-import { SessionReplay } from './pages/SessionReplay';
-import { Benchmarks } from './pages/Benchmarks';
-import { BenchmarkNew } from './pages/BenchmarkNew';
-import { BenchmarkDetail } from './pages/BenchmarkDetail';
-import Guardrails from './pages/Guardrails';
-import GuardrailList from './pages/GuardrailList';
-import GuardrailForm from './pages/GuardrailForm';
-import GuardrailDetail from './pages/GuardrailDetail';
-import GuardrailActivity from './pages/GuardrailActivity';
-import SharingControls from './pages/SharingControls';
-import CommunityBrowser from './pages/CommunityBrowser';
-import SharingActivity from './pages/SharingActivity';
-import AgentNetwork from './pages/AgentNetwork';
-import CapabilityRegistry from './pages/CapabilityRegistry';
-import DelegationLog from './pages/DelegationLog';
-import { TeamManagement } from './cloud/TeamManagement';
-import { ApiKeyManagement } from './cloud/ApiKeyManagement';
-import { UsageDashboard } from './cloud/UsageDashboard';
+import { PageSkeleton } from './components/PageSkeleton';
+
+// Lazy-loaded page components (named exports)
+const Overview = React.lazy(() => import('./pages/Overview').then(m => ({ default: m.Overview })));
+const Sessions = React.lazy(() => import('./pages/Sessions').then(m => ({ default: m.Sessions })));
+const Agents = React.lazy(() => import('./pages/Agents').then(m => ({ default: m.Agents })));
+const SessionDetailPage = React.lazy(() => import('./pages/SessionDetail').then(m => ({ default: m.SessionDetail })));
+const EventsExplorer = React.lazy(() => import('./pages/EventsExplorer').then(m => ({ default: m.EventsExplorer })));
+const Analytics = React.lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
+const Alerts = React.lazy(() => import('./pages/Alerts').then(m => ({ default: m.Alerts })));
+const LlmAnalytics = React.lazy(() => import('./pages/LlmAnalytics').then(m => ({ default: m.LlmAnalytics })));
+const Lessons = React.lazy(() => import('./pages/Lessons').then(m => ({ default: m.Lessons })));
+const Search = React.lazy(() => import('./pages/Search').then(m => ({ default: m.Search })));
+const Insights = React.lazy(() => import('./pages/Insights').then(m => ({ default: m.Insights })));
+const HealthOverview = React.lazy(() => import('./pages/HealthOverview').then(m => ({ default: m.HealthOverview })));
+const CostOptimization = React.lazy(() => import('./pages/CostOptimization').then(m => ({ default: m.CostOptimization })));
+const SessionReplay = React.lazy(() => import('./pages/SessionReplay').then(m => ({ default: m.SessionReplay })));
+const Benchmarks = React.lazy(() => import('./pages/Benchmarks').then(m => ({ default: m.Benchmarks })));
+const BenchmarkNew = React.lazy(() => import('./pages/BenchmarkNew').then(m => ({ default: m.BenchmarkNew })));
+const BenchmarkDetail = React.lazy(() => import('./pages/BenchmarkDetail').then(m => ({ default: m.BenchmarkDetail })));
+
+// Lazy-loaded page components (default exports)
+const Settings = React.lazy(() => import('./pages/Settings'));
+const Guardrails = React.lazy(() => import('./pages/Guardrails'));
+const GuardrailList = React.lazy(() => import('./pages/GuardrailList'));
+const GuardrailForm = React.lazy(() => import('./pages/GuardrailForm'));
+const GuardrailDetail = React.lazy(() => import('./pages/GuardrailDetail'));
+const GuardrailActivity = React.lazy(() => import('./pages/GuardrailActivity'));
+const SharingControls = React.lazy(() => import('./pages/SharingControls'));
+const CommunityBrowser = React.lazy(() => import('./pages/CommunityBrowser'));
+const SharingActivity = React.lazy(() => import('./pages/SharingActivity'));
+const AgentNetwork = React.lazy(() => import('./pages/AgentNetwork'));
+const CapabilityRegistry = React.lazy(() => import('./pages/CapabilityRegistry'));
+const DelegationLog = React.lazy(() => import('./pages/DelegationLog'));
+
+// Lazy-loaded cloud components (named exports)
+const TeamManagement = React.lazy(() => import('./cloud/TeamManagement').then(m => ({ default: m.TeamManagement })));
+const ApiKeyManagement = React.lazy(() => import('./cloud/ApiKeyManagement').then(m => ({ default: m.ApiKeyManagement })));
+const UsageDashboard = React.lazy(() => import('./cloud/UsageDashboard').then(m => ({ default: m.UsageDashboard })));
 
 export function App(): React.ReactElement {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Overview />} />
-        <Route path="sessions" element={<Sessions />} />
-        <Route path="sessions/:id" element={<SessionDetailPage />} />
-        <Route path="replay/:sessionId" element={<SessionReplay />} />
-        <Route path="events" element={<EventsExplorer />} />
-        <Route path="agents" element={<Agents />} />
-        <Route path="analytics" element={<Analytics />} />
-        <Route path="llm" element={<LlmAnalytics />} />
-        <Route path="health" element={<HealthOverview />} />
-        <Route path="cost-optimization" element={<CostOptimization />} />
-        <Route path="benchmarks" element={<Benchmarks />} />
-        <Route path="benchmarks/new" element={<BenchmarkNew />} />
-        <Route path="benchmarks/:id" element={<BenchmarkDetail />} />
-        <Route path="lessons" element={<Lessons />} />
-        <Route path="search" element={<Search />} />
-        <Route path="insights" element={<Insights />} />
-        <Route path="alerts" element={<Alerts />} />
-        <Route path="guardrails" element={<GuardrailList />} />
-        <Route path="guardrails/activity" element={<GuardrailActivity />} />
-        <Route path="guardrails/new" element={<GuardrailForm />} />
-        <Route path="guardrails/:id" element={<GuardrailDetail />} />
-        <Route path="guardrails/:id/edit" element={<GuardrailForm />} />
-        <Route path="sharing" element={<SharingControls />} />
-        <Route path="sharing/activity" element={<SharingActivity />} />
-        <Route path="community" element={<CommunityBrowser />} />
-        <Route path="network" element={<AgentNetwork />} />
-        <Route path="capabilities" element={<CapabilityRegistry />} />
-        <Route path="delegations" element={<DelegationLog />} />
-        <Route path="team" element={<TeamManagement />} />
-        <Route path="api-keys" element={<ApiKeyManagement />} />
-        <Route path="usage" element={<UsageDashboard />} />
-        <Route path="settings" element={<Settings />} />
+        <Route index element={<Suspense fallback={<PageSkeleton />}><Overview /></Suspense>} />
+        <Route path="sessions" element={<Suspense fallback={<PageSkeleton />}><Sessions /></Suspense>} />
+        <Route path="sessions/:id" element={<Suspense fallback={<PageSkeleton />}><SessionDetailPage /></Suspense>} />
+        <Route path="replay/:sessionId" element={<Suspense fallback={<PageSkeleton />}><SessionReplay /></Suspense>} />
+        <Route path="events" element={<Suspense fallback={<PageSkeleton />}><EventsExplorer /></Suspense>} />
+        <Route path="agents" element={<Suspense fallback={<PageSkeleton />}><Agents /></Suspense>} />
+        <Route path="analytics" element={<Suspense fallback={<PageSkeleton />}><Analytics /></Suspense>} />
+        <Route path="llm" element={<Suspense fallback={<PageSkeleton />}><LlmAnalytics /></Suspense>} />
+        <Route path="health" element={<Suspense fallback={<PageSkeleton />}><HealthOverview /></Suspense>} />
+        <Route path="cost-optimization" element={<Suspense fallback={<PageSkeleton />}><CostOptimization /></Suspense>} />
+        <Route path="benchmarks" element={<Suspense fallback={<PageSkeleton />}><Benchmarks /></Suspense>} />
+        <Route path="benchmarks/new" element={<Suspense fallback={<PageSkeleton />}><BenchmarkNew /></Suspense>} />
+        <Route path="benchmarks/:id" element={<Suspense fallback={<PageSkeleton />}><BenchmarkDetail /></Suspense>} />
+        <Route path="lessons" element={<Suspense fallback={<PageSkeleton />}><Lessons /></Suspense>} />
+        <Route path="search" element={<Suspense fallback={<PageSkeleton />}><Search /></Suspense>} />
+        <Route path="insights" element={<Suspense fallback={<PageSkeleton />}><Insights /></Suspense>} />
+        <Route path="alerts" element={<Suspense fallback={<PageSkeleton />}><Alerts /></Suspense>} />
+        <Route path="guardrails" element={<Suspense fallback={<PageSkeleton />}><GuardrailList /></Suspense>} />
+        <Route path="guardrails/activity" element={<Suspense fallback={<PageSkeleton />}><GuardrailActivity /></Suspense>} />
+        <Route path="guardrails/new" element={<Suspense fallback={<PageSkeleton />}><GuardrailForm /></Suspense>} />
+        <Route path="guardrails/:id" element={<Suspense fallback={<PageSkeleton />}><GuardrailDetail /></Suspense>} />
+        <Route path="guardrails/:id/edit" element={<Suspense fallback={<PageSkeleton />}><GuardrailForm /></Suspense>} />
+        <Route path="sharing" element={<Suspense fallback={<PageSkeleton />}><SharingControls /></Suspense>} />
+        <Route path="sharing/activity" element={<Suspense fallback={<PageSkeleton />}><SharingActivity /></Suspense>} />
+        <Route path="community" element={<Suspense fallback={<PageSkeleton />}><CommunityBrowser /></Suspense>} />
+        <Route path="network" element={<Suspense fallback={<PageSkeleton />}><AgentNetwork /></Suspense>} />
+        <Route path="capabilities" element={<Suspense fallback={<PageSkeleton />}><CapabilityRegistry /></Suspense>} />
+        <Route path="delegations" element={<Suspense fallback={<PageSkeleton />}><DelegationLog /></Suspense>} />
+        <Route path="team" element={<Suspense fallback={<PageSkeleton />}><TeamManagement /></Suspense>} />
+        <Route path="api-keys" element={<Suspense fallback={<PageSkeleton />}><ApiKeyManagement /></Suspense>} />
+        <Route path="usage" element={<Suspense fallback={<PageSkeleton />}><UsageDashboard /></Suspense>} />
+        <Route path="settings" element={<Suspense fallback={<PageSkeleton />}><Settings /></Suspense>} />
       </Route>
     </Routes>
   );

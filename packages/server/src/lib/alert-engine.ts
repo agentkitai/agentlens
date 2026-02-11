@@ -143,6 +143,9 @@ export class AlertEngine {
     if (this.running) return [];
     this.running = true;
 
+    // Per-cycle analytics cache: tenantId:agentId:windowMinutes → analytics totals
+    const analyticsCache = new Map<string, Awaited<ReturnType<IEventStore['getAnalytics']>>>();
+
     try {
       // NOTE (E1-H3): This intentionally calls listAlertRules() without a tenantId
       // to fetch rules across ALL tenants. The alert engine is a system-level service
@@ -174,7 +177,7 @@ export class AlertEngine {
 
         for (const rule of enabledRules) {
           try {
-            const currentValue = await this.computeCurrentValue(rule, tenantStore);
+            const currentValue = await this.computeCurrentValue(rule, tenantStore, analyticsCache);
             const shouldTrigger = this.checkCondition(rule.condition, currentValue, rule.threshold);
 
             if (shouldTrigger) {
@@ -199,6 +202,7 @@ export class AlertEngine {
 
       return triggered;
     } finally {
+      analyticsCache.clear();
       this.running = false;
     }
   }
@@ -206,18 +210,34 @@ export class AlertEngine {
   /**
    * Compute the current metric value for a rule by querying analytics.
    */
-  private async computeCurrentValue(rule: AlertRule, tenantStore: IEventStore): Promise<number> {
+  private async computeCurrentValue(
+    rule: AlertRule,
+    tenantStore: IEventStore,
+    analyticsCache?: Map<string, Awaited<ReturnType<IEventStore['getAnalytics']>>>,
+  ): Promise<number> {
     const now = new Date();
     const windowStart = new Date(now.getTime() - rule.windowMinutes * 60_000);
     const from = windowStart.toISOString();
     const to = now.toISOString();
 
-    const analytics = await tenantStore.getAnalytics({
-      from,
-      to,
-      agentId: rule.scope.agentId,
-      granularity: 'hour',
-    });
+    const tenantId = rule.tenantId ?? 'default';
+    const agentId = rule.scope.agentId ?? '';
+    const cacheKey = `${tenantId}:${agentId}:${rule.windowMinutes}`;
+
+    let analytics: Awaited<ReturnType<IEventStore['getAnalytics']>>;
+    if (analyticsCache && analyticsCache.has(cacheKey)) {
+      analytics = analyticsCache.get(cacheKey)!;
+    } else {
+      analytics = await tenantStore.getAnalytics({
+        from,
+        to,
+        agentId: rule.scope.agentId,
+        granularity: 'hour',
+      });
+      if (analyticsCache) {
+        analyticsCache.set(cacheKey, analytics);
+      }
+    }
 
     const totals = analytics.totals;
 

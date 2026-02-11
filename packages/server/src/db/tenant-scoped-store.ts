@@ -55,6 +55,14 @@ export class TenantScopedStore implements IEventStore {
     return this.inner.countEvents({ ...query, tenantId: this.tenantId });
   }
 
+  async countEventsBatch(query: { agentId: string; from: string; to: string; tenantId?: string }): Promise<{ total: number; error: number; critical: number; toolError: number }> {
+    return this.inner.countEventsBatch({ ...query, tenantId: this.tenantId });
+  }
+
+  async sumSessionCost(query: { agentId: string; from: string; tenantId?: string }): Promise<number> {
+    return this.inner.sumSessionCost({ ...query, tenantId: this.tenantId });
+  }
+
   // ─── Sessions ────────────────────────────────────────────
 
   async upsertSession(session: Partial<Session> & { id: string }): Promise<void> {

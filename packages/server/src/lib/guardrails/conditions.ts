@@ -21,19 +21,18 @@ export async function evaluateErrorRateThreshold(
   const now = new Date();
   const from = new Date(now.getTime() - windowMinutes * 60 * 1000).toISOString();
 
-  const totalCount = await store.countEvents({ agentId, from, to: now.toISOString() });
+  const to = now.toISOString();
+  const counts = await store.countEventsBatch({ agentId, from, to });
 
-  if (totalCount === 0) {
+  if (counts.total === 0) {
     return { triggered: false, currentValue: 0, threshold, message: 'No events in window' };
   }
 
   // Architecture §3.4: count error, critical severity AND tool_error event types
-  const errorCount = await store.countEvents({ agentId, from, to: now.toISOString(), severity: 'error' });
-  const criticalCount = await store.countEvents({ agentId, from, to: now.toISOString(), severity: 'critical' });
-  const toolErrorCount = await store.countEvents({ agentId, from, to: now.toISOString(), eventType: 'tool_error' });
   // Deduplicate: tool_error events with error/critical severity are already counted above,
-  // but store.countEvents filters by a single field, so we take the max of the combined count and totalCount
-  const combinedErrors = Math.min(errorCount + criticalCount + toolErrorCount, totalCount);
+  // but countEventsBatch filters by single field each, so we cap at total
+  const totalCount = counts.total;
+  const combinedErrors = Math.min(counts.error + counts.critical + counts.toolError, totalCount);
   const errorRate = (combinedErrors / totalCount) * 100;
 
   return {
@@ -71,8 +70,7 @@ export async function evaluateCostLimit(
 
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
-  const { sessions } = await store.querySessions({ agentId, from: todayStart.toISOString(), limit: 10000 });
-  const dailyCost = sessions.reduce((sum, s) => sum + (s.totalCostUsd || 0), 0);
+  const dailyCost = await store.sumSessionCost({ agentId, from: todayStart.toISOString() });
 
   return {
     triggered: dailyCost >= maxCostUsd,
@@ -160,7 +158,7 @@ export async function evaluateCustomMetric(
 
   // Architecture §3.4: Use metricKeyPath to extract values from event metadata
   if (metricKeyPath) {
-    const eventsResult = await store.queryEvents({ agentId, from, to: now.toISOString(), limit: 10000 });
+    const eventsResult = await store.queryEvents({ agentId, from, to: now.toISOString(), limit: 1 });
     const values: number[] = [];
     for (const event of eventsResult.events) {
       const md = (event.metadata ?? {}) as Record<string, unknown>;

@@ -546,6 +546,51 @@ export class SqliteEventStore implements IEventStore {
     return result?.count ?? 0;
   }
 
+  async countEventsBatch(
+    query: { agentId: string; from: string; to: string; tenantId?: string },
+  ): Promise<{ total: number; error: number; critical: number; toolError: number }> {
+    const conditions = [];
+    if (query.tenantId) conditions.push(eq(events.tenantId, query.tenantId));
+    conditions.push(eq(events.agentId, query.agentId));
+    conditions.push(gte(events.timestamp, query.from));
+    conditions.push(lte(events.timestamp, query.to));
+
+    const result = this.db
+      .select({
+        total: drizzleCount(),
+        error: sql<number>`SUM(CASE WHEN ${events.severity} = 'error' THEN 1 ELSE 0 END)`,
+        critical: sql<number>`SUM(CASE WHEN ${events.severity} = 'critical' THEN 1 ELSE 0 END)`,
+        toolError: sql<number>`SUM(CASE WHEN ${events.eventType} = 'tool_error' THEN 1 ELSE 0 END)`,
+      })
+      .from(events)
+      .where(and(...conditions))
+      .get();
+
+    return {
+      total: result?.total ?? 0,
+      error: result?.error ?? 0,
+      critical: result?.critical ?? 0,
+      toolError: result?.toolError ?? 0,
+    };
+  }
+
+  async sumSessionCost(
+    query: { agentId: string; from: string; tenantId?: string },
+  ): Promise<number> {
+    const conditions = [];
+    if (query.tenantId) conditions.push(eq(sessions.tenantId, query.tenantId));
+    conditions.push(eq(sessions.agentId, query.agentId));
+    conditions.push(gte(sessions.startedAt, query.from));
+
+    const result = this.db
+      .select({ total: sql<number>`COALESCE(SUM(${sessions.totalCostUsd}), 0)` })
+      .from(sessions)
+      .where(and(...conditions))
+      .get();
+
+    return result?.total ?? 0;
+  }
+
   // ─── Sessions — Read ───────────────────────────────────────
 
   async querySessions(

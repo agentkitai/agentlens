@@ -272,3 +272,208 @@ describe('AlertEngine lifecycle', () => {
     engine.stop(); // Stopping twice is safe
   });
 });
+
+describe('AlertEngine analytics cache (S-2.2)', () => {
+  it('computes analytics once for rules sharing the same agent and window', async () => {
+    const now = new Date().toISOString();
+    const agentId = 'shared-agent';
+
+    // Two rules with the same scope and window
+    await store.createAlertRule({
+      id: ulid(), name: 'Rule A', enabled: true,
+      condition: 'event_count_exceeds', threshold: 1000,
+      windowMinutes: 60, scope: { agentId },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+    await store.createAlertRule({
+      id: ulid(), name: 'Rule B', enabled: true,
+      condition: 'error_rate_exceeds', threshold: 0.99,
+      windowMinutes: 60, scope: { agentId },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+
+    const getAnalyticsSpy = vi.spyOn(store, 'getAnalytics');
+
+    // We need a TenantScopedStore spy too — the engine wraps the store
+    // But since both rules share the same key, only 1 call should happen
+    // through the tenant-scoped wrapper. We spy on the underlying store.
+    await engine.evaluate();
+
+    // Should be called exactly once (both rules share tenantId:agentId:windowMinutes)
+    expect(getAnalyticsSpy).toHaveBeenCalledTimes(1);
+    getAnalyticsSpy.mockRestore();
+  });
+
+  it('computes analytics separately for different agents', async () => {
+    const now = new Date().toISOString();
+
+    await store.createAlertRule({
+      id: ulid(), name: 'Agent1 Rule', enabled: true,
+      condition: 'event_count_exceeds', threshold: 1000,
+      windowMinutes: 60, scope: { agentId: 'agent-1' },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+    await store.createAlertRule({
+      id: ulid(), name: 'Agent2 Rule', enabled: true,
+      condition: 'event_count_exceeds', threshold: 1000,
+      windowMinutes: 60, scope: { agentId: 'agent-2' },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+
+    const getAnalyticsSpy = vi.spyOn(store, 'getAnalytics');
+    await engine.evaluate();
+
+    expect(getAnalyticsSpy).toHaveBeenCalledTimes(2);
+    getAnalyticsSpy.mockRestore();
+  });
+
+  it('computes analytics separately for different window sizes', async () => {
+    const now = new Date().toISOString();
+
+    await store.createAlertRule({
+      id: ulid(), name: '60m Rule', enabled: true,
+      condition: 'event_count_exceeds', threshold: 1000,
+      windowMinutes: 60, scope: { agentId: 'same-agent' },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+    await store.createAlertRule({
+      id: ulid(), name: '30m Rule', enabled: true,
+      condition: 'event_count_exceeds', threshold: 1000,
+      windowMinutes: 30, scope: { agentId: 'same-agent' },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+
+    const getAnalyticsSpy = vi.spyOn(store, 'getAnalytics');
+    await engine.evaluate();
+
+    expect(getAnalyticsSpy).toHaveBeenCalledTimes(2);
+    getAnalyticsSpy.mockRestore();
+  });
+
+  it('clears cache after evaluation cycle', async () => {
+    const now = new Date().toISOString();
+
+    await store.createAlertRule({
+      id: ulid(), name: 'Cached Rule', enabled: true,
+      condition: 'event_count_exceeds', threshold: 1000,
+      windowMinutes: 60, scope: { agentId: 'cache-agent' },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+
+    const getAnalyticsSpy = vi.spyOn(store, 'getAnalytics');
+
+    // First cycle
+    await engine.evaluate();
+    expect(getAnalyticsSpy).toHaveBeenCalledTimes(1);
+
+    // Second cycle — cache should have been cleared, so analytics is called again
+    await engine.evaluate();
+    expect(getAnalyticsSpy).toHaveBeenCalledTimes(2);
+
+    getAnalyticsSpy.mockRestore();
+  });
+
+  it('groups rules correctly: 3 rules, 2 unique keys → 2 analytics calls', async () => {
+    const now = new Date().toISOString();
+
+    // Two rules share the same key
+    for (const name of ['R1', 'R2']) {
+      await store.createAlertRule({
+        id: ulid(), name, enabled: true,
+        condition: 'error_rate_exceeds', threshold: 0.99,
+        windowMinutes: 60, scope: { agentId: 'agentA' },
+        notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+      });
+    }
+    // Third rule has a different key
+    await store.createAlertRule({
+      id: ulid(), name: 'R3', enabled: true,
+      condition: 'cost_exceeds', threshold: 9999,
+      windowMinutes: 120, scope: { agentId: 'agentA' },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+
+    const getAnalyticsSpy = vi.spyOn(store, 'getAnalytics');
+    await engine.evaluate();
+
+    expect(getAnalyticsSpy).toHaveBeenCalledTimes(2);
+    getAnalyticsSpy.mockRestore();
+  });
+
+  it('shares cached analytics results correctly across rules', async () => {
+    const now = new Date().toISOString();
+    const sessionId = 'cache-session';
+    const agentId = 'cache-share-agent';
+
+    // Insert events: 5 events total (exceeds threshold of 3)
+    const batch: AgentLensEvent[] = [];
+    const startEvent = makeEvent(
+      { sessionId, agentId, eventType: 'session_started', payload: { agentName: 'test' } },
+      null,
+    );
+    batch.push(startEvent);
+    let prevHash = startEvent.hash;
+    for (let i = 0; i < 4; i++) {
+      const ev = makeEvent({ sessionId, agentId }, prevHash);
+      batch.push(ev);
+      prevHash = ev.hash;
+    }
+    await store.insertEvents(batch);
+
+    // Two rules, same scope/window, different thresholds
+    await store.createAlertRule({
+      id: ulid(), name: 'Low Threshold', enabled: true,
+      condition: 'event_count_exceeds', threshold: 3,
+      windowMinutes: 60, scope: { agentId },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+    await store.createAlertRule({
+      id: ulid(), name: 'High Threshold', enabled: true,
+      condition: 'event_count_exceeds', threshold: 100,
+      windowMinutes: 60, scope: { agentId },
+      notifyChannels: [], createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+
+    const getAnalyticsSpy = vi.spyOn(store, 'getAnalytics');
+    const triggered = await engine.evaluate();
+
+    // Only 1 analytics call despite 2 rules
+    expect(getAnalyticsSpy).toHaveBeenCalledTimes(1);
+    // Only the low-threshold rule triggers
+    expect(triggered).toHaveLength(1);
+    expect(triggered[0]!.message).toContain('Event count');
+
+    getAnalyticsSpy.mockRestore();
+  });
+});
+
+describe('AlertEngine configurable interval (S-2.2)', () => {
+  it('uses ALERT_CHECK_INTERVAL_MS env var', () => {
+    const original = process.env['ALERT_CHECK_INTERVAL_MS'];
+    try {
+      process.env['ALERT_CHECK_INTERVAL_MS'] = '5000';
+      const customEngine = new AlertEngine(store);
+      // Access private field via cast
+      expect((customEngine as any).checkIntervalMs).toBe(5000);
+    } finally {
+      if (original === undefined) {
+        delete process.env['ALERT_CHECK_INTERVAL_MS'];
+      } else {
+        process.env['ALERT_CHECK_INTERVAL_MS'] = original;
+      }
+    }
+  });
+
+  it('defaults to 60000 when env var is not set', () => {
+    const original = process.env['ALERT_CHECK_INTERVAL_MS'];
+    try {
+      delete process.env['ALERT_CHECK_INTERVAL_MS'];
+      const customEngine = new AlertEngine(store);
+      expect((customEngine as any).checkIntervalMs).toBe(60000);
+    } finally {
+      if (original !== undefined) {
+        process.env['ALERT_CHECK_INTERVAL_MS'] = original;
+      }
+    }
+  });
+});
