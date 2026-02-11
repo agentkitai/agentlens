@@ -22,7 +22,7 @@ export function getConfig(): ServerConfig {
   const port = parseInt(process.env['PORT'] ?? '3400', 10);
   return {
     port: isNaN(port) ? 3400 : port,
-    corsOrigin: process.env['CORS_ORIGIN'] ?? '*',
+    corsOrigin: process.env['CORS_ORIGIN'] ?? 'http://localhost:3400',
     authDisabled: process.env['AUTH_DISABLED'] === 'true',
     dbPath: process.env['DB_PATH'] ?? process.env['DATABASE_PATH'] ?? './agentlens.db',
     retentionDays: (() => {
@@ -30,4 +30,20 @@ export function getConfig(): ServerConfig {
       return isNaN(parsed) ? 90 : parsed;
     })(),
   };
+}
+
+/**
+ * Validate config at startup. Logs warnings and throws on fatal misconfigurations.
+ */
+export function validateConfig(config: ServerConfig): void {
+  if (config.authDisabled) {
+    console.warn('⚠️  WARNING: Authentication is DISABLED. Do not use in production!');
+  }
+
+  if (config.corsOrigin === '*' && !config.authDisabled) {
+    throw new Error(
+      'FATAL: CORS_ORIGIN=* with authentication enabled is insecure. ' +
+      'Set a specific origin (e.g. http://localhost:3400) or set AUTH_DISABLED=true for development.',
+    );
+  }
 }

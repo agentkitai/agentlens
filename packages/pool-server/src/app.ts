@@ -3,27 +3,36 @@
 import { Hono } from 'hono';
 import type { PoolStore } from './store.js';
 import { RateLimiter } from './rate-limiter.js';
+import { requireAuth, type AuthOptions } from './auth.js';
 
 export interface PoolAppOptions {
   store: PoolStore;
   rateLimiter?: RateLimiter;
+  apiKey?: string;
+  adminKey?: string;
+  authDisabled?: boolean;
 }
 
 export function createPoolApp(options: PoolAppOptions): Hono {
   const { store } = options;
   const rateLimiter = options.rateLimiter ?? new RateLimiter(100, 60_000);
+  const authOpts: AuthOptions = {
+    apiKey: options.apiKey,
+    adminKey: options.adminKey,
+    authDisabled: options.authDisabled,
+  };
 
   const app = new Hono();
 
   // ─── Health ───
 
-  app.get('/health', (c) => {
+  app.get('/health', requireAuth('public', authOpts), (c) => {
     return c.json({ status: 'ok', timestamp: Date.now() });
   });
 
   // ─── Pool Lesson API ───
 
-  app.post('/pool/share', async (c) => {
+  app.post('/pool/share', requireAuth('contributor', authOpts), async (c) => {
     const body = await c.req.json();
     const { anonymousContributorId, category, title, content, embedding, qualitySignals } = body;
 
@@ -52,7 +61,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
   });
 
   // C2 FIX: Endpoint to register a purge token
-  app.post('/pool/purge-token', async (c) => {
+  app.post('/pool/purge-token', requireAuth('contributor', authOpts), async (c) => {
     const body = await c.req.json();
     const { anonymousContributorId, token } = body;
 
@@ -64,7 +73,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ success: true }, 201);
   });
 
-  app.post('/pool/search', async (c) => {
+  app.post('/pool/search', requireAuth('public', authOpts), async (c) => {
     const body = await c.req.json();
     const { embedding, category, minReputation, limit } = body;
 
@@ -76,7 +85,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ results });
   });
 
-  app.delete('/pool/purge', async (c) => {
+  app.delete('/pool/purge', requireAuth('contributor', authOpts), async (c) => {
     const body = await c.req.json();
     const { anonymousContributorId, token } = body;
 
@@ -93,7 +102,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ deleted });
   });
 
-  app.get('/pool/count', async (c) => {
+  app.get('/pool/count', requireAuth('contributor', authOpts), async (c) => {
     const contributorId = c.req.query('contributorId');
     if (!contributorId) {
       return c.json({ error: 'Missing query parameter: contributorId' }, 400);
@@ -105,7 +114,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
 
   // ─── Pool Discovery & Delegation API ───
 
-  app.post('/pool/register', async (c) => {
+  app.post('/pool/register', requireAuth('agent', authOpts), async (c) => {
     const body = await c.req.json();
     const { anonymousAgentId, taskType, inputSchema, outputSchema } = body;
 
@@ -137,7 +146,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json(cap, 201);
   });
 
-  app.post('/pool/discover', async (c) => {
+  app.post('/pool/discover', requireAuth('agent', authOpts), async (c) => {
     const body = await c.req.json();
     const results = await store.discoverCapabilities({
       taskType: body.taskType,
@@ -150,7 +159,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ results });
   });
 
-  app.delete('/pool/unregister', async (c) => {
+  app.delete('/pool/unregister', requireAuth('agent', authOpts), async (c) => {
     const body = await c.req.json();
     const { id } = body;
 
@@ -165,7 +174,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ success: true });
   });
 
-  app.post('/pool/delegate', async (c) => {
+  app.post('/pool/delegate', requireAuth('agent', authOpts), async (c) => {
     const body = await c.req.json();
     const { id, requesterAnonymousId, targetAnonymousId, taskType, inputData, timeoutMs } = body;
 
@@ -184,7 +193,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json(delegation, 201);
   });
 
-  app.get('/pool/delegate/inbox', async (c) => {
+  app.get('/pool/delegate/inbox', requireAuth('agent', authOpts), async (c) => {
     const targetId = c.req.query('targetAnonymousId');
     if (!targetId) {
       return c.json({ error: 'Missing query parameter: targetAnonymousId' }, 400);
@@ -196,7 +205,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
 
   // ─── Pool Reputation API ───
 
-  app.post('/pool/reputation/rate', async (c) => {
+  app.post('/pool/reputation/rate', requireAuth('contributor', authOpts), async (c) => {
     const body = await c.req.json();
     const { lessonId, voterAnonymousId, delta, reason } = body;
 
@@ -241,7 +250,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ event, lesson }, 200);
   });
 
-  app.get('/pool/reputation/:lessonId', async (c) => {
+  app.get('/pool/reputation/:lessonId', requireAuth('public', authOpts), async (c) => {
     const lessonId = c.req.param('lessonId');
     const events = await store.getReputationEvents(lessonId);
     const lesson = await store.getLessonById(lessonId);
@@ -254,7 +263,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
 
   // ─── Pool Moderation API ───
 
-  app.post('/pool/flag', async (c) => {
+  app.post('/pool/flag', requireAuth('contributor', authOpts), async (c) => {
     const body = await c.req.json();
     const { lessonId, reporterAnonymousId, reason } = body;
 
@@ -292,13 +301,13 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ flag, flagCount: distinctReporters.size }, 201);
   });
 
-  app.get('/pool/moderation/queue', async (c) => {
+  app.get('/pool/moderation/queue', requireAuth('admin', authOpts), async (c) => {
     // M3 FIX: Use dedicated method instead of searchLessons (which filters out hidden)
     const queue = await store.getModerationQueue();
     return c.json({ queue });
   });
 
-  app.post('/pool/moderation/:id/approve', async (c) => {
+  app.post('/pool/moderation/:id/approve', requireAuth('admin', authOpts), async (c) => {
     const lessonId = c.req.param('id');
     const lesson = await store.getLessonById(lessonId);
     if (!lesson) return c.json({ error: 'Lesson not found' }, 404);
@@ -308,7 +317,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ success: true, lessonId });
   });
 
-  app.post('/pool/moderation/:id/remove', async (c) => {
+  app.post('/pool/moderation/:id/remove', requireAuth('admin', authOpts), async (c) => {
     const lessonId = c.req.param('id');
     const lesson = await store.getLessonById(lessonId);
     if (!lesson) return c.json({ error: 'Lesson not found' }, 404);
@@ -317,7 +326,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     return c.json({ success: true, lessonId });
   });
 
-  app.put('/pool/delegate/:id/status', async (c) => {
+  app.put('/pool/delegate/:id/status', requireAuth('agent', authOpts), async (c) => {
     const delegationId = c.req.param('id');
     const body = await c.req.json();
     const { status, outputData } = body;

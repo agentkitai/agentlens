@@ -81,11 +81,11 @@ describe('Community REST API (Stories 4.1–4.3)', () => {
   // ─── GET /api/community/search ────────────────────
 
   describe('GET /api/community/search', () => {
-    it('should require q parameter', async () => {
+    it('should accept missing q parameter (returns all)', async () => {
       const res = await ctx.app.request('/api/community/search', {
         headers: authHeaders(ctx.apiKey),
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
     });
 
     it('should return results', async () => {

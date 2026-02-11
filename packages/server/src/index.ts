@@ -15,7 +15,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IEventStore } from '@agentlensai/core';
-import { getConfig, type ServerConfig } from './config.js';
+import { getConfig, validateConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';
 import { apiKeysRoutes } from './routes/api-keys.js';
 import { eventsRoutes } from './routes/events.js';
@@ -61,7 +61,7 @@ import { EmbeddingStore } from './db/embedding-store.js';
 import { SessionSummaryStore } from './db/session-summary-store.js';
 
 // Re-export everything consumers may need
-export { getConfig } from './config.js';
+export { getConfig, validateConfig } from './config.js';
 export type { ServerConfig } from './config.js';
 export { authMiddleware, hashApiKey } from './middleware/auth.js';
 export type { ApiKeyInfo, AuthVariables } from './middleware/auth.js';
@@ -387,6 +387,7 @@ export function createApp(
  */
 export async function startServer() {
   const config = getConfig();
+  validateConfig(config);
 
   // Create and initialize database
   const db = createDb({ databasePath: config.dbPath });
