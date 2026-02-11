@@ -47,6 +47,15 @@ export function sessionsRoutes(store: IEventStore) {
     const offsetStr = c.req.query('offset');
     query.offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10) || 0) : 0;
 
+    const countOnly = c.req.query('countOnly') === 'true';
+
+    if (countOnly) {
+      // Optimized path: query with limit 0 to get just the count
+      const countQuery = { ...query, limit: 1, offset: 0 };
+      const result = await tenantStore.querySessions(countQuery);
+      return c.json({ count: result.total });
+    }
+
     const result = await tenantStore.querySessions(query);
 
     return c.json({

@@ -34,3 +34,6 @@ export * from './community-types.js';
 
 // Re-export discovery types (Phase 4 — Story 1.2)
 export * from './discovery-types.js';
+
+// Re-export error utilities (Phase 7 — Story S-4.2)
+export { getErrorMessage } from './errors.js';

@@ -12,14 +12,13 @@ import {
 import type {
   AgentLensEvent,
   Session,
-  StorageStats,
   EventQueryResult,
   SessionQueryResult,
 } from '@agentlensai/core';
 import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';
-import { getStats, getEvents, getSessions, getLlmAnalytics } from '../api/client';
-import type { LlmAnalyticsResult } from '../api/client';
+import { getOverviewStats, getEvents, getSessions, getLlmAnalytics } from '../api/client';
+import type { LlmAnalyticsResult, OverviewStats } from '../api/client';
 import { MetricsGrid } from '../components/MetricsGrid';
 import type { MetricCard } from '../components/MetricsGrid';
 
@@ -124,66 +123,24 @@ export function Overview(): React.ReactElement {
     d.setHours(0, 0, 0, 0);
     return d.toISOString();
   }, [now]);
-  const yesterdayStart = useMemo(() => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 1);
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString();
-  }, [now]);
   const last24h = useMemo(() => new Date(now.getTime() - 86400_000).toISOString(), [now]);
 
-  // Fetch stats
-  const stats = useApi<StorageStats>(() => getStats(), []);
+  // ─── API call 1: Consolidated overview stats ────────────────────
+  const overview = useApi<OverviewStats>(() => getOverviewStats(), []);
 
-  // Events today (total count only — limit:1 since we only need the `total`)
-  const eventsToday = useApi<EventQueryResult>(
-    () => getEvents({ from: todayStart, limit: 1, order: 'desc' }),
-    [todayStart],
-  );
-
-  // Events yesterday (total count only)
-  const eventsYesterday = useApi<EventQueryResult>(
-    () => getEvents({ from: yesterdayStart, to: todayStart, limit: 1, order: 'desc' }),
-    [yesterdayStart, todayStart],
-  );
-
-  // Error counts today (use server-side severity filter + total)
-  const errorsToday = useApi<EventQueryResult>(
-    () => getEvents({ from: todayStart, severity: ['error', 'critical'], limit: 1, order: 'desc' }),
-    [todayStart],
-  );
-
-  // Error counts yesterday (for trend)
-  const errorsYesterday = useApi<EventQueryResult>(
-    () => getEvents({ from: yesterdayStart, to: todayStart, severity: ['error', 'critical'], limit: 1, order: 'desc' }),
-    [yesterdayStart, todayStart],
-  );
-
-  // Recent sessions (refetched on SSE session updates — Story 14.4)
+  // ─── API call 2: Recent sessions (refetched on SSE session updates) ──
   const sessions = useApi<SessionQueryResult & { hasMore: boolean }>(
     () => getSessions({ limit: 10 }),
     [liveSessionRefreshKey],
   );
 
-  // Sessions today for count
-  const sessionsToday = useApi<SessionQueryResult & { hasMore: boolean }>(
-    () => getSessions({ from: todayStart, limit: 1000 }),
-    [todayStart],
-  );
-
-  // Sessions yesterday for trend
-  const sessionsYesterday = useApi<SessionQueryResult & { hasMore: boolean }>(
-    () => getSessions({ from: yesterdayStart, to: todayStart, limit: 1000 }),
-    [yesterdayStart, todayStart],
-  );
-
-  // Events last 24h for chart
+  // ─── API call 3: Events last 24h for chart ─────────────────────
   const eventsChart = useApi<EventQueryResult>(
     () => getEvents({ from: last24h, limit: 5000, order: 'asc' }),
     [last24h],
   );
 
-  // Recent errors
+  // Recent errors (included as sub-query in eventsChart or separate small call)
   const recentErrors = useApi<EventQueryResult>(
     () => getEvents({ severity: ['error', 'critical'], limit: 10, order: 'desc' }),
     [],
@@ -197,17 +154,10 @@ export function Overview(): React.ReactElement {
 
   // ─── Computed metrics ───────────────────────────────────────────
 
-  const todayErrorCount = errorsToday.data?.total ?? 0;
-  const yesterdayErrorCount = errorsYesterday.data?.total ?? 0;
-
-  const todaySessionCount = sessionsToday.data?.total ?? 0;
-  const yesterdaySessionCount = sessionsYesterday.data?.total ?? 0;
-
-  const metricsLoading =
-    eventsToday.loading || eventsYesterday.loading || errorsToday.loading || errorsYesterday.loading || sessionsToday.loading || sessionsYesterday.loading || stats.loading;
+  const metricsLoading = overview.loading;
 
   // Add live event delta to "Events Today" for real-time counter (Story 14.4)
-  const eventsTodayCount = (eventsToday.data?.total ?? 0) + liveEventDelta;
+  const eventsTodayCount = (overview.data?.eventsTodayCount ?? 0) + liveEventDelta;
 
   // LLM metrics
   const llmCallCount = llmToday.data?.summary?.totalCalls ?? 0;
@@ -216,25 +166,25 @@ export function Overview(): React.ReactElement {
   const cards: MetricCard[] = [
     {
       label: 'Sessions Today',
-      value: todaySessionCount,
-      currentValue: todaySessionCount,
-      previousValue: yesterdaySessionCount,
+      value: overview.data?.sessionsTodayCount ?? 0,
+      currentValue: overview.data?.sessionsTodayCount ?? 0,
+      previousValue: overview.data?.sessionsYesterdayCount ?? 0,
     },
     {
       label: 'Events Today',
       value: eventsTodayCount,
       currentValue: eventsTodayCount,
-      previousValue: eventsYesterday.data?.total ?? 0,
+      previousValue: overview.data?.eventsYesterdayCount ?? 0,
     },
     {
       label: 'Errors Today',
-      value: todayErrorCount,
-      currentValue: todayErrorCount,
-      previousValue: yesterdayErrorCount,
+      value: overview.data?.errorsTodayCount ?? 0,
+      currentValue: overview.data?.errorsTodayCount ?? 0,
+      previousValue: overview.data?.errorsYesterdayCount ?? 0,
     },
     {
       label: 'Active Agents',
-      value: stats.data?.totalAgents ?? 0,
+      value: overview.data?.totalAgents ?? 0,
     },
   ];
 

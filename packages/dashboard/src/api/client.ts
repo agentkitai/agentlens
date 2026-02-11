@@ -139,6 +139,23 @@ export async function getStats(): Promise<StorageStats> {
   return request<StorageStats>('/api/stats');
 }
 
+// ─── Overview (Story S-3.2) ─────────────────────────────────────────
+
+export interface OverviewStats {
+  eventsTodayCount: number;
+  eventsYesterdayCount: number;
+  errorsTodayCount: number;
+  errorsYesterdayCount: number;
+  sessionsTodayCount: number;
+  sessionsYesterdayCount: number;
+  totalAgents: number;
+  errorRate: number;
+}
+
+export async function getOverviewStats(): Promise<OverviewStats> {
+  return request<OverviewStats>('/api/stats/overview');
+}
+
 // ─── API Keys ───────────────────────────────────────────────────────
 
 export interface ApiKeyInfo {
