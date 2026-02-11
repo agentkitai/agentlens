@@ -78,9 +78,26 @@ export interface IEventStore {
   getLastEventHash(sessionId: string): Promise<string | null>;
   /** Count events matching a query (for pagination) */
   countEvents(query: Omit<EventQuery, 'limit' | 'offset'>): Promise<number>;
-  /** Batch count events by category in a single query */
+  /**
+   * Batch count events by category (total, error, critical, toolError) in a single query.
+   * More efficient than issuing separate countEvents() calls per severity.
+   *
+   * @param query.agentId  - Filter by agent
+   * @param query.from     - Start of time window (inclusive, ISO-8601)
+   * @param query.to       - End of time window (inclusive, ISO-8601)
+   * @param query.tenantId - Optional tenant scope
+   * @returns Counts broken down by category
+   */
   countEventsBatch(query: { agentId: string; from: string; to: string; tenantId?: string }): Promise<{ total: number; error: number; critical: number; toolError: number }>;
-  /** Sum totalCostUsd for sessions matching filters */
+
+  /**
+   * Sum `totalCostUsd` across all sessions matching the given filters.
+   *
+   * @param query.agentId  - Filter by agent
+   * @param query.from     - Only sessions started at or after this time (ISO-8601)
+   * @param query.tenantId - Optional tenant scope
+   * @returns Total cost in USD (0 when no sessions match)
+   */
   sumSessionCost(query: { agentId: string; from: string; tenantId?: string }): Promise<number>;
 
   // ─── Sessions ────────────────────────────────────────────

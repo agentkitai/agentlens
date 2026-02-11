@@ -14,7 +14,7 @@
  * - getAnalytics(), getStats()
  */
 
-import { eq, and, gte, lte, inArray, desc, asc, sql, count as drizzleCount } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, asc, sql, count as drizzleCount } from 'drizzle-orm';
 import { computeEventHash } from '@agentlensai/core';
 import type {
   AgentLensEvent,
@@ -31,21 +31,20 @@ import type { SqliteDb } from './index.js';
 import { events, sessions, agents, alertRules, alertHistory } from './schema.sqlite.js';
 import { HashChainError, NotFoundError } from './errors.js';
 import { createLogger } from '../lib/logger.js';
+import {
+  safeJsonParse,
+  buildEventConditions,
+  buildSessionConditions,
+  mapEventRow,
+  mapSessionRow,
+  mapAgentRow,
+  mapAlertRuleRow,
+} from './shared/query-helpers.js';
 
 const log = createLogger('SqliteEventStore');
 
-// ─── Helpers ───────────────────────────────────────────────
-
-/**
- * Safe JSON.parse that returns a fallback on any error instead of throwing.
- */
-export function safeJsonParse<T>(raw: string, fallback: T): T {
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
+// Re-export for backward compatibility
+export { safeJsonParse } from './shared/query-helpers.js';
 
 export class SqliteEventStore implements IEventStore {
   constructor(private db: SqliteDb) {}
@@ -472,7 +471,7 @@ export class SqliteEventStore implements IEventStore {
     const offset = query.offset ?? 0;
     const orderDir = query.order === 'asc' ? asc : desc;
 
-    const conditions = this._buildEventConditions(query);
+    const conditions = buildEventConditions(query);
 
     const rows = this.db
       .select()
@@ -486,7 +485,7 @@ export class SqliteEventStore implements IEventStore {
     const total = await this.countEvents(query);
 
     return {
-      events: rows.map(this._mapEventRow),
+      events: rows.map(mapEventRow),
       total,
       hasMore: offset + rows.length < total,
     };
@@ -503,7 +502,7 @@ export class SqliteEventStore implements IEventStore {
       .where(and(...conditions))
       .get();
 
-    return row ? this._mapEventRow(row) : null;
+    return row ? mapEventRow(row) : null;
   }
 
   async getSessionTimeline(sessionId: string, tenantId?: string): Promise<AgentLensEvent[]> {
@@ -517,7 +516,7 @@ export class SqliteEventStore implements IEventStore {
       .orderBy(asc(events.timestamp))
       .all();
 
-    return rows.map(this._mapEventRow);
+    return rows.map(mapEventRow);
   }
 
   async getLastEventHash(sessionId: string, tenantId?: string): Promise<string | null> {
@@ -538,7 +537,7 @@ export class SqliteEventStore implements IEventStore {
   async countEvents(
     query: Omit<EventQuery, 'limit' | 'offset'>,
   ): Promise<number> {
-    const conditions = this._buildEventConditions(query);
+    const conditions = buildEventConditions(query);
 
     const result = this.db
       .select({ count: drizzleCount() })
@@ -603,7 +602,7 @@ export class SqliteEventStore implements IEventStore {
     const limit = Math.min(query.limit ?? 50, 500);
     const offset = query.offset ?? 0;
 
-    const conditions = this._buildSessionConditions(query);
+    const conditions = buildSessionConditions(query);
 
     const rows = this.db
       .select()
@@ -621,7 +620,7 @@ export class SqliteEventStore implements IEventStore {
       .get();
 
     return {
-      sessions: rows.map(this._mapSessionRow),
+      sessions: rows.map(mapSessionRow),
       total: totalResult?.count ?? 0,
     };
   }
@@ -636,7 +635,7 @@ export class SqliteEventStore implements IEventStore {
       .where(and(...conditions))
       .get();
 
-    return row ? this._mapSessionRow(row) : null;
+    return row ? mapSessionRow(row) : null;
   }
 
   // ─── Agents — Read ─────────────────────────────────────────
@@ -652,7 +651,7 @@ export class SqliteEventStore implements IEventStore {
       .orderBy(desc(agents.lastSeenAt))
       .all();
 
-    return rows.map(this._mapAgentRow);
+    return rows.map(mapAgentRow);
   }
 
   async getAgent(id: string, tenantId?: string): Promise<Agent | null> {
@@ -665,7 +664,7 @@ export class SqliteEventStore implements IEventStore {
       .where(and(...conditions))
       .get();
 
-    return row ? this._mapAgentRow(row) : null;
+    return row ? mapAgentRow(row) : null;
   }
 
   // ─── Analytics ─────────────────────────────────────────────
@@ -856,7 +855,7 @@ export class SqliteEventStore implements IEventStore {
       .from(alertRules)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .all();
-    return rows.map(this._mapAlertRuleRow);
+    return rows.map(mapAlertRuleRow);
   }
 
   async getAlertRule(id: string, tenantId?: string): Promise<AlertRule | null> {
@@ -868,7 +867,7 @@ export class SqliteEventStore implements IEventStore {
       .from(alertRules)
       .where(and(...conditions))
       .get();
-    return row ? this._mapAlertRuleRow(row) : null;
+    return row ? mapAlertRuleRow(row) : null;
   }
 
   // ─── Alert History ─────────────────────────────────────────
@@ -1045,159 +1044,4 @@ export class SqliteEventStore implements IEventStore {
     };
   }
 
-  // ─── Private Helpers ───────────────────────────────────────
-
-  private _buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>) {
-    const conditions = [];
-
-    if (query.tenantId) {
-      conditions.push(eq(events.tenantId, query.tenantId));
-    }
-    if (query.sessionId) {
-      conditions.push(eq(events.sessionId, query.sessionId));
-    }
-    if (query.agentId) {
-      conditions.push(eq(events.agentId, query.agentId));
-    }
-    if (query.eventType) {
-      if (Array.isArray(query.eventType)) {
-        conditions.push(inArray(events.eventType, query.eventType));
-      } else {
-        conditions.push(eq(events.eventType, query.eventType));
-      }
-    }
-    if (query.severity) {
-      if (Array.isArray(query.severity)) {
-        conditions.push(inArray(events.severity, query.severity));
-      } else {
-        conditions.push(eq(events.severity, query.severity));
-      }
-    }
-    if (query.from) {
-      conditions.push(gte(events.timestamp, query.from));
-    }
-    if (query.to) {
-      conditions.push(lte(events.timestamp, query.to));
-    }
-    if (query.search) {
-      // H1 fix: Escape LIKE wildcards to prevent wildcard abuse
-      const escaped = query.search
-        .replace(/\\/g, '\\\\')
-        .replace(/%/g, '\\%')
-        .replace(/_/g, '\\_');
-      conditions.push(sql`${events.payload} LIKE ${'%' + escaped + '%'} ESCAPE '\\'`);
-    }
-
-    return conditions;
-  }
-
-  // HIGH 4: Use json_each() for exact tag matching with OR semantics
-  private _buildSessionConditions(query: SessionQuery) {
-    const conditions = [];
-
-    if (query.tenantId) {
-      conditions.push(eq(sessions.tenantId, query.tenantId));
-    }
-    if (query.agentId) {
-      conditions.push(eq(sessions.agentId, query.agentId));
-    }
-    if (query.status) {
-      if (Array.isArray(query.status)) {
-        if (query.status.length === 1) {
-          conditions.push(eq(sessions.status, query.status[0]));
-        } else if (query.status.length > 1) {
-          conditions.push(inArray(sessions.status, query.status));
-        }
-      } else {
-        conditions.push(eq(sessions.status, query.status));
-      }
-    }
-    if (query.from) {
-      conditions.push(gte(sessions.startedAt, query.from));
-    }
-    if (query.to) {
-      conditions.push(lte(sessions.startedAt, query.to));
-    }
-    if (query.tags && query.tags.length > 0) {
-      // Use json_each for exact tag matching with OR semantics
-      // A session matches if it contains ANY of the specified tags
-      const tagPlaceholders = query.tags.map((tag) => sql`${tag}`);
-      conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM json_each(${sessions.tags}) AS je
-          WHERE je.value IN (${sql.join(tagPlaceholders, sql`, `)})
-        )`,
-      );
-    }
-
-    return conditions;
-  }
-
-  // HIGH 7: Use safeJsonParse everywhere
-  private _mapEventRow(row: typeof events.$inferSelect): AgentLensEvent {
-    return {
-      id: row.id,
-      timestamp: row.timestamp,
-      sessionId: row.sessionId,
-      agentId: row.agentId,
-      eventType: row.eventType as AgentLensEvent['eventType'],
-      severity: row.severity as AgentLensEvent['severity'],
-      payload: safeJsonParse(row.payload, {} as Record<string, unknown>),
-      metadata: safeJsonParse(row.metadata, {} as Record<string, unknown>),
-      prevHash: row.prevHash,
-      hash: row.hash,
-      tenantId: row.tenantId,
-    };
-  }
-
-  private _mapSessionRow(row: typeof sessions.$inferSelect): Session {
-    return {
-      id: row.id,
-      agentId: row.agentId,
-      agentName: row.agentName ?? undefined,
-      startedAt: row.startedAt,
-      endedAt: row.endedAt ?? undefined,
-      status: row.status as Session['status'],
-      eventCount: row.eventCount,
-      toolCallCount: row.toolCallCount,
-      errorCount: row.errorCount,
-      totalCostUsd: row.totalCostUsd,
-      llmCallCount: row.llmCallCount,
-      totalInputTokens: row.totalInputTokens,
-      totalOutputTokens: row.totalOutputTokens,
-      tags: safeJsonParse(row.tags, [] as string[]),
-      tenantId: row.tenantId,
-    };
-  }
-
-  private _mapAgentRow(row: typeof agents.$inferSelect): Agent {
-    return {
-      id: row.id,
-      name: row.name,
-      description: row.description ?? undefined,
-      firstSeenAt: row.firstSeenAt,
-      lastSeenAt: row.lastSeenAt,
-      sessionCount: row.sessionCount,
-      tenantId: row.tenantId,
-      modelOverride: row.modelOverride ?? undefined,
-      pausedAt: row.pausedAt ?? undefined,
-      pauseReason: row.pauseReason ?? undefined,
-    };
-  }
-
-  private _mapAlertRuleRow(row: typeof alertRules.$inferSelect): AlertRule {
-    return {
-      id: row.id,
-      name: row.name,
-      enabled: row.enabled,
-      condition: row.condition as AlertRule['condition'],
-      threshold: row.threshold,
-      windowMinutes: row.windowMinutes,
-      scope: safeJsonParse(row.scope, {} as AlertRule['scope']),
-      notifyChannels: safeJsonParse(row.notifyChannels, [] as string[]),
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      tenantId: row.tenantId,
-    };
-  }
 }
