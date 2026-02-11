@@ -13,6 +13,10 @@ export interface ServerConfig {
   dbPath: string;
   /** Retention days (0 = keep forever, default: 90) */
   retentionDays: number;
+  /** Optional bearer token for OTLP ingestion auth */
+  otlpAuthToken?: string;
+  /** OTLP rate limit per IP per minute (default: 1000) */
+  otlpRateLimit: number;
 }
 
 /**
@@ -28,6 +32,11 @@ export function getConfig(): ServerConfig {
     retentionDays: (() => {
       const parsed = parseInt(process.env['RETENTION_DAYS'] ?? '90', 10);
       return isNaN(parsed) ? 90 : parsed;
+    })(),
+    otlpAuthToken: process.env['OTLP_AUTH_TOKEN'] || undefined,
+    otlpRateLimit: (() => {
+      const parsed = parseInt(process.env['OTLP_RATE_LIMIT'] ?? '1000', 10);
+      return isNaN(parsed) ? 1000 : parsed;
     })(),
   };
 }

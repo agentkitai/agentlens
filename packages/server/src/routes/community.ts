@@ -280,7 +280,8 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
       const rule = service.addDenyListRule(tenantId, pattern, isRegex, reason);
       return c.json({ rule }, 201);
     } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+      console.error('[community] addDenyListRule failed:', err);
+      return c.json({ error: 'Failed to add deny-list rule' }, 400);
     }
   });
 

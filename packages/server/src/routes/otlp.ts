@@ -15,6 +15,7 @@ import { computeEventHash, truncatePayload } from '@agentlensai/core';
 import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentlensai/core';
 import type { IEventStore } from '@agentlensai/core';
 import { eventBus } from '../lib/event-bus.js';
+import type { ServerConfig } from '../config.js';
 
 // ─── Protobuf Decoders (lazy-loaded) ────────────────────────────────
 
@@ -395,9 +396,66 @@ async function buildAndInsertEvents(
 
 // ─── Route Factory ──────────────────────────────────────────────────
 
-export function otlpRoutes(store: IEventStore) {
+// ─── Rate Limiter ───────────────────────────────────────────────────
+
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string, limit: number): boolean {
+  const now = Date.now();
+  let bucket = rateLimitBuckets.get(ip);
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + 60_000 };
+    rateLimitBuckets.set(ip, bucket);
+  }
+  bucket.count++;
+  return bucket.count <= limit;
+}
+
+/** Exported for testing — reset all rate limit state */
+export function resetRateLimiter(): void {
+  rateLimitBuckets.clear();
+}
+
+// ─── Route Factory ──────────────────────────────────────────────────
+
+const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
+
+export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfig, 'otlpAuthToken' | 'otlpRateLimit'>>) {
   const app = new Hono();
   const tenantStore = store;
+  const authToken = config?.otlpAuthToken;
+  const rateLimit = config?.otlpRateLimit ?? 1000;
+
+  // ── Auth middleware ──
+  app.use('*', async (c, next) => {
+    if (authToken) {
+      const authHeader = c.req.header('authorization') ?? '';
+      if (authHeader !== `Bearer ${authToken}`) {
+        return c.json({ error: 'Unauthorized' }, 401);
+      }
+    }
+    await next();
+  });
+
+  // ── Rate limiting middleware ──
+  app.use('*', async (c, next) => {
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+      ?? c.req.header('x-real-ip')
+      ?? 'unknown';
+    if (!checkRateLimit(ip, rateLimit)) {
+      return c.json({ error: 'Rate limit exceeded' }, 429);
+    }
+    await next();
+  });
+
+  // ── Body size limit middleware ──
+  app.use('*', async (c, next) => {
+    const contentLength = c.req.header('content-length');
+    if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE) {
+      return c.json({ error: 'Payload too large' }, 413);
+    }
+    await next();
+  });
 
   // POST /v1/traces
   app.post('/traces', async (c) => {

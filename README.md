@@ -163,6 +163,7 @@ agentlensai.init(
 
 📖 **[Cloud Setup Guide](./docs/guide/cloud-setup.md)** — sign up, create API key, verify first event
 📖 **[Migration Guide](./docs/guide/cloud-migration.md)** — move from self-hosted to cloud in 5 minutes
+🔧 **[Troubleshooting](./docs/guide/troubleshooting.md)** — common issues and how to fix them
 
 ## 🏗️ Architecture
 
@@ -595,6 +596,10 @@ pnpm dev
 
 - Node.js ≥ 20.0.0
 - pnpm ≥ 10.0.0
+
+## 🤝 Contributing
+
+We welcome contributions! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup instructions, coding standards, and the PR process.
 
 ## 📄 License
 

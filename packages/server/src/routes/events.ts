@@ -132,8 +132,8 @@ export function eventsRoutes(
       }
     } catch (error) {
       // If any session group fails, the entire batch is rejected
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return c.json({ error: `Batch insert failed: ${message}`, status: 500 }, 500);
+      console.error('[events] Batch insert failed:', error);
+      return c.json({ error: 'Batch insert failed: Internal server error', status: 500 }, 500);
     }
 
     // Emit events to EventBus for SSE fan-out (async, non-blocking)

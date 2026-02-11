@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import type { IEventStore } from '@agentlensai/core';
 import { getConfig, validateConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';
+import { sanitizeErrorMessage, getErrorStatus } from './lib/error-sanitizer.js';
 import { apiKeysRoutes } from './routes/api-keys.js';
 import { eventsRoutes } from './routes/events.js';
 import { sessionsRoutes } from './routes/sessions.js';
@@ -183,10 +184,13 @@ export function createApp(
 
   // ─── Global error handler ──────────────────────────────
   app.onError((err, c) => {
-    console.error('Unhandled error:', err);
-    const status = (err as { status?: number }).status ?? 500;
+    const status = getErrorStatus(err);
+    if (status >= 500) {
+      console.error('Unhandled error:', err);
+    }
+    const message = sanitizeErrorMessage(err);
     return c.json(
-      { error: err.message || 'Internal server error', status },
+      { error: message, status },
       status as 500,
     );
   });
@@ -367,7 +371,7 @@ export function createApp(
   app.route('/api/community/redaction', redactionTestRoutes());
 
   // ─── OTLP HTTP Receiver (no auth — standard OTel paths) ──
-  app.route('/v1', otlpRoutes(store));
+  app.route('/v1', otlpRoutes(store, resolvedConfig));
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();
