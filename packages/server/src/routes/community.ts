@@ -34,6 +34,19 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Share ─────────────────────────────────────────
 
+  /**
+   * @summary Share a lesson with the community pool
+   * @description Publishes a lesson to the community sharing pool. Subject to tenant/agent sharing
+   * config, deny-list filtering, rate limiting, and optional human review.
+   * @body {{ lessonId: string }}
+   * @returns {201} `{ status: 'shared', ... }` — successfully shared
+   * @returns {202} `{ status: 'pending_review', ... }` — queued for human review
+   * @throws {400} Missing or invalid lessonId
+   * @throws {403} Sharing disabled for this tenant/agent
+   * @throws {422} Lesson blocked by deny-list
+   * @throws {429} Rate limit exceeded
+   * @throws {500} Internal sharing error
+   */
   app.post('/share', async (c) => {
     const tenantId = getTenantId(c);
     let body: Record<string, unknown>;
@@ -68,6 +81,16 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Search ────────────────────────────────────────
 
+  /**
+   * @summary Search shared community lessons
+   * @description Queries the community pool for shared lessons, with optional category and reputation filters.
+   * @param {string} [q|query] — search text (query param)
+   * @param {string} [category] — filter by lesson category (query param)
+   * @param {number} [minReputation] — minimum reputation score (query param)
+   * @param {number} [limit] — max results, capped at 50 (query param, default 50)
+   * @returns {200} `{ lessons: SharedLesson[], total: number }`
+   * @throws {400} Invalid category value
+   */
   app.get('/search', async (c) => {
     const tenantId = getTenantId(c);
     const query = c.req.query('q') || c.req.query('query') || '';
@@ -86,12 +109,24 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Tenant Config ────────────────────────────────
 
+  /**
+   * @summary Get tenant sharing configuration
+   * @description Returns the current community sharing settings for the tenant.
+   * @returns {200} `SharingConfig` — enabled, humanReviewEnabled, rateLimitPerHour, etc.
+   */
   app.get('/config', async (c) => {
     const tenantId = getTenantId(c);
     const config = service.getSharingConfig(tenantId);
     return c.json(config);
   });
 
+  /**
+   * @summary Update tenant sharing configuration
+   * @description Partially updates the community sharing settings for the tenant.
+   * @body {{ enabled?: boolean, humanReviewEnabled?: boolean, poolEndpoint?: string, rateLimitPerHour?: number, volumeAlertThreshold?: number, categories?: string[] }}
+   * @returns {200} `SharingConfig` — the updated configuration
+   * @throws {400} Invalid JSON body, invalid field values, or invalid category
+   */
   app.put('/config', async (c) => {
     const tenantId = getTenantId(c);
     let body: Record<string, unknown>;
@@ -130,6 +165,11 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Agent Config (list all) ────────────────────────
 
+  /**
+   * @summary List all agent sharing configurations
+   * @description Returns sharing configs for all agents in the tenant.
+   * @returns {200} `{ configs: AgentSharingConfig[] }`
+   */
   app.get('/agents', async (c) => {
     const tenantId = getTenantId(c);
     const configs = service.getAgentSharingConfigs(tenantId);
@@ -138,6 +178,12 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Agent Config ──────────────────────────────────
 
+  /**
+   * @summary Get agent-level sharing configuration
+   * @description Returns the sharing config for a specific agent within the tenant.
+   * @param {string} agentId — Agent ID (path)
+   * @returns {200} `{ config: AgentSharingConfig }`
+   */
   app.get('/config/agents/:agentId', async (c) => {
     const tenantId = getTenantId(c);
     const agentId = c.req.param('agentId');
@@ -145,6 +191,14 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
     return c.json({ config });
   });
 
+  /**
+   * @summary Update agent-level sharing configuration
+   * @description Partially updates the sharing config for a specific agent.
+   * @param {string} agentId — Agent ID (path)
+   * @body {{ enabled?: boolean, categories?: string[] }}
+   * @returns {200} `{ config: AgentSharingConfig }`
+   * @throws {400} Invalid JSON body or invalid category
+   */
   app.put('/config/agents/:agentId', async (c) => {
     const tenantId = getTenantId(c);
     const agentId = c.req.param('agentId');
@@ -173,6 +227,12 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Agent Config (dashboard shorthand) ─────────────
 
+  /**
+   * @summary Get agent sharing config (dashboard shorthand)
+   * @description Alias for GET /config/agents/:agentId, returns config directly.
+   * @param {string} agentId — Agent ID (path)
+   * @returns {200} `AgentSharingConfig`
+   */
   app.get('/agents/:agentId', async (c) => {
     const tenantId = getTenantId(c);
     const agentId = c.req.param('agentId');
@@ -180,6 +240,14 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
     return c.json(config);
   });
 
+  /**
+   * @summary Update agent sharing config (dashboard shorthand)
+   * @description Alias for PUT /config/agents/:agentId.
+   * @param {string} agentId — Agent ID (path)
+   * @body {{ enabled?: boolean, categories?: string[] }}
+   * @returns {200} `AgentSharingConfig`
+   * @throws {400} Invalid JSON body or invalid category
+   */
   app.put('/agents/:agentId', async (c) => {
     const tenantId = getTenantId(c);
     const agentId = c.req.param('agentId');
@@ -203,6 +271,14 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Rate ──────────────────────────────────────────
 
+  /**
+   * @summary Rate a shared community lesson
+   * @description Upvote or downvote a shared lesson, affecting its reputation score.
+   * @body {{ lessonId: string, delta: 1 | -1 }}
+   * @returns {200} `{ status: 'rated', reputationScore: number }`
+   * @throws {400} Missing lessonId or invalid delta (must be 1 or -1)
+   * @throws {500} Rating operation failed
+   */
   app.post('/rate', async (c) => {
     const tenantId = getTenantId(c);
     let body: Record<string, unknown>;
@@ -226,6 +302,11 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Stats ─────────────────────────────────────────
 
+  /**
+   * @summary Get community sharing statistics
+   * @description Returns aggregate stats for the tenant's community sharing activity.
+   * @returns {200} `CommunityStats` — shared count, rating totals, etc.
+   */
   app.get('/stats', async (c) => {
     const tenantId = getTenantId(c);
     const stats = service.getStats(tenantId);
@@ -236,6 +317,13 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Purge ─────────────────────────────────────────
 
+  /**
+   * @summary Purge all shared lessons for the tenant
+   * @description Deletes all community-shared lessons for the tenant. Requires a confirmation string.
+   * @body {{ confirmation: string }}
+   * @returns {200} `{ status: 'purged', deleted: number }`
+   * @throws {400} Missing confirmation or invalid confirmation string
+   */
   app.post('/purge', async (c) => {
     const tenantId = getTenantId(c);
     let body: Record<string, unknown>;
@@ -257,12 +345,24 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
 
   // ─── Deny List ─────────────────────────────────────
 
+  /**
+   * @summary List deny-list rules
+   * @description Returns all content deny-list rules for the tenant.
+   * @returns {200} `{ rules: DenyListRule[] }`
+   */
   app.get('/deny-list', async (c) => {
     const tenantId = getTenantId(c);
     const rules = service.getDenyList(tenantId);
     return c.json({ rules });
   });
 
+  /**
+   * @summary Add a deny-list rule
+   * @description Creates a new content filtering rule. Can be a plain string or regex pattern.
+   * @body {{ pattern: string, isRegex?: boolean, reason?: string }}
+   * @returns {201} `{ rule: DenyListRule }`
+   * @throws {400} Missing pattern or rule creation failed
+   */
   app.post('/deny-list', async (c) => {
     const tenantId = getTenantId(c);
     let body: Record<string, unknown>;
@@ -288,6 +388,13 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
     }
   });
 
+  /**
+   * @summary Delete a deny-list rule
+   * @description Removes a deny-list rule by ID.
+   * @param {string} id — Deny-list rule ID (path)
+   * @returns {200} `{ deleted: true }`
+   * @throws {404} Rule not found
+   */
   app.delete('/deny-list/:id', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');

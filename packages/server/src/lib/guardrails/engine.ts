@@ -3,6 +3,39 @@
  *
  * Subscribes to EventBus and evaluates guardrail rules asynchronously.
  * Never blocks the event POST response.
+ *
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │                   EVALUATION PIPELINE FLOW                         │
+ * ├─────────────────────────────────────────────────────────────────────┤
+ * │                                                                     │
+ * │  1. EventBus emits "event_ingested"                                │
+ * │  2. engine.evaluateEvent() is called (async, non-blocking)         │
+ * │  3. Fetch all enabled rules for (tenantId, agentId)                │
+ * │  4. For EACH rule, run evaluateRule():                             │
+ * │                                                                     │
+ * │     Step 0 — Defense-in-depth: skip if rule.enabled === false      │
+ * │     Step 1 — COOLDOWN CHECK:                                       │
+ * │              If (now − lastTriggeredAt) < cooldownMinutes → skip.  │
+ * │              Prevents alert storms from repeated triggers.         │
+ * │     Step 2 — CONDITION EVALUATION:                                 │
+ * │              Delegates to conditions.ts (see that file for each    │
+ * │              condition type's formula). Returns { triggered,       │
+ * │              currentValue, threshold, message }.                   │
+ * │     Step 3 — STATE UPDATE (currentValue, lastEvaluatedAt):         │
+ * │              Always persisted so dashboards can show latest value.  │
+ * │     Step 4 — If NOT triggered → return (state already saved).      │
+ * │     Step 5 — ACTION EXECUTION:                                     │
+ * │              If rule.dryRun → log only, no side-effects.           │
+ * │              Otherwise delegate to actions.ts (pause_agent,        │
+ * │              notify_webhook, downgrade_model, agentgate_policy).   │
+ * │     Step 6 — TRIGGER HISTORY: insert a record with condition       │
+ * │              value, threshold, action result, and event metadata.  │
+ * │     Step 7 — Update state: increment triggerCount, set             │
+ * │              lastTriggeredAt (starts new cooldown window).         │
+ * │                                                                     │
+ * │  Error handling: each rule evaluation is wrapped in try/catch so   │
+ * │  one failing rule never blocks others.                             │
+ * └─────────────────────────────────────────────────────────────────────┘
  */
 
 import { ulid } from 'ulid';

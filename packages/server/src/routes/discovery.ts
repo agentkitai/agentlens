@@ -23,7 +23,19 @@ export function discoveryRoutes(db: SqliteDb) {
     return c.get('apiKey')?.tenantId ?? 'default';
   }
 
-  // GET /discover — discover capabilities
+  /**
+   * @summary Discover agent capabilities by task type
+   * @description Searches for agents that can handle the specified task type, filtered by optional
+   * trust score, cost, and latency constraints. Currently limited to internal scope (B3).
+   * @param {string} taskType — required TaskType (query param)
+   * @param {string} [customType] — custom sub-type (query param)
+   * @param {number} [minTrust] — minimum trust score (query param)
+   * @param {number} [maxCost] — max cost in USD (query param)
+   * @param {number} [maxLatency] — max latency in ms (query param)
+   * @param {number} [limit] — max results, capped at 20 (query param, default 20)
+   * @returns {200} `{ results: DiscoveryResult[], total: number }`
+   * @throws {400} Missing or invalid taskType
+   */
   app.get('/discover', async (c) => {
     const tenantId = getTenantId(c);
 
@@ -46,14 +58,24 @@ export function discoveryRoutes(db: SqliteDb) {
     return c.json({ results, total: results.length });
   });
 
-  // GET /discovery/config — get tenant discovery config
+  /**
+   * @summary Get tenant discovery configuration
+   * @description Returns the discovery settings for the tenant (e.g., minimum trust threshold, delegation toggle).
+   * @returns {200} `{ config: DiscoveryConfig }`
+   */
   app.get('/discovery/config', async (c) => {
     const tenantId = getTenantId(c);
     const config = service.getDiscoveryConfig(tenantId);
     return c.json({ config });
   });
 
-  // PUT /discovery/config — update tenant discovery config
+  /**
+   * @summary Update tenant discovery configuration
+   * @description Partially updates the discovery config for the tenant.
+   * @body {{ minTrustThreshold?: number, delegationEnabled?: boolean }}
+   * @returns {200} `{ config: DiscoveryConfig }`
+   * @throws {400} Invalid JSON body or minTrustThreshold out of range (0-100)
+   */
   app.put('/discovery/config', async (c) => {
     const tenantId = getTenantId(c);
     let body: Record<string, unknown>;
@@ -79,7 +101,15 @@ export function discoveryRoutes(db: SqliteDb) {
     return c.json({ config });
   });
 
-  // PUT /capabilities/:capabilityId/permissions — update per-agent permissions
+  /**
+   * @summary Update per-capability permissions
+   * @description Updates discovery and delegation permissions for a specific capability (agent).
+   * @param {string} capabilityId — Capability ID (path)
+   * @body {{ enabled?: boolean, acceptDelegations?: boolean, inboundRateLimit?: number, outboundRateLimit?: number }}
+   * @returns {200} `{ updated: true }`
+   * @throws {400} Invalid JSON body
+   * @throws {404} Capability not found
+   */
   app.put('/capabilities/:capabilityId/permissions', async (c) => {
     const tenantId = getTenantId(c);
     const capabilityId = c.req.param('capabilityId');

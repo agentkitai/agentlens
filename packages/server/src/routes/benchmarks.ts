@@ -119,8 +119,15 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     return apiKey?.tenantId ?? 'default';
   }
 
-  // ─── POST / — Create benchmark ─────────────────────────
-
+  /**
+   * @summary Create a new benchmark
+   * @description Creates a benchmark with a name, 2-10 variants (each with name+tag), optional metrics,
+   * minimum sessions per variant, and time range. Starts in 'draft' status.
+   * @body {{ name: string, description?: string, agentId?: string, metrics?: BenchmarkMetric[], minSessionsPerVariant?: number, timeRange?: { from?: string, to?: string }, variants: Array<{ name: string, tag: string, description?: string, agentId?: string }> }}
+   * @returns {201} `Benchmark` — the created benchmark
+   * @throws {400} Validation failed (name, variants, metrics, etc.)
+   * @throws {500} Database not available
+   */
   app.post('/', async (c) => {
     const benchmarkStore = getBenchmarkStore(c);
     if (!benchmarkStore) {
@@ -144,8 +151,17 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     }
   });
 
-  // ─── GET / — List benchmarks ────────────────────────────
-
+  /**
+   * @summary List benchmarks
+   * @description Returns paginated benchmarks, optionally filtered by status and agent ID.
+   * @param {string} [status] — filter by status: draft|running|completed|cancelled (query param)
+   * @param {string} [agentId] — filter by agent ID (query param)
+   * @param {number} [limit] — max results 1-100, default 20 (query param)
+   * @param {number} [offset] — pagination offset, default 0 (query param)
+   * @returns {200} `{ benchmarks: Benchmark[], total: number, hasMore: boolean }`
+   * @throws {400} Invalid status, limit, or offset
+   * @throws {500} Database not available
+   */
   app.get('/', async (c) => {
     const benchmarkStore = getBenchmarkStore(c);
     if (!benchmarkStore) {
@@ -199,8 +215,14 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     });
   });
 
-  // ─── GET /:id — Get benchmark detail ────────────────────
-
+  /**
+   * @summary Get benchmark detail
+   * @description Returns a benchmark by ID with variants enriched with session counts from the event store.
+   * @param {string} id — Benchmark ID (path)
+   * @returns {200} `Benchmark` with `variants[].sessionCount`
+   * @throws {404} Benchmark not found
+   * @throws {500} Database not available
+   */
   app.get('/:id', async (c) => {
     const benchmarkStore = getBenchmarkStore(c);
     if (!benchmarkStore) {
@@ -241,8 +263,19 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     });
   });
 
-  // ─── PUT /:id/status — Transition status ────────────────
-
+  /**
+   * @summary Transition benchmark status
+   * @description Updates the benchmark status (draft→running→completed|cancelled). When transitioning
+   * to 'running', validates that each variant has ≥1 session. When transitioning to 'completed',
+   * computes and caches comparison results.
+   * @param {string} id — Benchmark ID (path)
+   * @body {{ status: 'draft' | 'running' | 'completed' | 'cancelled' }}
+   * @returns {200} `Benchmark` — the updated benchmark
+   * @throws {400} Missing/invalid status
+   * @throws {404} Benchmark not found
+   * @throws {409} Invalid status transition or variant has no sessions
+   * @throws {500} Database not available
+   */
   app.put('/:id/status', async (c) => {
     const benchmarkStore = getBenchmarkStore(c);
     if (!benchmarkStore) {
@@ -312,8 +345,17 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     }
   });
 
-  // ─── GET /:id/results — Get comparison results ──────────
-
+  /**
+   * @summary Get benchmark comparison results
+   * @description Computes (or returns cached) comparison results across variants for each metric.
+   * Distributions are stripped by default; pass `includeDistributions=true` to include raw values.
+   * @param {string} id — Benchmark ID (path)
+   * @param {string} [includeDistributions] — 'true' to include raw value arrays (query param)
+   * @returns {200} `BenchmarkResults` — per-variant metric statistics and comparisons
+   * @throws {400} Benchmark is still in draft status
+   * @throws {404} Benchmark not found
+   * @throws {500} Database not available
+   */
   app.get('/:id/results', async (c) => {
     const benchmarkStore = getBenchmarkStore(c);
     if (!benchmarkStore) {
@@ -355,8 +397,16 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     return c.json(results);
   });
 
-  // ─── DELETE /:id — Delete benchmark ─────────────────────
-
+  /**
+   * @summary Delete a benchmark
+   * @description Deletes a benchmark. Only draft or cancelled benchmarks can be deleted;
+   * running or completed benchmarks return a 409 conflict.
+   * @param {string} id — Benchmark ID (path)
+   * @returns {204} No content
+   * @throws {404} Benchmark not found
+   * @throws {409} Cannot delete a running or completed benchmark
+   * @throws {500} Database not available
+   */
   app.delete('/:id', async (c) => {
     const benchmarkStore = getBenchmarkStore(c);
     if (!benchmarkStore) {

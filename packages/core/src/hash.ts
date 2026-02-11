@@ -2,6 +2,40 @@
  * @agentlensai/core — Hash Chain Utilities
  *
  * Cryptographic hash chain for tamper evidence per Architecture §4.3
+ *
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │                     HASH CHAIN ALGORITHM                           │
+ * ├─────────────────────────────────────────────────────────────────────┤
+ * │                                                                     │
+ * │  Each AgentLens event is linked to the previous one via a SHA-256  │
+ * │  hash chain — the same principle used in blockchain / git commits. │
+ * │  If any event is modified, deleted, or reordered after the fact,   │
+ * │  the chain breaks and verification fails.                          │
+ * │                                                                     │
+ * │  ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐  │
+ * │  │ Event 0  │────▶│ Event 1  │────▶│ Event 2  │────▶│ Event 3  │  │
+ * │  │ (genesis)│     │          │     │          │     │          │  │
+ * │  │prevH=null│     │prevH=H(0)│     │prevH=H(1)│     │prevH=H(2)│  │
+ * │  │hash=H(0) │     │hash=H(1) │     │hash=H(2) │     │hash=H(3) │  │
+ * │  └──────────┘     └──────────┘     └──────────┘     └──────────┘  │
+ * │                                                                     │
+ * │  H(n) = SHA-256( JSON.stringify({                                  │
+ * │           v, id, timestamp, sessionId, agentId,                    │
+ * │           eventType, severity, payload, metadata, prevHash         │
+ * │         }) )                                                       │
+ * │                                                                     │
+ * │  Genesis event: prevHash = null  (anchors the chain)               │
+ * │                                                                     │
+ * │  VERIFICATION (verifyChain):                                       │
+ * │    1. Assert events[0].prevHash === null                           │
+ * │    2. For each event i:                                            │
+ * │       a. Recompute hash from fields → must equal event.hash        │
+ * │       b. If i > 0: event[i].prevHash must equal event[i-1].hash   │
+ * │    3. If all pass → chain is valid (no tampering detected)         │
+ * │                                                                     │
+ * │  HASH_VERSION is embedded in the hash input so that if the field   │
+ * │  layout ever changes, old and new hashes are distinguishable.      │
+ * └─────────────────────────────────────────────────────────────────────┘
  */
 import { createHash } from 'node:crypto';
 

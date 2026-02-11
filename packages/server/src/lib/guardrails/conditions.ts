@@ -3,6 +3,53 @@
  *
  * Each condition type has an evaluator that queries the store
  * and returns whether the condition is triggered.
+ *
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │                   CONDITION TYPE FORMULAS                          │
+ * ├─────────────────────────────────────────────────────────────────────┤
+ * │                                                                     │
+ * │  1. ERROR_RATE_THRESHOLD                                           │
+ * │     Config: { threshold: % (default 30), windowMinutes (default 5)}│
+ * │     Formula:                                                       │
+ * │       errors = min(errorCount + criticalCount + toolErrorCount,    │
+ * │                    totalCount)                                     │
+ * │       errorRate = (errors / totalCount) × 100                     │
+ * │       triggered = errorRate ≥ threshold                           │
+ * │     Edge case: if totalCount = 0 → not triggered (no data).       │
+ * │                                                                     │
+ * │  2. COST_LIMIT                                                     │
+ * │     Config: { maxCostUsd (default 10), scope: "daily"|"session" }  │
+ * │     Scope "session": reads totalCostUsd from session record.       │
+ * │     Scope "daily": sums all session costs from UTC midnight.       │
+ * │     Formula:                                                       │
+ * │       triggered = currentCost ≥ maxCostUsd                        │
+ * │                                                                     │
+ * │  3. HEALTH_SCORE_THRESHOLD                                         │
+ * │     Config: { minScore (default 50), windowDays (default 7) }      │
+ * │     Delegates to HealthComputer with DEFAULT_HEALTH_WEIGHTS.       │
+ * │     Formula:                                                       │
+ * │       triggered = overallScore < minScore                         │
+ * │     Edge case: no sessions or computation failure → not triggered. │
+ * │                                                                     │
+ * │  4. CUSTOM_METRIC                                                  │
+ * │     Config: { metricKeyPath, operator, value, windowMinutes }      │
+ * │     Uses dot-notation keyPath to extract a number from event       │
+ * │     metadata (e.g. "llm.latencyMs"). Takes the LATEST event's     │
+ * │     value within the time window.                                  │
+ * │     Operators: gt, gte, lt, lte, eq                                │
+ * │     Formula:                                                       │
+ * │       triggered = compareMetric(latestValue, operator, value)     │
+ * │     Legacy fallback: if no metricKeyPath, uses metricName to      │
+ * │     query aggregate counts (event_count, error_count,             │
+ * │     session_count).                                                │
+ * │                                                                     │
+ * │  All evaluators return GuardrailConditionResult:                   │
+ * │    { triggered: bool, currentValue: number, threshold: number,     │
+ * │      message: string }                                             │
+ * │                                                                     │
+ * │  The dispatcher evaluateCondition() routes by rule.conditionType.  │
+ * │  Unknown types return triggered=false with an error message.       │
+ * └─────────────────────────────────────────────────────────────────────┘
  */
 
 import type { IEventStore, GuardrailRule, GuardrailConditionResult } from '@agentlensai/core';

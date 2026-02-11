@@ -61,7 +61,15 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
     return apiKeyInfo?.tenantId ?? 'default';
   }
 
-  // POST / — Create guardrail rule
+  /**
+   * @summary Create a new guardrail rule
+   * @description Creates a guardrail rule with a condition type, action type, and their configs.
+   * Validates the body against CreateGuardrailRuleSchema, checks conditionConfig fields,
+   * and validates webhook URLs for notify_webhook actions.
+   * @body {CreateGuardrailRule} — name, conditionType, conditionConfig, actionType, actionConfig, agentId, etc.
+   * @returns {201} `GuardrailRule` — the created rule with generated id and timestamps
+   * @throws {400} Validation failed (schema, conditionConfig, or webhook URL)
+   */
   app.post('/', async (c) => {
     const tenantId = getTenantId(c);
     const rawBody = await c.req.json().catch(() => null);
@@ -105,7 +113,12 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
     return c.json(rule, 201);
   });
 
-  // GET / — List guardrail rules
+  /**
+   * @summary List guardrail rules
+   * @description Returns all guardrail rules for the tenant, optionally filtered by agent.
+   * @param {string} [agentId] — filter by agent ID (query param)
+   * @returns {200} `{ rules: GuardrailRule[] }`
+   */
   app.get('/', async (c) => {
     const tenantId = getTenantId(c);
     const agentId = c.req.query('agentId');
@@ -113,7 +126,14 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
     return c.json({ rules });
   });
 
-  // GET /history — List trigger history (BEFORE :id routes to avoid route conflict)
+  /**
+   * @summary List guardrail trigger history
+   * @description Returns paginated trigger history, optionally filtered by rule ID.
+   * @param {string} [ruleId] — filter by rule ID (query param)
+   * @param {number} [limit] — max results 1-200, default 50 (query param)
+   * @param {number} [offset] — pagination offset, default 0 (query param)
+   * @returns {200} `{ triggers: TriggerRecord[], total: number }`
+   */
   app.get('/history', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.query('ruleId');
@@ -129,7 +149,13 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
     return c.json({ triggers, total });
   });
 
-  // GET /:id — Get single rule
+  /**
+   * @summary Get a single guardrail rule
+   * @description Returns the full guardrail rule by ID.
+   * @param {string} id — Rule ID (path)
+   * @returns {200} `GuardrailRule`
+   * @throws {404} Rule not found
+   */
   app.get('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
@@ -140,7 +166,16 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
     return c.json(rule);
   });
 
-  // PUT /:id — Update rule
+  /**
+   * @summary Update a guardrail rule
+   * @description Partially updates a guardrail rule. Validates against UpdateGuardrailRuleSchema
+   * and checks webhook URLs for notify_webhook actions. Setting agentId to null clears the scope.
+   * @param {string} id — Rule ID (path)
+   * @body {UpdateGuardrailRule} — partial rule fields to update
+   * @returns {200} `GuardrailRule` — the updated rule
+   * @throws {400} Invalid JSON body or validation failed
+   * @throws {404} Rule not found
+   */
   app.put('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
@@ -181,7 +216,13 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
     return c.json(rule);
   });
 
-  // DELETE /:id — Delete rule
+  /**
+   * @summary Delete a guardrail rule
+   * @description Permanently removes a guardrail rule by ID.
+   * @param {string} id — Rule ID (path)
+   * @returns {200} `{ ok: true }`
+   * @throws {404} Rule not found
+   */
   app.delete('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
@@ -192,7 +233,13 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
     return c.json({ ok: true });
   });
 
-  // GET /:id/status — Get rule status + recent triggers
+  /**
+   * @summary Get guardrail rule status and recent triggers
+   * @description Returns the rule definition, its current state, and the 10 most recent trigger events.
+   * @param {string} id — Rule ID (path)
+   * @returns {200} `{ rule: GuardrailRule, state: GuardrailState, recentTriggers: TriggerRecord[] }`
+   * @throws {404} Rule not found
+   */
   app.get('/:id/status', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
