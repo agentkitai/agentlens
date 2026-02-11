@@ -15,6 +15,9 @@ import type { AlertRule, AlertHistory, AlertCondition } from '@agentlensai/core'
 import { SqliteEventStore } from '../db/sqlite-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { eventBus } from './event-bus.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('AlertEngine');
 
 /** Default evaluation interval: 60 seconds */
 const DEFAULT_CHECK_INTERVAL_MS = 60_000;
@@ -99,10 +102,10 @@ export class AlertEngine {
    */
   start(): void {
     if (this.timer) return;
-    console.log(`[AlertEngine] Starting evaluation loop (interval: ${this.checkIntervalMs}ms)`);
+    log.info(`Starting evaluation loop (interval: ${this.checkIntervalMs}ms)`);
     this.timer = setInterval(() => {
       this.evaluate().catch((err) => {
-        console.error('[AlertEngine] Evaluation error:', err);
+        log.error('Evaluation error', { error: err instanceof Error ? err.message : String(err) });
       });
     }, this.checkIntervalMs);
   }
@@ -114,7 +117,7 @@ export class AlertEngine {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      console.log('[AlertEngine] Stopped');
+      log.info('Stopped');
     }
   }
 
@@ -195,7 +198,7 @@ export class AlertEngine {
               triggered.push(entry);
             }
           } catch (err) {
-            console.error(`[AlertEngine] Error evaluating rule "${rule.name}" (${rule.id}):`, err);
+            log.error(`Error evaluating rule "${rule.name}" (${rule.id})`, { error: err instanceof Error ? err.message : String(err) });
           }
         }
       }
@@ -311,7 +314,7 @@ export class AlertEngine {
     await tenantStore.insertAlertHistory(entry);
 
     // 2. Console log
-    console.log(`[AlertEngine] 🔔 Alert triggered: "${rule.name}" — ${message}`);
+    log.info(`🔔 Alert triggered: "${rule.name}" — ${message}`);
 
     // 3. Emit on EventBus (Story 12.5)
     eventBus.emit({
@@ -359,17 +362,12 @@ export class AlertEngine {
         });
 
         if (!res.ok) {
-          console.warn(
-            `[AlertEngine] Webhook delivery to ${url} failed: HTTP ${res.status}`,
-          );
+          log.warn(`Webhook delivery to ${url} failed: HTTP ${res.status}`);
         } else {
-          console.log(`[AlertEngine] Webhook delivered to ${url}`);
+          log.info(`Webhook delivered to ${url}`);
         }
       } catch (err) {
-        console.warn(
-          `[AlertEngine] Webhook delivery to ${url} error:`,
-          err instanceof Error ? err.message : err,
-        );
+        log.warn(`Webhook delivery to ${url} error: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   }

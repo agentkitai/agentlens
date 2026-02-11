@@ -24,6 +24,9 @@ import { getTenantStore } from './tenant-helper.js';
 import { summarizeEvent, summarizeSession } from '../lib/embeddings/summarizer.js';
 import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
 import type { SessionSummaryStore } from '../db/session-summary-store.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('Events');
 
 /** Schema for the batch ingestion request body */
 const ingestBatchSchema = z.object({
@@ -132,7 +135,7 @@ export function eventsRoutes(
       }
     } catch (error) {
       // If any session group fails, the entire batch is rejected
-      console.error('[events] Batch insert failed:', error);
+      log.error('Batch insert failed', { error: error instanceof Error ? error.message : String(error) });
       return c.json({ error: 'Batch insert failed: Internal server error', status: 500 }, 500);
     }
 
@@ -205,10 +208,7 @@ export function eventsRoutes(
           }
         } catch (err) {
           // Fail-safe: log and continue — never block event ingest
-          console.error(
-            `[events] Failed to generate session summary for ${endedEvent.sessionId}:`,
-            err instanceof Error ? err.message : err,
-          );
+          log.error(`Failed to generate session summary for ${endedEvent.sessionId}`, { error: err instanceof Error ? err.message : String(err) });
         }
       }
     }

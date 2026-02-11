@@ -12,6 +12,9 @@ import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { EmbeddingService } from '../lib/embeddings/index.js';
 import type { EmbeddingStore, SimilaritySearchOptions } from '../db/embedding-store.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('Recall');
 
 export interface RecallRouteDeps {
   embeddingService: EmbeddingService | null;
@@ -113,7 +116,7 @@ export function recallRoutes(deps: RecallRouteDeps) {
         totalResults: results.length,
       });
     } catch (err) {
-      console.error('[recall] Search failed:', err instanceof Error ? err.message : err);
+      log.error('Search failed', { error: err instanceof Error ? err.message : String(err) });
       return c.json(
         { error: 'Recall search failed', status: 500 },
         500,

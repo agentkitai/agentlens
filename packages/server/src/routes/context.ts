@@ -17,6 +17,9 @@ import { SessionSummaryStore } from '../db/session-summary-store.js';
 import { LessonStore } from '../db/lesson-store.js';
 import { ContextRetriever } from '../lib/context/retrieval.js';
 import { getTenantStore } from './tenant-helper.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('Context');
 
 export interface ContextRouteDeps {
   db: SqliteDb;
@@ -67,7 +70,7 @@ export function contextRoutes(store: IEventStore, deps: ContextRouteDeps) {
 
       return c.json(result);
     } catch (error) {
-      console.error('[context] Retrieval failed:', error instanceof Error ? error.message : error);
+      log.error('Retrieval failed', { error: error instanceof Error ? error.message : String(error) });
       return c.json({ error: 'Context retrieval failed', status: 500 }, 500);
     }
   });

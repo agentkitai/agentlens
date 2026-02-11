@@ -7,6 +7,9 @@
 
 import type { EmbeddingService } from './index.js';
 import type { EmbeddingStore } from '../../db/embedding-store.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('EmbeddingWorker');
 
 /** Item to be embedded */
 export interface EmbeddingQueueItem {
@@ -132,10 +135,7 @@ export class EmbeddingWorker {
         this.processedCount++;
       } catch (err) {
         // Log and skip — never crash
-        console.error(
-          `[EmbeddingWorker] Failed to embed item (${item.sourceType}/${item.sourceId}):`,
-          err instanceof Error ? err.message : err,
-        );
+        log.error(`Failed to embed item (${item.sourceType}/${item.sourceId})`, { error: err instanceof Error ? err.message : String(err) });
       }
     }
   }

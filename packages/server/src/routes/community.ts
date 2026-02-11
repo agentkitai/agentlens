@@ -17,6 +17,9 @@ import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { CommunityService, LocalCommunityPoolTransport, type PoolTransport } from '../services/community-service.js';
 import { LESSON_SHARING_CATEGORIES } from '@agentlensai/core';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('Community');
 
 const VALID_CATEGORIES = new Set(LESSON_SHARING_CATEGORIES);
 
@@ -280,7 +283,7 @@ export function communityRoutes(db: SqliteDb, transport?: PoolTransport) {
       const rule = service.addDenyListRule(tenantId, pattern, isRegex, reason);
       return c.json({ rule }, 201);
     } catch (err) {
-      console.error('[community] addDenyListRule failed:', err);
+      log.error('addDenyListRule failed', { error: err instanceof Error ? err.message : String(err) });
       return c.json({ error: 'Failed to add deny-list rule' }, 400);
     }
   });

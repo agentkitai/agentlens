@@ -8,6 +8,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, writeFileSync, readFileSync, mkdirSync, unlinkSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
 import { tmpdir } from 'node:os';
 import { exportFromSqlite } from '../commands/migrate.js';
 
@@ -37,8 +42,8 @@ describe('S-8.4: Migration CLI', () => {
         await exportFromSqlite(tmpFile);
         // If better-sqlite3 IS installed, the file won't be a valid SQLite DB
         // so it will throw a different error — that's fine too
-      } catch (err: any) {
-        expect(err.message).toMatch(/better-sqlite3|not a database|SQLite/i);
+      } catch (err: unknown) {
+        expect(getErrorMessage(err)).toMatch(/better-sqlite3|not a database|SQLite/i);
       } finally {
         try { unlinkSync(tmpFile); } catch {}
       }

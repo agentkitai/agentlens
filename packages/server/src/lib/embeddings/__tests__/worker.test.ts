@@ -188,7 +188,7 @@ describe('EmbeddingWorker', () => {
         .mockResolvedValueOnce(new Float32Array([0.4, 0.5, 0.6]));
 
       service.embed = embedMock;
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
       const worker = new EmbeddingWorker(service, store);
       for (let i = 0; i < 3; i++) {
@@ -206,14 +206,14 @@ describe('EmbeddingWorker', () => {
       expect(worker.getProcessedCount()).toBe(2);
       expect(worker.getQueueSize()).toBe(0);
       expect(store.store).toHaveBeenCalledTimes(2);
-      expect(consoleSpy).toHaveBeenCalled();
+      expect(stderrSpy).toHaveBeenCalled();
 
-      consoleSpy.mockRestore();
+      stderrSpy.mockRestore();
     });
 
     it('never throws from flush', async () => {
       service.embed = vi.fn().mockRejectedValue(new Error('total failure'));
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
       const worker = new EmbeddingWorker(service, store);
       worker.enqueue({
@@ -227,7 +227,7 @@ describe('EmbeddingWorker', () => {
       await expect(worker.flush()).resolves.toBeUndefined();
       expect(worker.getProcessedCount()).toBe(0);
 
-      consoleSpy.mockRestore();
+      stderrSpy.mockRestore();
     });
   });
 

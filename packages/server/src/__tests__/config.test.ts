@@ -44,7 +44,7 @@ describe('getConfig', () => {
 
 describe('validateConfig', () => {
   it('logs warning when authDisabled is true', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     validateConfig({
       port: 3400,
       corsOrigin: 'http://localhost:3400',
@@ -52,10 +52,10 @@ describe('validateConfig', () => {
       dbPath: './test.db',
       retentionDays: 90,
     });
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('WARNING: Authentication is DISABLED'),
+    expect(stdoutSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Authentication is DISABLED'),
     );
-    warnSpy.mockRestore();
+    stdoutSpy.mockRestore();
   });
 
   it('throws when CORS_ORIGIN=* and auth is enabled', () => {

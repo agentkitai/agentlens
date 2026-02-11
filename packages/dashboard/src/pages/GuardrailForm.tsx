@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@agentlensai/core';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -228,8 +229,8 @@ export default function GuardrailForm() {
         await createGuardrailRule(data);
       }
       navigate('/guardrails');
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to save');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) ?? 'Failed to save');
     } finally {
       setSaving(false);
     }

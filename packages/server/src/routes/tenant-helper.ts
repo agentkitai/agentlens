@@ -11,6 +11,9 @@ import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { SqliteEventStore } from '../db/sqlite-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('TenantHelper');
 
 /**
  * Get a tenant-scoped store from the request context.
@@ -32,9 +35,7 @@ export function getTenantStore(
   if (apiKeyInfo?.tenantId && !(store instanceof SqliteEventStore)) {
     const isTest = process.env['NODE_ENV'] === 'test' || process.env['VITEST'];
     if (isTest) {
-      console.warn(
-        `[tenant-helper] Store is not SqliteEventStore; tenant isolation skipped for tenant "${apiKeyInfo.tenantId}".`,
-      );
+      log.warn(`Store is not SqliteEventStore; tenant isolation skipped for tenant "${apiKeyInfo.tenantId}".`);
     } else {
       throw new Error(
         `Tenant isolation requires SqliteEventStore but got ${store.constructor.name}. ` +

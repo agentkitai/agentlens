@@ -8,6 +8,7 @@
  *   DATABASE_URL=postgres://user:pass@localhost:5432/agentlens_test pnpm test
  */
 
+import { getErrorMessage } from '@agentlensai/core';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   getMigrationFiles,
@@ -490,9 +491,9 @@ describe('Integration: Full migration run', () => {
       // If RLS is enforced and no setting exists, Postgres raises an error
       // or returns 0 rows depending on configuration
       expect(res.rows.length).toBe(0);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Expected: unrecognized configuration parameter "app.current_org"
-      expect(err.message).toContain('current_org');
+      expect(getErrorMessage(err)).toContain('current_org');
     }
   });
 
@@ -542,9 +543,9 @@ describe('Integration: Full migration run', () => {
       await pool!.query('COMMIT');
       // Should not reach here — WITH CHECK should block it
       expect.unreachable('Cross-org INSERT should be blocked');
-    } catch (err: any) {
+    } catch (err: unknown) {
       await pool!.query('ROLLBACK');
-      expect(err.message).toContain('row-level security');
+      expect(getErrorMessage(err)).toContain('row-level security');
     }
   });
 });

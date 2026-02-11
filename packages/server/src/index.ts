@@ -60,6 +60,9 @@ import { EmbeddingWorker } from './lib/embeddings/worker.js';
 import type { EmbeddingService } from './lib/embeddings/index.js';
 import { EmbeddingStore } from './db/embedding-store.js';
 import { SessionSummaryStore } from './db/session-summary-store.js';
+import { createLogger } from './lib/logger.js';
+
+const log = createLogger('Server');
 
 // Re-export everything consumers may need
 export { getConfig, validateConfig } from './config.js';
@@ -186,7 +189,7 @@ export function createApp(
   app.onError((err, c) => {
     const status = getErrorStatus(err);
     if (status >= 500) {
-      console.error('Unhandled error:', err);
+      log.error('Unhandled error', { error: err instanceof Error ? err.message : String(err) });
     }
     const message = sanitizeErrorMessage(err);
     return c.json(
@@ -402,7 +405,7 @@ export async function startServer() {
   let embeddingService: EmbeddingService | null = null;
   let embeddingWorker: EmbeddingWorker | null = null;
   if (process.env.DISABLE_EMBEDDINGS) {
-    console.log('  Embeddings: disabled (DISABLE_EMBEDDINGS set)');
+    log.info('Embeddings: disabled (DISABLE_EMBEDDINGS set)');
   } else {
     try {
       const { createEmbeddingService } = await import('./lib/embeddings/index.js');
@@ -410,9 +413,9 @@ export async function startServer() {
       const embeddingStore = new EmbeddingStore(db);
       embeddingWorker = new EmbeddingWorker(embeddingService, embeddingStore);
       embeddingWorker.start();
-      console.log(`  Embeddings: enabled (${embeddingService.modelName})`);
+      log.info(`Embeddings: enabled (${embeddingService.modelName})`);
     } catch (err) {
-      console.log(`  Embeddings: disabled (${err instanceof Error ? err.message : 'unknown error'})`);
+      log.info(`Embeddings: disabled (${err instanceof Error ? err.message : 'unknown error'})`);
     }
   }
 
@@ -420,10 +423,10 @@ export async function startServer() {
   const app = createApp(store, { ...config, db, embeddingService, embeddingWorker });
 
   // Start listening
-  console.log(`AgentLens server starting on port ${config.port}`);
-  console.log(`  Auth: ${config.authDisabled ? 'DISABLED (dev mode)' : 'enabled'}`);
-  console.log(`  CORS origin: ${config.corsOrigin}`);
-  console.log(`  Database: ${config.dbPath}`);
+  log.info(`AgentLens server starting on port ${config.port}`);
+  log.info(`Auth: ${config.authDisabled ? 'DISABLED (dev mode)' : 'enabled'}`);
+  log.info(`CORS origin: ${config.corsOrigin}`);
+  log.info(`Database: ${config.dbPath}`);
 
   // Start alert evaluation engine
   const alertEngine = new AlertEngine(store);
@@ -434,13 +437,13 @@ export async function startServer() {
   setAgentStore(store);
   const guardrailEngine = new GuardrailEngine(store, db);
   guardrailEngine.start();
-  console.log('  Guardrails: enabled');
+  log.info('Guardrails: enabled');
 
   serve({
     fetch: app.fetch,
     port: config.port,
   }, (info) => {
-    console.log(`AgentLens server listening on http://localhost:${info.port}`);
+    log.info(`AgentLens server listening on http://localhost:${info.port}`);
   });
 
   return app;

@@ -13,6 +13,9 @@ import { GuardrailStore } from '../../db/guardrail-store.js';
 import { evaluateCondition } from './conditions.js';
 import { executeAction } from './actions.js';
 import { eventBus, type BusEvent } from '../event-bus.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('GuardrailEngine');
 
 export class GuardrailEngine {
   private store: GuardrailStore;
@@ -30,7 +33,7 @@ export class GuardrailEngine {
     this.listener = (busEvent: BusEvent) => {
       if (busEvent.type === 'event_ingested') {
         this.evaluateEvent(busEvent.event).catch((err) => {
-          console.error('[guardrail-engine] evaluation error:', err instanceof Error ? err.message : err);
+          log.error('evaluation error', { error: err instanceof Error ? err.message : String(err) });
         });
       }
     };
@@ -58,7 +61,7 @@ export class GuardrailEngine {
       try {
         await this.evaluateRule(rule, event);
       } catch (err) {
-        console.error(`[guardrail-engine] rule ${rule.id} error:`, err instanceof Error ? err.message : err);
+        log.error(`rule ${rule.id} error`, { error: err instanceof Error ? err.message : String(err) });
       }
     }
   }

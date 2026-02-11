@@ -30,6 +30,9 @@ import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlensai/co
 import type { SqliteDb } from './index.js';
 import { events, sessions, agents, alertRules, alertHistory } from './schema.sqlite.js';
 import { HashChainError, NotFoundError } from './errors.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('SqliteEventStore');
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -53,8 +56,8 @@ export class SqliteEventStore implements IEventStore {
    */
   private warnIfNoTenant(method: string, tenantId?: string): void {
     if (tenantId === undefined) {
-      console.warn(
-        `[SqliteEventStore] ${method}() called without tenantId — query is unscoped. ` +
+      log.warn(
+        `${method}() called without tenantId — query is unscoped. ` +
           `Ensure tenant isolation is applied upstream (via TenantScopedStore).`,
       );
     }

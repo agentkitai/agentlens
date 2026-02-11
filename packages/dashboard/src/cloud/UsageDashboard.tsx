@@ -9,6 +9,7 @@
  * - 80% quota warning banner
  */
 
+import { getErrorMessage } from '@agentlensai/core';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useOrg } from './OrgContext';
 import {
@@ -118,8 +119,8 @@ export function UsageDashboard(): React.ReactElement {
     try {
       const data = await getUsage(orgId, range);
       setUsage(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load usage data');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to load usage data');
     } finally {
       setLoading(false);
     }

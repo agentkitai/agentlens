@@ -5,6 +5,7 @@
  * Shows current org name, dropdown of user's orgs, and create org option.
  */
 
+import { getErrorMessage } from '@agentlensai/core';
 import React, { useState, useRef, useEffect } from 'react';
 import { useOrg } from './OrgContext';
 
@@ -40,8 +41,8 @@ export function OrgSwitcher(): React.ReactElement {
       setNewOrgName('');
       setCreating(false);
       setOpen(false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create org');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to create org');
     }
   };
 

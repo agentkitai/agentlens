@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@agentlensai/core';
 import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
@@ -69,8 +70,8 @@ export default function GuardrailList() {
       setActionError(null);
       await updateGuardrailRule(rule.id, { enabled: !rule.enabled });
       rulesQuery.refetch();
-    } catch (err: any) {
-      setActionError(`Failed to toggle rule: ${err?.message ?? String(err)}`);
+    } catch (err: unknown) {
+      setActionError(`Failed to toggle rule: ${getErrorMessage(err) ?? String(err)}`);
     }
   }, [rulesQuery]);
 
@@ -81,8 +82,8 @@ export default function GuardrailList() {
       await deleteGuardrailRule(id);
       rulesQuery.refetch();
       historyQuery.refetch();
-    } catch (err: any) {
-      setActionError(`Failed to delete rule: ${err?.message ?? String(err)}`);
+    } catch (err: unknown) {
+      setActionError(`Failed to delete rule: ${getErrorMessage(err) ?? String(err)}`);
     }
   }, [rulesQuery, historyQuery]);
 

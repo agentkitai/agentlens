@@ -2,6 +2,10 @@
  * Server configuration — reads from environment variables with sensible defaults.
  */
 
+import { createLogger } from './lib/logger.js';
+
+const log = createLogger('Config');
+
 export interface ServerConfig {
   /** Port to listen on (default: 3400) */
   port: number;
@@ -46,7 +50,7 @@ export function getConfig(): ServerConfig {
  */
 export function validateConfig(config: ServerConfig): void {
   if (config.authDisabled) {
-    console.warn('⚠️  WARNING: Authentication is DISABLED. Do not use in production!');
+    log.warn('⚠️  Authentication is DISABLED. Do not use in production!');
   }
 
   if (config.corsOrigin === '*' && !config.authDisabled) {

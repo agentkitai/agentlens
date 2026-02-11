@@ -12,6 +12,9 @@ import { eq, and, sql } from 'drizzle-orm';
 import type { SqliteDb } from './index.js';
 import { embeddings } from './schema.sqlite.js';
 import { cosineSimilarity } from '../lib/embeddings/math.js';
+import { createLogger } from '../lib/logger.js';
+
+const log = createLogger('EmbeddingStore');
 
 /** Maximum candidates loaded into memory for similarity search */
 const MAX_CANDIDATES = 10_000;
@@ -210,8 +213,8 @@ export class EmbeddingStore {
       .all();
 
     if (rows.length >= MAX_CANDIDATES) {
-      console.warn(
-        `[EmbeddingStore] similaritySearch hit MAX_CANDIDATES limit (${MAX_CANDIDATES}) ` +
+      log.warn(
+        `similaritySearch hit MAX_CANDIDATES limit (${MAX_CANDIDATES}) ` +
         `for tenant=${tenantId}. Results may be incomplete.`,
       );
     }

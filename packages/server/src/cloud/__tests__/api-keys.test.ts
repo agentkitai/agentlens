@@ -5,6 +5,7 @@
  * Integration tests run when DATABASE_URL is set.
  */
 
+import { getErrorMessage } from '@agentlensai/core';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   ApiKeyService,
@@ -421,10 +422,10 @@ describe('Integration: ApiKeyAuthMiddleware (S-2.4)', () => {
     const fakeKey = 'al_live_' + 'x'.repeat(32);
     try {
       await middleware.authenticate(`Bearer ${fakeKey}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Error message should contain prefix only, not full key
-      expect(err.message).not.toContain(fakeKey);
-      expect(err.message).toContain('al_live_xxxxxxxx'); // prefix only
+      expect(getErrorMessage(err)).not.toContain(fakeKey);
+      expect(getErrorMessage(err)).toContain('al_live_xxxxxxxx'); // prefix only
     }
   });
 

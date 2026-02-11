@@ -8,6 +8,7 @@
  * - Tier limit indicator
  */
 
+import { getErrorMessage } from '@agentlensai/core';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useOrg } from './OrgContext';
 import {
@@ -63,8 +64,8 @@ export function ApiKeyManagement(): React.ReactElement {
       ]);
       setKeys(keyList);
       setLimitInfo(limit);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load API keys');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to load API keys');
     } finally {
       setLoading(false);
     }
@@ -86,8 +87,8 @@ export function ApiKeyManagement(): React.ReactElement {
       setNewKeyName('');
       setNewKeyEnv('production');
       await refresh();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create API key');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to create API key');
     } finally {
       setCreating(false);
     }
@@ -100,8 +101,8 @@ export function ApiKeyManagement(): React.ReactElement {
       await revokeApiKey(orgId, revokeTarget.id);
       setRevokeTarget(null);
       await refresh();
-    } catch (err: any) {
-      setError(err.message || 'Failed to revoke API key');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to revoke API key');
     } finally {
       setRevoking(false);
     }

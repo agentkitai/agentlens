@@ -9,6 +9,7 @@
  * - Pending invitations list
  */
 
+import { getErrorMessage } from '@agentlensai/core';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useOrg } from './OrgContext';
 import {
@@ -53,8 +54,8 @@ export function TeamManagement(): React.ReactElement {
       setMembers(m);
       setInvitations(i);
       setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load team data');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to load team data');
     } finally {
       setLoading(false);
     }
@@ -75,8 +76,8 @@ export function TeamManagement(): React.ReactElement {
       setInviteSuccess(`Invitation sent to ${inviteEmail}`);
       setInviteEmail('');
       fetchData();
-    } catch (err: any) {
-      setInviteError(err.message || 'Failed to send invitation');
+    } catch (err: unknown) {
+      setInviteError(getErrorMessage(err) || 'Failed to send invitation');
     } finally {
       setInviting(false);
     }
@@ -87,8 +88,8 @@ export function TeamManagement(): React.ReactElement {
     try {
       await cancelInvitation(orgId, invId);
       fetchData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -97,8 +98,8 @@ export function TeamManagement(): React.ReactElement {
     try {
       await changeMemberRole(orgId, userId, newRole);
       fetchData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -108,8 +109,8 @@ export function TeamManagement(): React.ReactElement {
     try {
       await removeMember(orgId, userId);
       fetchData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -119,8 +120,8 @@ export function TeamManagement(): React.ReactElement {
     try {
       await transferOwnership(orgId, userId);
       fetchData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   };
 
