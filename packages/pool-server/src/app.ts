@@ -1,9 +1,24 @@
 // Pool server Hono application
 
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { timingSafeEqual, createHash } from 'node:crypto';
 import type { PoolStore } from './store.js';
 import { RateLimiter } from './rate-limiter.js';
 import { requireAuth, type AuthOptions } from './auth.js';
+
+/** C-5 FIX: Timing-safe string comparison for tokens */
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf-8');
+  const bufB = Buffer.from(b, 'utf-8');
+  if (bufA.length !== bufB.length) {
+    // Hash both to fixed length to avoid leaking length info
+    const hashA = createHash('sha256').update(bufA).digest();
+    const hashB = createHash('sha256').update(bufB).digest();
+    return timingSafeEqual(hashA, hashB);
+  }
+  return timingSafeEqual(bufA, bufB);
+}
 
 export interface PoolAppOptions {
   store: PoolStore;
@@ -23,6 +38,9 @@ export function createPoolApp(options: PoolAppOptions): Hono {
   };
 
   const app = new Hono();
+
+  // M-9 FIX: Body size limit (5MB) to prevent abuse
+  app.use('*', bodyLimit({ maxSize: 5 * 1024 * 1024 }));
 
   // ─── Health ───
 
@@ -94,7 +112,7 @@ export function createPoolApp(options: PoolAppOptions): Hono {
     }
 
     const purgeToken = await store.getPurgeToken(anonymousContributorId);
-    if (!purgeToken || purgeToken.tokenHash !== token) {
+    if (!purgeToken || !safeCompare(purgeToken.tokenHash, token)) {
       return c.json({ error: 'Invalid purge token' }, 403);
     }
 
@@ -211,6 +229,11 @@ export function createPoolApp(options: PoolAppOptions): Hono {
 
     if (!lessonId || !voterAnonymousId || delta === undefined || !reason) {
       return c.json({ error: 'Missing required fields: lessonId, voterAnonymousId, delta, reason' }, 400);
+    }
+
+    // M-16 FIX: Validate delta is bounded to [-50, 50] to prevent reputation manipulation
+    if (typeof delta !== 'number' || delta < -50 || delta > 50) {
+      return c.json({ error: 'delta must be a number between -50 and 50' }, 400);
     }
 
     // Check daily cap: ±5 per voter per day

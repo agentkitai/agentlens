@@ -249,7 +249,13 @@ export function createStripeClient(secretKey?: string): IStripeClient {
       const expected = createHmac('sha256', webhookSecret)
         .update(`${timestamp}.${payload}`)
         .digest('hex');
-      if (sig !== expected) throw new Error('Stripe webhook signature verification failed');
+      // H-6 FIX: Use timing-safe comparison for HMAC verification
+      const { timingSafeEqual: tse } = require('node:crypto');
+      const sigBuf = Buffer.from(sig, 'utf-8');
+      const expectedBuf = Buffer.from(expected, 'utf-8');
+      if (sigBuf.length !== expectedBuf.length || !tse(sigBuf, expectedBuf)) {
+        throw new Error('Stripe webhook signature verification failed');
+      }
       return origConstruct(payload, signature);
     };
   }

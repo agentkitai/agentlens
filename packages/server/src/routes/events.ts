@@ -7,6 +7,7 @@
  */
 
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { ulid } from 'ulid';
 import { z } from 'zod';
 import {
@@ -41,6 +42,9 @@ export function eventsRoutes(
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();
+
+  // H-4 FIX: Body size limit (10MB) to prevent abuse
+  app.use('*', bodyLimit({ maxSize: 10 * 1024 * 1024 }));
 
   // POST /api/events — ingest events
   app.post('/', async (c) => {

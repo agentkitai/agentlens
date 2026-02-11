@@ -371,6 +371,11 @@ export function createApp(
   }
 
   // ─── Redaction Test (Story 2.4) ────────────────────────
+  // C-1 FIX: Apply auth middleware to redaction test endpoint
+  if (db) {
+    app.use('/api/community/redaction/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/community/redaction', authMiddleware(db, resolvedConfig.authDisabled));
+  }
   app.route('/api/community/redaction', redactionTestRoutes());
 
   // ─── OTLP HTTP Receiver (no auth — standard OTel paths) ──
@@ -438,6 +443,17 @@ export async function startServer() {
   const guardrailEngine = new GuardrailEngine(store, db);
   guardrailEngine.start();
   log.info('Guardrails: enabled');
+
+  // M-11 FIX: Graceful shutdown for engines and workers
+  const shutdown = () => {
+    log.info('Shutting down...');
+    alertEngine.stop();
+    guardrailEngine.stop();
+    if (embeddingWorker) embeddingWorker.stop();
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 
   serve({
     fetch: app.fetch,

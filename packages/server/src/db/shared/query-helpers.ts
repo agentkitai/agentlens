@@ -69,8 +69,10 @@ export function buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>
     conditions.push(lte(events.timestamp, query.to));
   }
   if (query.search) {
+    // L-14 FIX: Limit search string length to prevent DoS
+    const searchTerm = query.search.slice(0, 500);
     // Escape LIKE wildcards to prevent wildcard abuse
-    const escaped = query.search
+    const escaped = searchTerm
       .replace(/\\/g, '\\\\')
       .replace(/%/g, '\\%')
       .replace(/_/g, '\\_');

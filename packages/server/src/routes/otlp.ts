@@ -10,6 +10,7 @@
  */
 
 import { Hono } from 'hono';
+import { timingSafeEqual, createHash } from 'node:crypto';
 import { ulid } from 'ulid';
 import { computeEventHash, truncatePayload } from '@agentlensai/core';
 import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentlensai/core';
@@ -400,7 +401,26 @@ async function buildAndInsertEvents(
 
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
+// H-2 FIX: Periodic cleanup of expired rate limit buckets to prevent memory leak
+const CLEANUP_INTERVAL_MS = 60_000;
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+function ensureCleanupInterval(): void {
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, bucket] of rateLimitBuckets) {
+      if (now >= bucket.resetAt) rateLimitBuckets.delete(key);
+    }
+  }, CLEANUP_INTERVAL_MS);
+  // Don't keep the process alive just for cleanup
+  if (cleanupInterval && typeof cleanupInterval === 'object' && 'unref' in cleanupInterval) {
+    cleanupInterval.unref();
+  }
+}
+
 function checkRateLimit(ip: string, limit: number): boolean {
+  ensureCleanupInterval();
   const now = Date.now();
   let bucket = rateLimitBuckets.get(ip);
   if (!bucket || now >= bucket.resetAt) {
@@ -414,6 +434,10 @@ function checkRateLimit(ip: string, limit: number): boolean {
 /** Exported for testing — reset all rate limit state */
 export function resetRateLimiter(): void {
   rateLimitBuckets.clear();
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
 }
 
 // ─── Route Factory ──────────────────────────────────────────────────
@@ -430,7 +454,19 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
   app.use('*', async (c, next) => {
     if (authToken) {
       const authHeader = c.req.header('authorization') ?? '';
-      if (authHeader !== `Bearer ${authToken}`) {
+      const expected = `Bearer ${authToken}`;
+      // M-14 FIX: Timing-safe comparison for auth token
+      const a = Buffer.from(authHeader, 'utf-8');
+      const b = Buffer.from(expected, 'utf-8');
+      let match: boolean;
+      if (a.length !== b.length) {
+        const ha = createHash('sha256').update(a).digest();
+        const hb = createHash('sha256').update(b).digest();
+        match = timingSafeEqual(ha, hb);
+      } else {
+        match = timingSafeEqual(a, b);
+      }
+      if (!match) {
         return c.json({ error: 'Unauthorized' }, 401);
       }
     }

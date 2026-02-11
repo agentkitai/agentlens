@@ -7,6 +7,50 @@
 import type { GuardrailRule, GuardrailConditionResult } from '@agentlensai/core';
 import { eventBus } from '../event-bus.js';
 
+// ─── SSRF Protection (C-3, C-4) ────────────────────────────────────
+
+/**
+ * Validate a URL is safe to fetch (not targeting private/internal IPs).
+ * Blocks RFC 1918, link-local, loopback, and non-HTTP(S) schemes.
+ */
+function validateExternalUrl(urlStr: string): { valid: boolean; reason?: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    return { valid: false, reason: 'Invalid URL' };
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { valid: false, reason: `Disallowed protocol: ${parsed.protocol}` };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Block localhost
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') {
+    return { valid: false, reason: 'Localhost URLs are not allowed' };
+  }
+
+  // Block private IP ranges
+  const ipMatch = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (ipMatch) {
+    const [, a, b] = ipMatch.map(Number);
+    // 10.0.0.0/8
+    if (a === 10) return { valid: false, reason: 'Private IP range (10.x.x.x)' };
+    // 172.16.0.0/12
+    if (a === 172 && b >= 16 && b <= 31) return { valid: false, reason: 'Private IP range (172.16-31.x.x)' };
+    // 192.168.0.0/16
+    if (a === 192 && b === 168) return { valid: false, reason: 'Private IP range (192.168.x.x)' };
+    // 169.254.0.0/16 (link-local / cloud metadata)
+    if (a === 169 && b === 254) return { valid: false, reason: 'Link-local/metadata IP (169.254.x.x)' };
+    // 0.0.0.0
+    if (a === 0) return { valid: false, reason: 'Disallowed IP (0.x.x.x)' };
+  }
+
+  return { valid: true };
+}
+
 export interface ActionResult {
   success: boolean;
   result: string;
@@ -78,6 +122,10 @@ export async function executeNotifyWebhook(
     const config = rule.actionConfig as { url?: string; headers?: Record<string, string> };
     if (!config.url) return { success: false, result: 'failed: no webhook URL configured' };
 
+    // C-3 FIX: SSRF protection
+    const urlCheck = validateExternalUrl(config.url);
+    if (!urlCheck.valid) return { success: false, result: `failed: ${urlCheck.reason}` };
+
     const payload = {
       guardrailId: rule.id, guardrailName: rule.name, conditionType: rule.conditionType,
       conditionValue: conditionResult.currentValue, conditionThreshold: conditionResult.threshold,
@@ -140,6 +188,10 @@ export async function executeAgentgatePolicy(
   try {
     const config = rule.actionConfig as { agentgateUrl?: string; policyId?: string; action?: string };
     if (!config.agentgateUrl) return { success: false, result: 'failed: no AgentGate URL configured' };
+
+    // C-4 FIX: SSRF protection
+    const urlCheck = validateExternalUrl(config.agentgateUrl);
+    if (!urlCheck.valid) return { success: false, result: `failed: ${urlCheck.reason}` };
 
     const url = `${config.agentgateUrl.replace(/\/$/, '')}/api/policies/${config.policyId ?? 'default'}`;
     const response = await fetch(url, {

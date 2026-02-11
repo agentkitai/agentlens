@@ -46,10 +46,32 @@ export class AgentLensTransport {
    * Populated by session_start, used by log_event and session_end.
    */
   private sessionAgentMap = new Map<string, string>();
+  private sessionTimestamps = new Map<string, number>();
+  private sessionCleanupInterval: ReturnType<typeof setInterval> | null = null;
+  /** H-8 FIX: Max session TTL (24 hours) to prevent memory leak from abandoned sessions */
+  private static readonly SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+  private static readonly SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 
   constructor(config: TransportConfig) {
     this.baseUrl = config.baseUrl.replace(/\/+$/, '');
     this.apiKey = config.apiKey;
+    this.startSessionCleanup();
+  }
+
+  /** H-8 FIX: Periodically evict stale session entries */
+  private startSessionCleanup(): void {
+    this.sessionCleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [sessionId, ts] of this.sessionTimestamps) {
+        if (now - ts > AgentLensTransport.SESSION_TTL_MS) {
+          this.sessionAgentMap.delete(sessionId);
+          this.sessionTimestamps.delete(sessionId);
+        }
+      }
+    }, AgentLensTransport.SESSION_CLEANUP_INTERVAL_MS);
+    if (this.sessionCleanupInterval && typeof this.sessionCleanupInterval === 'object' && 'unref' in this.sessionCleanupInterval) {
+      this.sessionCleanupInterval.unref();
+    }
   }
 
   /**
@@ -182,6 +204,7 @@ export class AgentLensTransport {
    */
   setSessionAgent(sessionId: string, agentId: string): void {
     this.sessionAgentMap.set(sessionId, agentId);
+    this.sessionTimestamps.set(sessionId, Date.now());
   }
 
   /**
@@ -196,6 +219,7 @@ export class AgentLensTransport {
    */
   clearSessionAgent(sessionId: string): void {
     this.sessionAgentMap.delete(sessionId);
+    this.sessionTimestamps.delete(sessionId);
   }
 
   /**

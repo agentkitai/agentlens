@@ -1,7 +1,20 @@
 // Pool server authentication middleware
 
+import { timingSafeEqual, createHash } from 'node:crypto';
 import type { Context, Next } from 'hono';
 import { createMiddleware } from 'hono/factory';
+
+/** H-5 FIX: Timing-safe string comparison for API keys */
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf-8');
+  const bufB = Buffer.from(b, 'utf-8');
+  if (bufA.length !== bufB.length) {
+    const hashA = createHash('sha256').update(bufA).digest();
+    const hashB = createHash('sha256').update(bufB).digest();
+    return timingSafeEqual(hashA, hashB);
+  }
+  return timingSafeEqual(bufA, bufB);
+}
 
 export type AuthScope = 'admin' | 'agent' | 'contributor' | 'public';
 
@@ -45,14 +58,14 @@ export function requireAuth(scope: AuthScope, options: AuthOptions) {
     }
 
     if (scope === 'admin') {
-      if (options.adminKey && token === options.adminKey) {
+      if (options.adminKey && safeCompare(token, options.adminKey)) {
         return next();
       }
       return c.json({ error: 'Invalid or insufficient credentials' }, 401);
     }
 
     // agent or contributor — accept either apiKey or adminKey
-    if ((options.apiKey && token === options.apiKey) || (options.adminKey && token === options.adminKey)) {
+    if ((options.apiKey && safeCompare(token, options.apiKey)) || (options.adminKey && safeCompare(token, options.adminKey))) {
       return next();
     }
 

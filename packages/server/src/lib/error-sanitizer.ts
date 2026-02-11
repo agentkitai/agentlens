@@ -40,7 +40,12 @@ const SENSITIVE_PATTERNS = [
  */
 export function sanitizeErrorMessage(err: unknown): string {
   if (err instanceof ClientError && err.statusCode >= 400 && err.statusCode < 500) {
-    return err.message;
+    // L-1 FIX: Defense-in-depth — strip any accidentally leaked sensitive info from 4xx messages
+    const msg = err.message;
+    if (SENSITIVE_PATTERNS.some((p) => p.test(msg))) {
+      return 'Bad request';
+    }
+    return msg;
   }
   return GENERIC_5XX;
 }

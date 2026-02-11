@@ -59,4 +59,9 @@ export function validateConfig(config: ServerConfig): void {
       'Set a specific origin (e.g. http://localhost:3400) or set AUTH_DISABLED=true for development.',
     );
   }
+
+  // C-2 FIX: Warn when OTLP endpoints are exposed without auth in production mode
+  if (!config.authDisabled && !config.otlpAuthToken) {
+    log.warn('⚠️  OTLP endpoints (/v1/traces, /v1/metrics, /v1/logs) have NO authentication. Set OTLP_AUTH_TOKEN for production.');
+  }
 }
