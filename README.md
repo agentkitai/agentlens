@@ -55,7 +55,6 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 - **💰 Cost Tracking** — Track token usage and estimated costs per session, per agent, per model, over time. Alert on cost spikes.
 - **🚨 Alerting** — Configurable rules for error rate, cost threshold, latency anomalies, and inactivity.
 - **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz/agentgate) (approval flows) and [FormBridge](https://github.com/amitpaz/formbridge) (data collection).
-- **🧠 Agent Memory** — Semantic recall, lessons learned, pattern reflection, and cross-session context. Agents can search past experience, save insights, analyze their own behavior, and carry context across sessions.
 - **🔒 Tenant Isolation** — Multi-tenant support with per-tenant data scoping, API key binding, and embedding isolation.
 - **❤️‍🩹 Health Scores** — 5-dimension health scoring (error rate, cost efficiency, tool success, latency, completion rate) with trend tracking. Monitor agent reliability at a glance.
 - **💡 Cost Optimization** — Complexity-aware model recommendation engine. Classifies LLM calls by complexity tier and suggests cheaper alternatives with projected savings.
@@ -198,8 +197,8 @@ agentlensai.init(
 │  └─────┬──────┘ └─────┬──────┘ └────────────┘ └──────────────┘  │
 │        └───────────────┘                                         │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
-│  │  Recall    │ │  Lessons   │ │  Reflect   │ │  Context     │  │
-│  │ (Semantic) │ │ (Knowledge)│ │ (Patterns) │ │ (X-Session)  │  │
+│  │  Recall    │ │  Reflect   │ │  Context   │ │  Guardrails  │  │
+│  │ (Semantic) │ │ (Patterns) │ │ (X-Session)│ │  Engine      │  │
 │  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
 │  │  Health    │ │   Cost     │ │  Session   │ │  Benchmark   │  │
@@ -378,9 +377,9 @@ const analytics = await client.getLlmAnalytics();
 
 Navigate to **http://localhost:3400** — see sessions, timelines, analytics, and alerts in real time.
 
-## 🧠 Agent Memory
+## 🔌 MCP Tools
 
-AgentLens ships **14 MCP tools** — 5 core observability tools, 4 for memory and self-improvement, 4 for analytics, and 1 for safety:
+AgentLens ships **12 MCP tools** — 5 core observability tools, 3 for intelligence & analytics, and 4 for operations:
 
 #### Core Observability
 
@@ -396,10 +395,14 @@ AgentLens ships **14 MCP tools** — 5 core observability tools, 4 for memory an
 
 | Tool | Purpose | Description |
 |---|---|---|
-| `agentlens_recall` | **Semantic Search** | Search past events, sessions, and lessons by meaning. Use before starting tasks to find relevant history. |
-| `agentlens_learn` | **Lessons Learned** | Save, retrieve, update, and search distilled insights. Build a persistent knowledge base across sessions. |
+| `agentlens_recall` | **Semantic Search** | Search past events and sessions by meaning. Use before starting tasks to find relevant history. |
 | `agentlens_reflect` | **Pattern Analysis** | Analyze behavioral patterns — recurring errors, cost trends, tool sequences, performance changes. |
-| `agentlens_context` | **Cross-Session Context** | Retrieve topic-focused history with session summaries, key events, and related lessons ranked by relevance. |
+| `agentlens_context` | **Cross-Session Context** | Retrieve topic-focused history with session summaries and key events ranked by relevance. |
+
+#### Operations
+
+| Tool | Purpose | Description |
+|---|---|---|
 | `agentlens_health` | **Health Scores** | Check the agent's 5-dimension health score (0–100) with trend tracking. Dimensions: error rate, cost efficiency, tool success, latency, completion rate. |
 | `agentlens_optimize` | **Cost Optimization** | Get model switch recommendations with projected monthly savings. Analyzes call complexity and suggests cheaper alternatives. |
 | `agentlens_replay` | **Session Replay** | Replay a past session as a structured timeline with numbered steps, context annotations, and cost accumulation. |
@@ -409,11 +412,8 @@ AgentLens ships **14 MCP tools** — 5 core observability tools, 4 for memory an
 These tools are automatically available when using the MCP server. Agents can also access the underlying REST API directly via the SDK:
 
 ```typescript
-// Recall — semantic search
+// Recall — semantic search over events and sessions
 const results = await client.recall({ query: 'authentication errors', scope: 'events' });
-
-// Learn — save a lesson
-await client.createLesson({ title: 'Fix for timeout', content: 'Add retry with backoff', category: 'debugging' });
 
 // Reflect — analyze patterns
 const analysis = await client.reflect({ analysis: 'error_patterns', agentId: 'my-agent' });
@@ -422,13 +422,11 @@ const analysis = await client.reflect({ analysis: 'error_patterns', agentId: 'my
 const context = await client.getContext({ topic: 'database migrations', limit: 5 });
 ```
 
-See the [Agent Memory Guide](./docs/guide/agent-memory.md) for integration patterns and best practices.
+### 🔗 Lore Integration (Optional)
 
-### 🧠 Agent Memory (via Lore)
+AgentLens integrates with [Lore](https://github.com/amitpaz1/lore) for cross-agent memory and lesson sharing. Set `LORE_ENABLED=true` to enable lesson management in the dashboard.
 
-AgentLens integrates with [Lore](https://github.com/amitpaz1/lore) for cross-agent memory sharing. When configured, lesson management and community features appear in the dashboard.
-
-Set `LORE_ENABLED=true` with your Lore server URL to enable. See [migration guide](docs/migration/lore-integration.md).
+See the [Lore Integration Guide](docs/migration/lore-integration.md) for setup.
 
 ### 🎬 v0.10.0 Multi-Provider Demo
 
@@ -440,15 +438,11 @@ Set `LORE_ENABLED=true` with your Lore server URL to enable. See [migration guid
 
 <img src="demo/agentlens-v0.9-demo.gif" alt="AgentLens v0.9.0 Demo" width="720">
 
-> Community sharing, agent discovery, task delegation, and trust scores — all from the CLI. ([View cast file](demo/demo-v0.9.cast))
+> Agent discovery, task delegation, and trust scores — all from the CLI. ([View cast file](demo/demo-v0.9.cast))
 
 **Quick links:**
-- [Sharing Setup Guide](./docs/sharing-setup.md) — Enable sharing, configure categories and deny-lists
-- [Privacy Controls](./docs/privacy-controls.md) — Redaction pipeline, anonymous IDs, kill switch, audit trail
 - [Discovery & Delegation](./docs/discovery-delegation.md) — Register capabilities, discover agents, delegate tasks
-- [Privacy Architecture](./docs/privacy-architecture.md) — Technical deep-dive into the 6-layer pipeline
-- [Custom Redaction Plugins](./docs/redaction-plugin.md) — Write custom redaction layers
-- [API Reference v0.9](./docs/api-reference-v0.9.md) — All new REST endpoints
+- [API Reference v0.9](./docs/api-reference-v0.9.md) — REST endpoints reference
 
 ## 📦 Packages
 
@@ -480,9 +474,7 @@ Set `LORE_ENABLED=true` with your Lore server URL to enable. See [migration guid
 | `GET /api/analytics` | Bucketed metrics over time |
 | `GET /api/analytics/costs` | Cost breakdown by agent |
 | `POST /api/alerts/rules` | Create alert rules |
-| `GET /api/recall` | Semantic search over agent memory |
-| `POST /api/lessons` | Create a lesson |
-| `GET /api/lessons` | List/search lessons |
+| `GET /api/recall` | Semantic search over events and sessions |
 | `GET /api/reflect` | Pattern analysis (errors, costs, tools, performance) |
 | `GET /api/context` | Cross-session context retrieval |
 | `POST /api/events/ingest` | Webhook ingestion (AgentGate/FormBridge) |
