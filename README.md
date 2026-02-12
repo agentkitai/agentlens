@@ -8,7 +8,7 @@
     <a href="https://www.npmjs.com/package/@agentlensai/server"><img src="https://img.shields.io/npm/v/@agentlensai/server?label=npm" alt="npm server"></a>
     <a href="https://www.npmjs.com/package/@agentlensai/mcp"><img src="https://img.shields.io/npm/v/@agentlensai/mcp?label=mcp" alt="npm mcp"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
-    <a href="https://github.com/amitpaz/agentlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/amitpaz/agentlens/ci.yml?branch=main" alt="Build Status"></a>
+    <a href="https://github.com/amitpaz1/agentlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/amitpaz/agentlens/ci.yml?branch=main" alt="Build Status"></a>
   </p>
 </p>
 
@@ -54,7 +54,7 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 - **🔒 Tamper-Evident Audit Trail** — Append-only event storage with SHA-256 hash chains per session. Cryptographically linked and verifiable.
 - **💰 Cost Tracking** — Track token usage and estimated costs per session, per agent, per model, over time. Alert on cost spikes.
 - **🚨 Alerting** — Configurable rules for error rate, cost threshold, latency anomalies, and inactivity.
-- **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz/agentgate) (approval flows) and [FormBridge](https://github.com/amitpaz/formbridge) (data collection).
+- **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz1/agentgate) (approval flows), [FormBridge](https://github.com/amitpaz1/formbridge) (data collection), and [Lore](https://github.com/amitpaz1/lore) (cross-agent memory).
 - **🔒 Tenant Isolation** — Multi-tenant support with per-tenant data scoping, API key binding, and embedding isolation.
 - **❤️‍🩹 Health Scores** — 5-dimension health scoring (error rate, cost efficiency, tool success, latency, completion rate) with trend tracking. Monitor agent reliability at a glance.
 - **💡 Cost Optimization** — Complexity-aware model recommendation engine. Classifies LLM calls by complexity tier and suggests cheaper alternatives with projected savings.
@@ -493,19 +493,16 @@ See the [Lore Integration Guide](docs/migration/lore-integration.md) for setup.
 
 [Full API Reference →](./docs/reference/api.md)
 
-## 🔗 Part of the AgentKit Suite
+## 🔗 Part of the AgentKit Ecosystem
 
-AgentLens works alongside two companion projects for unified agent lifecycle management:
+| Project | What it does | Link |
+|---------|-------------|------|
+| **AgentLens** | Observability & audit trail for AI agents | **You are here** |
+| **AgentGate** | Human-in-the-loop approval gateway | [github.com/amitpaz1/agentgate](https://github.com/amitpaz1/agentgate) |
+| **FormBridge** | Structured data collection for AI agents | [github.com/amitpaz1/formbridge](https://github.com/amitpaz1/formbridge) |
+| **Lore** | Cross-agent memory and lesson sharing | [github.com/amitpaz1/lore](https://github.com/amitpaz1/lore) |
 
-| Project | Role | Link |
-|---|---|---|
-| **AgentGate** | Human-in-the-loop approval gateway | [github.com/amitpaz/agentgate](https://github.com/amitpaz/agentgate) |
-| **FormBridge** | Structured data collection from humans | [github.com/amitpaz/formbridge](https://github.com/amitpaz/formbridge) |
-| **AgentLens** | Observability & audit trail | You are here |
-
-Together: **data collection → approvals → observability**.
-
-Approval events from AgentGate and form submissions from FormBridge appear directly in AgentLens session timelines, giving you a single view of the complete agent lifecycle.
+**Together:** Agents collect data (FormBridge) → request approval to act (AgentGate) → share lessons learned (Lore) → all observed and audited (AgentLens).
 
 ## ⌨️ CLI
 
@@ -525,7 +522,7 @@ Both commands support `--format json` for machine-readable output. See `agentlen
 
 ```bash
 # Clone and install
-git clone https://github.com/amitpaz/agentlens.git
+git clone https://github.com/amitpaz1/agentlens.git
 cd agentlens
 pnpm install
 
