@@ -226,6 +226,11 @@ export function createApp(
     return c.json({ status: 'ok', version: '0.1.0' });
   });
 
+  // ─── Feature flags (no auth — dashboard needs before login) ──
+  app.get('/api/config/features', (c) => {
+    return c.json({ lore: resolvedConfig.loreEnabled });
+  });
+
   // ─── SSE stream (authenticates via Bearer header or ?token= query param) ──
   // Mounted before auth middleware — handles its own auth internally for EventSource compat.
   app.route('/api/stream', streamRoutes(config?.db, resolvedConfig.authDisabled));

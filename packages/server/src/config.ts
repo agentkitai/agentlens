@@ -21,6 +21,18 @@ export interface ServerConfig {
   otlpAuthToken?: string;
   /** OTLP rate limit per IP per minute (default: 1000) */
   otlpRateLimit: number;
+
+  // ─── Lore Integration ──────────────────────────────────
+  /** Enable Lore memory integration (default: false) */
+  loreEnabled: boolean;
+  /** Lore mode: 'local' uses lore-sdk directly, 'remote' proxies to Lore server (default: 'remote') */
+  loreMode: 'local' | 'remote';
+  /** Lore API URL (required when loreMode === 'remote' && loreEnabled) */
+  loreApiUrl?: string;
+  /** Lore API key (required when loreMode === 'remote' && loreEnabled) */
+  loreApiKey?: string;
+  /** Lore SQLite database path (optional, lore-sdk has defaults) */
+  loreDbPath?: string;
 }
 
 /**
@@ -42,6 +54,13 @@ export function getConfig(): ServerConfig {
       const parsed = parseInt(process.env['OTLP_RATE_LIMIT'] ?? '1000', 10);
       return isNaN(parsed) ? 1000 : parsed;
     })(),
+
+    // Lore integration
+    loreEnabled: process.env['LORE_ENABLED'] === 'true',
+    loreMode: (process.env['LORE_MODE'] === 'local' ? 'local' : 'remote') as 'local' | 'remote',
+    loreApiUrl: process.env['LORE_API_URL'] || undefined,
+    loreApiKey: process.env['LORE_API_KEY'] || undefined,
+    loreDbPath: process.env['LORE_DB_PATH'] || undefined,
   };
 }
 
@@ -63,5 +82,25 @@ export function validateConfig(config: ServerConfig): void {
   // C-2 FIX: Warn when OTLP endpoints are exposed without auth in production mode
   if (!config.authDisabled && !config.otlpAuthToken) {
     log.warn('⚠️  OTLP endpoints (/v1/traces, /v1/metrics, /v1/logs) have NO authentication. Set OTLP_AUTH_TOKEN for production.');
+  }
+
+  // ─── Lore config validation ────────────────────────────
+  validateLoreConfig(config);
+}
+
+function validateLoreConfig(config: ServerConfig): void {
+  if (!config.loreEnabled) return;
+
+  if (config.loreMode === 'remote') {
+    if (!config.loreApiUrl) {
+      throw new Error(
+        'FATAL: LORE_ENABLED=true with LORE_MODE=remote requires LORE_API_URL to be set.',
+      );
+    }
+    if (!config.loreApiKey) {
+      throw new Error(
+        'FATAL: LORE_ENABLED=true with LORE_MODE=remote requires LORE_API_KEY to be set.',
+      );
+    }
   }
 }
