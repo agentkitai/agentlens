@@ -323,8 +323,15 @@ export function createApp(
     app.route('/api/analytics', analyticsRoutes(store, db));
   }
   app.route('/api/alerts', alertsRoutes(store));
+  let loreAdapter: import('./lib/lore-client.js').LoreAdapter | null = null;
   if (resolvedConfig.loreEnabled) {
-    const loreAdapter = createLoreAdapter(resolvedConfig);
+    try {
+      loreAdapter = createLoreAdapter(resolvedConfig);
+    } catch (err) {
+      log.warn(`Lore adapter init failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+  if (loreAdapter) {
     app.route('/api/lessons', loreProxyRoutes(loreAdapter));
   } else if (db) {
     app.route('/api/lessons', lessonsRoutes(db, { embeddingWorker: config?.embeddingWorker ?? null }));
@@ -373,13 +380,12 @@ export function createApp(
   }
 
   // ─── Community Sharing (Stories 4.1–4.3) ────────────────
-  if (resolvedConfig.loreEnabled) {
-    const loreAdapterForCommunity = createLoreAdapter(resolvedConfig);
+  if (loreAdapter) {
     if (db) {
       app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
       app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
     }
-    app.route('/api/community', loreCommunityProxyRoutes(loreAdapterForCommunity));
+    app.route('/api/community', loreCommunityProxyRoutes(loreAdapter));
   } else if (db) {
     app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
