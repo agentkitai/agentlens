@@ -1,6 +1,6 @@
 {
   "name": "@agentlensai/dashboard",
-  "version": "0.9.0",
+  "version": "0.12.0",
   "description": "Web dashboard for AgentLens — visualize agent sessions, events, analytics, and alerts",
   "type": "module",
   "license": "MIT",

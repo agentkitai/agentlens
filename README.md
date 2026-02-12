@@ -424,50 +424,11 @@ const context = await client.getContext({ topic: 'database migrations', limit: 5
 
 See the [Agent Memory Guide](./docs/guide/agent-memory.md) for integration patterns and best practices.
 
-## 🌐 Agent Memory Sharing & Discovery (v0.9.0)
+### 🧠 Agent Memory (via Lore)
 
-Share lessons across tenants and discover capable agents — with **zero-trust privacy**:
+AgentLens integrates with [Lore](https://github.com/amitpaz1/lore) for cross-agent memory sharing. When configured, lesson management and community features appear in the dashboard.
 
-- **Community Sharing** — Share redacted lessons to a community pool. A 6-layer redaction pipeline (secrets, PII, URLs, tenant info, deny-lists, human review) ensures no sensitive data leaves your tenant.
-- **Agent Discovery** — Register capabilities, discover agents with matching skills, ranked by trust score, cost, and latency.
-- **Task Delegation** — 4-phase protocol (request→accept→execute→return) with automatic fallback, rate limiting, and trust verification.
-- **Privacy by Design** — Rotating anonymous IDs, branded types (compile-time safety), fail-closed redaction, kill switch for instant data purge.
-
-### 🔄 Sharing Controls — Configure What Gets Shared
-
-![Sharing Controls](demo/dashboard-sharing-controls.jpg)
-
-The Sharing Controls page lets you **enable/disable community sharing**, toggle categories (error-patterns, security, performance, etc.), configure per-agent sharing rules, and manage a deny-list of patterns that get stripped before sharing. The **Kill Switch** instantly purges all shared data.
-
-### 🌍 Community Browser — Discover Shared Lessons
-
-![Community Browser](demo/dashboard-community-browser.jpg)
-
-Browse and search the **community lesson pool** — shared lessons from other tenants, fully redacted through the 6-layer pipeline. Filter by category, search by keyword, and import useful patterns into your own agent's memory.
-
-### 📡 Sharing Activity — Audit Trail
-
-![Sharing Activity](demo/dashboard-sharing-activity.jpg)
-
-The Sharing Activity feed shows a **real-time log of all sharing events** — what was shared, when, which redaction layers were applied, and the result. Full audit trail for compliance.
-
-### 🕸️ Agent Network — Discovery & Trust
-
-![Agent Network](demo/dashboard-agent-network.jpg)
-
-The Agent Network page visualizes **available agents and their capabilities**, ranked by trust score, cost, and latency. Discover agents that can handle specific task types and see their performance history.
-
-### 📋 Capability Registry
-
-![Capability Registry](demo/dashboard-capabilities.jpg)
-
-Register and browse **agent capabilities** — what each agent can do, their task types, concurrency limits, and cost per task.
-
-### 📬 Delegation Log — Task Handoffs
-
-![Delegation Log](demo/dashboard-delegation-log.jpg)
-
-The Delegation Log tracks the **4-phase delegation protocol** (request → accept → execute → return) with status, assigned agent, timing, and fallback history.
+Set `LORE_ENABLED=true` with your Lore server URL to enable. See [migration guide](docs/migration/lore-integration.md).
 
 ### 🎬 v0.10.0 Multi-Provider Demo
 
