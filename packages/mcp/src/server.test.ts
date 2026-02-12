@@ -30,7 +30,7 @@ describe('MCP Server Entrypoint (Story 5.1)', () => {
     expect(transport).toBeDefined();
   });
 
-  it('lists all 17 tools via MCP protocol', async () => {
+  it('lists all 15 tools via MCP protocol', async () => {
     const { mcpServer } = createServer();
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
