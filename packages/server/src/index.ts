@@ -46,7 +46,7 @@ import { LocalPoolTransport } from './services/delegation-service.js';
 import { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
 import { createLoreAdapter } from './lib/lore-client.js';
 import { otlpRoutes } from './routes/otlp.js';
-import { auditRoutes } from './routes/audit.js';
+// audit routes removed (v0.12.0 — sharing audit moved to Lore)
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
 import { setAgentStore } from './lib/guardrails/actions.js';
@@ -369,7 +369,7 @@ export function createApp(
     // Audit routes (Story 7.4) — kept for observability
     app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
-    app.route('/api/community/audit', auditRoutes(db));
+    // audit routes removed (v0.12.0 — sharing audit moved to Lore)
   }
 
   // ─── OTLP HTTP Receiver (no auth — standard OTel paths) ──
