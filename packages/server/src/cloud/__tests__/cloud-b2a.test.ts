@@ -482,7 +482,7 @@ describe('Migration Runner (updated for B2A)', () => {
 
   it('finds exactly 6 migration files', () => {
     const files = getMigrationFiles(MIGRATIONS_DIR);
-    expect(files).toHaveLength(8);
+    expect(files).toHaveLength(9);
   });
 
   it('new migrations are in correct order', () => {

@@ -13,7 +13,6 @@ import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AgentLensTransport } from './transport.js';
 import { registerContextTool } from './tools/context.js';
-import { registerLearnTool } from './tools/learn.js';
 import { registerOptimizeTool } from './tools/optimize.js';
 import { registerRecallTool } from './tools/recall.js';
 import { registerReflectTool } from './tools/reflect.js';
@@ -21,7 +20,6 @@ import { registerHealthTool } from './tools/health.js';
 import { registerReplayTool } from './tools/replay.js';
 import { registerBenchmarkTool } from './tools/benchmark.js';
 import { registerGuardrailsTool } from './tools/guardrails.js';
-import { registerCommunityTool } from './tools/community.js';
 import { registerDiscoverTool } from './tools/discover.js';
 import { registerDelegateTool } from './tools/delegate.js';
 
@@ -36,7 +34,6 @@ export function registerTools(server: McpServer, transport: AgentLensTransport):
   registerSessionEnd(server, transport);
   registerQueryEvents(server, transport);
   registerLogLlmCall(server, transport);
-  registerLearnTool(server, transport);
   registerRecallTool(server, transport);
   registerReflectTool(server, transport);
   registerOptimizeTool(server, transport);
@@ -45,7 +42,6 @@ export function registerTools(server: McpServer, transport: AgentLensTransport):
   registerReplayTool(server, transport);
   registerBenchmarkTool(server, transport);
   registerGuardrailsTool(server, transport);
-  registerCommunityTool(server, transport);
   registerDiscoverTool(server, transport);
   registerDelegateTool(server, transport);
 }

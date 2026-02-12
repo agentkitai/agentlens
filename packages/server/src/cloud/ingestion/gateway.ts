@@ -66,7 +66,6 @@ const KNOWN_EVENT_TYPES = new Set([
   'benchmark',
   'custom',
   'health_check',
-  'lesson',
   'embedding',
 ]);
 

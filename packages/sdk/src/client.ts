@@ -16,9 +16,6 @@ import type {
   LlmMessage,
   RecallQuery,
   RecallResult,
-  Lesson,
-  LessonQuery,
-  CreateLessonInput,
   ReflectQuery,
   ReflectResult,
   ContextQuery,
@@ -365,62 +362,31 @@ export class AgentLensClient {
     return this.request<RecallResult>(`/api/recall?${params.toString()}`);
   }
 
-  // ─── Lessons ─────────────────────────────────────────────
+  // ─── Lessons (Deprecated — use lore-sdk) ──────────────────
 
-  /**
-   * Create a new lesson.
-   */
-  async createLesson(lesson: CreateLessonInput): Promise<Lesson> {
-    return this.request<Lesson>('/api/lessons', {
-      method: 'POST',
-      body: lesson,
-    });
+  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
+  async createLesson(): Promise<never> {
+    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
   }
 
-  /**
-   * List lessons with optional filters.
-   */
-  async getLessons(query?: LessonQuery): Promise<{ lessons: Lesson[]; total: number }> {
-    const params = new URLSearchParams();
-    if (query?.agentId) params.set('agentId', query.agentId);
-    if (query?.category) params.set('category', query.category);
-    if (query?.importance) params.set('importance', query.importance);
-    if (query?.search) params.set('search', query.search);
-    if (query?.limit != null) params.set('limit', String(query.limit));
-    if (query?.offset != null) params.set('offset', String(query.offset));
-    if (query?.includeArchived != null) params.set('includeArchived', String(query.includeArchived));
-
-    const qs = params.toString();
-    return this.request<{ lessons: Lesson[]; total: number }>(
-      qs ? `/api/lessons?${qs}` : '/api/lessons',
-    );
+  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
+  async getLessons(): Promise<never> {
+    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
   }
 
-  /**
-   * Get a single lesson by ID.
-   */
-  async getLesson(id: string): Promise<Lesson> {
-    return this.request<Lesson>(`/api/lessons/${encodeURIComponent(id)}`);
+  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
+  async getLesson(): Promise<never> {
+    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
   }
 
-  /**
-   * Update a lesson.
-   */
-  async updateLesson(id: string, updates: Partial<CreateLessonInput>): Promise<Lesson> {
-    return this.request<Lesson>(`/api/lessons/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: updates,
-    });
+  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
+  async updateLesson(): Promise<never> {
+    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
   }
 
-  /**
-   * Delete (archive) a lesson.
-   */
-  async deleteLesson(id: string): Promise<{ id: string; archived: boolean }> {
-    return this.request<{ id: string; archived: boolean }>(
-      `/api/lessons/${encodeURIComponent(id)}`,
-      { method: 'DELETE' },
-    );
+  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
+  async deleteLesson(): Promise<never> {
+    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
   }
 
   // ─── Reflect (Pattern Analysis) ──────────────────────────

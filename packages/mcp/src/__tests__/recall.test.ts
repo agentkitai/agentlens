@@ -61,10 +61,10 @@ describe('agentlens_recall registration', () => {
     expect(toolNames).toContain('agentlens_recall');
   });
 
-  it('registers 14 tools total', async () => {
+  it('registers 15 tools total', async () => {
     const { client } = await createTestSetup();
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(17);
+    expect(result.tools).toHaveLength(15);
   });
 
   it('has a description mentioning semantic search', async () => {
@@ -206,12 +206,12 @@ describe('transport.recall', () => {
       apiKey: 'test-key',
     });
 
-    await transport.recall({ query: 'test query', scope: 'lessons', limit: 5 });
+    await transport.recall({ query: 'test query', scope: 'sessions', limit: 5 });
 
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain('http://localhost:3400/api/recall?');
     expect(url).toContain('query=test+query');
-    expect(url).toContain('scope=lessons');
+    expect(url).toContain('scope=sessions');
     expect(url).toContain('limit=5');
 
     const opts = mockFetch.mock.calls[0][1] as RequestInit;
