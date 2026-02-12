@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { OrgSwitcher } from '../cloud/OrgSwitcher';
+import { useFeatures } from '../hooks/useFeatures';
 
 interface NavItem {
   to: string;
@@ -179,8 +180,16 @@ function linkClass({ isActive }: { isActive: boolean }): string {
     : `${base} text-gray-600 hover:bg-gray-100 hover:text-gray-900`;
 }
 
+const LORE_NAV_PATHS = new Set(['/lessons', '/sharing', '/community', '/sharing/activity']);
+
 export function Layout(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { lore } = useFeatures();
+
+  const visibleNavItems = useMemo(
+    () => (lore ? navItems : navItems.filter((item) => !LORE_NAV_PATHS.has(item.to))),
+    [lore]
+  );
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -212,7 +221,7 @@ export function Layout(): React.ReactElement {
         </div>
 
         <nav className="flex flex-col gap-1 p-4">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

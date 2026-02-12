@@ -45,6 +45,8 @@ import { delegationTopRoutes } from './routes/delegations-top.js';
 import { trustRoutes } from './routes/trust.js';
 import { LocalPoolTransport } from './services/delegation-service.js';
 import { redactionTestRoutes } from './routes/redaction-test.js';
+import { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
+import { createLoreAdapter } from './lib/lore-client.js';
 import { otlpRoutes } from './routes/otlp.js';
 import { communityRoutes } from './routes/community.js';
 import { auditRoutes } from './routes/audit.js';
@@ -100,6 +102,9 @@ export { contextRoutes } from './routes/context.js';
 export { registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
 export { communityRoutes } from './routes/community.js';
+export { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
+export { createLoreAdapter, RemoteLoreAdapter, LocalLoreAdapter, LoreError } from './lib/lore-client.js';
+export type { LoreAdapter } from './lib/lore-client.js';
 export { otlpRoutes } from './routes/otlp.js';
 export { CommunityService, LocalCommunityPoolTransport, computeSimpleEmbedding } from './services/community-service.js';
 export type { PoolTransport, ShareResult, DenyListRule } from './services/community-service.js';
@@ -318,7 +323,10 @@ export function createApp(
     app.route('/api/analytics', analyticsRoutes(store, db));
   }
   app.route('/api/alerts', alertsRoutes(store));
-  if (db) {
+  if (resolvedConfig.loreEnabled) {
+    const loreAdapter = createLoreAdapter(resolvedConfig);
+    app.route('/api/lessons', loreProxyRoutes(loreAdapter));
+  } else if (db) {
     app.route('/api/lessons', lessonsRoutes(db, { embeddingWorker: config?.embeddingWorker ?? null }));
   }
 
@@ -365,7 +373,14 @@ export function createApp(
   }
 
   // ─── Community Sharing (Stories 4.1–4.3) ────────────────
-  if (db) {
+  if (resolvedConfig.loreEnabled) {
+    const loreAdapterForCommunity = createLoreAdapter(resolvedConfig);
+    if (db) {
+      app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
+      app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
+    }
+    app.route('/api/community', loreCommunityProxyRoutes(loreAdapterForCommunity));
+  } else if (db) {
     app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
     const { app: communityApp } = communityRoutes(db);

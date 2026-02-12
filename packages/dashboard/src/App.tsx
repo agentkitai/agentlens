@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { PageSkeleton } from './components/PageSkeleton';
+import { useFeatures } from './hooks/useFeatures';
 
 // Lazy-loaded page components (named exports)
 const Overview = React.lazy(() => import('./pages/Overview').then(m => ({ default: m.Overview })));
@@ -42,6 +43,8 @@ const ApiKeyManagement = React.lazy(() => import('./cloud/ApiKeyManagement').the
 const UsageDashboard = React.lazy(() => import('./cloud/UsageDashboard').then(m => ({ default: m.UsageDashboard })));
 
 export function App(): React.ReactElement {
+  const { lore } = useFeatures();
+
   return (
     <Routes>
       <Route element={<Layout />}>
@@ -58,7 +61,7 @@ export function App(): React.ReactElement {
         <Route path="benchmarks" element={<Suspense fallback={<PageSkeleton />}><Benchmarks /></Suspense>} />
         <Route path="benchmarks/new" element={<Suspense fallback={<PageSkeleton />}><BenchmarkNew /></Suspense>} />
         <Route path="benchmarks/:id" element={<Suspense fallback={<PageSkeleton />}><BenchmarkDetail /></Suspense>} />
-        <Route path="lessons" element={<Suspense fallback={<PageSkeleton />}><Lessons /></Suspense>} />
+        {lore && <Route path="lessons" element={<Suspense fallback={<PageSkeleton />}><Lessons /></Suspense>} />}
         <Route path="search" element={<Suspense fallback={<PageSkeleton />}><Search /></Suspense>} />
         <Route path="insights" element={<Suspense fallback={<PageSkeleton />}><Insights /></Suspense>} />
         <Route path="alerts" element={<Suspense fallback={<PageSkeleton />}><Alerts /></Suspense>} />
@@ -67,9 +70,9 @@ export function App(): React.ReactElement {
         <Route path="guardrails/new" element={<Suspense fallback={<PageSkeleton />}><GuardrailForm /></Suspense>} />
         <Route path="guardrails/:id" element={<Suspense fallback={<PageSkeleton />}><GuardrailDetail /></Suspense>} />
         <Route path="guardrails/:id/edit" element={<Suspense fallback={<PageSkeleton />}><GuardrailForm /></Suspense>} />
-        <Route path="sharing" element={<Suspense fallback={<PageSkeleton />}><SharingControls /></Suspense>} />
-        <Route path="sharing/activity" element={<Suspense fallback={<PageSkeleton />}><SharingActivity /></Suspense>} />
-        <Route path="community" element={<Suspense fallback={<PageSkeleton />}><CommunityBrowser /></Suspense>} />
+        {lore && <Route path="sharing" element={<Suspense fallback={<PageSkeleton />}><SharingControls /></Suspense>} />}
+        {lore && <Route path="sharing/activity" element={<Suspense fallback={<PageSkeleton />}><SharingActivity /></Suspense>} />}
+        {lore && <Route path="community" element={<Suspense fallback={<PageSkeleton />}><CommunityBrowser /></Suspense>} />}
         <Route path="network" element={<Suspense fallback={<PageSkeleton />}><AgentNetwork /></Suspense>} />
         <Route path="capabilities" element={<Suspense fallback={<PageSkeleton />}><CapabilityRegistry /></Suspense>} />
         <Route path="delegations" element={<Suspense fallback={<PageSkeleton />}><DelegationLog /></Suspense>} />
