@@ -14,7 +14,6 @@ import type { EmbeddingService } from '../lib/embeddings/index.js';
 import type { EmbeddingStore } from '../db/embedding-store.js';
 import type { SqliteDb } from '../db/index.js';
 import { SessionSummaryStore } from '../db/session-summary-store.js';
-import { LessonStore } from '../db/lesson-store.js';
 import { ContextRetriever } from '../lib/context/retrieval.js';
 import { getTenantStore } from './tenant-helper.js';
 import { createLogger } from '../lib/logger.js';
@@ -30,7 +29,6 @@ export interface ContextRouteDeps {
 export function contextRoutes(store: IEventStore, deps: ContextRouteDeps) {
   const app = new Hono<{ Variables: AuthVariables }>();
   const sessionSummaryStore = new SessionSummaryStore(deps.db);
-  const lessonStore = new LessonStore(deps.db);
 
   // GET /api/context
   app.get('/', async (c) => {
@@ -55,7 +53,7 @@ export function contextRoutes(store: IEventStore, deps: ContextRouteDeps) {
         deps.embeddingStore,
         deps.embeddingService,
         sessionSummaryStore,
-        lessonStore,
+        null,
         tenantStore,
       );
 

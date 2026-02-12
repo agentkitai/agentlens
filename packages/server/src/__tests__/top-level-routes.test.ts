@@ -147,44 +147,6 @@ describe('Top-level dashboard routes', () => {
     });
   });
 
-  // ─── Community agents list ────────────────────────
-
-  describe('GET /api/community/agents', () => {
-    it('should return agent configs list', async () => {
-      const res = await app.request('/api/community/agents', { headers: authHeaders(apiKey) });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.configs).toBeInstanceOf(Array);
-    });
-  });
-
-  // ─── Community stats ──────────────────────────────
-
-  describe('GET /api/community/stats', () => {
-    it('should return stats', async () => {
-      const res = await app.request('/api/community/stats', { headers: authHeaders(apiKey) });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body).toHaveProperty('countShared');
-      expect(body).toHaveProperty('lastShared');
-      expect(body).toHaveProperty('auditSummary');
-    });
-  });
-
-  // ─── Community config (flat response) ─────────────
-
-  describe('GET /api/community/config (flat)', () => {
-    it('should return flat config object', async () => {
-      const res = await app.request('/api/community/config', { headers: authHeaders(apiKey) });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      // Should be flat, not wrapped in { config: ... }
-      expect(typeof body.enabled).toBe('boolean');
-      expect(body).toHaveProperty('tenantId');
-      expect(body).not.toHaveProperty('config');
-    });
-  });
-
   // ─── Audit with eventType/from/to params ──────────
 
   describe('GET /api/community/audit', () => {

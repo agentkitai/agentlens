@@ -10,7 +10,6 @@ import { ContextRetriever } from '../retrieval.js';
 import type { EmbeddingStore, SimilarityResult } from '../../../db/embedding-store.js';
 import type { EmbeddingService } from '../../embeddings/index.js';
 import type { SessionSummaryStore, SessionSummaryRecord } from '../../../db/session-summary-store.js';
-import type { LessonStore } from '../../../db/lesson-store.js';
 import type { IEventStore } from '@agentlensai/core';
 import type { Lesson } from '@agentlensai/core';
 
@@ -52,7 +51,7 @@ function createMockSessionSummaryStore(summaries: Map<string, SessionSummaryReco
   } as unknown as SessionSummaryStore;
 }
 
-function createMockLessonStore(lessons: Lesson[] = []): LessonStore {
+function createMockLessonStore(lessons: Lesson[] = []) {
   return {
     get: vi.fn((tenantId: string, id: string) => lessons.find((l) => l.id === id) ?? null),
     list: vi.fn((_tenantId: string, query?: { search?: string }) => {
@@ -68,7 +67,7 @@ function createMockLessonStore(lessons: Lesson[] = []): LessonStore {
     update: vi.fn(),
     archive: vi.fn(),
     count: vi.fn().mockReturnValue(0),
-  } as unknown as LessonStore;
+  };
 }
 
 function createMockEventStore(sessions: Map<string, { id: string; agentId: string; startedAt: string; endedAt?: string }> = new Map()): IEventStore {

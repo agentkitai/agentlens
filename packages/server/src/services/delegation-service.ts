@@ -12,8 +12,7 @@ import { delegationLog, capabilityRegistry } from '../db/schema.sqlite.js';
 import { AnonymousIdManager } from '../db/anonymous-id-manager.js';
 import { DiscoveryService, RateLimiter } from './discovery-service.js';
 import { TrustService } from './trust-service.js';
-import { RedactionPipeline, type RedactionPipelineConfig } from '../lib/redaction/pipeline.js';
-import { createRawLessonContent } from '@agentlensai/core';
+import { createLogger } from '../lib/logger.js';
 import type { DelegationRequest, DelegationResult, DelegationPhase, TaskType } from '@agentlensai/core';
 
 // ─── Pool Transport Interface ─────────────────────────────
@@ -108,8 +107,6 @@ export interface DelegationServiceOptions {
   acceptTimeoutMs?: number;
   /** Override for current time (useful for testing) */
   now?: () => Date;
-  /** Redaction pipeline config for sanitizing delegation input */
-  redactionConfig?: RedactionPipelineConfig;
 }
 
 // ─── Delegation Service ───────────────────────────────────
@@ -118,7 +115,7 @@ export class DelegationService {
   private readonly anonIdManager: AnonymousIdManager;
   private readonly discoveryService: DiscoveryService;
   private readonly trustService: TrustService;
-  private readonly redactionPipeline: RedactionPipeline;
+  private static readonly delegationLog = createLogger('DelegationService');
   private readonly defaultTimeoutMs: number;
   private readonly acceptTimeoutMs: number;
   private readonly now: () => Date;
@@ -132,7 +129,6 @@ export class DelegationService {
     this.anonIdManager = new AnonymousIdManager(db);
     this.discoveryService = new DiscoveryService(db);
     this.trustService = new TrustService(db);
-    this.redactionPipeline = new RedactionPipeline(options?.redactionConfig);
     this.defaultTimeoutMs = options?.defaultTimeoutMs ?? 30_000;
     this.acceptTimeoutMs = options?.acceptTimeoutMs ?? 5_000;
     this.now = options?.now ?? (() => new Date());
@@ -268,31 +264,9 @@ export class DelegationService {
     // 4. Get anonymous ID for the requesting agent
     const requesterAnonId = this.anonIdManager.getOrRotateAnonymousId(tenantId, agentId);
 
-    // 4b. H2 FIX: Redact delegation input before sending to pool
-    let redactedInput = request.input;
-    try {
-      const inputStr = typeof request.input === 'string' ? request.input : JSON.stringify(request.input);
-      const rawContent = createRawLessonContent('delegation-input', inputStr, {});
-      const redactionResult = await this.redactionPipeline.process(rawContent, {
-        tenantId,
-        agentId,
-        category: 'delegation',
-        denyListPatterns: [],
-        knownTenantTerms: [],
-      });
-      if (redactionResult.status === 'redacted') {
-        redactedInput = redactionResult.content.content;
-      } else if (redactionResult.status === 'blocked') {
-        return {
-          requestId,
-          status: 'rejected',
-          output: `Delegation input blocked by redaction: ${redactionResult.reason}`,
-        };
-      }
-      // On error, fall through with original input (fail-open for delegation usability)
-    } catch {
-      // Redaction failure should not block delegation
-    }
+    // Redaction removed — delegated to Lore service.
+    // Delegation proceeds without input redaction (fail-open).
+    const redactedInput = request.input;
 
     // 5. Send request to pool transport
     const poolRequest: PoolDelegationRequest = {

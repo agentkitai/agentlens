@@ -11,7 +11,6 @@ import type { ContextQuery, ContextResult, ContextSession, ContextLesson, Contex
 import type { EmbeddingStore, SimilarityResult } from '../../db/embedding-store.js';
 import type { EmbeddingService } from '../embeddings/index.js';
 import type { SessionSummaryStore, SessionSummaryRecord } from '../../db/session-summary-store.js';
-import type { LessonStore } from '../../db/lesson-store.js';
 import type { IEventStore } from '@agentlensai/core';
 import { summarizeEvent } from '../embeddings/summarizer.js';
 
@@ -26,7 +25,7 @@ export class ContextRetriever {
     private readonly embeddingStore: EmbeddingStore | null,
     private readonly embeddingService: EmbeddingService | null,
     private readonly sessionSummaryStore: SessionSummaryStore,
-    private readonly lessonStore: LessonStore,
+    private readonly lessonStore: { get(tenantId: string, id: string): any; list(tenantId: string, opts: any): any[] } | null | undefined,
     private readonly eventStore: IEventStore,
   ) {}
 
@@ -170,6 +169,9 @@ export class ContextRetriever {
     query: ContextQuery,
     limit: number,
   ): Promise<ContextLesson[]> {
+    // If no lesson store, return empty (lessons moved to Lore service)
+    if (!this.lessonStore) return [];
+
     // Try semantic search first
     if (this.embeddingService && this.embeddingStore) {
       try {

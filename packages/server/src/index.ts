@@ -28,7 +28,6 @@ import { alertsRoutes } from './routes/alerts.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { streamRoutes } from './routes/stream.js';
-import { lessonsRoutes } from './routes/lessons.js';
 import { reflectRoutes } from './routes/reflect.js';
 import { recallRoutes } from './routes/recall.js';
 import { contextRoutes } from './routes/context.js';
@@ -44,11 +43,9 @@ import { delegationRoutes } from './routes/delegation.js';
 import { delegationTopRoutes } from './routes/delegations-top.js';
 import { trustRoutes } from './routes/trust.js';
 import { LocalPoolTransport } from './services/delegation-service.js';
-import { redactionTestRoutes } from './routes/redaction-test.js';
 import { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
 import { createLoreAdapter } from './lib/lore-client.js';
 import { otlpRoutes } from './routes/otlp.js';
-import { communityRoutes } from './routes/community.js';
 import { auditRoutes } from './routes/audit.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
@@ -81,7 +78,6 @@ export { alertsRoutes } from './routes/alerts.js';
 export { ingestRoutes, verifyWebhookSignature } from './routes/ingest.js';
 export { analyticsRoutes } from './routes/analytics.js';
 export { streamRoutes } from './routes/stream.js';
-export { lessonsRoutes } from './routes/lessons.js';
 export { reflectRoutes } from './routes/reflect.js';
 export { recallRoutes } from './routes/recall.js';
 export { optimizeRoutes } from './routes/optimize.js';
@@ -96,32 +92,17 @@ export { eventBus } from './lib/event-bus.js';
 export { createDb, createTestDb } from './db/index.js';
 export type { SqliteDb } from './db/index.js';
 export { runMigrations } from './db/migrate.js';
-export { LessonStore } from './db/lesson-store.js';
 export { SessionSummaryStore } from './db/session-summary-store.js';
 export { contextRoutes } from './routes/context.js';
 export { registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
-export { communityRoutes } from './routes/community.js';
 export { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
 export { createLoreAdapter, RemoteLoreAdapter, LocalLoreAdapter, LoreError } from './lib/lore-client.js';
 export type { LoreAdapter } from './lib/lore-client.js';
 export { otlpRoutes } from './routes/otlp.js';
-export { CommunityService, LocalCommunityPoolTransport, computeSimpleEmbedding } from './services/community-service.js';
-export type { PoolTransport, ShareResult, DenyListRule } from './services/community-service.js';
 export { guardrailRoutes } from './routes/guardrails.js';
 export { GuardrailEngine } from './lib/guardrails/engine.js';
 export { GuardrailStore } from './db/guardrail-store.js';
-export {
-  RedactionPipeline,
-  SecretDetectionLayer,
-  PIIDetectionLayer,
-  UrlPathScrubbingLayer,
-  TenantDeidentificationLayer,
-  SemanticDenyListLayer,
-  HumanReviewLayer,
-} from './lib/redaction/index.js';
-export type { RedactionPipelineConfig, PresidioProvider, ReviewQueueStore } from './lib/redaction/index.js';
-
 // ─── Dashboard SPA helpers ───────────────────────────────────
 
 /**
@@ -333,8 +314,6 @@ export function createApp(
   }
   if (loreAdapter) {
     app.route('/api/lessons', loreProxyRoutes(loreAdapter));
-  } else if (db) {
-    app.route('/api/lessons', lessonsRoutes(db, { embeddingWorker: config?.embeddingWorker ?? null }));
   }
 
   // ─── Reflect / Pattern Analysis ────────────────────────
@@ -387,22 +366,11 @@ export function createApp(
     }
     app.route('/api/community', loreCommunityProxyRoutes(loreAdapter));
   } else if (db) {
+    // Audit routes (Story 7.4) — kept for observability
     app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
-    const { app: communityApp } = communityRoutes(db);
-    app.route('/api/community', communityApp);
-
-    // Audit routes (Story 7.4)
     app.route('/api/community/audit', auditRoutes(db));
   }
-
-  // ─── Redaction Test (Story 2.4) ────────────────────────
-  // C-1 FIX: Apply auth middleware to redaction test endpoint
-  if (db) {
-    app.use('/api/community/redaction/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/community/redaction', authMiddleware(db, resolvedConfig.authDisabled));
-  }
-  app.route('/api/community/redaction', redactionTestRoutes());
 
   // ─── OTLP HTTP Receiver (no auth — standard OTel paths) ──
   app.route('/v1', otlpRoutes(store, resolvedConfig));

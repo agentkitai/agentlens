@@ -69,26 +69,16 @@ describe('GET /api/context (Story 5.4)', () => {
     expect(body.sessions[0].summary).toContain('deploy');
   });
 
-  it('returns lessons in context results', async () => {
-    const { db, app, apiKey } = createTestApp();
-    const { LessonStore } = await import('../db/lesson-store.js');
-    const lessonStore = new LessonStore(db);
-
-    // Create a lesson
-    lessonStore.create('default', {
-      title: 'Deployment best practices',
-      content: 'Always run tests before deploying to production',
-      category: 'operations',
-    });
+  it('returns empty lessons array (lessons moved to Lore service)', async () => {
+    const { app, apiKey } = createTestApp();
 
     const res = await app.request('/api/context?topic=Deployment', {
       headers: authHeaders(apiKey),
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json() as { lessons: Array<{ title: string; content: string }> };
-    expect(body.lessons).toHaveLength(1);
-    expect(body.lessons[0].title).toBe('Deployment best practices');
+    const body = await res.json() as { lessons: unknown[] };
+    expect(body.lessons).toHaveLength(0);
   });
 
   it('respects limit parameter', async () => {
@@ -139,12 +129,9 @@ describe('GET /api/context (Story 5.4)', () => {
   it('returns results with correct structure', async () => {
     const { db, app, apiKey } = createTestApp();
     const { SessionSummaryStore } = await import('../db/session-summary-store.js');
-    const { LessonStore } = await import('../db/lesson-store.js');
     const summaryStore = new SessionSummaryStore(db);
-    const lessonStore = new LessonStore(db);
 
     summaryStore.save('default', 'ses-ctx-1', 'Agent handled errors gracefully', ['error_handling'], ['try_catch'], 'minor timeout', 'partial');
-    lessonStore.create('default', { title: 'Error handling tips', content: 'Wrap external calls in try-catch', category: 'reliability' });
 
     const res = await app.request('/api/context?topic=error', {
       headers: authHeaders(apiKey),
