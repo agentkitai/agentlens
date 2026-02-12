@@ -54,7 +54,7 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 - **🔒 Tamper-Evident Audit Trail** — Append-only event storage with SHA-256 hash chains per session. Cryptographically linked and verifiable.
 - **💰 Cost Tracking** — Track token usage and estimated costs per session, per agent, per model, over time. Alert on cost spikes.
 - **🚨 Alerting** — Configurable rules for error rate, cost threshold, latency anomalies, and inactivity.
-- **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz1/agentgate) (approval flows), [FormBridge](https://github.com/amitpaz1/formbridge) (data collection), and [Lore](https://github.com/amitpaz1/lore) (cross-agent memory).
+- **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz1/agentgate) (approval flows), [FormBridge](https://github.com/amitpaz1/formbridge) (data collection), [Lore](https://github.com/amitpaz1/lore) (cross-agent memory), and [AgentEval](https://github.com/amitpaz1/agenteval) (testing & evaluation).
 - **🔒 Tenant Isolation** — Multi-tenant support with per-tenant data scoping, API key binding, and embedding isolation.
 - **❤️‍🩹 Health Scores** — 5-dimension health scoring (error rate, cost efficiency, tool success, latency, completion rate) with trend tracking. Monitor agent reliability at a glance.
 - **💡 Cost Optimization** — Complexity-aware model recommendation engine. Classifies LLM calls by complexity tier and suggests cheaper alternatives with projected savings.
@@ -501,8 +501,11 @@ See the [Lore Integration Guide](docs/migration/lore-integration.md) for setup.
 | **AgentGate** | Human-in-the-loop approval gateway | [github.com/amitpaz1/agentgate](https://github.com/amitpaz1/agentgate) |
 | **FormBridge** | Structured data collection for AI agents | [github.com/amitpaz1/formbridge](https://github.com/amitpaz1/formbridge) |
 | **Lore** | Cross-agent memory and lesson sharing | [github.com/amitpaz1/lore](https://github.com/amitpaz1/lore) |
+| **AgentEval** | Testing & evaluation framework for AI agents | [github.com/amitpaz1/agenteval](https://github.com/amitpaz1/agenteval) |
 
-**Together:** Agents collect data (FormBridge) → request approval to act (AgentGate) → share lessons learned (Lore) → all observed and audited (AgentLens).
+**Together:** Agents collect data (FormBridge) → request approval to act (AgentGate) → share lessons learned (Lore) → all observed and audited (AgentLens) → tested and evaluated (AgentEval).
+
+> 💡 **AgentLens → AgentEval pipeline:** Export AgentLens sessions and import them directly as AgentEval test cases to build regression suites from real agent behavior.
 
 ## ⌨️ CLI
 
