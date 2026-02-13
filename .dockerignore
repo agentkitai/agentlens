@@ -1,0 +1,14 @@
+node_modules
+.git
+.github
+.changeset
+.auto-claude
+docs
+*.md
+!README.md
+**/*.test.ts
+**/__tests__
+**/coverage
+**/.turbo
+.vscode
+.eslintcache

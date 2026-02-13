@@ -1,46 +1,56 @@
-# Stage 1: Build
-FROM node:22-alpine AS builder
-
-RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
+# ── Build stage ──────────────────────────────────────────────
+FROM node:22 AS build
 
 WORKDIR /app
 
-# Copy dependency manifests first for layer caching
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
+
+# Copy workspace config first for layer caching
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
 COPY packages/dashboard/package.json packages/dashboard/
-COPY packages/sdk/package.json packages/sdk/
-COPY packages/mcp/package.json packages/mcp/
-COPY packages/cli/package.json packages/cli/
-COPY packages/pool-server/package.json packages/pool-server/
 
+# Install all deps (including devDependencies for build)
 RUN pnpm install --frozen-lockfile
 
-# Copy source and build
-COPY . .
-RUN pnpm -r build
+# Copy source
+COPY tsconfig.json ./
+COPY packages/core/ packages/core/
+COPY packages/server/ packages/server/
+COPY packages/dashboard/ packages/dashboard/
 
-# Stage 2: Production
+# Build everything (core → server + dashboard)
+RUN pnpm run build
+
+# ── Production stage ────────────────────────────────────────
 FROM node:22-alpine
-
-RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
 
 WORKDIR /app
 
-COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
-COPY --from=builder /app/packages/core/package.json packages/core/
-COPY --from=builder /app/packages/core/dist packages/core/dist
-COPY --from=builder /app/packages/server/package.json packages/server/
-COPY --from=builder /app/packages/server/dist packages/server/dist
-COPY --from=builder /app/packages/dashboard/package.json packages/dashboard/
-COPY --from=builder /app/packages/dashboard/dist packages/dashboard/dist
-COPY --from=builder /app/packages/sdk/package.json packages/sdk/
-COPY --from=builder /app/packages/sdk/dist packages/sdk/dist
+RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
 
+# Copy workspace config
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY packages/core/package.json packages/core/
+COPY packages/server/package.json packages/server/
+COPY packages/dashboard/package.json packages/dashboard/
+
+# Install production deps only
 RUN pnpm install --frozen-lockfile --prod
+
+# Copy built artifacts
+COPY --from=build /app/packages/core/dist/ packages/core/dist/
+COPY --from=build /app/packages/server/dist/ packages/server/dist/
+COPY --from=build /app/packages/dashboard/dist/ packages/dashboard/dist/
+
+ENV NODE_ENV=production
+ENV PORT=3000
 
 EXPOSE 3000
 
-# Migrations run automatically in startServer()
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health/overview || exit 1
+
 CMD ["node", "-e", "import('./packages/server/dist/index.js').then(m => m.startServer())"]
