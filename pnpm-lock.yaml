@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@xenova/transformers':
+        specifier: ^2.17.2
+        version: 2.17.2
     devDependencies:
       '@changesets/cli':
         specifier: ^2.29.8
