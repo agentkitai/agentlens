@@ -70,7 +70,7 @@ export class RemoteLoreAdapter implements LoreAdapter {
   }
 
   async createLesson(data: Parameters<LoreAdapter['createLesson']>[0]) {
-    const result = await this.request('POST', '/api/lessons', toLoreFormat(data));
+    const result = await this.request('POST', '/v1/lessons', toLoreFormat(data));
     return fromLoreFormat(result);
   }
 
@@ -79,29 +79,29 @@ export class RemoteLoreAdapter implements LoreAdapter {
     for (const [k, v] of Object.entries(query)) {
       if (v !== undefined) params.set(k, String(v));
     }
-    const result = await this.request('GET', `/api/lessons?${params}`);
+    const result = await this.request('GET', `/v1/lessons?${params}`);
     return { ...result, lessons: (result.lessons ?? []).map(fromLoreFormat) };
   }
 
   async getLesson(id: string) {
-    const result = await this.request('GET', `/api/lessons/${id}`);
+    const result = await this.request('GET', `/v1/lessons/${id}`);
     return fromLoreFormat(result);
   }
 
   async updateLesson(id: string, data: Partial<any>) {
-    const result = await this.request('PUT', `/api/lessons/${id}`, toLoreFormat(data));
+    const result = await this.request('PUT', `/v1/lessons/${id}`, toLoreFormat(data));
     return fromLoreFormat(result);
   }
 
   async deleteLesson(id: string) {
-    return this.request('DELETE', `/api/lessons/${id}`);
+    return this.request('DELETE', `/v1/lessons/${id}`);
   }
 
   async searchCommunity(query: string, options?: { category?: string; limit?: number }) {
     const params = new URLSearchParams({ q: query });
     if (options?.category) params.set('category', options.category);
     if (options?.limit) params.set('limit', String(options.limit));
-    const result = await this.request('GET', `/api/community/search?${params}`);
+    const result = await this.request('GET', `/v1/lessons/search?${params}`);
     return { ...result, lessons: (result.lessons ?? []).map(fromLoreFormat) };
   }
 }
