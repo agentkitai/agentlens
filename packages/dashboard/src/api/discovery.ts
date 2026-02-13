@@ -1,63 +1,45 @@
 import { request, toQueryString } from './core';
 
-export interface CapabilityData {
-  id: string;
-  tenantId: string;
-  agentId: string;
-  taskType: string;
-  customType?: string;
-  description?: string;
-  inputSchema: Record<string, unknown>;
-  outputSchema: Record<string, unknown>;
-  scope: string;
-  enabled: boolean;
-  acceptDelegations: boolean;
-  estimatedCostUsd?: number;
-  estimatedLatencyMs?: number;
-  qualityMetrics: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
+// Mesh agent record (from agentkit-mesh HTTP API)
+export interface MeshAgent {
+  name: string;
+  description: string;
+  capabilities: string[];
+  endpoint: string;
+  protocol: string;
+  registered_at: string;
+  last_seen: string;
 }
 
-export interface DiscoveryResultData {
-  anonymousAgentId: string;
-  taskType: string;
-  trustScorePercentile: number;
-  provisional: boolean;
-  estimatedLatencyMs?: number;
-  estimatedCostUsd?: number;
-  qualityMetrics: Record<string, unknown>;
+export interface DiscoveryResult {
+  agent: MeshAgent;
+  score: number;
+  matchedTerms: string[];
 }
 
-export async function getCapabilities(params?: {
-  taskType?: string;
-  agentId?: string;
-}): Promise<{ capabilities: CapabilityData[] }> {
-  const qs = toQueryString({ taskType: params?.taskType, agentId: params?.agentId });
-  return request<{ capabilities: CapabilityData[] }>(`/api/capabilities${qs}`);
+export async function getMeshAgents(): Promise<MeshAgent[]> {
+  return request<MeshAgent[]>('/api/mesh/agents');
 }
 
-export async function registerCapability(data: Partial<CapabilityData>): Promise<CapabilityData> {
-  return request<CapabilityData>('/api/capabilities', {
+export async function registerMeshAgent(data: {
+  name: string;
+  description: string;
+  capabilities: string[];
+  endpoint: string;
+}): Promise<MeshAgent> {
+  return request<MeshAgent>('/api/mesh/agents', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function updateCapability(id: string, data: Partial<CapabilityData>): Promise<CapabilityData> {
-  return request<CapabilityData>(`/api/capabilities/${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
+export async function unregisterMeshAgent(name: string): Promise<void> {
+  await request<{ ok: boolean }>(`/api/mesh/agents/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
   });
 }
 
-export async function discoverAgents(params: {
-  taskType: string;
-  minTrustScore?: number;
-  maxCostUsd?: number;
-  maxLatencyMs?: number;
-  limit?: number;
-}): Promise<{ results: DiscoveryResultData[] }> {
-  const qs = toQueryString(params);
-  return request<{ results: DiscoveryResultData[] }>(`/api/discovery${qs}`);
+export async function discoverAgents(query: string, limit?: number): Promise<DiscoveryResult[]> {
+  const qs = toQueryString({ query, limit });
+  return request<DiscoveryResult[]>(`/api/mesh/discover${qs}`);
 }
