@@ -181,14 +181,19 @@ function linkClass({ isActive }: { isActive: boolean }): string {
 }
 
 const LORE_NAV_PATHS = new Set(['/lessons', '/sharing', '/community', '/sharing/activity']);
+const MESH_NAV_PATHS = new Set(['/capabilities', '/delegations', '/network']);
 
 export function Layout(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { lore } = useFeatures();
+  const { lore, mesh } = useFeatures();
 
   const visibleNavItems = useMemo(
-    () => (lore ? navItems : navItems.filter((item) => !LORE_NAV_PATHS.has(item.to))),
-    [lore]
+    () => navItems.filter((item) => {
+      if (LORE_NAV_PATHS.has(item.to) && !lore) return false;
+      if (MESH_NAV_PATHS.has(item.to) && !mesh) return false;
+      return true;
+    }),
+    [lore, mesh]
   );
 
   return (

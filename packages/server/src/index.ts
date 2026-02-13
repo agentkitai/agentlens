@@ -45,6 +45,8 @@ import { trustRoutes } from './routes/trust.js';
 import { LocalPoolTransport } from './services/delegation-service.js';
 import { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
 import { createLoreAdapter } from './lib/lore-client.js';
+import { meshProxyRoutes } from './routes/mesh-proxy.js';
+import { RemoteMeshAdapter } from './lib/mesh-client.js';
 import { otlpRoutes } from './routes/otlp.js';
 // audit routes removed (v0.12.0 — sharing audit moved to Lore)
 import { GuardrailEngine } from './lib/guardrails/engine.js';
@@ -99,6 +101,9 @@ export { ContextRetriever } from './lib/context/retrieval.js';
 export { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
 export { createLoreAdapter, RemoteLoreAdapter, LocalLoreAdapter, LoreError } from './lib/lore-client.js';
 export type { LoreAdapter } from './lib/lore-client.js';
+export { meshProxyRoutes } from './routes/mesh-proxy.js';
+export { RemoteMeshAdapter, MeshError } from './lib/mesh-client.js';
+export type { MeshAdapter } from './lib/mesh-client.js';
 export { otlpRoutes } from './routes/otlp.js';
 export { guardrailRoutes } from './routes/guardrails.js';
 export { GuardrailEngine } from './lib/guardrails/engine.js';
@@ -214,7 +219,7 @@ export function createApp(
 
   // ─── Feature flags (no auth — dashboard needs before login) ──
   app.get('/api/config/features', (c) => {
-    return c.json({ lore: resolvedConfig.loreEnabled });
+    return c.json({ lore: resolvedConfig.loreEnabled, mesh: resolvedConfig.meshEnabled });
   });
 
   // ─── SSE stream (authenticates via Bearer header or ?token= query param) ──
@@ -370,6 +375,16 @@ export function createApp(
     app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
     // audit routes removed (v0.12.0 — sharing audit moved to Lore)
+  }
+
+  // ─── Mesh Proxy (agentkit-mesh) ─────────────────────────
+  if (resolvedConfig.meshEnabled && resolvedConfig.meshUrl) {
+    const meshAdapter = new RemoteMeshAdapter(resolvedConfig.meshUrl);
+    if (db) {
+      app.use('/api/mesh/*', authMiddleware(db, resolvedConfig.authDisabled));
+      app.use('/api/mesh', authMiddleware(db, resolvedConfig.authDisabled));
+    }
+    app.route('/api/mesh', meshProxyRoutes(meshAdapter));
   }
 
   // ─── OTLP HTTP Receiver (no auth — standard OTel paths) ──

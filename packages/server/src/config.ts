@@ -22,6 +22,12 @@ export interface ServerConfig {
   /** OTLP rate limit per IP per minute (default: 1000) */
   otlpRateLimit: number;
 
+  // ─── Mesh Integration ───────────────────────────────────
+  /** Enable mesh proxy (default: false) */
+  meshEnabled: boolean;
+  /** Mesh HTTP server URL (required when meshEnabled) */
+  meshUrl: string;
+
   // ─── Lore Integration ──────────────────────────────────
   /** Enable Lore memory integration (default: false) */
   loreEnabled: boolean;
@@ -55,6 +61,10 @@ export function getConfig(): ServerConfig {
       return isNaN(parsed) ? 1000 : parsed;
     })(),
 
+    // Mesh integration
+    meshEnabled: process.env['MESH_ENABLED'] === 'true',
+    meshUrl: process.env['MESH_URL'] ?? '',
+
     // Lore integration
     loreEnabled: process.env['LORE_ENABLED'] === 'true',
     loreMode: (process.env['LORE_MODE'] === 'local' ? 'local' : 'remote') as 'local' | 'remote',
@@ -82,6 +92,11 @@ export function validateConfig(config: ServerConfig): void {
   // C-2 FIX: Warn when OTLP endpoints are exposed without auth in production mode
   if (!config.authDisabled && !config.otlpAuthToken) {
     log.warn('⚠️  OTLP endpoints (/v1/traces, /v1/metrics, /v1/logs) have NO authentication. Set OTLP_AUTH_TOKEN for production.');
+  }
+
+  // ─── Mesh config validation ─────────────────────────────
+  if (config.meshEnabled && !config.meshUrl) {
+    log.warn('⚠️  MESH_ENABLED=true but MESH_URL is not set — mesh proxy will not be registered.');
   }
 
   // ─── Lore config validation ────────────────────────────
