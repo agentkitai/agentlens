@@ -63,12 +63,12 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
           SELECT
             agent_id as agentId,
             COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
-            COALESCE(SUM(json_extract(payload, '$.inputTokens')), 0) as totalInputTokens,
-            COALESCE(SUM(json_extract(payload, '$.outputTokens')), 0) as totalOutputTokens,
-            COALESCE(SUM(json_extract(payload, '$.totalTokens')), 0) as totalTokens,
+            COALESCE(SUM(COALESCE(json_extract(payload, '$.inputTokens'), json_extract(payload, '$.usage.inputTokens'))), 0) as totalInputTokens,
+            COALESCE(SUM(COALESCE(json_extract(payload, '$.outputTokens'), json_extract(payload, '$.usage.outputTokens'))), 0) as totalOutputTokens,
+            COALESCE(SUM(COALESCE(json_extract(payload, '$.totalTokens'), json_extract(payload, '$.usage.totalTokens'))), 0) as totalTokens,
             COUNT(*) as eventCount
           FROM events
-          WHERE event_type = 'cost_tracked'
+          WHERE event_type IN ('cost_tracked', 'llm_response')
             AND timestamp >= ${from}
             AND timestamp <= ${to}
             AND tenant_id = ${tenantId}
@@ -92,7 +92,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
             COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
             COUNT(*) as eventCount
           FROM events
-          WHERE event_type = 'cost_tracked'
+          WHERE event_type IN ('cost_tracked', 'llm_response')
             AND timestamp >= ${from}
             AND timestamp <= ${to}
             AND tenant_id = ${tenantId}
@@ -127,11 +127,11 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
       sql`
         SELECT
           COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
-          COALESCE(SUM(json_extract(payload, '$.inputTokens')), 0) as totalInputTokens,
-          COALESCE(SUM(json_extract(payload, '$.outputTokens')), 0) as totalOutputTokens,
-          COALESCE(SUM(json_extract(payload, '$.totalTokens')), 0) as totalTokens
+          COALESCE(SUM(COALESCE(json_extract(payload, '$.inputTokens'), json_extract(payload, '$.usage.inputTokens'))), 0) as totalInputTokens,
+          COALESCE(SUM(COALESCE(json_extract(payload, '$.outputTokens'), json_extract(payload, '$.usage.outputTokens'))), 0) as totalOutputTokens,
+          COALESCE(SUM(COALESCE(json_extract(payload, '$.totalTokens'), json_extract(payload, '$.usage.totalTokens'))), 0) as totalTokens
         FROM events
-        WHERE event_type = 'cost_tracked'
+        WHERE event_type IN ('cost_tracked', 'llm_response')
           AND timestamp >= ${from}
           AND timestamp <= ${to}
           AND tenant_id = ${tenantId}
