@@ -1,6 +1,10 @@
 {
   "name": "agentlens",
   "version": "0.9.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agentkitai/agentlens.git"
+  },
   "private": true,
   "type": "module",
   "scripts": {
