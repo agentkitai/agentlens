@@ -37,8 +37,9 @@ COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
 COPY packages/dashboard/package.json packages/dashboard/
 
-# Install production deps only
-RUN pnpm install --frozen-lockfile --prod
+# Install production deps only, then rebuild sharp native addon
+RUN pnpm install --frozen-lockfile --prod && \
+    pnpm rebuild sharp 2>/dev/null || true
 
 # Copy built artifacts
 COPY --from=build /app/packages/core/dist/ packages/core/dist/
