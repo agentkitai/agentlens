@@ -493,20 +493,6 @@ See the [Lore Integration Guide](docs/migration/lore-integration.md) for setup.
 
 [Full API Reference →](./docs/reference/api.md)
 
-## 🔗 Part of the AgentKit Ecosystem
-
-| Project | What it does | Link |
-|---------|-------------|------|
-| **AgentLens** | Observability & audit trail for AI agents | **You are here** |
-| **AgentGate** | Human-in-the-loop approval gateway | [github.com/amitpaz1/agentgate](https://github.com/amitpaz1/agentgate) |
-| **FormBridge** | Structured data collection for AI agents | [github.com/amitpaz1/formbridge](https://github.com/amitpaz1/formbridge) |
-| **Lore** | Cross-agent memory and lesson sharing | [github.com/amitpaz1/lore](https://github.com/amitpaz1/lore) |
-| **AgentEval** | Testing & evaluation framework for AI agents | [github.com/amitpaz1/agenteval](https://github.com/amitpaz1/agenteval) |
-
-**Together:** Agents collect data (FormBridge) → request approval to act (AgentGate) → share lessons learned (Lore) → all observed and audited (AgentLens) → tested and evaluated (AgentEval).
-
-> 💡 **AgentLens → AgentEval pipeline:** Export AgentLens sessions and import them directly as AgentEval test cases to build regression suites from real agent behavior.
-
 ## ⌨️ CLI
 
 The `@agentlensai/cli` package provides command-line access to key features:
@@ -546,6 +532,20 @@ pnpm dev
 ## 🤝 Contributing
 
 We welcome contributions! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup instructions, coding standards, and the PR process.
+
+
+## 🧰 AgentKit Ecosystem
+
+| Project | Description | |
+|---------|-------------|-|
+| **AgentLens** | Observability & audit trail for AI agents | ⬅️ you are here |
+| [Lore](https://github.com/agentkitai/lore) | Cross-agent memory and lesson sharing | |
+| [AgentGate](https://github.com/agentkitai/agentgate) | Human-in-the-loop approval gateway | |
+| [FormBridge](https://github.com/agentkitai/formbridge) | Agent-human mixed-mode forms | |
+| [AgentEval](https://github.com/agentkitai/agenteval) | Testing & evaluation framework | |
+| [agentkit-mesh](https://github.com/agentkitai/agentkit-mesh) | Agent discovery & delegation | |
+| [agentkit-cli](https://github.com/agentkitai/agentkit-cli) | Unified CLI orchestrator | |
+| [agentkit-guardrails](https://github.com/agentkitai/agentkit-guardrails) | Reactive policy guardrails | |
 
 ## 📄 License
 
