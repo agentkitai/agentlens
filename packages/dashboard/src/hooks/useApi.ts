@@ -17,9 +17,9 @@ export interface UseApiState<T> {
 /** Simple in-memory cache shared across useApi instances. */
 const apiCache = new Map<string, { data: unknown; fetchedAt: number; timer?: ReturnType<typeof setTimeout> }>();
 
-/** Build a stable cache key from the deps array. */
-function depsKey(deps: unknown[]): string {
-  return JSON.stringify(deps);
+/** Build a stable cache key from the fetcher source + deps array. */
+function depsKey(fetcher: Function, deps: unknown[]): string {
+  return fetcher.toString().slice(0, 100) + '::' + JSON.stringify(deps);
 }
 
 /**
@@ -35,7 +35,7 @@ export function useApi<T>(
   options: UseApiOptions = {},
 ): UseApiState<T> {
   const { staleTime = 0, cacheTime = 300_000 } = options;
-  const key = depsKey(deps);
+  const key = depsKey(fetcher, deps);
 
   const cached = apiCache.get(key);
   const [data, setData] = useState<T | null>(cached ? (cached.data as T) : null);
