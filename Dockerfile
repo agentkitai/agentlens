@@ -37,9 +37,10 @@ COPY packages/core/package.json packages/core/
 COPY packages/server/package.json packages/server/
 COPY packages/dashboard/package.json packages/dashboard/
 
-# Install production deps only, then rebuild sharp native addon
+# Install production deps only, then fix sharp native addon
 RUN pnpm install --frozen-lockfile --prod && \
-    pnpm rebuild sharp 2>/dev/null || true
+    cd node_modules/.pnpm/sharp@*/node_modules/sharp && \
+    npm install --ignore-scripts=false 2>/dev/null || true
 
 # Copy built artifacts
 COPY --from=build /app/packages/core/dist/ packages/core/dist/
