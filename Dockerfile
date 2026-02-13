@@ -25,7 +25,7 @@ COPY packages/dashboard/ packages/dashboard/
 RUN pnpm run build
 
 # ── Production stage ────────────────────────────────────────
-FROM node:22-alpine
+FROM node:22-slim
 
 WORKDIR /app
 
@@ -51,6 +51,6 @@ ENV PORT=3000
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health/overview || exit 1
+  CMD node -e "fetch('http://localhost:3000/api/health/overview').then(r=>{if(!r.ok)throw r.status;process.exit(0)}).catch(()=>process.exit(1))"
 
 CMD ["node", "-e", "import('./packages/server/dist/index.js').then(m => m.startServer())"]
