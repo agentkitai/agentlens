@@ -1,11 +1,10 @@
 /**
  * Embedding Service — interface and factory (Story 2.1)
  *
- * Supports local (Xenova/transformers.js ONNX) and OpenAI backends.
+ * Local embeddings removed (delegated to Lore). Only OpenAI backend remains.
  */
 
 import type { EmbeddingServiceConfig } from './types.js';
-import { createLocalEmbeddingService } from './local.js';
 import { createOpenAIEmbeddingService } from './openai.js';
 
 export type { EmbeddingVector, EmbeddingBackend, EmbeddingServiceConfig } from './types.js';
@@ -31,25 +30,15 @@ export interface EmbeddingService {
 /**
  * Create an embedding service from config or environment variables.
  *
+ * Note: Local ONNX embeddings have been removed. Use Lore for semantic search,
+ * or set AGENTLENS_EMBEDDING_BACKEND=openai with an OPENAI_API_KEY.
+ *
  * Environment variables:
- * - AGENTLENS_EMBEDDING_BACKEND: 'local' | 'openai' (default: 'local')
+ * - AGENTLENS_EMBEDDING_BACKEND: 'openai' (default: 'openai')
  * - AGENTLENS_EMBEDDING_MODEL: model name override
- * - OPENAI_API_KEY: required for 'openai' backend
+ * - OPENAI_API_KEY: required
  */
 export function createEmbeddingService(config?: Partial<EmbeddingServiceConfig>): EmbeddingService {
-  const backend =
-    config?.backend ??
-    (process.env['AGENTLENS_EMBEDDING_BACKEND'] as 'local' | 'openai' | undefined) ??
-    'local';
-
   const modelName = config?.modelName ?? process.env['AGENTLENS_EMBEDDING_MODEL'];
-
-  switch (backend) {
-    case 'local':
-      return createLocalEmbeddingService(modelName);
-    case 'openai':
-      return createOpenAIEmbeddingService(config?.openaiApiKey, modelName);
-    default:
-      throw new Error(`Unknown embedding backend: ${backend as string}. Use 'local' or 'openai'.`);
-  }
+  return createOpenAIEmbeddingService(config?.openaiApiKey, modelName);
 }
