@@ -1,0 +1,20 @@
+{
+  "name": "@agentkit/agentlens-openclaw-plugin",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin that captures LLM calls and relays telemetry to AgentLens",
+  "type": "module",
+  "keywords": ["openclaw", "agentlens", "observability", "telemetry", "anthropic"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agentkitai/agentlens",
+    "directory": "packages/openclaw-plugin"
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "openclaw": ">=2026.2.0"
+  }
+}
