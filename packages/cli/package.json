@@ -1,6 +1,6 @@
 {
   "name": "@agentlensai/cli",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "Command-line interface for AgentLens — query events, sessions, and manage your observability server",
   "type": "module",
   "license": "MIT",
