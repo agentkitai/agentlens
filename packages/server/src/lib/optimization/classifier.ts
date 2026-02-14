@@ -23,9 +23,10 @@ export interface ClassificationResult {
  * Classify an LLM call's complexity based on token usage and tool calls.
  *
  * Thresholds:
- *   Simple:   <500 input tokens AND 0 tool calls
- *   Moderate: 500-2000 input tokens OR 1-3 tool calls
- *   Complex:  >2000 input tokens OR 4+ tool calls
+ *   Simple:   <1000 input tokens AND 0 tool calls
+ *   Moderate: 1000-10000 input tokens OR 1-5 tool calls
+ *   Complex:  10000-50000 input tokens OR 6-15 tool calls
+ *   Expert:   >50000 input tokens OR 16+ tool calls
  *
  * When both input tokens and tool call count are unknown (null/undefined),
  * the function defaults to 'moderate' as the safest assumption.
@@ -123,16 +124,20 @@ function determineTier(
     return 'moderate';
   }
 
-  // Check complex thresholds first (most restrictive)
-  if (tokensKnown && inputTokens! > 2000) return 'complex';
-  if (toolsKnown && toolCallCount! >= 4) return 'complex';
+  // Check expert thresholds first (most restrictive)
+  if (tokensKnown && inputTokens! > 50000) return 'expert';
+  if (toolsKnown && toolCallCount! >= 16) return 'expert';
+
+  // Check complex thresholds
+  if (tokensKnown && inputTokens! > 10000) return 'complex';
+  if (toolsKnown && toolCallCount! >= 6) return 'complex';
 
   // Check simple thresholds (requires BOTH conditions)
-  if (tokensKnown && inputTokens! < 500 && toolsKnown && toolCallCount! === 0) {
+  if (tokensKnown && inputTokens! < 1000 && toolsKnown && toolCallCount! === 0) {
     return 'simple';
   }
-  // If only tokens known and <500 with no tool info → can't confirm simple
-  if (tokensKnown && inputTokens! < 500 && !toolsKnown) {
+  // If only tokens known and <1000 with no tool info → can't confirm simple
+  if (tokensKnown && inputTokens! < 1000 && !toolsKnown) {
     return 'moderate';
   }
   // If only tools known and 0 with no token info → can't confirm simple

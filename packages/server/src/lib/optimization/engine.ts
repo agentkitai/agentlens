@@ -17,8 +17,22 @@ import type {
   LlmCallPayload,
   LlmResponsePayload,
 } from '@agentlensai/core';
-import { DEFAULT_MODEL_COSTS } from '@agentlensai/core';
+import { DEFAULT_MODEL_COSTS, lookupModelCost } from '@agentlensai/core';
 import { classifyCallComplexity } from './classifier.js';
+
+/** Allowed downgrade paths — only recommend within these */
+const DOWNGRADE_PATHS: Record<string, string[]> = {
+  'claude-opus-4-6': ['claude-sonnet-4-6', 'claude-sonnet-4'],
+  'claude-opus-4': ['claude-sonnet-4', 'claude-sonnet-4-6'],
+  'claude-sonnet-4-6': ['claude-haiku-4-5-20251001'],
+  'claude-sonnet-4': ['claude-haiku-4-5-20251001', 'claude-haiku-3.5'],
+  'gpt-4o': ['gpt-4o-mini'],
+  'gpt-4.1': ['gpt-4.1-mini', 'gpt-4.1-nano'],
+  'gpt-4.1-mini': ['gpt-4.1-nano'],
+};
+
+/** Minimum calls required at a tier before making a recommendation */
+const MIN_CALL_VOLUME = 20;
 
 /** Internal aggregation bucket for (model, tier) groups */
 interface ModelTierGroup {
@@ -150,6 +164,12 @@ export class OptimizationEngine {
     const recommendations: CostRecommendation[] = [];
 
     for (const [, group] of groups) {
+      // Never recommend downgrading expert tier
+      if (group.tier === 'expert') continue;
+
+      // Require minimum call volume for the current model
+      if (group.callCount < MIN_CALL_VOLUME) continue;
+
       const currentCostPerCall = group.callCount > 0 ? group.totalCost / group.callCount : 0;
       const currentSuccessRate = group.callCount > 0 ? group.successCount / group.callCount : 0;
 
@@ -157,10 +177,20 @@ export class OptimizationEngine {
       const currentModelCost = this.getModelCostRate(group);
       if (currentModelCost === null) continue;
 
+      // Get allowed downgrade targets for this model
+      const allowedTargets = DOWNGRADE_PATHS[group.model];
+      if (!allowedTargets || allowedTargets.length === 0) continue;
+
       // Find cheaper alternatives that have data at this tier
       for (const [, candidateGroup] of groups) {
         if (candidateGroup.model === group.model) continue;
         if (candidateGroup.tier !== group.tier) continue;
+
+        // Only recommend within allowed downgrade paths
+        if (!allowedTargets.includes(candidateGroup.model)) continue;
+
+        // Require minimum call volume for the candidate at this tier
+        if (candidateGroup.callCount < MIN_CALL_VOLUME) continue;
 
         const candidateCostRate = this.getModelCostRate(candidateGroup);
         if (candidateCostRate === null) continue;
@@ -168,24 +198,33 @@ export class OptimizationEngine {
         // Must be cheaper
         if (candidateCostRate >= currentModelCost) continue;
 
-        // Must have ≥95% success rate
+        // Must have ≥98% success rate
         const candidateSuccessRate =
           candidateGroup.callCount > 0
             ? candidateGroup.successCount / candidateGroup.callCount
             : 0;
-        if (candidateSuccessRate < 0.95) continue;
+        if (candidateSuccessRate < 0.98) continue;
 
         const recommendedCostPerCall =
           candidateGroup.callCount > 0
             ? candidateGroup.totalCost / candidateGroup.callCount
             : 0;
 
-        const monthlySavings =
-          (currentCostPerCall - recommendedCostPerCall) * group.callCount * (30 / period);
+        // Don't extrapolate wildly for short periods
+        let monthlySavings: number;
+        let confidence: ConfidenceLevel;
+        const savingsPerPeriod = (currentCostPerCall - recommendedCostPerCall) * group.callCount;
+
+        if (period < 7) {
+          // Short period: don't extrapolate, use actual savings, lower confidence
+          monthlySavings = savingsPerPeriod;
+          confidence = 'low';
+        } else {
+          monthlySavings = savingsPerPeriod * (30 / period);
+          confidence = this.determineConfidence(group.callCount);
+        }
 
         if (monthlySavings <= 0) continue;
-
-        const confidence = this.determineConfidence(group.callCount);
 
         // Pick a representative agentId (first in set)
         const agentId = group.agentIds.values().next().value ?? '';
@@ -225,7 +264,7 @@ export class OptimizationEngine {
    * Uses known model costs table, or falls back to actual cost data from events.
    */
   private getModelCostRate(group: ModelTierGroup): number | null {
-    const knownCost = this.modelCosts[group.model];
+    const knownCost = lookupModelCost(group.model, this.modelCosts);
     if (knownCost) {
       // Weighted average using actual input/output ratio when available
       const totalTokens = group.totalInputTokens + group.totalOutputTokens;

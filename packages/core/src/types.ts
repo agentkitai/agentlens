@@ -848,7 +848,7 @@ export interface HealthSnapshot {
 
 // ─── Cost Optimization Types (Epic 6 — Story 2.1) ──────────────────
 
-export type ComplexityTier = 'simple' | 'moderate' | 'complex';
+export type ComplexityTier = 'simple' | 'moderate' | 'complex' | 'expert';
 export type ConfidenceLevel = 'low' | 'medium' | 'high';
 
 /** Cost optimization recommendation */

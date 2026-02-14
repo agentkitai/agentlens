@@ -137,6 +137,12 @@ const TEST_COSTS: ModelCosts = {
   'claude-haiku-3.5': { input: 0.80, output: 4.00 },
   'gpt-4o': { input: 2.50, output: 10.00 },
   'gpt-4o-mini': { input: 0.15, output: 0.60 },
+  'gpt-4.1': { input: 2.00, output: 8.00 },
+  'gpt-4.1-mini': { input: 0.40, output: 1.60 },
+  'gpt-4.1-nano': { input: 0.10, output: 0.40 },
+  'claude-opus-4-6': { input: 15.00, output: 75.00 },
+  'claude-sonnet-4-6': { input: 3.00, output: 15.00 },
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4.00 },
 };
 
 /**
@@ -257,8 +263,31 @@ function generateComplexPairs(
 // ─── Tests ─────────────────────────────────────────────────────────
 
 describe('OptimizationEngine', () => {
-  it('recommends cheaper model for simple tasks (Opus → Haiku)', async () => {
-    // Opus used for simple tasks, Haiku also used for simple tasks
+  it('recommends cheaper model for simple tasks (Opus → Sonnet)', async () => {
+    // Opus used for simple tasks, Sonnet also used for simple tasks
+    // Downgrade path: claude-opus-4 → claude-sonnet-4
+    const opus = generateSimplePairs('claude-opus-4', 100, 0.05);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
+
+    const store = createMockStore(
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
+    );
+
+    const engine = new OptimizationEngine(TEST_COSTS);
+    const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
+
+    expect(result.recommendations.length).toBeGreaterThanOrEqual(1);
+    const rec = result.recommendations.find(
+      (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-sonnet-4',
+    );
+    expect(rec).toBeTruthy();
+    expect(rec!.complexityTier).toBe('simple');
+    expect(rec!.monthlySavings).toBeGreaterThan(0);
+    expect(rec!.recommendedCostPerCall).toBeLessThan(rec!.currentCostPerCall);
+  });
+
+  it('does NOT recommend Opus → Haiku (not in downgrade path)', async () => {
     const opus = generateSimplePairs('claude-opus-4', 100, 0.05);
     const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
 
@@ -270,14 +299,10 @@ describe('OptimizationEngine', () => {
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
-    expect(result.recommendations.length).toBeGreaterThanOrEqual(1);
     const rec = result.recommendations.find(
       (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-haiku-3.5',
     );
-    expect(rec).toBeTruthy();
-    expect(rec!.complexityTier).toBe('simple');
-    expect(rec!.monthlySavings).toBeGreaterThan(0);
-    expect(rec!.recommendedCostPerCall).toBeLessThan(rec!.currentCostPerCall);
+    expect(rec).toBeUndefined();
   });
 
   it('returns no recommendations when only one model is used', async () => {
@@ -304,12 +329,12 @@ describe('OptimizationEngine', () => {
   });
 
   it('assigns low confidence for callVolume < 50', async () => {
-    const opus = generateSimplePairs('claude-opus-4', 20, 0.05);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 20, 0.002);
+    const opus = generateSimplePairs('claude-opus-4', 30, 0.05);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 30, 0.01);
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
@@ -322,11 +347,11 @@ describe('OptimizationEngine', () => {
 
   it('assigns medium confidence for callVolume 50-200', async () => {
     const opus = generateSimplePairs('claude-opus-4', 100, 0.05);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
@@ -339,11 +364,11 @@ describe('OptimizationEngine', () => {
 
   it('assigns high confidence for callVolume > 200', async () => {
     const opus = generateSimplePairs('claude-opus-4', 250, 0.05);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 250, 0.002);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 250, 0.01);
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
@@ -355,33 +380,33 @@ describe('OptimizationEngine', () => {
   });
 
   it('calculates monthly savings correctly', async () => {
-    // 100 calls over 7 days: Opus at $0.05/call, Haiku at $0.002/call
+    // 100 calls over 7 days: Opus at $0.05/call, Sonnet at $0.01/call
     const opus = generateSimplePairs('claude-opus-4', 100, 0.05);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
     const rec = result.recommendations.find(
-      (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-haiku-3.5',
+      (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-sonnet-4',
     );
     expect(rec).toBeTruthy();
 
-    // Expected: (0.05 - 0.002) * 100 * (30/7) = 0.048 * 100 * 4.2857 ≈ 20.571
-    const expectedSavings = (0.05 - 0.002) * 100 * (30 / 7);
+    // Expected: (0.05 - 0.01) * 100 * (30/7) = 0.04 * 100 * 4.2857 ≈ 17.143
+    const expectedSavings = (0.05 - 0.01) * 100 * (30 / 7);
     expect(rec!.monthlySavings).toBeCloseTo(expectedSavings, 2);
   });
 
   it('sorts recommendations by monthly savings descending', async () => {
-    // Create two expensive models with different savings potential
-    const opus = generateSimplePairs('claude-opus-4', 100, 0.10);         // most expensive
-    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.02);     // mid-range
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);    // cheapest
+    // Opus → Sonnet (allowed), Sonnet → Haiku (allowed)
+    const opus = generateSimplePairs('claude-opus-4', 100, 0.10);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.02);
+    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
 
     const store = createMockStore(
       [...opus.calls, ...sonnet.calls, ...haiku.calls],
@@ -391,7 +416,7 @@ describe('OptimizationEngine', () => {
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
-    expect(result.recommendations.length).toBeGreaterThanOrEqual(2);
+    expect(result.recommendations.length).toBeGreaterThanOrEqual(1);
 
     // Verify sorted by savings desc
     for (let i = 1; i < result.recommendations.length; i++) {
@@ -403,86 +428,84 @@ describe('OptimizationEngine', () => {
   it('respects the limit parameter', async () => {
     const opus = generateSimplePairs('claude-opus-4', 100, 0.10);
     const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.02);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
 
     const store = createMockStore(
-      [...opus.calls, ...sonnet.calls, ...haiku.calls],
-      [...opus.responses, ...sonnet.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 1 });
 
     expect(result.recommendations.length).toBe(1);
-    // Should be the highest savings recommendation
     expect(result.recommendations[0]!.monthlySavings).toBeGreaterThan(0);
   });
 
-  it('does not recommend model with <95% success rate', async () => {
-    // Opus: 100% success, Haiku: 90% success (10 failures out of 100)
+  it('does not recommend model with <98% success rate', async () => {
+    // Opus: 100% success, Sonnet: 95% success (5 failures out of 100)
     const opus = generateSimplePairs('claude-opus-4', 100, 0.05);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002, { failCount: 10 });
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01, { failCount: 5 });
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
-    // Haiku has 90% success rate < 95%, should NOT be recommended
+    // Sonnet has 95% success rate < 98%, should NOT be recommended
     const rec = result.recommendations.find(
-      (r) => r.recommendedModel === 'claude-haiku-3.5',
+      (r) => r.recommendedModel === 'claude-sonnet-4',
     );
     expect(rec).toBeUndefined();
   });
 
-  it('recommends model with exactly 95% success rate', async () => {
-    // Opus: 100% success, Haiku: 95% success (5 failures out of 100)
+  it('recommends model with exactly 98% success rate', async () => {
+    // Opus: 100% success, Sonnet: 98% success (2 failures out of 100)
     const opus = generateSimplePairs('claude-opus-4', 100, 0.05);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002, { failCount: 5 });
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01, { failCount: 2 });
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
     const rec = result.recommendations.find(
-      (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-haiku-3.5',
+      (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-sonnet-4',
     );
     expect(rec).toBeTruthy();
   });
 
   it('does not recommend more expensive model', async () => {
-    // Haiku used, Opus also used — should NOT recommend Opus for Haiku tasks
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
+    // Sonnet used, Opus also used — should NOT recommend Opus for Sonnet tasks
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
     const opus = generateSimplePairs('claude-opus-4', 100, 0.05);
 
     const store = createMockStore(
-      [...haiku.calls, ...opus.calls],
-      [...haiku.responses, ...opus.responses],
+      [...sonnet.calls, ...opus.calls],
+      [...sonnet.responses, ...opus.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
     const rec = result.recommendations.find(
-      (r) => r.currentModel === 'claude-haiku-3.5' && r.recommendedModel === 'claude-opus-4',
+      (r) => r.currentModel === 'claude-sonnet-4' && r.recommendedModel === 'claude-opus-4',
     );
     expect(rec).toBeUndefined();
   });
 
   it('reports totalPotentialSavings as sum of recommendation savings', async () => {
     const opus = generateSimplePairs('claude-opus-4', 100, 0.05);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
@@ -500,9 +523,8 @@ describe('OptimizationEngine', () => {
     expect(result.period).toBe(14);
   });
 
-  it('handles model not in cost table by using event payload cost', async () => {
-    // "custom-model" is NOT in TEST_COSTS, but has event cost data
-    // "claude-haiku-3.5" IS in TEST_COSTS
+  it('does not recommend for models without downgrade paths', async () => {
+    // "custom-model" is NOT in downgrade paths, should produce no recommendations
     const custom = generateSimplePairs('custom-model', 100, 0.08);
     const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
 
@@ -514,28 +536,26 @@ describe('OptimizationEngine', () => {
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
-    // custom-model should be analyzable via its event data
     const rec = result.recommendations.find(
-      (r) => r.currentModel === 'custom-model' && r.recommendedModel === 'claude-haiku-3.5',
+      (r) => r.currentModel === 'custom-model',
     );
-    expect(rec).toBeTruthy();
-    expect(rec!.monthlySavings).toBeGreaterThan(0);
+    expect(rec).toBeUndefined();
   });
 
   it('does not recommend across different complexity tiers', async () => {
-    // Opus used for complex tasks, Haiku used for simple tasks
+    // Opus used for complex tasks, Sonnet used for simple tasks
     const opus = generateComplexPairs('claude-opus-4', 100, 0.20);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
-    // Haiku has no data for 'complex' tier, so no recommendation for Opus complex
+    // Sonnet has no data for 'complex' tier, so no recommendation for Opus complex
     const rec = result.recommendations.find(
       (r) => r.currentModel === 'claude-opus-4' && r.complexityTier === 'complex',
     );
@@ -544,11 +564,11 @@ describe('OptimizationEngine', () => {
 
   it('returns analyzedCalls reflecting total call count', async () => {
     const opus = generateSimplePairs('claude-opus-4', 50, 0.05);
-    const haiku = generateSimplePairs('claude-haiku-3.5', 30, 0.002);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 30, 0.01);
 
     const store = createMockStore(
-      [...opus.calls, ...haiku.calls],
-      [...opus.responses, ...haiku.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
@@ -558,23 +578,22 @@ describe('OptimizationEngine', () => {
   });
 
   it('handles all models at same price — no savings possible', async () => {
-    const sameCosts: ModelCosts = {
-      'model-a': { input: 5.00, output: 15.00 },
-      'model-b': { input: 5.00, output: 15.00 },
-    };
-
-    const a = generateSimplePairs('model-a', 100, 0.01);
-    const b = generateSimplePairs('model-b', 100, 0.01);
+    // Use models in an actual downgrade path with same price
+    const opus = generateSimplePairs('claude-opus-4', 100, 0.01);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
 
     const store = createMockStore(
-      [...a.calls, ...b.calls],
-      [...a.responses, ...b.responses],
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
     );
 
-    const engine = new OptimizationEngine(sameCosts);
+    const engine = new OptimizationEngine({
+      'claude-opus-4': { input: 5.00, output: 15.00 },
+      'claude-sonnet-4': { input: 5.00, output: 15.00 },
+    });
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
-    // Since both have same cost rate and same per-call cost, no savings
+    // Same cost rate → sonnet is not cheaper → no recommendation
     expect(result.totalPotentialSavings).toBe(0);
   });
 
@@ -590,18 +609,18 @@ describe('OptimizationEngine', () => {
         tools: [],
       }));
     }
-    const haiku = generateSimplePairs('claude-haiku-3.5', 100, 0.002);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
 
     const store = createMockStore(
-      [...opusPaired.calls, ...unmatchedCalls, ...haiku.calls],
-      [...opusPaired.responses, ...haiku.responses],
+      [...opusPaired.calls, ...unmatchedCalls, ...sonnet.calls],
+      [...opusPaired.responses, ...sonnet.responses],
     );
 
     const engine = new OptimizationEngine(TEST_COSTS);
     const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
 
     const rec = result.recommendations.find(
-      (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-haiku-3.5',
+      (r) => r.currentModel === 'claude-opus-4' && r.recommendedModel === 'claude-sonnet-4',
     );
     expect(rec).toBeTruthy();
     // Success rate should be based on the 80 paired calls (all successful), not 100
@@ -627,5 +646,94 @@ describe('OptimizationEngine', () => {
     expect(rec).toBeTruthy();
     expect(rec!.complexityTier).toBe('moderate');
     expect(rec!.monthlySavings).toBeGreaterThan(0);
+  });
+
+  it('never recommends downgrading expert tier calls', async () => {
+    // Generate expert-level pairs (>50K tokens)
+    const calls: AgentLensEvent[] = [];
+    const responses: AgentLensEvent[] = [];
+    for (let i = 0; i < 100; i++) {
+      const callId = `opus-expert-${i}`;
+      calls.push(makeCallEvent({ model: 'claude-opus-4', callId }));
+      responses.push(makeResponseEvent({
+        callId, model: 'claude-opus-4',
+        inputTokens: 60000, outputTokens: 5000, costUsd: 1.0,
+      }));
+    }
+    for (let i = 0; i < 100; i++) {
+      const callId = `sonnet-expert-${i}`;
+      calls.push(makeCallEvent({ model: 'claude-sonnet-4', callId }));
+      responses.push(makeResponseEvent({
+        callId, model: 'claude-sonnet-4',
+        inputTokens: 60000, outputTokens: 5000, costUsd: 0.2,
+      }));
+    }
+
+    const store = createMockStore(calls, responses);
+    const engine = new OptimizationEngine(TEST_COSTS);
+    const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
+
+    const expertRec = result.recommendations.find(
+      (r) => r.complexityTier === 'expert',
+    );
+    expect(expertRec).toBeUndefined();
+  });
+
+  it('requires minimum 20 calls before recommending', async () => {
+    const opus = generateSimplePairs('claude-opus-4', 15, 0.05);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 15, 0.01);
+
+    const store = createMockStore(
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
+    );
+
+    const engine = new OptimizationEngine(TEST_COSTS);
+    const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
+
+    // Both have <20 calls, should produce no recommendations
+    expect(result.recommendations).toEqual([]);
+  });
+
+  it('caps savings for short periods without monthly extrapolation', async () => {
+    const opus = generateSimplePairs('claude-opus-4', 50, 0.05);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 50, 0.01);
+
+    const store = createMockStore(
+      [...opus.calls, ...sonnet.calls],
+      [...opus.responses, ...sonnet.responses],
+    );
+
+    const engine = new OptimizationEngine(TEST_COSTS);
+    const result = await engine.getRecommendations(store, { period: 1, limit: 10 });
+
+    const rec = result.recommendations.find(
+      (r) => r.currentModel === 'claude-opus-4',
+    );
+    if (rec) {
+      // For period < 7, savings should NOT be extrapolated (no *30 multiplier)
+      const actualSavings = (0.05 - 0.01) * 50;
+      expect(rec.monthlySavings).toBeCloseTo(actualSavings, 2);
+      expect(rec.confidence).toBe('low');
+    }
+  });
+
+  it('only recommends within allowed downgrade paths (cross-provider blocked)', async () => {
+    // GPT-4o and Claude Sonnet at same tier — should NOT recommend cross-provider
+    const gpt4o = generateSimplePairs('gpt-4o', 100, 0.05);
+    const sonnet = generateSimplePairs('claude-sonnet-4', 100, 0.01);
+
+    const store = createMockStore(
+      [...gpt4o.calls, ...sonnet.calls],
+      [...gpt4o.responses, ...sonnet.responses],
+    );
+
+    const engine = new OptimizationEngine(TEST_COSTS);
+    const result = await engine.getRecommendations(store, { period: 7, limit: 10 });
+
+    const crossProviderRec = result.recommendations.find(
+      (r) => r.currentModel === 'gpt-4o' && r.recommendedModel === 'claude-sonnet-4',
+    );
+    expect(crossProviderRec).toBeUndefined();
   });
 });

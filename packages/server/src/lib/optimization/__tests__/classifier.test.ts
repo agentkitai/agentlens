@@ -85,7 +85,7 @@ function makeResponseEvent(overrides: {
 describe('classifyCallComplexity', () => {
   // ── Simple tier ──────────────────────────────────────────────
 
-  it('classifies <500 input tokens with 0 tools as simple', () => {
+  it('classifies <1000 input tokens with 0 tools as simple', () => {
     const call = makeCallEvent({ tools: [] });
     const response = makeResponseEvent({ inputTokens: 100, outputTokens: 50 });
 
@@ -105,9 +105,9 @@ describe('classifyCallComplexity', () => {
     expect(result.tier).toBe('simple');
   });
 
-  it('classifies 499 tokens with 0 tools as simple', () => {
+  it('classifies 999 tokens with 0 tools as simple', () => {
     const call = makeCallEvent({ tools: [] });
-    const response = makeResponseEvent({ inputTokens: 499, outputTokens: 100 });
+    const response = makeResponseEvent({ inputTokens: 999, outputTokens: 100 });
 
     const result = classifyCallComplexity(call, response);
     expect(result.tier).toBe('simple');
@@ -115,10 +115,10 @@ describe('classifyCallComplexity', () => {
 
   // ── Moderate tier ────────────────────────────────────────────
 
-  it('classifies 800 tokens with 2 tools as moderate', () => {
+  it('classifies 2000 tokens with 2 tools as moderate', () => {
     const call = makeCallEvent();
     const response = makeResponseEvent({
-      inputTokens: 800,
+      inputTokens: 2000,
       outputTokens: 200,
       toolCalls: [
         { id: 't1', name: 'search', arguments: {} },
@@ -129,30 +129,30 @@ describe('classifyCallComplexity', () => {
     const result = classifyCallComplexity(call, response);
 
     expect(result.tier).toBe('moderate');
-    expect(result.signals.inputTokens).toBe(800);
+    expect(result.signals.inputTokens).toBe(2000);
     expect(result.signals.toolCallCount).toBe(2);
   });
 
-  it('classifies exactly 500 tokens with 0 tools as moderate (boundary)', () => {
+  it('classifies exactly 1000 tokens with 0 tools as moderate (boundary)', () => {
     const call = makeCallEvent({ tools: [] });
-    const response = makeResponseEvent({ inputTokens: 500, outputTokens: 100 });
+    const response = makeResponseEvent({ inputTokens: 1000, outputTokens: 100 });
 
     const result = classifyCallComplexity(call, response);
     expect(result.tier).toBe('moderate');
   });
 
-  it('classifies exactly 2000 tokens as moderate (boundary)', () => {
+  it('classifies exactly 10000 tokens as moderate (boundary)', () => {
     const call = makeCallEvent({ tools: [] });
-    const response = makeResponseEvent({ inputTokens: 2000, outputTokens: 500 });
+    const response = makeResponseEvent({ inputTokens: 10000, outputTokens: 500 });
 
     const result = classifyCallComplexity(call, response);
     expect(result.tier).toBe('moderate');
   });
 
-  it('classifies 1500 tokens with 3 tools as moderate', () => {
+  it('classifies 5000 tokens with 3 tools as moderate', () => {
     const call = makeCallEvent();
     const response = makeResponseEvent({
-      inputTokens: 1500,
+      inputTokens: 5000,
       outputTokens: 300,
       toolCalls: [
         { id: 't1', name: 'a', arguments: {} },
@@ -180,11 +180,39 @@ describe('classifyCallComplexity', () => {
 
   // ── Complex tier ─────────────────────────────────────────────
 
-  it('classifies 5000 tokens with 6 tools as complex', () => {
+  it('classifies 15000 tokens with 8 tools as complex', () => {
     const call = makeCallEvent();
     const response = makeResponseEvent({
-      inputTokens: 5000,
+      inputTokens: 15000,
       outputTokens: 2000,
+      toolCalls: Array.from({ length: 8 }, (_, i) => ({
+        id: `t${i}`,
+        name: `tool-${i}`,
+        arguments: {},
+      })),
+    });
+
+    const result = classifyCallComplexity(call, response);
+
+    expect(result.tier).toBe('complex');
+    expect(result.signals.inputTokens).toBe(15000);
+    expect(result.signals.outputTokens).toBe(2000);
+    expect(result.signals.toolCallCount).toBe(8);
+  });
+
+  it('classifies 10001 tokens as complex (boundary)', () => {
+    const call = makeCallEvent({ tools: [] });
+    const response = makeResponseEvent({ inputTokens: 10001, outputTokens: 100 });
+
+    const result = classifyCallComplexity(call, response);
+    expect(result.tier).toBe('complex');
+  });
+
+  it('classifies 0 tokens with 6 tools as complex', () => {
+    const call = makeCallEvent();
+    const response = makeResponseEvent({
+      inputTokens: 0,
+      outputTokens: 50,
       toolCalls: Array.from({ length: 6 }, (_, i) => ({
         id: `t${i}`,
         name: `tool-${i}`,
@@ -193,43 +221,15 @@ describe('classifyCallComplexity', () => {
     });
 
     const result = classifyCallComplexity(call, response);
-
-    expect(result.tier).toBe('complex');
-    expect(result.signals.inputTokens).toBe(5000);
-    expect(result.signals.outputTokens).toBe(2000);
-    expect(result.signals.toolCallCount).toBe(6);
-  });
-
-  it('classifies 2001 tokens as complex (boundary)', () => {
-    const call = makeCallEvent({ tools: [] });
-    const response = makeResponseEvent({ inputTokens: 2001, outputTokens: 100 });
-
-    const result = classifyCallComplexity(call, response);
     expect(result.tier).toBe('complex');
   });
 
-  it('classifies 0 tokens with 4 tools as complex', () => {
-    const call = makeCallEvent();
-    const response = makeResponseEvent({
-      inputTokens: 0,
-      outputTokens: 50,
-      toolCalls: Array.from({ length: 4 }, (_, i) => ({
-        id: `t${i}`,
-        name: `tool-${i}`,
-        arguments: {},
-      })),
-    });
-
-    const result = classifyCallComplexity(call, response);
-    expect(result.tier).toBe('complex');
-  });
-
-  it('classifies 100 tokens with 5 tools as complex (tools override simple tokens)', () => {
+  it('classifies 100 tokens with 7 tools as complex (tools override simple tokens)', () => {
     const call = makeCallEvent();
     const response = makeResponseEvent({
       inputTokens: 100,
       outputTokens: 50,
-      toolCalls: Array.from({ length: 5 }, (_, i) => ({
+      toolCalls: Array.from({ length: 7 }, (_, i) => ({
         id: `t${i}`,
         name: `tool-${i}`,
         arguments: {},
@@ -238,6 +238,40 @@ describe('classifyCallComplexity', () => {
 
     const result = classifyCallComplexity(call, response);
     expect(result.tier).toBe('complex');
+  });
+
+  // ── Expert tier ──────────────────────────────────────────────
+
+  it('classifies >50000 tokens as expert', () => {
+    const call = makeCallEvent({ tools: [] });
+    const response = makeResponseEvent({ inputTokens: 60000, outputTokens: 5000 });
+
+    const result = classifyCallComplexity(call, response);
+    expect(result.tier).toBe('expert');
+  });
+
+  it('classifies 16+ tool calls as expert', () => {
+    const call = makeCallEvent();
+    const response = makeResponseEvent({
+      inputTokens: 5000,
+      outputTokens: 1000,
+      toolCalls: Array.from({ length: 16 }, (_, i) => ({
+        id: `t${i}`,
+        name: `tool-${i}`,
+        arguments: {},
+      })),
+    });
+
+    const result = classifyCallComplexity(call, response);
+    expect(result.tier).toBe('expert');
+  });
+
+  it('classifies 50001 tokens as expert (boundary)', () => {
+    const call = makeCallEvent({ tools: [] });
+    const response = makeResponseEvent({ inputTokens: 50001, outputTokens: 100 });
+
+    const result = classifyCallComplexity(call, response);
+    expect(result.tier).toBe('expert');
   });
 
   // ── Edge cases: missing data ─────────────────────────────────
@@ -303,7 +337,8 @@ describe('classifyCallComplexity', () => {
 
     const result = classifyCallComplexity(call, response);
     expect(result.signals.toolCallCount).toBe(0);
-    expect(result.tier).toBe('moderate');
+    // 600 tokens < 1000 and 0 tool calls → simple
+    expect(result.tier).toBe('simple');
   });
 
   it('prefers response usage over call usage for input tokens', () => {
@@ -317,7 +352,7 @@ describe('classifyCallComplexity', () => {
   });
 
   it('falls back to call usage when response has no usage', () => {
-    const call = makeCallEvent({ tools: [], usage: { inputTokens: 5000 } });
+    const call = makeCallEvent({ tools: [], usage: { inputTokens: 15000 } });
     const response: AgentLensEvent = {
       ...makeResponseEvent(),
       payload: {
@@ -332,7 +367,7 @@ describe('classifyCallComplexity', () => {
     };
 
     const result = classifyCallComplexity(call, response);
-    expect(result.signals.inputTokens).toBe(5000);
+    expect(result.signals.inputTokens).toBe(15000);
     expect(result.tier).toBe('complex');
   });
 });

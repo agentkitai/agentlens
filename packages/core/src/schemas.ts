@@ -308,7 +308,7 @@ export const HealthSnapshotSchema = z.object({
 
 // ─── Cost Optimization Schemas (Story 2.1) ──────────────────────────
 
-export const ComplexityTierSchema = z.enum(['simple', 'moderate', 'complex']);
+export const ComplexityTierSchema = z.enum(['simple', 'moderate', 'complex', 'expert']);
 export const ConfidenceLevelSchema = z.enum(['low', 'medium', 'high']);
 
 export const CostRecommendationSchema = z.object({

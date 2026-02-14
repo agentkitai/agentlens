@@ -51,6 +51,7 @@ function tierBadge(tier: string): React.ReactElement {
     simple: 'bg-blue-50 text-blue-700 border-blue-200',
     moderate: 'bg-purple-50 text-purple-700 border-purple-200',
     complex: 'bg-orange-50 text-orange-700 border-orange-200',
+    expert: 'bg-red-100 text-red-900 border-red-300',
   };
   const cls = colors[tier] || 'bg-gray-50 text-gray-700 border-gray-200';
   return (
@@ -205,32 +206,44 @@ export function CostOptimization(): React.ReactElement {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {sortedRecs.map((rec, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      {rec.agentName || rec.agentId || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 font-mono">
-                      {rec.currentModel}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-400">→</td>
-                    <td className="px-4 py-3 text-sm text-blue-700 font-mono font-medium">
-                      {rec.recommendedModel}
-                    </td>
-                    <td className="px-4 py-3">
-                      {tierBadge(rec.complexityTier)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">
-                      {formatNumber(rec.callVolume ?? 0)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right font-medium text-green-700 font-mono">
-                      {formatCost(rec.monthlySavings ?? 0)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {confidenceBadge(rec.confidence)}
-                    </td>
-                  </tr>
-                ))}
+                {sortedRecs.map((rec, idx) => {
+                  const isLowConfidence = rec.confidence === 'low';
+                  const rowClass = isLowConfidence
+                    ? 'hover:bg-gray-50 transition-colors opacity-60'
+                    : 'hover:bg-gray-50 transition-colors';
+                  return (
+                    <tr key={idx} className={rowClass}>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        {rec.agentName || rec.agentId || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 font-mono">
+                        {rec.currentModel}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-400">→</td>
+                      <td className="px-4 py-3 text-sm text-blue-700 font-mono font-medium">
+                        {rec.recommendedModel}
+                      </td>
+                      <td className="px-4 py-3">
+                        {tierBadge(rec.complexityTier)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600">
+                        {formatNumber(rec.callVolume ?? 0)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-medium text-green-700 font-mono">
+                        {formatCost(rec.monthlySavings ?? 0)}
+                        {isLowConfidence && (
+                          <span className="block text-xs text-gray-400 font-normal">estimated</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {confidenceBadge(rec.confidence)}
+                        {isLowConfidence && (
+                          <span className="block text-xs text-gray-400 mt-0.5">insufficient data</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
