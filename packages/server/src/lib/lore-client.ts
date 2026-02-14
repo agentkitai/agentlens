@@ -113,11 +113,13 @@ export class RemoteLoreAdapter implements LoreAdapter {
   }
 
   async searchCommunity(query: string, options?: { category?: string; limit?: number; minReputation?: number }) {
-    const params = new URLSearchParams({ q: query });
+    const params = new URLSearchParams();
+    if (query) params.set('query', query);
     if (options?.category) params.set('category', options.category);
     if (options?.limit) params.set('limit', String(options.limit));
     if (options?.minReputation !== undefined) params.set('minReputation', String(options.minReputation));
-    const result = await this.request('GET', `/v1/lessons/search?${params}`);
+    const qs = params.toString();
+    const result = await this.request('GET', `/v1/lessons${qs ? `?${qs}` : ''}`);
     return { ...result, lessons: (result.lessons ?? []).map(fromLoreFormat) };
   }
 
