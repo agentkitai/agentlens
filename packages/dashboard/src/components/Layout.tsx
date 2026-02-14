@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { ErrorBoundary } from './ErrorBoundary';
 import { OrgSwitcher } from '../cloud/OrgSwitcher';
 import { useFeatures } from '../hooks/useFeatures';
 
@@ -247,7 +248,7 @@ export function Layout(): React.ReactElement {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <Outlet />
+          <ErrorBoundary><Outlet /></ErrorBoundary>
         </main>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React, { Suspense } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { PageSkeleton } from './components/PageSkeleton';
