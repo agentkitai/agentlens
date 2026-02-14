@@ -74,6 +74,11 @@ export class RemoteMeshAdapter implements MeshAdapter {
     if (limit !== undefined) params.set('limit', String(limit));
     if (offset !== undefined) params.set('offset', String(offset));
     const qs = params.toString();
-    return this.request('GET', `/v1/delegations${qs ? '?' + qs : ''}`);
+    const data = await this.request('GET', `/v1/delegations${qs ? '?' + qs : ''}`);
+    // Mesh returns a flat array; dashboard expects { delegations, total }
+    if (Array.isArray(data)) {
+      return { delegations: data, total: data.length };
+    }
+    return data;
   }
 }
