@@ -91,12 +91,14 @@ export interface ToolAnalytics {
 export async function getAnalytics(params: {
   from?: string;
   to?: string;
+  range?: string;
   granularity?: string;
   agentId?: string;
 }): Promise<AnalyticsResult> {
   const qs = toQueryString({
     from: params.from,
     to: params.to,
+    range: params.range,
     granularity: params.granularity,
     agentId: params.agentId,
   });
