@@ -127,16 +127,7 @@ const navItems: NavItem[] = [
     label: 'Sharing Activity',
     icon: <span className="w-5 h-5 flex items-center justify-center text-base">📋</span>,
   },
-  {
-    to: '/network',
-    label: 'Agent Network',
-    icon: <span className="w-5 h-5 flex items-center justify-center text-base">🕸️</span>,
-  },
-  {
-    to: '/capabilities',
-    label: 'Capabilities',
-    icon: <span className="w-5 h-5 flex items-center justify-center text-base">📦</span>,
-  },
+  // Agent Network + Capabilities merged into /agents page
   {
     to: '/delegations',
     label: 'Delegations',
@@ -177,7 +168,7 @@ function linkClass({ isActive }: { isActive: boolean }): string {
 }
 
 const LORE_NAV_PATHS = new Set(['/knowledge', '/sharing', '/sharing/activity']);
-const MESH_NAV_PATHS = new Set(['/capabilities', '/delegations', '/network']);
+const MESH_NAV_PATHS = new Set(['/delegations']);
 
 export function Layout(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(false);

@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { PageSkeleton } from './components/PageSkeleton';
 import { useFeatures } from './hooks/useFeatures';
@@ -73,8 +73,8 @@ export function App(): React.ReactElement {
         {lore && <Route path="sharing" element={<Suspense fallback={<PageSkeleton />}><SharingControls /></Suspense>} />}
         {lore && <Route path="sharing/activity" element={<Suspense fallback={<PageSkeleton />}><SharingActivity /></Suspense>} />}
         {/* community route redirects handled by Knowledge page */}
-        <Route path="network" element={<Suspense fallback={<PageSkeleton />}><AgentNetwork /></Suspense>} />
-        <Route path="capabilities" element={<Suspense fallback={<PageSkeleton />}><CapabilityRegistry /></Suspense>} />
+        <Route path="network" element={<Navigate to="/agents" replace />} />
+        <Route path="capabilities" element={<Navigate to="/agents" replace />} />
         <Route path="delegations" element={<Suspense fallback={<PageSkeleton />}><DelegationLog /></Suspense>} />
         <Route path="team" element={<Suspense fallback={<PageSkeleton />}><TeamManagement /></Suspense>} />
         <Route path="api-keys" element={<Suspense fallback={<PageSkeleton />}><ApiKeyManagement /></Suspense>} />
