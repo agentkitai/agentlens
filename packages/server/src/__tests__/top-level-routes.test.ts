@@ -147,19 +147,5 @@ describe('Top-level dashboard routes', () => {
     });
   });
 
-  // ─── Audit with eventType/from/to params ──────────
-
-  describe('GET /api/community/audit', () => {
-    it('should accept eventType param', async () => {
-      const res = await app.request('/api/community/audit?eventType=share', { headers: authHeaders(apiKey) });
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body).toHaveProperty('events');
-    });
-
-    it('should accept from/to params', async () => {
-      const res = await app.request('/api/community/audit?from=2020-01-01&to=2030-01-01', { headers: authHeaders(apiKey) });
-      expect(res.status).toBe(200);
-    });
-  });
+  // Community audit routes removed — now handled by Lore integration
 });

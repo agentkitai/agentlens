@@ -37,10 +37,11 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up
 
 AgentLens is a **flight recorder for AI agents**. It captures every LLM call, tool invocation, approval decision, and error — then presents it through a queryable API and real-time web dashboard.
 
-**Three ways to integrate — pick what fits your stack:**
+**Four ways to integrate — pick what fits your stack:**
 
 | Integration | Language | Effort | Capture |
 |---|---|---|---|
+| 🤖 **[OpenClaw Plugin](#-openclaw-plugin)** | [OpenClaw](https://github.com/openclaw/openclaw) | **Copy & enable** | Every Anthropic call — prompts, tokens, cost, tools — zero code |
 | 🐍 **[Python Auto-Instrumentation](#-python-auto-instrumentation)** | Python | **1 line** | Every OpenAI / Anthropic / LangChain call — deterministic |
 | 🔌 **[MCP Server](#-mcp-integration)** | Any (MCP) | Config block | Tool calls, sessions, events from Claude Desktop / Cursor |
 | 📦 **[SDK](#-programmatic-sdk)** | Python, TypeScript | Code | Full control — log events, query analytics, build integrations |
@@ -239,6 +240,25 @@ curl -X POST http://localhost:3400/api/keys \
 Save the `als_...` key from the response — it's shown only once.
 
 ### 3. Instrument Your Agent
+
+#### 🤖 OpenClaw Plugin
+
+If you're running [OpenClaw](https://github.com/openclaw/openclaw), the AgentLens plugin captures every Anthropic API call automatically — prompts, completions, token usage, costs, latency, and tool calls. No proxy, no preload scripts, no code changes.
+
+```bash
+# Copy the plugin into OpenClaw's extensions directory
+cp -r packages/openclaw-plugin /usr/lib/node_modules/openclaw/extensions/agentlens-relay
+
+# Enable it
+openclaw config patch '{"plugins":{"entries":{"agentlens-relay":{"enabled":true}}}}'
+
+# Restart
+openclaw gateway restart
+```
+
+That's it. Open the AgentLens dashboard and you'll see every LLM call with full prompt visibility, cost tracking, and tool call extraction.
+
+Set `AGENTLENS_URL` if your AgentLens instance isn't on `localhost:3000`. See the [plugin README](./packages/openclaw-plugin/README.md) for details.
 
 #### 🐍 Python Auto-Instrumentation
 

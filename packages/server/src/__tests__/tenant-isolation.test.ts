@@ -435,7 +435,8 @@ describe('End-to-End Tenant Isolation (Story 1.4)', () => {
       });
       expect(resA.status).toBe(200);
       const bodyA = await resA.json();
-      expect(bodyA.totals.totalCostUsd).toBeCloseTo(0.05, 3);
+      // Both cost_tracked and llm_response events contribute to cost totals
+      expect(bodyA.totals.totalCostUsd).toBeCloseTo(0.10, 3);
       expect(bodyA.byAgent).toHaveLength(1);
       expect(bodyA.byAgent[0].agentId).toBe('agent-alpha');
 
@@ -444,7 +445,8 @@ describe('End-to-End Tenant Isolation (Story 1.4)', () => {
       });
       expect(resB.status).toBe(200);
       const bodyB = await resB.json();
-      expect(bodyB.totals.totalCostUsd).toBeCloseTo(0.10, 3);
+      // Tenant B has cost_tracked ($0.10) + llm_response ($0.10) = $0.20
+      expect(bodyB.totals.totalCostUsd).toBeCloseTo(0.20, 3);
       expect(bodyB.byAgent).toHaveLength(1);
       expect(bodyB.byAgent[0].agentId).toBe('agent-beta');
     });

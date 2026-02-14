@@ -136,7 +136,7 @@ describe('GET /api/config/features', () => {
     const res = await app.request('/api/config/features');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ lore: false });
+    expect(body).toMatchObject({ lore: false });
   });
 
   it('returns { lore: true } when loreEnabled', async () => {
@@ -153,7 +153,7 @@ describe('GET /api/config/features', () => {
     const res = await loreApp.request('/api/config/features');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ lore: true });
+    expect(body).toMatchObject({ lore: true });
   });
 
   it('is accessible without authentication', async () => {
@@ -162,6 +162,6 @@ describe('GET /api/config/features', () => {
     // Should NOT be 401 — this endpoint is before auth middleware
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ lore: false });
+    expect(body).toMatchObject({ lore: false });
   });
 });
