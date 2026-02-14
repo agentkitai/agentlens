@@ -121,24 +121,14 @@ function AgentCard({
         ))}
       </div>
 
-      {/* Telemetry stats (if available) */}
-      {telemetry && (
-        <div className="mt-3 flex flex-wrap gap-3 border-t border-gray-100 pt-3">
-          <span className="text-xs text-gray-500">
-            <span className="font-medium text-gray-700">{telemetry.sessionCount}</span> sessions
-          </span>
-          {telemetry.pausedAt && (
-            <span className="text-xs text-red-500 font-medium">⏸ Paused</span>
-          )}
-          {telemetry.modelOverride && (
-            <span className="text-xs text-amber-600">Model: {telemetry.modelOverride}</span>
-          )}
-        </div>
-      )}
-
-      <div className={`mt-3 flex items-center justify-between ${!telemetry ? 'border-t border-gray-100 pt-3' : ''} text-xs text-gray-400`}>
+      <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
         <span>{agent.protocol}</span>
-        <span>{timeAgo(agent.last_seen)}</span>
+        <div className="flex items-center gap-2">
+          {telemetry?.pausedAt && (
+            <span className="text-red-500 font-medium">⏸ Paused</span>
+          )}
+          <span>Last seen {timeAgo(telemetry?.lastSeenAt ?? agent.last_seen)}</span>
+        </div>
       </div>
     </button>
   );
@@ -216,23 +206,11 @@ function AgentDetail({
           <p className="text-xs text-gray-500 mb-1">Registered</p>
           <p className="text-sm text-gray-900">{new Date(agent.registered_at).toLocaleString()}</p>
         </div>
-        {telemetry && (
-          <>
-            <div className="rounded-lg bg-gray-50 p-3">
-              <p className="text-xs text-gray-500 mb-1">Sessions</p>
-              <p className="text-sm font-semibold text-gray-900">{telemetry.sessionCount}</p>
-            </div>
-            <div className="rounded-lg bg-gray-50 p-3">
-              <p className="text-xs text-gray-500 mb-1">First Seen</p>
-              <p className="text-sm text-gray-900">{new Date(telemetry.firstSeenAt).toLocaleString()}</p>
-            </div>
-            {telemetry.pausedAt && (
-              <div className="rounded-lg bg-red-50 p-3">
-                <p className="text-xs text-red-500 mb-1">Paused</p>
-                <p className="text-sm text-red-700">{telemetry.pauseReason ?? 'By guardrail'}</p>
-              </div>
-            )}
-          </>
+        {telemetry?.pausedAt && (
+          <div className="rounded-lg bg-red-50 p-3">
+            <p className="text-xs text-red-500 mb-1">Paused</p>
+            <p className="text-sm text-red-700">{telemetry.pauseReason ?? 'By guardrail'}</p>
+          </div>
         )}
       </div>
 
