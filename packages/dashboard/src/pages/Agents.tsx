@@ -1,20 +1,14 @@
 /**
  * Unified Agents Page
  *
- * Merges:
- * - Observability agents (sessions/error rates)
- * - Mesh Agent Registry (register/unregister)
- * - Agent Network discovery (search by capability)
+ * Single page for agent management. Source of truth: Mesh backend (/api/mesh/agents).
+ * Combines registry CRUD, agent details, and capability discovery.
  *
  * Route: /agents
  */
 
 import React, { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import type { Agent } from '@agentlensai/core';
-import { getAgents } from '../api/client';
 import { useApi } from '../hooks/useApi';
-import { useFeatures } from '../hooks/useFeatures';
 import {
   getMeshAgents,
   registerMeshAgent,
@@ -56,80 +50,178 @@ const AGENT_COLORS = [
   'from-violet-500 to-fuchsia-500',
 ];
 
-function colorForAgent(id: string): string {
+function colorForAgent(name: string): string {
   let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
   }
   return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length] ?? AGENT_COLORS[0];
 }
 
-// ─── Tab type ───────────────────────────────────────────────
-
-type Tab = 'overview' | 'registry' | 'network';
-
-// ─── Observability Agent Card ───────────────────────────────
-
-interface AgentWithErrorRate extends Agent {
-  errorRate?: number;
+function statusDot(lastSeen: string): { color: string; label: string } {
+  const diff = Date.now() - new Date(lastSeen).getTime();
+  const minutes = diff / 60_000;
+  if (minutes < 5) return { color: 'bg-green-500', label: 'Online' };
+  if (minutes < 60) return { color: 'bg-yellow-500', label: 'Idle' };
+  return { color: 'bg-gray-400', label: 'Offline' };
 }
+
+// ─── Agent Card ─────────────────────────────────────────────
 
 function AgentCard({
   agent,
-  onClick,
+  onSelect,
+  selected,
+  onUnregister,
 }: {
-  agent: AgentWithErrorRate;
-  onClick: () => void;
+  agent: MeshAgent;
+  onSelect: () => void;
+  selected: boolean;
+  onUnregister: () => void;
 }): React.ReactElement {
-  const errorRate = agent.errorRate ?? 0;
-  const errorRatePercent = (errorRate * 100).toFixed(1);
-  const errorRateColor =
-    errorRate >= 0.1 ? 'text-red-600' : errorRate >= 0.05 ? 'text-yellow-600' : 'text-green-600';
+  const status = statusDot(agent.last_seen);
 
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="flex flex-col rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md"
+      onClick={onSelect}
+      className={`flex flex-col rounded-lg border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
+        selected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:border-indigo-300'
+      }`}
     >
       <div className="flex items-center gap-3">
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white ${colorForAgent(agent.id)}`}
+          className={`flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white ${colorForAgent(agent.name)}`}
         >
           {getInitials(agent.name)}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold text-gray-900">{agent.name}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-sm font-semibold text-gray-900">{agent.name}</h3>
+            <span className={`h-2 w-2 rounded-full ${status.color}`} title={status.label} />
+          </div>
           {agent.description && (
             <p className="truncate text-xs text-gray-500">{agent.description}</p>
           )}
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 border-t border-gray-100 pt-3 sm:grid-cols-4">
-        <div>
-          <p className="text-xs text-gray-500">Sessions</p>
-          <p className="text-sm font-semibold text-gray-900">
-            {agent.sessionCount.toLocaleString()}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Error Rate</p>
-          <p className={`text-sm font-semibold ${errorRateColor}`}>{errorRatePercent}%</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Last Seen</p>
-          <p className="text-sm font-semibold text-gray-900">{timeAgo(agent.lastSeenAt)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">First Seen</p>
-          <p className="text-sm font-semibold text-gray-900">{timeAgo(agent.firstSeenAt)}</p>
-        </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {agent.capabilities.map((cap) => (
+          <span
+            key={cap}
+            className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+          >
+            {cap}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
+        <span>{agent.protocol}</span>
+        <span>{timeAgo(agent.last_seen)}</span>
       </div>
     </button>
   );
 }
 
-// ─── Mesh Register Form ─────────────────────────────────────
+// ─── Agent Detail Panel ─────────────────────────────────────
+
+function AgentDetail({
+  agent,
+  onClose,
+  onUnregister,
+}: {
+  agent: MeshAgent;
+  onClose: () => void;
+  onUnregister: () => void;
+}): React.ReactElement {
+  const status = statusDot(agent.last_seen);
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-6 space-y-5">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br text-base font-bold text-white ${colorForAgent(agent.name)}`}
+          >
+            {getInitials(agent.name)}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900">{agent.name}</h2>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                  status.label === 'Online'
+                    ? 'bg-green-50 text-green-700'
+                    : status.label === 'Idle'
+                      ? 'bg-yellow-50 text-yellow-700'
+                      : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${status.color}`} />
+                {status.label}
+              </span>
+            </div>
+            <p className="text-sm text-gray-500">{agent.description}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onUnregister}
+            className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+          >
+            Unregister
+          </button>
+          <button
+            onClick={onClose}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-lg bg-gray-50 p-3">
+          <p className="text-xs text-gray-500 mb-1">Endpoint</p>
+          <p className="text-sm font-mono text-gray-900 break-all">{agent.endpoint}</p>
+        </div>
+        <div className="rounded-lg bg-gray-50 p-3">
+          <p className="text-xs text-gray-500 mb-1">Protocol</p>
+          <p className="text-sm text-gray-900">{agent.protocol}</p>
+        </div>
+        <div className="rounded-lg bg-gray-50 p-3">
+          <p className="text-xs text-gray-500 mb-1">Registered</p>
+          <p className="text-sm text-gray-900">{new Date(agent.registered_at).toLocaleString()}</p>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs text-gray-500 mb-2">Capabilities</p>
+        <div className="flex flex-wrap gap-2">
+          {agent.capabilities.map((cap) => (
+            <span
+              key={cap}
+              className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700"
+            >
+              {cap}
+            </span>
+          ))}
+          {agent.capabilities.length === 0 && (
+            <span className="text-sm text-gray-400">No capabilities listed</span>
+          )}
+        </div>
+      </div>
+
+      <div className="text-xs text-gray-400">
+        Last seen: {new Date(agent.last_seen).toLocaleString()}
+      </div>
+    </div>
+  );
+}
+
+// ─── Register Form ──────────────────────────────────────────
 
 function RegisterForm({
   onSubmit,
@@ -222,15 +314,22 @@ function RegisterForm({
   );
 }
 
-// ─── Registry Tab ───────────────────────────────────────────
+// ─── Main Component ─────────────────────────────────────────
 
-function RegistryTab(): React.ReactElement {
-  const [showForm, setShowForm] = useState(false);
+export function Agents(): React.ReactElement {
   const [search, setSearch] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [discoveryQuery, setDiscoveryQuery] = useState('');
+  const [discoveryResults, setDiscoveryResults] = useState<
+    { agent: MeshAgent; score: number; matchedTerms: string[] }[] | null
+  >(null);
+
   const agentsQuery = useApi(() => getMeshAgents(), []);
   const agents = agentsQuery.data ?? [];
 
-  const filtered = agents.filter(
+  // Filter agents by search
+  const filtered = (discoveryResults ? discoveryResults.map((r) => r.agent) : agents).filter(
     (a) =>
       !search ||
       a.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -238,13 +337,16 @@ function RegistryTab(): React.ReactElement {
       a.capabilities.some((c) => c.toLowerCase().includes(search.toLowerCase())),
   );
 
+  const selected = agents.find((a) => a.name === selectedAgent) ?? null;
+
   const handleUnregister = useCallback(
     async (name: string) => {
       if (!confirm(`Unregister agent "${name}"?`)) return;
       await unregisterMeshAgent(name);
+      if (selectedAgent === name) setSelectedAgent(null);
       agentsQuery.refetch();
     },
-    [agentsQuery],
+    [agentsQuery, selectedAgent],
   );
 
   const handleRegister = useCallback(
@@ -261,16 +363,25 @@ function RegistryTab(): React.ReactElement {
     [agentsQuery],
   );
 
+  const handleDiscover = async () => {
+    if (!discoveryQuery.trim()) {
+      setDiscoveryResults(null);
+      return;
+    }
+    const results = await discoverAgents(discoveryQuery.trim());
+    setDiscoveryResults(results);
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-3">
-        <input
-          type="text"
-          placeholder="Filter agents by name, description, or capability..."
-          className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Agents</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Manage registered agents, capabilities, and discovery
+          </p>
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -279,12 +390,60 @@ function RegistryTab(): React.ReactElement {
         </button>
       </div>
 
+      {/* Register Form */}
       {showForm && (
         <RegisterForm onSubmit={handleRegister} onCancel={() => setShowForm(false)} />
       )}
 
+      {/* Search & Discovery */}
+      <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+        <div className="flex flex-col md:flex-row gap-3">
+          <input
+            type="text"
+            placeholder="Filter agents..."
+            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-testid="search-input"
+          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Discover by capability..."
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={discoveryQuery}
+              onChange={(e) => setDiscoveryQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleDiscover()}
+            />
+            <button
+              onClick={handleDiscover}
+              className="rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              🔍
+            </button>
+            {discoveryResults && (
+              <button
+                onClick={() => {
+                  setDiscoveryResults(null);
+                  setDiscoveryQuery('');
+                }}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        {discoveryResults && (
+          <p className="text-xs text-gray-500">
+            {discoveryResults.length} result(s) for &quot;{discoveryQuery}&quot;
+          </p>
+        )}
+      </div>
+
+      {/* Loading / Error */}
       {agentsQuery.loading && (
-        <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
+        <div className="py-12 text-center text-sm text-gray-500">Loading agents…</div>
       )}
       {agentsQuery.error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -292,277 +451,46 @@ function RegistryTab(): React.ReactElement {
         </div>
       )}
 
+      {/* Selected Agent Detail */}
+      {selected && (
+        <AgentDetail
+          agent={selected}
+          onClose={() => setSelectedAgent(null)}
+          onUnregister={() => handleUnregister(selected.name)}
+        />
+      )}
+
+      {/* Agent Grid */}
       {!agentsQuery.loading && filtered.length === 0 && (
         <div className="rounded-lg border border-gray-200 bg-white py-12 text-center">
           <div className="text-4xl mb-3">🤖</div>
-          <p className="text-gray-500">No mesh agents registered yet.</p>
-        </div>
-      )}
-
-      <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-        {filtered.length > 0 && (
-          <>
-            <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 text-xs text-gray-500">
-              {filtered.length} agent(s)
-            </div>
-            <div className="divide-y divide-gray-200">
-              {filtered.map((agent) => (
-                <div
-                  key={agent.name}
-                  className="flex items-start justify-between gap-4 py-4 px-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="text-sm font-medium text-gray-900">{agent.name}</h3>
-                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                        {agent.protocol}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600">{agent.description}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {agent.capabilities.map((cap) => (
-                        <span
-                          key={cap}
-                          className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
-                        >
-                          {cap}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-                      <span>Endpoint: {agent.endpoint}</span>
-                      <span>Last seen: {new Date(agent.last_seen).toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleUnregister(agent.name)}
-                    className="text-sm text-red-600 hover:text-red-800 flex-shrink-0"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Network / Discovery Tab ────────────────────────────────
-
-function NetworkTab(): React.ReactElement {
-  const [searchQuery, setSearchQuery] = useState('');
-  const agentsQuery = useApi(() => getMeshAgents(), []);
-  const agents = agentsQuery.data ?? [];
-
-  const [searchResults, setSearchResults] = useState<
-    { agent: MeshAgent; score: number; matchedTerms: string[] }[] | null
-  >(null);
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    const results = await discoverAgents(searchQuery.trim());
-    setSearchResults(results);
-  };
-
-  const displayAgents = searchResults ? searchResults.map((r) => r.agent) : agents;
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <div className="flex flex-col md:flex-row gap-3">
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Discover agents by capability (e.g. coding, fitness)..."
-            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <button
-            onClick={handleSearch}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            🔍 Discover
-          </button>
-          {searchResults && (
-            <button
-              onClick={() => {
-                setSearchResults(null);
-                setSearchQuery('');
-              }}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        {searchResults && (
-          <p className="text-xs text-gray-500 mt-2">
-            {searchResults.length} result(s) for &quot;{searchQuery}&quot;
-          </p>
-        )}
-      </div>
-
-      {agentsQuery.loading && (
-        <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
-      )}
-      {agentsQuery.error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {agentsQuery.error}
-        </div>
-      )}
-
-      {!agentsQuery.loading && displayAgents.length === 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white py-12 text-center">
-          <div className="text-4xl mb-3">🌐</div>
-          <p className="text-gray-500">No agents found.</p>
-        </div>
-      )}
-
-      {displayAgents.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs text-gray-500">
-                <th className="px-4 py-2 font-medium">Agent</th>
-                <th className="px-4 py-2 font-medium">Description</th>
-                <th className="px-4 py-2 font-medium">Capabilities</th>
-                <th className="px-4 py-2 font-medium">Protocol</th>
-                <th className="px-4 py-2 font-medium">Last Seen</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {displayAgents.map((agent) => (
-                <tr key={agent.name} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{agent.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{agent.description}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {agent.capabilities.map((c) => (
-                        <span
-                          key={c}
-                          className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
-                        >
-                          {c}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{agent.protocol}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {new Date(agent.last_seen).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Overview Tab (Observability Agents) ────────────────────
-
-function OverviewTab(): React.ReactElement {
-  const navigate = useNavigate();
-  const { data: agents, loading, error } = useApi(
-    () => getAgents() as Promise<AgentWithErrorRate[]>,
-    [],
-  );
-
-  const sorted = (agents ?? [])
-    .slice()
-    .sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
-
-  return (
-    <div className="space-y-4">
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {loading && !agents && (
-        <div className="py-12 text-center text-sm text-gray-500">Loading agents…</div>
-      )}
-
-      {agents && sorted.length === 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white py-12 text-center">
           <p className="text-gray-500">No agents found</p>
           <p className="mt-1 text-sm text-gray-400">
-            Agents will appear here when they start sending events
+            Register agents to see them here
           </p>
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {sorted.map((agent) => (
-          <AgentCard
-            key={agent.id}
-            agent={agent}
-            onClick={() => navigate(`/sessions?agentId=${encodeURIComponent(agent.id)}`)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Component ─────────────────────────────────────────
-
-const TABS: { key: Tab; label: string; meshOnly?: boolean }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'registry', label: 'Registry', meshOnly: true },
-  { key: 'network', label: 'Discovery', meshOnly: true },
-];
-
-export function Agents(): React.ReactElement {
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const { mesh } = useFeatures();
-
-  const visibleTabs = TABS.filter((t) => !t.meshOnly || mesh);
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Agents</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Monitor agents, manage the mesh registry, and discover capabilities
-        </p>
-      </div>
-
-      {/* Tabs */}
-      {visibleTabs.length > 1 && (
-        <div className="border-b border-gray-200">
-          <nav className="flex gap-6 -mb-px">
-            {visibleTabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.key
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.label}
-              </button>
+      {filtered.length > 0 && (
+        <>
+          <div className="text-sm text-gray-500">
+            {filtered.length} agent{filtered.length !== 1 ? 's' : ''}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map((agent) => (
+              <AgentCard
+                key={agent.name}
+                agent={agent}
+                selected={selectedAgent === agent.name}
+                onSelect={() =>
+                  setSelectedAgent(selectedAgent === agent.name ? null : agent.name)
+                }
+                onUnregister={() => handleUnregister(agent.name)}
+              />
             ))}
-          </nav>
-        </div>
+          </div>
+        </>
       )}
-
-      {/* Tab Content */}
-      {activeTab === 'overview' && <OverviewTab />}
-      {activeTab === 'registry' && mesh && <RegistryTab />}
-      {activeTab === 'network' && mesh && <NetworkTab />}
     </div>
   );
 }
