@@ -13,7 +13,7 @@ const EventsExplorer = React.lazy(() => import('./pages/EventsExplorer').then(m 
 const Analytics = React.lazy(() => import('./pages/Analytics').then(m => ({ default: m.Analytics })));
 const Alerts = React.lazy(() => import('./pages/Alerts').then(m => ({ default: m.Alerts })));
 const LlmAnalytics = React.lazy(() => import('./pages/LlmAnalytics').then(m => ({ default: m.LlmAnalytics })));
-const Lessons = React.lazy(() => import('./pages/Lessons').then(m => ({ default: m.Lessons })));
+const Knowledge = React.lazy(() => import('./pages/Knowledge').then(m => ({ default: m.Knowledge })));
 const Search = React.lazy(() => import('./pages/Search').then(m => ({ default: m.Search })));
 const Insights = React.lazy(() => import('./pages/Insights').then(m => ({ default: m.Insights })));
 const HealthOverview = React.lazy(() => import('./pages/HealthOverview').then(m => ({ default: m.HealthOverview })));
@@ -31,7 +31,7 @@ const GuardrailForm = React.lazy(() => import('./pages/GuardrailForm'));
 const GuardrailDetail = React.lazy(() => import('./pages/GuardrailDetail'));
 const GuardrailActivity = React.lazy(() => import('./pages/GuardrailActivity'));
 const SharingControls = React.lazy(() => import('./pages/SharingControls'));
-const CommunityBrowser = React.lazy(() => import('./pages/CommunityBrowser'));
+// CommunityBrowser merged into Knowledge page
 const SharingActivity = React.lazy(() => import('./pages/SharingActivity'));
 const AgentNetwork = React.lazy(() => import('./pages/AgentNetwork'));
 const CapabilityRegistry = React.lazy(() => import('./pages/CapabilityRegistry'));
@@ -61,7 +61,7 @@ export function App(): React.ReactElement {
         <Route path="benchmarks" element={<Suspense fallback={<PageSkeleton />}><Benchmarks /></Suspense>} />
         <Route path="benchmarks/new" element={<Suspense fallback={<PageSkeleton />}><BenchmarkNew /></Suspense>} />
         <Route path="benchmarks/:id" element={<Suspense fallback={<PageSkeleton />}><BenchmarkDetail /></Suspense>} />
-        {lore && <Route path="lessons" element={<Suspense fallback={<PageSkeleton />}><Lessons /></Suspense>} />}
+        {lore && <Route path="knowledge" element={<Suspense fallback={<PageSkeleton />}><Knowledge /></Suspense>} />}
         <Route path="search" element={<Suspense fallback={<PageSkeleton />}><Search /></Suspense>} />
         <Route path="insights" element={<Suspense fallback={<PageSkeleton />}><Insights /></Suspense>} />
         <Route path="alerts" element={<Suspense fallback={<PageSkeleton />}><Alerts /></Suspense>} />
@@ -72,7 +72,7 @@ export function App(): React.ReactElement {
         <Route path="guardrails/:id/edit" element={<Suspense fallback={<PageSkeleton />}><GuardrailForm /></Suspense>} />
         {lore && <Route path="sharing" element={<Suspense fallback={<PageSkeleton />}><SharingControls /></Suspense>} />}
         {lore && <Route path="sharing/activity" element={<Suspense fallback={<PageSkeleton />}><SharingActivity /></Suspense>} />}
-        {lore && <Route path="community" element={<Suspense fallback={<PageSkeleton />}><CommunityBrowser /></Suspense>} />}
+        {/* community route redirects handled by Knowledge page */}
         <Route path="network" element={<Suspense fallback={<PageSkeleton />}><AgentNetwork /></Suspense>} />
         <Route path="capabilities" element={<Suspense fallback={<PageSkeleton />}><CapabilityRegistry /></Suspense>} />
         <Route path="delegations" element={<Suspense fallback={<PageSkeleton />}><DelegationLog /></Suspense>} />

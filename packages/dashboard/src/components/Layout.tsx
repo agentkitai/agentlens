@@ -88,9 +88,9 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    to: '/lessons',
-    label: 'Lessons',
-    icon: <span className="w-5 h-5 flex items-center justify-center text-base">📚</span>,
+    to: '/knowledge',
+    label: 'Knowledge',
+    icon: <span className="w-5 h-5 flex items-center justify-center text-base">🧠</span>,
   },
   {
     to: '/search',
@@ -121,11 +121,7 @@ const navItems: NavItem[] = [
     label: 'Sharing',
     icon: <span className="w-5 h-5 flex items-center justify-center text-base">🔗</span>,
   },
-  {
-    to: '/community',
-    label: 'Community',
-    icon: <span className="w-5 h-5 flex items-center justify-center text-base">🌐</span>,
-  },
+  // Community merged into Knowledge page
   {
     to: '/sharing/activity',
     label: 'Sharing Activity',
@@ -180,7 +176,7 @@ function linkClass({ isActive }: { isActive: boolean }): string {
     : `${base} text-gray-600 hover:bg-gray-100 hover:text-gray-900`;
 }
 
-const LORE_NAV_PATHS = new Set(['/lessons', '/sharing', '/community', '/sharing/activity']);
+const LORE_NAV_PATHS = new Set(['/knowledge', '/sharing', '/sharing/activity']);
 const MESH_NAV_PATHS = new Set(['/capabilities', '/delegations', '/network']);
 
 export function Layout(): React.ReactElement {

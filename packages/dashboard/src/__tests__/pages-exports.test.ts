@@ -15,9 +15,9 @@ describe('Page exports — Sharing Controls (7.2)', () => {
     expect(typeof mod.default).toBe('function');
   });
 
-  it('should export CommunityBrowser as default', async () => {
-    const mod = await import('../pages/CommunityBrowser');
-    expect(typeof mod.default).toBe('function');
+  it('should export Knowledge as named export', async () => {
+    const mod = await import('../pages/Knowledge');
+    expect(typeof mod.Knowledge).toBe('function');
   });
 
   it('should export SharingActivity as default', async () => {
