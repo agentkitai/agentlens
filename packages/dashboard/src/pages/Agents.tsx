@@ -7,7 +7,7 @@
  * Route: /agents
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import {
   getMeshAgents,
@@ -16,6 +16,8 @@ import {
   discoverAgents,
   type MeshAgent,
 } from '../api/discovery';
+import { getAgents } from '../api/agents';
+import type { Agent as TelemetryAgent } from '../api/core';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -70,11 +72,13 @@ function statusDot(lastSeen: string): { color: string; label: string } {
 
 function AgentCard({
   agent,
+  telemetry,
   onSelect,
   selected,
   onUnregister,
 }: {
   agent: MeshAgent;
+  telemetry?: TelemetryAgent;
   onSelect: () => void;
   selected: boolean;
   onUnregister: () => void;
@@ -117,7 +121,22 @@ function AgentCard({
         ))}
       </div>
 
-      <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
+      {/* Telemetry stats (if available) */}
+      {telemetry && (
+        <div className="mt-3 flex flex-wrap gap-3 border-t border-gray-100 pt-3">
+          <span className="text-xs text-gray-500">
+            <span className="font-medium text-gray-700">{telemetry.sessionCount}</span> sessions
+          </span>
+          {telemetry.pausedAt && (
+            <span className="text-xs text-red-500 font-medium">⏸ Paused</span>
+          )}
+          {telemetry.modelOverride && (
+            <span className="text-xs text-amber-600">Model: {telemetry.modelOverride}</span>
+          )}
+        </div>
+      )}
+
+      <div className={`mt-3 flex items-center justify-between ${!telemetry ? 'border-t border-gray-100 pt-3' : ''} text-xs text-gray-400`}>
         <span>{agent.protocol}</span>
         <span>{timeAgo(agent.last_seen)}</span>
       </div>
@@ -129,10 +148,12 @@ function AgentCard({
 
 function AgentDetail({
   agent,
+  telemetry,
   onClose,
   onUnregister,
 }: {
   agent: MeshAgent;
+  telemetry?: TelemetryAgent;
   onClose: () => void;
   onUnregister: () => void;
 }): React.ReactElement {
@@ -195,6 +216,24 @@ function AgentDetail({
           <p className="text-xs text-gray-500 mb-1">Registered</p>
           <p className="text-sm text-gray-900">{new Date(agent.registered_at).toLocaleString()}</p>
         </div>
+        {telemetry && (
+          <>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs text-gray-500 mb-1">Sessions</p>
+              <p className="text-sm font-semibold text-gray-900">{telemetry.sessionCount}</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3">
+              <p className="text-xs text-gray-500 mb-1">First Seen</p>
+              <p className="text-sm text-gray-900">{new Date(telemetry.firstSeenAt).toLocaleString()}</p>
+            </div>
+            {telemetry.pausedAt && (
+              <div className="rounded-lg bg-red-50 p-3">
+                <p className="text-xs text-red-500 mb-1">Paused</p>
+                <p className="text-sm text-red-700">{telemetry.pauseReason ?? 'By guardrail'}</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div>
@@ -328,6 +367,16 @@ export function Agents(): React.ReactElement {
   const agentsQuery = useApi(() => getMeshAgents(), []);
   const agents = agentsQuery.data ?? [];
 
+  // Fetch telemetry data (observability) — optional enrichment
+  const telemetryQuery = useApi(() => getAgents(), []);
+  const telemetryMap = useMemo(() => {
+    const map = new Map<string, TelemetryAgent>();
+    for (const t of telemetryQuery.data ?? []) {
+      map.set(t.name.toLowerCase(), t);
+    }
+    return map;
+  }, [telemetryQuery.data]);
+
   // Filter agents by search
   const filtered = (discoveryResults ? discoveryResults.map((r) => r.agent) : agents).filter(
     (a) =>
@@ -455,6 +504,7 @@ export function Agents(): React.ReactElement {
       {selected && (
         <AgentDetail
           agent={selected}
+          telemetry={telemetryMap.get(selected.name.toLowerCase())}
           onClose={() => setSelectedAgent(null)}
           onUnregister={() => handleUnregister(selected.name)}
         />
@@ -481,6 +531,7 @@ export function Agents(): React.ReactElement {
               <AgentCard
                 key={agent.name}
                 agent={agent}
+                telemetry={telemetryMap.get(agent.name.toLowerCase())}
                 selected={selectedAgent === agent.name}
                 onSelect={() =>
                   setSelectedAgent(selectedAgent === agent.name ? null : agent.name)
