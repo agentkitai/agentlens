@@ -372,7 +372,11 @@ export function Agents(): React.ReactElement {
   const telemetryMap = useMemo(() => {
     const map = new Map<string, TelemetryAgent>();
     for (const t of telemetryQuery.data ?? []) {
-      map.set(t.name.toLowerCase(), t);
+      const name = t.name.toLowerCase();
+      map.set(name, t);
+      // Also map without common prefixes (e.g. "openclaw-brad" → "brad")
+      const stripped = name.replace(/^openclaw-/, '');
+      if (stripped !== name) map.set(stripped, t);
     }
     return map;
   }, [telemetryQuery.data]);
