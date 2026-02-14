@@ -10,7 +10,9 @@
  *  - Tool Usage breakdown (bar)
  *  - Cost Over Time chart (bar, stacked by agent)
  */
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { PageSkeleton } from '../components/PageSkeleton';
 import {
   BarChart,
   Bar,
@@ -68,6 +70,25 @@ const TIME_RANGES: Record<TimeRange, TimeRangeConfig> = {
   },
 };
 
+// ─── Lazy tab content (merged pages) ────────────────────────────────
+
+const LlmAnalytics = React.lazy(() => import('./LlmAnalytics').then(m => ({ default: m.LlmAnalytics })));
+const EventsExplorer = React.lazy(() => import('./EventsExplorer').then(m => ({ default: m.EventsExplorer })));
+const HealthOverview = React.lazy(() => import('./HealthOverview').then(m => ({ default: m.HealthOverview })));
+const CostOptimization = React.lazy(() => import('./CostOptimization').then(m => ({ default: m.CostOptimization })));
+const Insights = React.lazy(() => import('./Insights').then(m => ({ default: m.Insights })));
+
+type AnalyticsTab = 'overview' | 'llm' | 'events' | 'health' | 'cost' | 'insights';
+
+const ANALYTICS_TABS: { key: AnalyticsTab; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'llm', label: 'LLM' },
+  { key: 'events', label: 'Events' },
+  { key: 'health', label: 'Health' },
+  { key: 'cost', label: 'Cost' },
+  { key: 'insights', label: 'Insights' },
+];
+
 // ─── Colors ─────────────────────────────────────────────────────────
 
 const COLORS = ['#0c8ce9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
@@ -112,7 +133,7 @@ function MetricCard({ label, value, icon }: { label: string; value: string | num
 
 // ─── Component ──────────────────────────────────────────────────────
 
-export function Analytics(): React.ReactElement {
+function AnalyticsOverview(): React.ReactElement {
   const [range, setRange] = useState<TimeRange>('24h');
 
   const config = TIME_RANGES[range];
@@ -442,6 +463,50 @@ export function Analytics(): React.ReactElement {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Tabbed Analytics Wrapper ───────────────────────────────────────
+
+export function Analytics(): React.ReactElement {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') as AnalyticsTab) || 'overview';
+
+  const setTab = (tab: AnalyticsTab) => {
+    if (tab === 'overview') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {ANALYTICS_TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === key
+                ? 'border-brand-600 text-brand-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'overview' && <AnalyticsOverview />}
+      {activeTab === 'llm' && <Suspense fallback={<PageSkeleton />}><LlmAnalytics /></Suspense>}
+      {activeTab === 'events' && <Suspense fallback={<PageSkeleton />}><EventsExplorer /></Suspense>}
+      {activeTab === 'health' && <Suspense fallback={<PageSkeleton />}><HealthOverview /></Suspense>}
+      {activeTab === 'cost' && <Suspense fallback={<PageSkeleton />}><CostOptimization /></Suspense>}
+      {activeTab === 'insights' && <Suspense fallback={<PageSkeleton />}><Insights /></Suspense>}
     </div>
   );
 }

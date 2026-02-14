@@ -1,5 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { Suspense, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { PageSkeleton } from '../components/PageSkeleton';
 import { useApi } from '../hooks/useApi';
+
+const SharingActivityPage = React.lazy(() => import('./SharingActivity'));
 import {
   getSharingConfig,
   updateSharingConfig,
@@ -24,7 +28,7 @@ const CATEGORIES = [
   'general',
 ];
 
-export default function SharingControls() {
+function SharingControlsContent() {
   const configQuery = useApi(() => getSharingConfig(), []);
   const agentsQuery = useApi(() => getAgentSharingConfigs(), []);
   const denyListQuery = useApi(() => getDenyList(), []);
@@ -215,3 +219,35 @@ const smallBtnStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '14px',
 };
+
+type SharingTab = 'controls' | 'activity';
+
+export default function SharingControls() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') as SharingTab) || 'controls';
+
+  return (
+    <div>
+      <div className="flex gap-1 border-b border-gray-200 mb-6">
+        {([
+          { key: 'controls' as const, label: 'Controls' },
+          { key: 'activity' as const, label: 'Activity' },
+        ]).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setSearchParams(key === 'controls' ? {} : { tab: key })}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === key
+                ? 'border-brand-600 text-brand-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {activeTab === 'controls' && <SharingControlsContent />}
+      {activeTab === 'activity' && <Suspense fallback={<PageSkeleton />}><SharingActivityPage /></Suspense>}
+    </div>
+  );
+}
