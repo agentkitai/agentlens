@@ -17,7 +17,7 @@ import type {
 } from '@agentlensai/core';
 import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';
-import { getOverviewStats, getEvents, getSessions, getLlmAnalytics } from '../api/client';
+import { getOverviewStats, getEvents, getSessions, getLlmAnalytics, getAnalytics } from '../api/client';
 import type { LlmAnalyticsResult, OverviewStats } from '../api/client';
 import { MetricsGrid } from '../components/MetricsGrid';
 import type { MetricCard } from '../components/MetricsGrid';
@@ -134,10 +134,10 @@ export function Overview(): React.ReactElement {
     [liveSessionRefreshKey],
   );
 
-  // ─── API call 3: Events last 24h for chart ─────────────────────
-  const eventsChart = useApi<EventQueryResult>(
-    () => getEvents({ from: last24h, limit: 5000, order: 'asc' }),
-    [last24h],
+  // ─── API call 3: Events last 24h for chart (use analytics buckets) ──
+  const eventsChart = useApi<{ buckets: Array<{ timestamp: string; eventCount: number; toolCallCount: number; errorCount: number }> }>(
+    () => getAnalytics({ range: '24h' }),
+    [],
   );
 
   // Recent errors (included as sub-query in eventsChart or separate small call)
@@ -202,10 +202,13 @@ export function Overview(): React.ReactElement {
     );
   }
 
-  // Chart data
+  // Chart data — use pre-bucketed analytics data
   const chartData = useMemo(() => {
-    if (!eventsChart.data) return [];
-    return bucketByHour(eventsChart.data.events);
+    if (!eventsChart.data?.buckets) return [];
+    return eventsChart.data.buckets.map((b) => ({
+      hour: formatHour(b.timestamp),
+      count: b.eventCount,
+    }));
   }, [eventsChart.data]);
 
   const recentSessions: Session[] = sessions.data?.sessions ?? [];
