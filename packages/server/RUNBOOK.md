@@ -1,52 +1,52 @@
-# Server Runbook
+# AgentLens Runbook
 
-## PostgreSQL Migrations (Drizzle Kit)
+## PostgreSQL Tuning Recommendations
 
-### Generating a new migration
+The following settings are recommended for typical AgentLens deployments. Adjust based on your available RAM and workload.
 
-After modifying `src/db/schema.postgres.ts`:
+### Memory Settings
 
-```bash
-pnpm --filter @agentlensai/server db:generate
+| Parameter | Small (2-4 GB RAM) | Medium (8-16 GB RAM) | Large (32+ GB RAM) | Notes |
+|---|---|---|---|---|
+| `shared_buffers` | `512MB` | `2GB` | `8GB` | ~25% of total RAM |
+| `effective_cache_size` | `1.5GB` | `6GB` | `24GB` | ~75% of total RAM |
+| `work_mem` | `16MB` | `64MB` | `128MB` | Per-sort/hash operation; be conservative with many concurrent connections |
+| `maintenance_work_mem` | `256MB` | `512MB` | `1GB` | Used for VACUUM, CREATE INDEX, etc. |
+
+### Additional Recommendations
+
+```ini
+# Write-ahead log — AgentLens is write-heavy (event ingestion)
+wal_buffers = 64MB
+checkpoint_completion_target = 0.9
+max_wal_size = 2GB
+
+# Planner — tell Postgres about SSD storage
+random_page_cost = 1.1
+effective_io_concurrency = 200
+
+# Parallelism (medium/large deployments)
+max_parallel_workers_per_gather = 2
+max_parallel_workers = 4
 ```
 
-This creates a new SQL file in `src/db/drizzle/` and updates the journal.
+### Connection Pooling
 
-### Applying migrations
+AgentLens benefits from a connection pooler (e.g., PgBouncer) in front of PostgreSQL, especially with `work_mem` set higher. Recommended PgBouncer mode: **transaction**.
 
-Migrations run **automatically on server startup** (Postgres dialect only) via
-`runPostgresMigrations()`. You can also apply manually:
+### Index Maintenance
 
-```bash
-DATABASE_URL=postgresql://... pnpm --filter @agentlensai/server db:migrate
+The indexes created by migration `0001_indexes.sql` use `CREATE INDEX CONCURRENTLY` to avoid locking tables during creation. After heavy bulk-delete operations, run `REINDEX CONCURRENTLY` to reclaim space:
+
+```sql
+REINDEX INDEX CONCURRENTLY idx_events_timestamp_brin;
 ```
 
-### Rolling back a failed migration
+Monitor index bloat with:
 
-Drizzle Kit does not generate automatic rollback scripts. To recover:
-
-1. **Identify the failed migration** in `src/db/drizzle/` (check the `__drizzle_migrations` table for the latest entry).
-
-2. **Write a reverse SQL script** undoing the DDL changes (DROP columns/tables/indexes added by the migration).
-
-3. **Apply it manually:**
-   ```bash
-   psql "$DATABASE_URL" -f rollback.sql
-   ```
-
-4. **Remove the migration journal entry:**
-   ```sql
-   DELETE FROM drizzle.__drizzle_migrations WHERE hash = '<migration_hash>';
-   ```
-
-5. **Fix the schema file**, then regenerate:
-   ```bash
-   pnpm --filter @agentlensai/server db:generate
-   ```
-
-### SQLite migrations
-
-SQLite continues to use the imperative `runMigrations()` function in
-`migrate.sqlite.ts`. It runs on startup and is fully idempotent (CREATE IF NOT EXISTS + PRAGMA checks).
-
-No changes are needed for existing SQLite deployments.
+```sql
+SELECT schemaname, indexrelname, pg_size_pretty(pg_relation_size(indexrelid)) AS size
+FROM pg_stat_user_indexes
+WHERE schemaname = 'public'
+ORDER BY pg_relation_size(indexrelid) DESC;
+```
