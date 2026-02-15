@@ -13,6 +13,8 @@ import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { DelegationService, type PoolTransport } from '../services/delegation-service.js';
 import { TASK_TYPES } from '@agentlensai/core';
+import { createDelegationSchema, rejectDelegationSchema, completeDelegationSchema } from '../schemas/delegation.js';
+import { formatZodErrors } from '../middleware/validation.js';
 
 const VALID_TASK_TYPES = new Set<string>(TASK_TYPES);
 
@@ -37,35 +39,25 @@ export function delegationRoutes(db: SqliteDb, transport: PoolTransport) {
   app.post('/delegate', async (c) => {
     const tenantId = getTenantId(c);
 
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
+    const rawBody = await c.req.json().catch(() => null);
+    if (rawBody === null) {
       return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
     }
 
-    const agentId = body.agentId as string;
-    if (!agentId) {
-      return c.json({ error: 'agentId is required', status: 400 }, 400);
+    const parseResult = createDelegationSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return c.json({ error: 'Validation failed', status: 400, details: formatZodErrors(parseResult.error) }, 400);
     }
 
-    const targetAnonymousId = body.targetAnonymousId as string;
-    if (!targetAnonymousId) {
-      return c.json({ error: 'targetAnonymousId is required', status: 400 }, 400);
-    }
-
-    const taskType = body.taskType as string;
-    if (!taskType || !VALID_TASK_TYPES.has(taskType)) {
-      return c.json({ error: 'taskType is required and must be valid', status: 400 }, 400);
-    }
+    const { agentId, targetAnonymousId, taskType, input, timeoutMs, fallbackEnabled, maxRetries } = parseResult.data;
 
     const result = await service.delegate(tenantId, agentId, {
       targetAnonymousId,
       taskType: taskType as any,
-      input: body.input,
-      timeoutMs: (body.timeoutMs as number) ?? 30000,
-      fallbackEnabled: body.fallbackEnabled as boolean | undefined,
-      maxRetries: body.maxRetries as number | undefined,
+      input,
+      timeoutMs: timeoutMs ?? 30000,
+      fallbackEnabled,
+      maxRetries,
     });
 
     return c.json({ result });
@@ -119,14 +111,13 @@ export function delegationRoutes(db: SqliteDb, transport: PoolTransport) {
     const agentId = c.req.param('id');
     const requestId = c.req.param('requestId');
 
-    let body: Record<string, unknown> = {};
-    try {
-      body = await c.req.json();
-    } catch {
-      // Body is optional for reject
+    const rawBody = await c.req.json().catch(() => ({}));
+    const parseResult = rejectDelegationSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return c.json({ error: 'Validation failed', status: 400, details: formatZodErrors(parseResult.error) }, 400);
     }
 
-    const result = await service.rejectDelegation(tenantId, agentId, requestId, body.reason as string);
+    const result = await service.rejectDelegation(tenantId, agentId, requestId, parseResult.data.reason);
     if (!result.ok) {
       return c.json({ error: result.error, status: 400 }, 400);
     }
@@ -147,14 +138,17 @@ export function delegationRoutes(db: SqliteDb, transport: PoolTransport) {
     const agentId = c.req.param('id');
     const requestId = c.req.param('requestId');
 
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
+    const rawBody = await c.req.json().catch(() => null);
+    if (rawBody === null) {
       return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
     }
 
-    const result = await service.completeDelegation(tenantId, agentId, requestId, body.output);
+    const parseResult = completeDelegationSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return c.json({ error: 'Validation failed', status: 400, details: formatZodErrors(parseResult.error) }, 400);
+    }
+
+    const result = await service.completeDelegation(tenantId, agentId, requestId, parseResult.data.output);
     if (!result.ok) {
       return c.json({ error: result.error, status: 400 }, 400);
     }

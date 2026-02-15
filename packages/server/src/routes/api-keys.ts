@@ -11,18 +11,25 @@ import { randomBytes } from 'node:crypto';
 import { ulid } from 'ulid';
 import type { SqliteDb } from '../db/index.js';
 import { apiKeys } from '../db/schema.sqlite.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNotNull, lte } from 'drizzle-orm';
 import { hashApiKey, type AuthVariables } from '../middleware/auth.js';
+import { createApiKeySchema } from '../schemas/api-keys.js';
+import { formatZodErrors } from '../middleware/validation.js';
 
 export function apiKeysRoutes(db: SqliteDb) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
   // POST /api/keys — create a new API key
   app.post('/', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const name = (body as Record<string, unknown>).name as string | undefined;
-    const scopes = (body as Record<string, unknown>).scopes as string[] | undefined;
-    const requestedTenantId = (body as Record<string, unknown>).tenantId as string | undefined;
+    const rawBody = await c.req.json().catch(() => null);
+    if (rawBody === null) {
+      return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
+    }
+    const parseResult = createApiKeySchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return c.json({ error: 'Validation failed', status: 400, details: formatZodErrors(parseResult.error) }, 400);
+    }
+    const { name, scopes, tenantId: requestedTenantId } = parseResult.data;
 
     // Enforce tenant isolation: non-dev callers can only create keys for their own tenant
     const callerKey = c.get('apiKey');
@@ -86,6 +93,78 @@ export function apiKeysRoutes(db: SqliteDb) {
     return c.json({ keys });
   });
 
+  // POST /api/keys/:id/rotate — rotate a key (admin only, SH-6)
+  app.post('/:id/rotate', async (c) => {
+    const callerKey = c.get('apiKey');
+    const callerTenantId = callerKey?.tenantId ?? 'default';
+
+    // Require admin role (dev mode counts as admin)
+    const isDevMode = callerKey?.id === 'dev';
+    if (!isDevMode) {
+      // Look up the caller's key to check role
+      const callerRow = db
+        .select()
+        .from(apiKeys)
+        .where(eq(apiKeys.id, callerKey.id))
+        .get();
+      if (!callerRow || (callerRow.role !== 'admin' && callerRow.role !== 'owner')) {
+        return c.json({ error: 'Forbidden: admin role required', status: 403 }, 403);
+      }
+    }
+
+    const id = c.req.param('id');
+    const existing = db
+      .select()
+      .from(apiKeys)
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.tenantId, callerTenantId)))
+      .get();
+
+    if (!existing) {
+      return c.json({ error: 'API key not found', status: 404 }, 404);
+    }
+
+    if (existing.revokedAt) {
+      return c.json({ error: 'Cannot rotate a revoked key', status: 409 }, 409);
+    }
+
+    const graceHours = parseInt(process.env.KEY_ROTATION_GRACE_HOURS ?? '24', 10);
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = now + graceHours * 3600;
+
+    // Mark old key as rotated with grace period
+    db.update(apiKeys)
+      .set({ rotatedAt: now, expiresAt })
+      .where(eq(apiKeys.id, id))
+      .run();
+
+    // Create new key with same name/scopes/tenant/role
+    const newId = ulid();
+    const rawKey = `als_${randomBytes(32).toString('hex')}`;
+    const keyHash = hashApiKey(rawKey);
+
+    db.insert(apiKeys)
+      .values({
+        id: newId,
+        keyHash,
+        name: existing.name,
+        scopes: existing.scopes,
+        createdAt: now,
+        tenantId: existing.tenantId,
+        createdBy: existing.createdBy,
+        role: existing.role,
+        rateLimit: existing.rateLimit,
+      })
+      .run();
+
+    return c.json({
+      id: newId,
+      key: rawKey,
+      name: existing.name,
+      rotatedFromId: id,
+      oldKeyExpiresAt: new Date(expiresAt * 1000).toISOString(),
+    }, 201);
+  });
+
   // DELETE /api/keys/:id — revoke a key (tenant-scoped)
   app.delete('/:id', (c) => {
     const id = c.req.param('id');
@@ -117,4 +196,16 @@ export function apiKeysRoutes(db: SqliteDb) {
   });
 
   return app;
+}
+
+/**
+ * Cleanup expired rotated API keys (SH-6).
+ * Call periodically (e.g. every hour) to remove keys past their grace period.
+ */
+export function cleanupExpiredRotatedKeys(db: SqliteDb): number {
+  const now = Math.floor(Date.now() / 1000);
+  const result = db.delete(apiKeys)
+    .where(and(isNotNull(apiKeys.expiresAt), lte(apiKeys.expiresAt, now)))
+    .run();
+  return result.changes;
 }

@@ -75,6 +75,14 @@ export function authMiddleware(db: SqliteDb, authDisabled: boolean) {
       return c.json({ error: 'Invalid or revoked API key', status: 401 }, 401);
     }
 
+    // Check if this is a rotated key past its grace period
+    if (row.expiresAt) {
+      const now = Math.floor(Date.now() / 1000);
+      if (now > row.expiresAt) {
+        return c.json({ error: 'This API key has been rotated and is no longer valid. Please use the new key.', status: 401 }, 401);
+      }
+    }
+
     // Fire-and-forget lastUsedAt update
     const now = Math.floor(Date.now() / 1000);
     try {

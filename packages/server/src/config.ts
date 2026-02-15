@@ -9,8 +9,10 @@ const log = createLogger('Config');
 export interface ServerConfig {
   /** Port to listen on (default: 3400) */
   port: number;
-  /** CORS allowed origin (default: '*') */
+  /** CORS allowed origin (default: '*') — legacy single origin */
   corsOrigin: string;
+  /** Comma-separated CORS allowed origins (takes precedence over corsOrigin) */
+  corsOrigins?: string;
   /** Whether auth is disabled — dev mode (default: false) */
   authDisabled: boolean;
   /** SQLite database path (default: './agentlens.db') */
@@ -49,6 +51,7 @@ export function getConfig(): ServerConfig {
   return {
     port: isNaN(port) ? 3400 : port,
     corsOrigin: process.env['CORS_ORIGIN'] ?? 'http://localhost:3400',
+    corsOrigins: process.env['CORS_ORIGINS'] || undefined,
     authDisabled: process.env['AUTH_DISABLED'] === 'true',
     dbPath: process.env['DB_PATH'] ?? process.env['DATABASE_PATH'] ?? './agentlens.db',
     retentionDays: (() => {

@@ -12,6 +12,8 @@ import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { DiscoveryService } from '../services/discovery-service.js';
 import { TASK_TYPES, type DiscoveryQuery, type TaskType } from '@agentlensai/core';
+import { updateDiscoveryConfigSchema, updateCapabilityPermissionsSchema } from '../schemas/discovery.js';
+import { formatZodErrors } from '../middleware/validation.js';
 
 const VALID_TASK_TYPES = new Set<string>(TASK_TYPES);
 
@@ -78,26 +80,17 @@ export function discoveryRoutes(db: SqliteDb) {
    */
   app.put('/discovery/config', async (c) => {
     const tenantId = getTenantId(c);
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
+    const rawBody = await c.req.json().catch(() => null);
+    if (rawBody === null) {
       return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
     }
 
-    const updates: Record<string, unknown> = {};
-    if (body.minTrustThreshold !== undefined) {
-      const val = Number(body.minTrustThreshold);
-      if (isNaN(val) || val < 0 || val > 100) {
-        return c.json({ error: 'minTrustThreshold must be 0-100', status: 400 }, 400);
-      }
-      updates.minTrustThreshold = val;
-    }
-    if (body.delegationEnabled !== undefined) {
-      updates.delegationEnabled = Boolean(body.delegationEnabled);
+    const parseResult = updateDiscoveryConfigSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return c.json({ error: 'Validation failed', status: 400, details: formatZodErrors(parseResult.error) }, 400);
     }
 
-    const config = service.updateDiscoveryConfig(tenantId, updates);
+    const config = service.updateDiscoveryConfig(tenantId, parseResult.data);
     return c.json({ config });
   });
 
@@ -114,20 +107,17 @@ export function discoveryRoutes(db: SqliteDb) {
     const tenantId = getTenantId(c);
     const capabilityId = c.req.param('capabilityId');
 
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json();
-    } catch {
+    const rawBody = await c.req.json().catch(() => null);
+    if (rawBody === null) {
       return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
     }
 
-    const updates: Record<string, unknown> = {};
-    if (body.enabled !== undefined) updates.enabled = Boolean(body.enabled);
-    if (body.acceptDelegations !== undefined) updates.acceptDelegations = Boolean(body.acceptDelegations);
-    if (body.inboundRateLimit !== undefined) updates.inboundRateLimit = Number(body.inboundRateLimit);
-    if (body.outboundRateLimit !== undefined) updates.outboundRateLimit = Number(body.outboundRateLimit);
+    const parseResult = updateCapabilityPermissionsSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return c.json({ error: 'Validation failed', status: 400, details: formatZodErrors(parseResult.error) }, 400);
+    }
 
-    const ok = service.updateAgentPermissions(tenantId, capabilityId, updates);
+    const ok = service.updateAgentPermissions(tenantId, capabilityId, parseResult.data);
     if (!ok) {
       return c.json({ error: 'Capability not found', status: 404 }, 404);
     }

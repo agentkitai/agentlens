@@ -714,6 +714,35 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash)`);
 
+  // ─── Audit Log table (SH-2) ──────────────────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      timestamp TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      actor_type TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      resource_type TEXT,
+      resource_id TEXT,
+      details TEXT NOT NULL DEFAULT '{}',
+      ip_address TEXT,
+      user_agent TEXT
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_ts ON audit_log(tenant_id, timestamp)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action)`);
+
+  // ─── API Key Rotation columns (SH-6) ──────────────────
+  const apiKeyColsSH6 = db.all<{ name: string }>(sql`PRAGMA table_info(api_keys)`);
+  const apiKeyColNamesSH6 = new Set(apiKeyColsSH6.map((c) => c.name));
+  if (!apiKeyColNamesSH6.has('rotated_at')) {
+    db.run(sql`ALTER TABLE api_keys ADD COLUMN rotated_at INTEGER`);
+  }
+  if (!apiKeyColNamesSH6.has('expires_at')) {
+    db.run(sql`ALTER TABLE api_keys ADD COLUMN expires_at INTEGER`);
+  }
+
   // ─── Discovery Config (Story 5.4) ──────────────────────
   db.run(sql`
     CREATE TABLE IF NOT EXISTS discovery_config (

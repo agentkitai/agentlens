@@ -223,6 +223,8 @@ export const apiKeys = sqliteTable(
     tenantId: text('tenant_id').notNull().default('default'),
     createdBy: text('created_by').references(() => users.id), // nullable FK → users
     role: text('role').notNull().default('editor'), // admin | editor | viewer
+    rotatedAt: integer('rotated_at'), // unix timestamp when key was rotated (replaced by new key)
+    expiresAt: integer('expires_at'), // unix timestamp after which rotated key is rejected
   },
   (table) => [index('idx_api_keys_hash').on(table.keyHash)],
 );
@@ -436,5 +438,27 @@ export const delegationLog = sqliteTable(
     index('idx_delegation_tenant_ts').on(table.tenantId, table.createdAt),
     index('idx_delegation_agent').on(table.tenantId, table.agentId),
     index('idx_delegation_status').on(table.tenantId, table.status),
+  ],
+);
+
+// ─── Audit Log Table (SH-2) ──────────────────────────────
+export const auditLog = sqliteTable(
+  'audit_log',
+  {
+    id: text('id').primaryKey(), // ULID
+    timestamp: text('timestamp').notNull(), // ISO 8601
+    tenantId: text('tenant_id').notNull(),
+    actorType: text('actor_type').notNull(), // 'user' | 'api_key' | 'system'
+    actorId: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    resourceType: text('resource_type'),
+    resourceId: text('resource_id'),
+    details: text('details').notNull().default('{}'), // JSON
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+  },
+  (table) => [
+    index('idx_audit_log_tenant_ts').on(table.tenantId, table.timestamp),
+    index('idx_audit_log_action').on(table.action),
   ],
 );

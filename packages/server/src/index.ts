@@ -17,7 +17,9 @@ import { fileURLToPath } from 'node:url';
 import type { IEventStore } from '@agentlensai/core';
 import { getConfig, validateConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';
+import { securityHeadersMiddleware } from './middleware/security-headers.js';
 import { sanitizeErrorMessage, getErrorStatus } from './lib/error-sanitizer.js';
+import { buildCorsOptions } from './middleware/cors-config.js';
 import { apiKeysRoutes } from './routes/api-keys.js';
 import { eventsRoutes } from './routes/events.js';
 import { sessionsRoutes } from './routes/sessions.js';
@@ -49,7 +51,11 @@ import { meshProxyRoutes } from './routes/mesh-proxy.js';
 import { RemoteMeshAdapter } from './lib/mesh-client.js';
 import { otlpRoutes } from './routes/otlp.js';
 import { authRoutes } from './routes/auth.js';
-// audit routes removed (v0.12.0 — sharing audit moved to Lore)
+import { authRateLimit, apiRateLimit } from './middleware/rate-limit.js';
+import { apiBodyLimit } from './middleware/body-limit.js';
+import { auditRoutes } from './routes/audit.js';
+import { createAuditLogger, cleanupAuditLogs } from './lib/audit.js';
+import { auditMiddleware } from './middleware/audit.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
 import { setAgentStore } from './lib/guardrails/actions.js';
@@ -70,6 +76,7 @@ const log = createLogger('Server');
 export { getConfig, validateConfig } from './config.js';
 export type { ServerConfig } from './config.js';
 export { authMiddleware, hashApiKey } from './middleware/auth.js';
+export { buildCorsOptions } from './middleware/cors-config.js';
 export type { ApiKeyInfo, AuthVariables } from './middleware/auth.js';
 export { apiKeysRoutes } from './routes/api-keys.js';
 export { eventsRoutes } from './routes/events.js';
@@ -97,6 +104,12 @@ export type { SqliteDb } from './db/index.js';
 export { runMigrations } from './db/migrate.js';
 export { SessionSummaryStore } from './db/session-summary-store.js';
 export { contextRoutes } from './routes/context.js';
+export { auditRoutes } from './routes/audit.js';
+export { createAuditLogger, cleanupAuditLogs, maskSensitive } from './lib/audit.js';
+export { validateBody, formatZodErrors } from './middleware/validation.js';
+export { apiBodyLimit } from './middleware/body-limit.js';
+export type { AuditLogger, AuditEntry, ActorType } from './lib/audit.js';
+export { auditMiddleware } from './middleware/audit.js';
 export { registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
 export { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
@@ -177,6 +190,9 @@ export async function createApp(
 
   const app = new Hono<{ Variables: AuthVariables }>();
 
+  // ─── Security headers (position 1 — must be first) ────
+  app.use('*', securityHeadersMiddleware());
+
   // ─── Global error handler ──────────────────────────────
   app.onError((err, c) => {
     const status = getErrorStatus(err);
@@ -210,8 +226,17 @@ export async function createApp(
   });
 
   // ─── Middleware on /api/* ──────────────────────────────
-  app.use('/api/*', cors({ origin: resolvedConfig.corsOrigin }));
+  app.use('/api/*', cors(buildCorsOptions({
+    corsOrigins: resolvedConfig.corsOrigins ?? resolvedConfig.corsOrigin,
+    nodeEnv: process.env['NODE_ENV'],
+  })));
   app.use('/api/*', logger());
+
+  // ─── SH-3: Body size limit (1MB default) ────────────────
+  app.use('/api/*', apiBodyLimit);
+
+  // ─── Rate limiting: API endpoints ──────────────────────
+  app.use('/api/*', apiRateLimit);
 
   // ─── Health check (no auth) ────────────────────────────
   app.get('/api/health', (c) => {
@@ -232,6 +257,9 @@ export async function createApp(
     agentgateWebhookSecret: process.env['AGENTGATE_WEBHOOK_SECRET'],
     formbridgeWebhookSecret: process.env['FORMBRIDGE_WEBHOOK_SECRET'],
   }));
+
+  // ─── Rate limiting: auth endpoints ─────────────────────
+  app.use('/auth/*', authRateLimit);
 
   // ─── OIDC Auth routes (no API key auth — handles own auth) ──
   {
@@ -307,6 +335,12 @@ export async function createApp(
     app.use('/api/delegations', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/discovery/*', authMiddleware(db, resolvedConfig.authDisabled));
     app.use('/api/discovery', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/audit/*', authMiddleware(db, resolvedConfig.authDisabled));
+    app.use('/api/audit', authMiddleware(db, resolvedConfig.authDisabled));
+
+    // Inject audit logger into context
+    const auditLogger = createAuditLogger(db);
+    app.use('/api/*', auditMiddleware(auditLogger));
   }
 
   // ─── Routes ────────────────────────────────────────────
@@ -394,6 +428,11 @@ export async function createApp(
     app.route('/api/discovery', discTopApp);
   }
 
+  // ─── Audit Log (SH-2) ──────────────────────────────────
+  if (db) {
+    app.route('/api/audit', auditRoutes(db));
+  }
+
   // ─── Community Sharing (Stories 4.1–4.3) ────────────────
   if (loreAdapter) {
     if (db) {
@@ -438,6 +477,10 @@ export async function createApp(
  * Creates the database, runs migrations, and starts listening.
  */
 export async function startServer() {
+  // SH-7: Resolve secrets from env / file / ARN before anything reads process.env
+  const { resolveAllSecrets } = await import('./lib/secrets.js');
+  await resolveAllSecrets();
+
   const config = getConfig();
   validateConfig(config);
 
@@ -472,6 +515,21 @@ export async function startServer() {
   log.info(`Auth: ${config.authDisabled ? 'DISABLED (dev mode)' : 'enabled'}`);
   log.info(`CORS origin: ${config.corsOrigin}`);
   log.info(`Database: ${config.dbPath}`);
+
+  // Audit log retention cleanup (SH-2)
+  {
+    const auditRetentionDays = parseInt(process.env['AUDIT_RETENTION_DAYS'] ?? '90', 10);
+    if (auditRetentionDays > 0) {
+      try {
+        const deleted = cleanupAuditLogs(db, auditRetentionDays);
+        if (deleted > 0) {
+          log.info(`Audit log cleanup: removed ${deleted} entries older than ${auditRetentionDays} days`);
+        }
+      } catch (err) {
+        log.warn(`Audit log cleanup failed: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+  }
 
   // Start alert evaluation engine
   const alertEngine = new AlertEngine(store);
