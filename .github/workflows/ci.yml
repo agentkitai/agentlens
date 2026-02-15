@@ -22,3 +22,33 @@ jobs:
       - run: pnpm --filter @agentlensai/mcp test
       - run: pnpm --filter @agentlensai/sdk test
       - run: pnpm --filter @agentlensai/dashboard build
+
+  test-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: agentlens_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm --filter @agentlensai/server test
+        env:
+          DB_DIALECT: postgresql
+          DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test

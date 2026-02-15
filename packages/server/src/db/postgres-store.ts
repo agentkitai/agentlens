@@ -28,6 +28,7 @@ import {
 } from './schema.postgres.js';
 import { HashChainError, NotFoundError } from './errors.js';
 import { createLogger } from '../lib/logger.js';
+import { withRetry } from '../lib/db-resilience.js';
 
 const log = createLogger('PostgresEventStore');
 
@@ -185,7 +186,7 @@ export class PostgresEventStore implements IEventStore {
   async insertEvents(eventList: AgentLensEvent[]): Promise<void> {
     if (eventList.length === 0) return;
 
-    await this.db.transaction(async (tx) => {
+    await withRetry(() => this.db.transaction(async (tx) => {
       const firstEvent = eventList[0]!;
       const tenantId = firstEvent.tenantId ?? 'default';
 
@@ -271,7 +272,7 @@ export class PostgresEventStore implements IEventStore {
         // Handle agent upsert
         await this.handleAgentUpsert(tx, event, evTenantId);
       }
-    });
+    }));
   }
 
   private async handleSessionUpdate(tx: any, event: AgentLensEvent, tenantId: string): Promise<void> {
@@ -502,6 +503,7 @@ export class PostgresEventStore implements IEventStore {
   // ─── Sessions ──────────────────────────────────────────────
 
   async upsertSession(session: Partial<Session> & { id: string }): Promise<void> {
+    await withRetry(async () => {
     const tenantId = session.tenantId ?? 'default';
     const [existing] = await this.db
       .select()
@@ -550,6 +552,7 @@ export class PostgresEventStore implements IEventStore {
         tenantId,
       });
     }
+    });
   }
 
   async querySessions(query: SessionQuery): Promise<{ sessions: Session[]; total: number }> {

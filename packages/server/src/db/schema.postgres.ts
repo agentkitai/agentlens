@@ -7,6 +7,7 @@
  * - Timestamps → timestamp (ISO strings kept as text for compat, timestamps as integer kept as integer)
  */
 
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   text,
@@ -54,6 +55,10 @@ export const events = pgTable(
     index('idx_events_tenant_id').on(table.tenantId),
     index('idx_events_tenant_session').on(table.tenantId, table.sessionId),
     index('idx_events_tenant_agent_ts').on(table.tenantId, table.agentId, table.timestamp),
+    // S6: BRIN index on timestamp for time-range scans
+    index('idx_events_timestamp_brin').using('brin', table.timestamp),
+    // S6: Covering index for tenant+session queries ordered by time
+    index('idx_events_tenant_session_ts_desc').on(table.tenantId, table.sessionId, table.timestamp),
   ],
 );
 
@@ -85,6 +90,10 @@ export const sessions = pgTable(
     index('idx_sessions_tenant_id').on(table.tenantId),
     index('idx_sessions_tenant_agent').on(table.tenantId, table.agentId),
     index('idx_sessions_tenant_started').on(table.tenantId, table.startedAt),
+    // S6: Partial index for active sessions
+    index('idx_sessions_active').on(table.id, table.tenantId).where(sql`status = 'active'`),
+    // S6: Covering index for tenant dashboard queries
+    index('idx_sessions_tenant_status_started_desc').on(table.tenantId, table.status, table.startedAt),
   ],
 );
 
@@ -139,7 +148,11 @@ export const alertHistory = pgTable(
     message: text('message').notNull(),
     tenantId: text('tenant_id').notNull().default('default'),
   },
-  (table) => [index('idx_alert_history_rule_id').on(table.ruleId)],
+  (table) => [
+    index('idx_alert_history_rule_id').on(table.ruleId),
+    // S6: Index for tenant alert history queries
+    index('idx_alert_history_tenant_triggered_desc').on(table.tenantId, table.triggeredAt),
+  ],
 );
 
 // ─── Lessons Table (Epic 3) ────────────────────────────────
