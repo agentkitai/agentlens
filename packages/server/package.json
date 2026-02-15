@@ -38,11 +38,13 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/db/drizzle dist/db/drizzle",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@agentkit/auth": "workspace:*",

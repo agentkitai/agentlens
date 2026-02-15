@@ -8,8 +8,12 @@
 import Database from 'better-sqlite3';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema.sqlite.js';
+import { createPostgresConnection, type PostgresDb, type PostgresConnection } from './connection.postgres.js';
 
 export type SqliteDb = BetterSQLite3Database<typeof schema>;
+export type DbInstance = SqliteDb | PostgresDb;
+export type { PostgresDb, PostgresConnection } from './connection.postgres.js';
+export { verifyPostgresConnection, postgresHealthCheck } from './connection.postgres.js';
 
 export interface CreateDbOptions {
   /** Database dialect: 'sqlite' (default) or 'postgresql' */
@@ -29,15 +33,16 @@ export interface CreateDbOptions {
  * - cache_size=-64000 (64MB page cache)
  * - busy_timeout=5000 (5s wait on locks)
  */
-export function createDb(options: CreateDbOptions = {}): SqliteDb {
+export function createDb(options: CreateDbOptions & { dialect: 'postgresql' }): PostgresDb;
+export function createDb(options?: CreateDbOptions): SqliteDb;
+export function createDb(options: CreateDbOptions = {}): DbInstance {
   const dialect =
     options.dialect ??
     (process.env['DB_DIALECT'] as 'sqlite' | 'postgresql' | undefined) ??
     'sqlite';
 
   if (dialect === 'postgresql') {
-    // PostgreSQL support is deferred — interface defined, implementation later
-    throw new Error('PostgreSQL dialect is not yet implemented. Use DB_DIALECT=sqlite (default).');
+    return createPostgresConnection({ databaseUrl: options.databaseUrl }).db;
   }
 
   const dbPath = options.databasePath ?? process.env['DATABASE_PATH'] ?? './agentlens.db';

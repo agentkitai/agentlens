@@ -12,7 +12,13 @@ describe('Health & Server Bootstrap (Story 4.1)', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ status: 'ok', version: '0.1.0' });
+    expect(body.status).toBe('ok');
+    expect(body.version).toBe('0.1.0');
+    // S4: health check now includes db health when db is available
+    if (body.db) {
+      expect(body.db.ok).toBe(true);
+      expect(typeof body.db.latencyMs).toBe('number');
+    }
   });
 
   it('GET /api/health does not require auth', async () => {

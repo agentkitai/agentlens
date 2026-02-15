@@ -20,10 +20,11 @@ import type {
 } from '@agentlensai/core';
 import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlensai/core';
 import type { SqliteEventStore } from './sqlite-store.js';
+import type { PostgresEventStore } from './postgres-store.js';
 
 export class TenantScopedStore implements IEventStore {
   constructor(
-    private readonly inner: SqliteEventStore,
+    private readonly inner: SqliteEventStore | PostgresEventStore,
     public readonly tenantId: string,
   ) {}
 

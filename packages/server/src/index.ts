@@ -184,6 +184,7 @@ export async function createApp(
     db?: SqliteDb;
     embeddingService?: EmbeddingService | null;
     embeddingWorker?: EmbeddingWorker | null;
+    pgSql?: import('postgres').Sql;
   },
 ) {
   const resolvedConfig = { ...getConfig(), ...config };
@@ -239,8 +240,27 @@ export async function createApp(
   app.use('/api/*', apiRateLimit);
 
   // ─── Health check (no auth) ────────────────────────────
-  app.get('/api/health', (c) => {
-    return c.json({ status: 'ok', version: '0.1.0' });
+  app.get('/api/health', async (c) => {
+    const result: Record<string, unknown> = { status: 'ok', version: '0.1.0' };
+
+    // DB health check — works for both SQLite and Postgres
+    if (config?.pgSql) {
+      const { postgresHealthCheck } = await import('./db/index.js');
+      result.db = await postgresHealthCheck(config.pgSql);
+    } else if (config?.db) {
+      // SQLite health check
+      const start = performance.now();
+      try {
+        (config.db as any).run(
+          (await import('drizzle-orm')).sql`SELECT 1`,
+        );
+        result.db = { ok: true, latencyMs: Math.round(performance.now() - start) };
+      } catch {
+        result.db = { ok: false, latencyMs: Math.round(performance.now() - start) };
+      }
+    }
+
+    return c.json(result);
   });
 
   // ─── Feature flags (no auth — dashboard needs before login) ──
@@ -485,7 +505,21 @@ export async function startServer() {
   validateConfig(config);
 
   // Create and initialize database
-  const db = createDb({ databasePath: config.dbPath });
+  // For Postgres, we need the raw sql client for shutdown & health checks
+  let pgSql: import('postgres').Sql | undefined;
+  const dialect = (process.env['DB_DIALECT'] as string | undefined) ?? 'sqlite';
+  let db: SqliteDb;
+  if (dialect === 'postgresql') {
+    const { createPostgresConnection, verifyPostgresConnection } = await import('./db/connection.postgres.js');
+    const conn = createPostgresConnection();
+    await verifyPostgresConnection(conn.sql); // fail fast if unreachable
+    pgSql = conn.sql;
+    // For now, startServer still uses SQLite as the main store; Postgres path is for future use
+    // Create SQLite db alongside for the store
+    db = createDb({ databasePath: config.dbPath });
+  } else {
+    db = createDb({ databasePath: config.dbPath });
+  }
   runMigrations(db);
   const store = new SqliteEventStore(db);
 
@@ -508,7 +542,7 @@ export async function startServer() {
   }
 
   // Create app with db reference for auth
-  const app = await createApp(store, { ...config, db, embeddingService, embeddingWorker });
+  const app = await createApp(store, { ...config, db, embeddingService, embeddingWorker, pgSql });
 
   // Start listening
   log.info(`AgentLens server starting on port ${config.port}`);
@@ -542,18 +576,45 @@ export async function startServer() {
   guardrailEngine.start();
   log.info('Guardrails: enabled');
 
-  // M-11 FIX: Graceful shutdown for engines and workers
-  const shutdown = () => {
+  // M-11 FIX: Graceful shutdown for engines, workers, HTTP server, and PG pool
+  let httpServer: ReturnType<typeof serve> | undefined;
+  let shuttingDown = false;
+
+  const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     log.info('Shutting down...');
+
+    // 1. Stop accepting new requests
+    if (httpServer) {
+      httpServer.close(() => log.info('HTTP server closed'));
+    }
+
+    // 2. Stop engines and workers
     alertEngine.stop();
     guardrailEngine.stop();
     if (embeddingWorker) embeddingWorker.stop();
+
+    // 3. Drain PG pool (5s timeout)
+    if (pgSql) {
+      try {
+        log.info('Draining PostgreSQL connection pool...');
+        await Promise.race([
+          pgSql.end({ timeout: 5 }),
+          new Promise((resolve) => setTimeout(resolve, 5000)),
+        ]);
+        log.info('PostgreSQL pool drained');
+      } catch (err) {
+        log.warn(`PG pool drain error: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
     process.exit(0);
   };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  serve({
+  httpServer = serve({
     fetch: app.fetch,
     port: config.port,
   }, (info) => {

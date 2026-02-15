@@ -39,7 +39,52 @@ export async function unregisterMeshAgent(name: string): Promise<void> {
   });
 }
 
-export async function discoverAgents(query: string, limit?: number): Promise<DiscoveryResult[]> {
-  const qs = toQueryString({ query, limit });
-  return request<DiscoveryResult[]>(`/api/mesh/discover${qs}`);
+export async function discoverAgents(params?: {
+  query?: string;
+  taskType?: string;
+  minTrustScore?: number;
+  maxCostUsd?: number;
+  maxLatencyMs?: number;
+  limit?: number;
+}): Promise<{ results: any[] }> {
+  const qs = toQueryString({
+    query: params?.query,
+    taskType: params?.taskType,
+    minTrustScore: params?.minTrustScore,
+    maxCostUsd: params?.maxCostUsd,
+    maxLatencyMs: params?.maxLatencyMs,
+    limit: params?.limit,
+  });
+  return request<{ results: any[] }>(`/api/mesh/discover${qs}`);
+}
+
+// --- Capability registry (Stories 7.3) ---
+
+export interface CapabilityData {
+  id: string;
+  taskType: string;
+  enabled: boolean;
+  [key: string]: unknown;
+}
+
+export async function getCapabilities(params?: {
+  taskType?: string;
+  agentId?: string;
+}): Promise<{ capabilities: CapabilityData[] }> {
+  const qs = toQueryString({ taskType: params?.taskType, agentId: params?.agentId });
+  return request<{ capabilities: CapabilityData[] }>(`/api/capabilities${qs}`);
+}
+
+export async function registerCapability(data: Record<string, unknown>): Promise<CapabilityData> {
+  return request<CapabilityData>('/api/capabilities', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateCapability(id: string, data: Record<string, unknown>): Promise<CapabilityData> {
+  return request<CapabilityData>(`/api/capabilities/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 }

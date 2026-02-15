@@ -19,3 +19,20 @@ export async function getMeshDelegations(params?: {
   const qs = toQueryString({ limit: params?.limit, offset: params?.offset });
   return request<{ delegations: MeshDelegation[]; total: number }>(`/api/mesh/delegations${qs}`);
 }
+
+export async function getDelegations(params?: {
+  direction?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): Promise<{ delegations: any[]; total: number }> {
+  const qs = toQueryString({
+    direction: params?.direction,
+    status: params?.status,
+    from: params?.from,
+    to: params?.to,
+    limit: params?.limit,
+  });
+  return request<{ delegations: any[]; total: number }>(`/api/delegations${qs}`);
+}
