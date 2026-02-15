@@ -4,8 +4,9 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
+import re
 import uuid
-from typing import Union
+from typing import Callable, Union
 
 from agentlensai._sender import get_sender, reset_sender
 from agentlensai._state import InstrumentationState, clear_state, get_state, set_state
@@ -55,6 +56,8 @@ def init(
     agent_id: str = "default",
     session_id: str | None = None,
     redact: bool = False,
+    pii_patterns: list[re.Pattern] | None = None,
+    pii_filter: Callable[[str], str] | None = None,
     sync_mode: bool = False,
     integrations: Union[str, list[str], None] = None,
 ) -> str:
@@ -71,6 +74,8 @@ def init(
         agent_id: Agent identifier for events.
         session_id: Session ID (auto-generated if not provided).
         redact: If True, strip prompt/completion content from events.
+        pii_patterns: List of compiled regex patterns. Matches are replaced with [REDACTED].
+        pii_filter: Custom filter function applied to all string fields before sending.
         sync_mode: If True, send events synchronously (useful for testing).
         integrations: Which LLM providers to instrument:
             - ``None`` or ``"auto"`` — instrument all available (default)
@@ -106,6 +111,8 @@ def init(
         agent_id=agent_id,
         session_id=sid,
         redact=redact,
+        pii_patterns=pii_patterns,
+        pii_filter=pii_filter,
     )
     set_state(state)
 

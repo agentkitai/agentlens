@@ -509,6 +509,28 @@ class HealthScore(_BaseModel):
     window_days: int
 
 
+class HealthSnapshot(_BaseModel):
+    """A single daily health snapshot for an agent."""
+
+    agent_id: str
+    date: str
+    overall_score: float
+    error_rate_score: float
+    cost_efficiency_score: float
+    tool_success_score: float
+    latency_score: float
+    completion_rate_score: float
+    session_count: int
+
+
+class HealthHistoryResult(_BaseModel):
+    """Result of GET /api/health/history."""
+
+    snapshots: list[HealthSnapshot]
+    agent_id: str
+    days: int
+
+
 class CostRecommendation(_BaseModel):
     """A single cost-optimization recommendation."""
 

@@ -15,6 +15,7 @@ from typing import Any, Union
 
 from agentlensai._state import InstrumentationState
 from agentlensai.exceptions import QuotaExceededError
+from agentlensai.pii import apply_pii_filters
 
 logger = logging.getLogger("agentlensai")
 
@@ -114,6 +115,13 @@ class EventSender:
         call_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc).isoformat()
         redacted = state.redact
+        has_pii = state.pii_patterns or state.pii_filter
+
+        def _pii(value: Any) -> Any:
+            """Apply PII filtering if configured."""
+            if not has_pii:
+                return value
+            return apply_pii_filters(value, state.pii_patterns, state.pii_filter)
 
         # Build messages (potentially redacted)
         messages: list[dict[str, Any]] = data.messages
@@ -121,6 +129,8 @@ class EventSender:
             messages = [
                 {"role": m.get("role", "user"), "content": "[REDACTED]"} for m in messages
             ]
+        elif has_pii:
+            messages = _pii(messages)
 
         # llm_call payload
         call_payload: dict[str, Any] = {
@@ -130,7 +140,7 @@ class EventSender:
             "messages": messages,
         }
         if data.system_prompt is not None:
-            call_payload["systemPrompt"] = "[REDACTED]" if redacted else data.system_prompt
+            call_payload["systemPrompt"] = "[REDACTED]" if redacted else _pii(data.system_prompt)
         if data.parameters is not None:
             call_payload["parameters"] = data.parameters
         if redacted:
@@ -149,14 +159,14 @@ class EventSender:
             "callId": call_id,
             "provider": data.provider,
             "model": data.model,
-            "completion": "[REDACTED]" if redacted else data.completion,
+            "completion": "[REDACTED]" if redacted else _pii(data.completion),
             "finishReason": data.finish_reason,
             "usage": usage,
             "costUsd": data.cost_usd,
             "latencyMs": data.latency_ms,
         }
         if data.tool_calls is not None:
-            resp_payload["toolCalls"] = data.tool_calls
+            resp_payload["toolCalls"] = _pii(data.tool_calls) if has_pii and not redacted else data.tool_calls
         if redacted:
             resp_payload["redacted"] = True
 

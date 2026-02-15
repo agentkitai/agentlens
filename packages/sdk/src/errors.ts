@@ -51,11 +51,44 @@ export class ValidationError extends AgentLensError {
 }
 
 /**
- * Thrown when the server is unreachable or returns a 5xx error.
+ * Thrown when the server is unreachable, times out, or returns a network error.
  */
 export class ConnectionError extends AgentLensError {
   constructor(message: string, cause?: unknown) {
     super(message, 0, 'CONNECTION_ERROR', cause);
     this.name = 'ConnectionError';
+  }
+}
+
+/**
+ * Thrown when the server returns 429 Too Many Requests.
+ */
+export class RateLimitError extends AgentLensError {
+  public readonly retryAfter: number | null;
+
+  constructor(message = 'Rate limit exceeded', retryAfter: number | null = null) {
+    super(message, 429, 'RATE_LIMIT');
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Thrown when the account quota is exceeded (402 Payment Required).
+ */
+export class QuotaExceededError extends AgentLensError {
+  constructor(message = 'Quota exceeded') {
+    super(message, 402, 'QUOTA_EXCEEDED');
+    this.name = 'QuotaExceededError';
+  }
+}
+
+/**
+ * Thrown when the server signals backpressure (503 Service Unavailable).
+ */
+export class BackpressureError extends AgentLensError {
+  constructor(message = 'Service unavailable (backpressure)') {
+    super(message, 503, 'BACKPRESSURE');
+    this.name = 'BackpressureError';
   }
 }

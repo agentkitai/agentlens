@@ -1,8 +1,14 @@
 """AgentLens Python SDK — observability and audit trail for AI agents."""
 
-__version__ = "0.4.0"
+from importlib.metadata import version as _meta_version, PackageNotFoundError as _PNF
+
+try:
+    __version__ = _meta_version("agentlensai")
+except _PNF:
+    __version__ = "0.0.0"
 
 from agentlensai._init import current_session_id, init, shutdown
+from agentlensai.pii import PII_CREDIT_CARD, PII_EMAIL, PII_PHONE, PII_SSN
 from agentlensai.async_client import AsyncAgentLensClient
 from agentlensai.client import AgentLensClient
 from agentlensai.exceptions import (
@@ -36,8 +42,10 @@ from agentlensai.models import (
     GuardrailTriggerHistory,
     GuardrailTriggerHistoryResult,
     HealthDimension,
+    HealthHistoryResult,
     HealthResult,
     HealthScore,
+    HealthSnapshot,
     HealthTrend,
     Lesson,
     LessonListResult,
@@ -73,6 +81,11 @@ __all__ = [
     "init",
     "shutdown",
     "current_session_id",
+    # PII filtering
+    "PII_EMAIL",
+    "PII_SSN",
+    "PII_CREDIT_CARD",
+    "PII_PHONE",
     # Clients
     "AgentLensClient",
     "AsyncAgentLensClient",
@@ -97,8 +110,10 @@ __all__ = [
     "GuardrailTriggerHistory",
     "GuardrailTriggerHistoryResult",
     "HealthDimension",
+    "HealthHistoryResult",
     "HealthResult",
     "HealthScore",
+    "HealthSnapshot",
     "HealthTrend",
     "Lesson",
     "LessonListResult",

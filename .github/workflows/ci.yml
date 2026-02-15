@@ -22,6 +22,38 @@ jobs:
       - run: pnpm --filter @agentlensai/mcp test
       - run: pnpm --filter @agentlensai/sdk test
       - run: pnpm --filter @agentlensai/dashboard build
+      - name: Verify SDK packaging
+        run: cd packages/sdk && npm pack --dry-run
+
+  test-python-sdk:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        working-directory: packages/python-sdk
+        run: |
+          pip install -e ".[dev]"
+      - name: Lint
+        working-directory: packages/python-sdk
+        run: ruff check .
+      - name: Type check
+        working-directory: packages/python-sdk
+        run: mypy src/
+      - name: Test
+        working-directory: packages/python-sdk
+        run: pytest
+      - name: Verify build
+        working-directory: packages/python-sdk
+        run: |
+          pip install hatch
+          hatch build
+          rm -rf dist/
 
   test-postgres:
     runs-on: ubuntu-latest

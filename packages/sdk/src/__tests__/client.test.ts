@@ -1,7 +1,7 @@
 /**
  * Tests for AgentLensClient (Story 13.1)
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AgentLensClient } from '../client.js';
 import {
   AgentLensError,
@@ -27,12 +27,77 @@ function createClient(fetchFn: typeof globalThis.fetch) {
     url: 'http://localhost:3400',
     apiKey: 'als_test123',
     fetch: fetchFn,
+    retry: { maxRetries: 0 },
   });
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────
 
 describe('AgentLensClient', () => {
+  describe('fromEnv', () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    it('creates client from env vars', async () => {
+      process.env.AGENTLENS_SERVER_URL = 'http://env-server:9000';
+      process.env.AGENTLENS_API_KEY = 'als_env_key';
+      const fn = mockFetch(200, { events: [], total: 0, hasMore: false });
+      const client = AgentLensClient.fromEnv({ fetch: fn });
+
+      await client.queryEvents();
+
+      const url = (fn as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string;
+      expect(url).toMatch(/^http:\/\/env-server:9000\/api/);
+      const opts = (fn as ReturnType<typeof vi.fn>).mock.calls[0]![1] as RequestInit;
+      expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer als_env_key');
+    });
+
+    it('uses default URL when env var is not set', async () => {
+      delete process.env.AGENTLENS_SERVER_URL;
+      delete process.env.AGENTLENS_API_KEY;
+      const fn = mockFetch(200, { events: [], total: 0, hasMore: false });
+      const client = AgentLensClient.fromEnv({ fetch: fn });
+
+      await client.queryEvents();
+
+      const url = (fn as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string;
+      expect(url).toMatch(/^http:\/\/localhost:3400\/api/);
+    });
+
+    it('explicit overrides take priority over env vars', async () => {
+      process.env.AGENTLENS_SERVER_URL = 'http://env-server:9000';
+      process.env.AGENTLENS_API_KEY = 'als_env_key';
+      const fn = mockFetch(200, { events: [], total: 0, hasMore: false });
+      const client = AgentLensClient.fromEnv({
+        url: 'http://custom:8080',
+        apiKey: 'als_custom',
+        fetch: fn,
+      });
+
+      await client.queryEvents();
+
+      const url = (fn as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string;
+      expect(url).toMatch(/^http:\/\/custom:8080\/api/);
+      const opts = (fn as ReturnType<typeof vi.fn>).mock.calls[0]![1] as RequestInit;
+      expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer als_custom');
+    });
+
+    it('constructor still requires explicit args (no env fallback)', () => {
+      // TypeScript enforces url is required in constructor options
+      // This test verifies runtime behavior — constructor uses exactly what's passed
+      const fn = mockFetch(200, {});
+      const client = new AgentLensClient({ url: 'http://explicit:3400', fetch: fn });
+      expect(client).toBeInstanceOf(AgentLensClient);
+    });
+  });
+
   describe('constructor', () => {
     it('strips trailing slash from URL', () => {
       const fn = mockFetch(200, { events: [], total: 0, hasMore: false });

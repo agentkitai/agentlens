@@ -1,0 +1,36 @@
+name: Publish Python SDK
+
+on:
+  push:
+    tags:
+      - 'python-sdk-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install hatch twine
+      - name: Run tests before publish
+        working-directory: packages/python-sdk
+        run: |
+          pip install -e ".[dev]"
+          pytest
+      - name: Build
+        working-directory: packages/python-sdk
+        run: hatch build
+      - name: Verify package
+        working-directory: packages/python-sdk
+        run: twine check dist/*
+      - name: Publish to PyPI
+        working-directory: packages/python-sdk
+        run: twine upload dist/*
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}

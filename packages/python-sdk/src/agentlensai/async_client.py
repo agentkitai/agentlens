@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import uuid
+import warnings
 from datetime import datetime, timezone
 from typing import Any
 
@@ -19,8 +22,15 @@ from agentlensai._utils import (
     build_session_query_params,
     map_http_error,
 )
-from agentlensai.exceptions import AgentLensConnectionError
+from agentlensai.exceptions import (
+    AgentLensConnectionError,
+    AuthenticationError,
+    BackpressureError,
+    QuotaExceededError,
+    RateLimitError,
+)
 from agentlensai.models import (
+    Agent,
     AgentLensEvent,
     ContextQuery,
     ContextResult,
@@ -33,6 +43,7 @@ from agentlensai.models import (
     GuardrailRuleListResult,
     GuardrailStatusResult,
     GuardrailTriggerHistoryResult,
+    HealthHistoryResult,
     HealthResult,
     HealthScore,
     Lesson,
@@ -68,9 +79,14 @@ class AsyncAgentLensClient:
             events = await client.query_events()
     """
 
+    _MAX_RETRIES = 3
+    _BACKOFF_BASE = 1.0  # seconds
+    _BACKOFF_MAX = 30.0
+
     def __init__(self, url: str, api_key: str | None = None) -> None:
         self._base_url = url.rstrip("/")
         self._api_key = api_key
+        self._logger = logging.getLogger("agentlensai")
         headers: dict[str, str] = {"Accept": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -97,15 +113,81 @@ class AsyncAgentLensClient:
         json: Any = None,
         skip_auth: bool = False,
     ) -> Any:
+        last_exc: Exception | None = None
+        for attempt in range(self._MAX_RETRIES + 1):
+            try:
+                response = await self._do_request(
+                    method, path, params=params, json=json, skip_auth=skip_auth,
+                )
+            except AgentLensConnectionError:
+                raise
+
+            if response.is_success:
+                return response.json()
+
+            error = map_http_error(response.status_code, response.text)
+
+            # 401 — never retry
+            if isinstance(error, AuthenticationError):
+                raise error
+
+            # 402 — quota exceeded, never retry
+            if isinstance(error, QuotaExceededError):
+                raise error
+
+            # 429 — rate limited, retry with Retry-After header
+            if isinstance(error, RateLimitError):
+                retry_after = response.headers.get("Retry-After")
+                if retry_after is not None:
+                    try:
+                        error.retry_after = float(retry_after)
+                    except (ValueError, TypeError):
+                        pass
+                if attempt < self._MAX_RETRIES:
+                    wait = error.retry_after if error.retry_after else self._backoff(attempt)
+                    self._logger.debug("AgentLens: 429 rate limited, retrying in %.1fs", wait)
+                    await asyncio.sleep(wait)
+                    last_exc = error
+                    continue
+                raise error
+
+            # 503 — backpressure, retry with exponential backoff
+            if isinstance(error, BackpressureError):
+                if attempt < self._MAX_RETRIES:
+                    wait = self._backoff(attempt)
+                    self._logger.debug("AgentLens: 503 backpressure, retrying in %.1fs", wait)
+                    await asyncio.sleep(wait)
+                    last_exc = error
+                    continue
+                raise error
+
+            # All other errors — no retry
+            raise error
+
+        # Should not reach here, but just in case
+        raise last_exc  # type: ignore[misc]
+
+    def _backoff(self, attempt: int) -> float:
+        """Exponential backoff with cap."""
+        return min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_MAX)
+
+    async def _do_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, str] | None = None,
+        json: Any = None,
+        skip_auth: bool = False,
+    ) -> httpx.Response:
+        """Execute a single HTTP request (no retry logic)."""
         if skip_auth and "Authorization" in self._client.headers:
-            # For health endpoint — exclude auth header.
-            # Build the request manually so we can strip the header before sending.
             try:
                 request = self._client.build_request(
                     method, path, params=params, json=json,
                 )
                 request.headers.pop("Authorization", None)
-                response = await self._client.send(request)
+                return await self._client.send(request)
             except httpx.ConnectError as exc:
                 raise AgentLensConnectionError(
                     f"Failed to connect to AgentLens at {self._base_url}: {exc}",
@@ -113,19 +195,14 @@ class AsyncAgentLensClient:
                 ) from exc
         else:
             try:
-                response = await self._client.request(
-                    method, path, params=params, json=json
+                return await self._client.request(
+                    method, path, params=params, json=json,
                 )
             except httpx.ConnectError as exc:
                 raise AgentLensConnectionError(
                     f"Failed to connect to AgentLens at {self._base_url}: {exc}",
                     cause=exc,
                 ) from exc
-
-        if not response.is_success:
-            raise map_http_error(response.status_code, response.text)
-
-        return response.json()
 
     # ─── Events ───────────────────────────────────────────
 
@@ -161,6 +238,13 @@ class AsyncAgentLensClient:
         """Get the full timeline for a session with hash chain verification."""
         data = await self._request("GET", f"/api/sessions/{session_id}/timeline")
         return TimelineResult.model_validate(data)
+
+    # ─── Agents ───────────────────────────────────────────
+
+    async def get_agent(self, agent_id: str) -> Agent:
+        """Get a single agent by ID, including model_override and paused_at."""
+        data = await self._request("GET", f"/api/agents/{agent_id}")
+        return Agent.model_validate(data)
 
     # ─── LLM Call Tracking ────────────────────────────────
 
@@ -201,6 +285,11 @@ class AsyncAgentLensClient:
 
     async def create_lesson(self, lesson: CreateLessonInput) -> Lesson:
         """Create a new lesson."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = await self._request(
             "POST",
             "/api/lessons",
@@ -212,22 +301,42 @@ class AsyncAgentLensClient:
         self, query: LessonQuery | None = None,
     ) -> LessonListResult:
         """List lessons with optional filters."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         params = build_lesson_query_params(query)
         data = await self._request("GET", "/api/lessons", params=params or None)
         return LessonListResult.model_validate(data)
 
     async def get_lesson(self, lesson_id: str) -> Lesson:
         """Get a single lesson by ID."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = await self._request("GET", f"/api/lessons/{lesson_id}")
         return Lesson.model_validate(data)
 
     async def update_lesson(self, lesson_id: str, updates: dict) -> Lesson:
         """Update a lesson."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = await self._request("PUT", f"/api/lessons/{lesson_id}", json=updates)
         return Lesson.model_validate(data)
 
     async def delete_lesson(self, lesson_id: str) -> DeleteLessonResult:
         """Delete (archive) a lesson."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = await self._request("DELETE", f"/api/lessons/{lesson_id}")
         return DeleteLessonResult.model_validate(data)
 
@@ -263,6 +372,12 @@ class AsyncAgentLensClient:
             "GET", f"/api/agents/{agent_id}/health", params=params,
         )
         return HealthScore.model_validate(data)
+
+    async def get_health_history(self, agent_id: str, days: int = 30) -> HealthHistoryResult:
+        """Get daily health score history for an agent."""
+        params = {"agentId": agent_id, "days": str(days)}
+        data = await self._request("GET", "/api/health/history", params=params)
+        return HealthHistoryResult.model_validate(data)
 
     async def get_health_overview(self, window: int = 7) -> list[HealthScore]:
         """Get health overview for all agents."""

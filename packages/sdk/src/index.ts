@@ -5,6 +5,7 @@
 // Client
 export { AgentLensClient } from './client.js';
 export type {
+  RetryConfig,
   AgentLensClientOptions,
   SessionQueryResult,
   TimelineResult,
@@ -29,6 +30,9 @@ export {
   NotFoundError,
   ValidationError,
   ConnectionError,
+  RateLimitError,
+  QuotaExceededError,
+  BackpressureError,
 } from './errors.js';
 
 // Re-export core types consumers will need

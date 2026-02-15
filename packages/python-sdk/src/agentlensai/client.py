@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 import time
 import uuid
 from datetime import datetime, timezone
@@ -42,6 +43,7 @@ from agentlensai.models import (
     GuardrailRuleListResult,
     GuardrailStatusResult,
     GuardrailTriggerHistoryResult,
+    HealthHistoryResult,
     HealthResult,
     HealthScore,
     Lesson,
@@ -272,6 +274,11 @@ class AgentLensClient:
 
     def create_lesson(self, lesson: CreateLessonInput) -> Lesson:
         """Create a new lesson."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = self._request(
             "POST",
             "/api/lessons",
@@ -283,22 +290,42 @@ class AgentLensClient:
         self, query: LessonQuery | None = None,
     ) -> LessonListResult:
         """List lessons with optional filters."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         params = build_lesson_query_params(query)
         data = self._request("GET", "/api/lessons", params=params or None)
         return LessonListResult.model_validate(data)
 
     def get_lesson(self, lesson_id: str) -> Lesson:
         """Get a single lesson by ID."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = self._request("GET", f"/api/lessons/{lesson_id}")
         return Lesson.model_validate(data)
 
     def update_lesson(self, lesson_id: str, updates: dict) -> Lesson:
         """Update a lesson."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = self._request("PUT", f"/api/lessons/{lesson_id}", json=updates)
         return Lesson.model_validate(data)
 
     def delete_lesson(self, lesson_id: str) -> DeleteLessonResult:
         """Delete (archive) a lesson."""
+        warnings.warn(
+            "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         data = self._request("DELETE", f"/api/lessons/{lesson_id}")
         return DeleteLessonResult.model_validate(data)
 
@@ -332,6 +359,12 @@ class AgentLensClient:
         params = {"window": str(window)}
         data = self._request("GET", f"/api/agents/{agent_id}/health", params=params)
         return HealthScore.model_validate(data)
+
+    def get_health_history(self, agent_id: str, days: int = 30) -> HealthHistoryResult:
+        """Get daily health score history for an agent."""
+        params = {"agentId": agent_id, "days": str(days)}
+        data = self._request("GET", "/api/health/history", params=params)
+        return HealthHistoryResult.model_validate(data)
 
     def get_health_overview(self, window: int = 7) -> list[HealthScore]:
         """Get health overview for all agents."""

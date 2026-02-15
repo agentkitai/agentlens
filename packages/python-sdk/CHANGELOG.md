@@ -1,35 +1,26 @@
 # Changelog
 
-## 0.4.0 (2026-02-08)
+All notable changes to the AgentLens Python SDK will be documented in this file.
 
-### Features — Auto-Instrumentation
-- **`agentlensai.init()`** — One-liner setup that auto-instruments installed LLM SDKs
-- **OpenAI integration** — Monkey-patches `chat.completions.create` (sync + async)
-- **Anthropic integration** — Monkey-patches `messages.create` (sync + async)
-- **LangChain callback handler** — `AgentLensCallbackHandler` for LLM + tool tracking
-- **Background event sender** — Fail-safe threaded queue, never blocks user code
-- **Redaction support** — `init(redact=True)` strips content, preserves metadata
-- **Session management** — Auto-generated or user-provided session IDs
-- **`agentlensai.shutdown()`** — Flush pending events and restore original methods
-- **158 tests** — 107 SDK + 51 instrumentation tests
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### Guarantees
-- Instrumentation errors never break user code (all wrapped in try/except)
-- Server unreachable → user code works normally
-- Streaming calls pass through uninstrumented (follow-up feature)
+## [0.11.0] - 2025-02-15
 
-## 0.3.0 (2026-02-08)
+### Added
+- Multi-provider support: Anthropic, LangChain, LiteLLM, Bedrock, Vertex AI, Gemini, Azure OpenAI, Mistral, Cohere, Ollama
+- `wrap()` decorator for automatic call capture
+- Async support throughout the SDK
+- Pydantic v2 models for type-safe API responses
+- Comprehensive test suite with pytest-asyncio
 
-Initial release — Python SDK for AgentLens.
+### Changed
+- Minimum Python version: 3.9
 
-### Features
-- **Sync client** (`AgentLensClient`) — full REST API coverage using `httpx`
-- **Async client** (`AsyncAgentLensClient`) — 1:1 async mirror using `httpx.AsyncClient`
-- **20 Pydantic v2 models** — typed events, sessions, queries, LLM payloads
-- **LLM call tracking** — `log_llm_call()` with paired event ingest and privacy redaction
-- **LLM analytics** — `get_llm_analytics()` for cost/usage aggregation
-- **Error hierarchy** — `AgentLensError`, `AuthenticationError`, `NotFoundError`, `ValidationError`, `AgentLensConnectionError`
-- **Context managers** — `with` / `async with` support
-- **PEP 561** — `py.typed` marker for downstream type checking
-- **107 tests** — comprehensive sync + async test suites
-- **mypy strict** — zero errors
+## [0.10.0] - 2025-01-15
+
+### Added
+- Initial public release
+- Core `AgentLens` client with session and event APIs
+- OpenAI integration via monkey-patching
+- Type-safe request/response models

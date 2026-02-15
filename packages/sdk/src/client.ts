@@ -33,9 +33,21 @@ import {
   NotFoundError,
   ValidationError,
   ConnectionError,
+  RateLimitError,
+  QuotaExceededError,
+  BackpressureError,
 } from './errors.js';
 
 // ─── Types ──────────────────────────────────────────────────────────
+
+export interface RetryConfig {
+  /** Maximum number of retries (default: 3) */
+  maxRetries?: number;
+  /** Base delay in ms for exponential backoff (default: 1000) */
+  backoffBaseMs?: number;
+  /** Maximum delay in ms (default: 30000) */
+  backoffMaxMs?: number;
+}
 
 export interface AgentLensClientOptions {
   /** Base URL of the AgentLens server (e.g. "http://localhost:3400") */
@@ -44,6 +56,16 @@ export interface AgentLensClientOptions {
   apiKey?: string;
   /** Custom fetch implementation (defaults to global fetch) */
   fetch?: typeof globalThis.fetch;
+  /** Request timeout in milliseconds (default: 30000) */
+  timeout?: number;
+  /** Retry configuration */
+  retry?: RetryConfig;
+  /** When true, all methods catch errors and return safe defaults instead of throwing */
+  failOpen?: boolean;
+  /** Called when an error is swallowed in fail-open mode (default: console.warn) */
+  onError?: (error: Error) => void;
+  /** Logger for internal warnings (default: console) */
+  logger?: { warn: (msg: string) => void };
 }
 
 export interface SessionQueryResult {
@@ -176,12 +198,40 @@ export class AgentLensClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private readonly _fetch: typeof globalThis.fetch;
+  private readonly timeout: number;
+  private readonly retryConfig: Required<RetryConfig>;
+  private readonly failOpen: boolean;
+  private readonly onError: (error: Error) => void;
+  private readonly logger: { warn: (msg: string) => void };
+
+  /**
+   * Create a client from environment variables.
+   * - `AGENTLENS_SERVER_URL` → url (default: "http://localhost:3400")
+   * - `AGENTLENS_API_KEY` → apiKey
+   * Explicit overrides take priority over env vars.
+   */
+  static fromEnv(overrides?: Partial<AgentLensClientOptions>): AgentLensClient {
+    return new AgentLensClient({
+      url: overrides?.url ?? process.env.AGENTLENS_SERVER_URL ?? 'http://localhost:3400',
+      apiKey: overrides?.apiKey ?? process.env.AGENTLENS_API_KEY,
+      fetch: overrides?.fetch,
+    });
+  }
 
   constructor(options: AgentLensClientOptions) {
     // Strip trailing slash
     this.baseUrl = options.url.replace(/\/+$/, '');
     this.apiKey = options.apiKey;
     this._fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+    this.timeout = options.timeout ?? 30_000;
+    this.retryConfig = {
+      maxRetries: options.retry?.maxRetries ?? 3,
+      backoffBaseMs: options.retry?.backoffBaseMs ?? 1_000,
+      backoffMaxMs: options.retry?.backoffMaxMs ?? 30_000,
+    };
+    this.failOpen = options.failOpen ?? false;
+    this.logger = options.logger ?? console;
+    this.onError = options.onError ?? ((err: Error) => this.logger.warn(`[AgentLens failOpen] ${err.message}`));
   }
 
   // ─── Events ──────────────────────────────────────────────
@@ -297,32 +347,39 @@ export class AgentLensClient {
       ...(redacted ? { redacted: true } : {}),
     };
 
-    // Send both events in a single batch request
-    await this.request('/api/events', {
-      method: 'POST',
-      body: {
-        events: [
-          {
-            sessionId,
-            agentId,
-            eventType: 'llm_call',
-            severity: 'info',
-            payload: llmCallPayload,
-            metadata: {},
-            timestamp,
-          },
-          {
-            sessionId,
-            agentId,
-            eventType: 'llm_response',
-            severity: 'info',
-            payload: llmResponsePayload,
-            metadata: {},
-            timestamp,
-          },
-        ],
-      },
-    });
+    const sendRequest = () =>
+      this.request('/api/events', {
+        method: 'POST',
+        body: {
+          events: [
+            {
+              sessionId,
+              agentId,
+              eventType: 'llm_call',
+              severity: 'info',
+              payload: llmCallPayload,
+              metadata: {},
+              timestamp,
+            },
+            {
+              sessionId,
+              agentId,
+              eventType: 'llm_response',
+              severity: 'info',
+              payload: llmResponsePayload,
+              metadata: {},
+              timestamp,
+            },
+          ],
+        },
+      });
+
+    if (this.failOpen) {
+      // Fire-and-forget: don't await, errors handled by request's fail-open wrapper
+      sendRequest().catch(() => {/* already handled by onError in request */});
+    } else {
+      await sendRequest();
+    }
 
     return { callId };
   }
@@ -595,7 +652,35 @@ export class AgentLensClient {
 
   // ─── Internal ────────────────────────────────────────────
 
+  /** Status codes that must never be retried */
+  private static readonly NON_RETRYABLE = new Set([400, 401, 402, 404]);
+
+  /**
+   * Calculate backoff delay: min(baseMs * 2^attempt + random(0, baseMs), maxMs)
+   */
+  private backoffDelay(attempt: number): number {
+    const { backoffBaseMs, backoffMaxMs } = this.retryConfig;
+    const delay = backoffBaseMs * Math.pow(2, attempt) + Math.random() * backoffBaseMs;
+    return Math.min(delay, backoffMaxMs);
+  }
+
   private async request<T>(
+    path: string,
+    options: { method?: string; body?: unknown; skipAuth?: boolean } = {},
+  ): Promise<T> {
+    try {
+      return await this._request<T>(path, options);
+    } catch (err) {
+      if (this.failOpen) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.onError(error);
+        return undefined as unknown as T;
+      }
+      throw err;
+    }
+  }
+
+  private async _request<T>(
     path: string,
     options: { method?: string; body?: unknown; skipAuth?: boolean } = {},
   ): Promise<T> {
@@ -613,21 +698,66 @@ export class AgentLensClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    let response: Response;
-    try {
-      response = await this._fetch(`${this.baseUrl}${path}`, {
-        method,
-        headers,
-        body: body != null ? JSON.stringify(body) : undefined,
-      });
-    } catch (err) {
-      throw new ConnectionError(
-        `Failed to connect to AgentLens at ${this.baseUrl}: ${err instanceof Error ? err.message : String(err)}`,
-        err,
-      );
-    }
+    const jsonBody = body != null ? JSON.stringify(body) : undefined;
+    const url = `${this.baseUrl}${path}`;
+    const { maxRetries } = this.retryConfig;
 
-    if (!response.ok) {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      // Wait before retry (not before first attempt)
+      if (attempt > 0 && lastError) {
+        let delayMs: number;
+
+        // For 429, respect Retry-After header if we stored it
+        if (
+          lastError instanceof RateLimitError &&
+          lastError.retryAfter != null
+        ) {
+          delayMs = lastError.retryAfter * 1_000;
+        } else {
+          delayMs = this.backoffDelay(attempt - 1);
+        }
+
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+
+      let response: Response;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeout);
+        try {
+          response = await this._fetch(url, {
+            method,
+            headers,
+            body: jsonBody,
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
+      } catch (err) {
+        // Timeout via AbortController
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          lastError = new ConnectionError(
+            `Request to ${url} timed out after ${this.timeout}ms`,
+          );
+          // Timeouts are retryable
+          continue;
+        }
+        // Network errors are retryable
+        lastError = new ConnectionError(
+          `Failed to connect to AgentLens at ${this.baseUrl}: ${err instanceof Error ? err.message : String(err)}`,
+          err,
+        );
+        continue;
+      }
+
+      if (response.ok) {
+        return response.json() as Promise<T>;
+      }
+
+      // Parse error body
       const text = await response.text().catch(() => '');
       let parsed: { error?: string; details?: unknown } | null = null;
       try {
@@ -637,18 +767,38 @@ export class AgentLensClient {
       }
       const message = parsed?.error ?? (text || `HTTP ${response.status}`);
 
-      switch (response.status) {
-        case 401:
-          throw new AuthenticationError(message);
-        case 404:
-          throw new NotFoundError(message);
-        case 400:
-          throw new ValidationError(message, parsed?.details);
-        default:
-          throw new AgentLensError(message, response.status, 'API_ERROR', parsed?.details);
+      // Non-retryable status codes — throw immediately
+      if (AgentLensClient.NON_RETRYABLE.has(response.status)) {
+        switch (response.status) {
+          case 401:
+            throw new AuthenticationError(message);
+          case 404:
+            throw new NotFoundError(message);
+          case 400:
+            throw new ValidationError(message, parsed?.details);
+          case 402:
+            throw new QuotaExceededError(message);
+        }
       }
+
+      // Retryable status codes
+      if (response.status === 429) {
+        const retryAfterHeader = response.headers?.get?.('Retry-After');
+        const retryAfter = retryAfterHeader ? parseFloat(retryAfterHeader) : null;
+        lastError = new RateLimitError(message, Number.isFinite(retryAfter) ? retryAfter : null);
+        continue;
+      }
+
+      if (response.status === 503) {
+        lastError = new BackpressureError(message);
+        continue;
+      }
+
+      // Other errors — not retryable
+      throw new AgentLensError(message, response.status, 'API_ERROR', parsed?.details);
     }
 
-    return response.json() as Promise<T>;
+    // All retries exhausted
+    throw lastError!;
   }
 }
