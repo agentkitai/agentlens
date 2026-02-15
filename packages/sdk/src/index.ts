@@ -23,6 +23,10 @@ export type {
   UpdateGuardrailRuleParams,
 } from './client.js';
 
+// Batch Sender
+export { BatchSender } from './batch-sender.js';
+export type { BatchSenderOptions } from './batch-sender.js';
+
 // Errors
 export {
   AgentLensError,

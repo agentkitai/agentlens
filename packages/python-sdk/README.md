@@ -1,10 +1,6 @@
-# AgentLens Python SDK
+# agentlensai
 
-[![PyPI](https://img.shields.io/pypi/v/agentlensai)](https://pypi.org/project/agentlensai/)
-[![Python](https://img.shields.io/pypi/pyversions/agentlensai)](https://pypi.org/project/agentlensai/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-
-Python SDK for [AgentLens](https://github.com/amitpaz1/agentlens) — observability and audit trail for AI agents.
+Python SDK for AgentLens — observability and audit trail for AI agents.
 
 ## Installation
 
@@ -12,262 +8,209 @@ Python SDK for [AgentLens](https://github.com/amitpaz1/agentlens) — observabil
 pip install agentlensai
 ```
 
-## Quick Start
+## Quick Start — Auto-Instrumentation
 
-### Sync Client
-
-```python
-from agentlensai import AgentLensClient, LogLlmCallParams, LlmMessage, TokenUsage
-
-client = AgentLensClient("http://localhost:3400", api_key="als_your_key")
-
-# Query events
-result = client.query_events()
-print(f"Total events: {result.total}")
-
-# Get sessions
-sessions = client.get_sessions()
-for session in sessions.sessions:
-    print(f"Session {session.id}: {session.status}")
-
-# Log an LLM call
-result = client.log_llm_call(
-    session_id="ses_abc",
-    agent_id="my-agent",
-    params=LogLlmCallParams(
-        provider="anthropic",
-        model="claude-sonnet-4-20250514",
-        messages=[LlmMessage(role="user", content="Hello!")],
-        completion="Hi there! How can I help?",
-        finish_reason="stop",
-        usage=TokenUsage(input_tokens=10, output_tokens=8, total_tokens=18),
-        cost_usd=0.001,
-        latency_ms=850,
-    ),
-)
-print(f"Logged LLM call: {result.call_id}")
-
-# Get LLM analytics
-analytics = client.get_llm_analytics()
-print(f"Total LLM calls: {analytics.summary.total_calls}")
-print(f"Total cost: ${analytics.summary.total_cost_usd:.2f}")
-
-client.close()
-```
-
-### Async Client
-
-```python
-import asyncio
-from agentlensai import AsyncAgentLensClient
-
-async def main():
-    async with AsyncAgentLensClient("http://localhost:3400", api_key="als_your_key") as client:
-        # All the same methods, but async
-        result = await client.query_events()
-        health = await client.health()
-        print(f"Server: {health.version}, Events: {result.total}")
-
-asyncio.run(main())
-```
-
-### Privacy-Aware Logging
-
-```python
-# Redact sensitive prompts/completions while keeping metadata
-result = client.log_llm_call(
-    session_id="ses_abc",
-    agent_id="my-agent",
-    params=LogLlmCallParams(
-        provider="openai",
-        model="gpt-4o",
-        messages=[LlmMessage(role="user", content="My SSN is 123-45-6789")],
-        completion="I'll process that...",
-        finish_reason="stop",
-        usage=TokenUsage(input_tokens=15, output_tokens=10, total_tokens=25),
-        cost_usd=0.002,
-        latency_ms=1200,
-        redact=True,  # Content replaced with [REDACTED], metadata preserved
-    ),
-)
-```
-
-## Auto-Instrumentation (v0.4.0+)
-
-One line of setup — every LLM call captured automatically. No code changes needed.
-
-```bash
-pip install agentlensai[openai]      # or agentlensai[anthropic] or agentlensai[all]
-```
+The fastest way to get started. One call instruments all installed LLM providers automatically.
 
 ```python
 import agentlensai
 
-# Automatically instruments OpenAI + Anthropic SDKs
-agentlensai.init(
-    url="http://localhost:3400",
-    api_key="als_your_key",
+session_id = agentlensai.init(
     agent_id="my-agent",
+    api_key="als_xxx",  # or set AGENTLENS_API_KEY
 )
 
-# Every call is now captured — deterministic, not MCP-dependent
+# That's it! All OpenAI/Anthropic/etc. calls are now tracked.
 import openai
 client = openai.OpenAI()
-response = client.chat.completions.create(
-    model="gpt-4o",
+client.chat.completions.create(
+    model="gpt-4",
     messages=[{"role": "user", "content": "Hello"}],
 )
-# ^ Automatically logged: model, tokens, cost, latency, prompts
+# ^ This call is automatically captured by AgentLens
 
-# Works with Anthropic too
+# When done:
+agentlensai.shutdown()
+```
+
+### `init()` Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `url` | `http://localhost:3400` | Server URL (positional) |
+| `server_url` | — | Server URL (keyword, takes precedence) |
+| `cloud` | `False` | Use AgentLens Cloud (`https://api.agentlens.ai`) |
+| `api_key` | `AGENTLENS_API_KEY` env | API key |
+| `agent_id` | `"default"` | Agent identifier |
+| `session_id` | auto-generated | Session ID |
+| `redact` | `False` | Strip prompt/completion content |
+| `pii_patterns` | `None` | List of regex patterns for PII filtering |
+| `pii_filter` | `None` | Custom filter function for strings |
+| `sync_mode` | `False` | Send events synchronously |
+| `integrations` | `"auto"` | Which providers to instrument |
+
+### Environment Variables
+
+| Env Var | Description |
+|---------|-------------|
+| `AGENTLENS_SERVER_URL` | Server URL |
+| `AGENTLENS_API_KEY` | API key |
+
+## Manual Client Usage
+
+```python
+from agentlensai import AgentLensClient
+
+client = AgentLensClient("http://localhost:3400", api_key="als_xxx")
+
+# Query events
+result = client.query_events(agent_id="my-agent", limit=10)
+for event in result.events:
+    print(event.event_type, event.timestamp)
+
+# Log an LLM call manually
+from agentlensai import LogLlmCallParams, LlmMessage, TokenUsage
+
+result = client.log_llm_call(
+    session_id="sess-1",
+    agent_id="my-agent",
+    params=LogLlmCallParams(
+        provider="openai",
+        model="gpt-4",
+        messages=[LlmMessage(role="user", content="Hello")],
+        completion="Hi there!",
+        finish_reason="stop",
+        usage=TokenUsage(input_tokens=5, output_tokens=3, total_tokens=8),
+        cost_usd=0.001,
+        latency_ms=450,
+    ),
+)
+print(result.call_id)
+
+# Context manager
+with AgentLensClient("http://localhost:3400") as client:
+    health = client.health()
+```
+
+## Async Client
+
+```python
+from agentlensai import AsyncAgentLensClient
+
+async def main():
+    async with AsyncAgentLensClient("http://localhost:3400", api_key="als_xxx") as client:
+        events = await client.query_events(agent_id="my-agent")
+        health = await client.health()
+```
+
+## PII Filtering
+
+Filter sensitive data before it leaves your application.
+
+### Built-in Patterns
+
+```python
+import agentlensai
+from agentlensai import PII_EMAIL, PII_SSN, PII_CREDIT_CARD, PII_PHONE
+
+agentlensai.init(
+    agent_id="my-agent",
+    pii_patterns=[PII_EMAIL, PII_SSN, PII_CREDIT_CARD, PII_PHONE],
+)
+# All email addresses, SSNs, credit cards, and phone numbers
+# are replaced with [REDACTED] before sending.
+```
+
+### Custom Filter
+
+```python
+import re
+
+def my_filter(text: str) -> str:
+    return re.sub(r"password=\S+", "password=[REDACTED]", text)
+
+agentlensai.init(
+    agent_id="my-agent",
+    pii_filter=my_filter,
+)
+```
+
+### Full Redaction
+
+```python
+agentlensai.init(agent_id="my-agent", redact=True)
+# All prompt/completion content is stripped entirely.
+```
+
+## Provider Examples
+
+### OpenAI
+
+```python
+import agentlensai
+import openai
+
+agentlensai.init(agent_id="my-agent")
+
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Explain quantum computing"}],
+)
+# Automatically tracked!
+```
+
+### Anthropic
+
+```python
+import agentlensai
 import anthropic
+
+agentlensai.init(agent_id="my-agent")
+
 client = anthropic.Anthropic()
 message = client.messages.create(
     model="claude-sonnet-4-20250514",
     max_tokens=1024,
-    messages=[{"role": "user", "content": "Hello"}],
+    messages=[{"role": "user", "content": "Hello, Claude"}],
 )
-# ^ Also captured automatically
-
-# Clean up when done
-agentlensai.shutdown()
+# Automatically tracked!
 ```
 
-### LangChain Integration
+### Selective Instrumentation
 
 ```python
-from agentlensai.integrations.langchain import AgentLensCallbackHandler
+# Only instrument OpenAI
+agentlensai.init(agent_id="my-agent", integrations="openai")
 
-handler = AgentLensCallbackHandler()
-chain.invoke(input, config={"callbacks": [handler]})
-# ^ Every LLM call, tool call, and chain event captured
+# Instrument specific providers
+agentlensai.init(agent_id="my-agent", integrations=["openai", "anthropic"])
 ```
 
-## Supported Providers (v0.10.0+)
-
-AgentLens supports **9 LLM providers** with automatic instrumentation:
-
-| Provider | Install | Status |
-|----------|---------|--------|
-| OpenAI | `pip install agentlensai[openai]` | ✅ Sync + Async + Streaming |
-| Anthropic | `pip install agentlensai[anthropic]` | ✅ Sync + Async + Streaming |
-| LiteLLM | `pip install agentlensai[litellm]` | ✅ 100+ providers via proxy |
-| AWS Bedrock | `pip install agentlensai[bedrock]` | ✅ All Bedrock models |
-| Google Vertex AI | `pip install agentlensai[vertex]` | ✅ Vertex model garden |
-| Google Gemini | `pip install agentlensai[gemini]` | ✅ Gemini API |
-| Mistral AI | `pip install agentlensai[mistral]` | ✅ All Mistral models |
-| Cohere | `pip install agentlensai[cohere]` | ✅ v1 + v2 API |
-| Ollama | `pip install agentlensai[ollama]` | ✅ Local models (free) |
-
-Install all providers at once:
-
-```bash
-pip install agentlensai[all-providers]
-```
-
-### Auto-Discovery
+## Error Handling
 
 ```python
-import agentlensai
-
-# Automatically discovers and instruments ALL installed provider SDKs
-agentlensai.init(
-    url="http://localhost:3400",
-    api_key="als_your_key",
-    agent_id="my-agent",
-    integrations="auto",  # default — instruments everything available
+from agentlensai import (
+    AgentLensError,
+    AuthenticationError,
+    NotFoundError,
+    ValidationError,
+    AgentLensConnectionError,
+    RateLimitError,
+    QuotaExceededError,
+    BackpressureError,
 )
+
+try:
+    client.get_event("bad-id")
+except NotFoundError:
+    print("Event not found")
+except RateLimitError as e:
+    print(f"Rate limited, retry after {e.retry_after}s")
+except AgentLensConnectionError:
+    print("Server unreachable")
 ```
 
-Or pick specific providers:
+## Lessons API (Deprecated)
 
-```python
-agentlensai.init(
-    url="http://localhost:3400",
-    integrations=["openai", "bedrock", "ollama"],
-)
-```
-
-### Provider Examples
-
-**Ollama (local, free):**
-```python
-import ollama
-response = ollama.chat(model="llama3", messages=[{"role": "user", "content": "Hello"}])
-# ^ Captured: model, tokens, latency (cost = $0)
-```
-
-**AWS Bedrock:**
-```python
-import boto3
-client = boto3.client("bedrock-runtime")
-response = client.invoke_model(modelId="anthropic.claude-3-haiku-20240307-v1:0", body=...)
-# ^ Captured with Bedrock-specific pricing
-```
-
-**LiteLLM (100+ providers):**
-```python
-import litellm
-response = litellm.completion(model="gpt-4", messages=[...])
-# ^ Captured with built-in cost calculation
-```
-
-### Migration from v0.4.0
-
-The old `instrument_openai()` / `instrument_anthropic()` functions still work:
-
-```python
-# Old way (still supported)
-from agentlensai.integrations.openai import instrument_openai
-instrument_openai()
-
-# New way (recommended)
-agentlensai.init(url="...", integrations="auto")
-```
-
-### Key Guarantees
-
-- **Deterministic** — Every call captured, not dependent on LLM behavior
-- **Fail-safe** — If AgentLens server is down, your code still works normally
-- **Zero overhead** — Events sent via background thread, doesn't block your calls
-- **Privacy** — `init(redact=True)` strips content, keeps metadata
-
-## Features
-
-- **Auto-Instrumentation** — One-liner setup for OpenAI, Anthropic, LangChain
-- **Sync & Async** — Both `AgentLensClient` and `AsyncAgentLensClient`
-- **Typed** — Full Pydantic v2 models, PEP 561 `py.typed` marker
-- **LLM Call Tracking** — Log prompts, completions, tokens, costs, latency
-- **Privacy Redaction** — Strip sensitive content while keeping analytics metadata
-- **Error Hierarchy** — `AgentLensError`, `AuthenticationError`, `NotFoundError`, `ValidationError`, `AgentLensConnectionError`
-- **Context Managers** — `with` / `async with` for automatic cleanup
-
-## API Reference
-
-| Method | Description |
-|--------|-------------|
-| `query_events(query?)` | Query events with filters and pagination |
-| `get_event(id)` | Get a single event by ID |
-| `get_sessions(query?)` | Query sessions |
-| `get_session(id)` | Get a single session |
-| `get_session_timeline(session_id)` | Get session timeline with hash chain verification |
-| `log_llm_call(session_id, agent_id, params)` | Log an LLM call with paired events |
-| `get_llm_analytics(params?)` | Get LLM cost/usage analytics |
-| `health()` | Check server health |
-
-## Documentation
-
-Full docs: [amitpaz1.github.io/agentlens](https://amitpaz1.github.io/agentlens/)
-
-## Development
-
-```bash
-pip install -e ".[dev]"
-pytest                    # 107 tests
-mypy src/ --strict        # Type checking
-ruff check src/ tests/    # Linting
-```
-
-## License
-
-MIT
+Lesson methods are deprecated. Use [lore-sdk](https://github.com/amitpaz1/lore) instead.

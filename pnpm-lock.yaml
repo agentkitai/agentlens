@@ -162,6 +162,27 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0
 
+  packages/sdk-integration-tests:
+    devDependencies:
+      '@agentlensai/core':
+        specifier: workspace:*
+        version: link:../core
+      '@agentlensai/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@agentlensai/server':
+        specifier: workspace:*
+        version: link:../server
+      '@hono/node-server':
+        specifier: ^1.14.1
+        version: 1.19.9(hono@4.11.8)
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(@cloudflare/workers-types@4.20260120.0)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)(bun-types@1.3.6)(postgres@3.4.8)
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.2.1)(jiti@2.6.1)(jsdom@28.0.0)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/server:
     dependencies:
       '@agentkit/auth':

@@ -1,0 +1,18 @@
+{
+  "name": "@agentlensai/sdk-integration-tests",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'nothing to build'",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@agentlensai/server": "workspace:*",
+    "@agentlensai/sdk": "workspace:*",
+    "@agentlensai/core": "workspace:*",
+    "@hono/node-server": "^1.14.1",
+    "drizzle-orm": "^0.44.2",
+    "vitest": "^4.0.18"
+  }
+}

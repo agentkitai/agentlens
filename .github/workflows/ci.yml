@@ -23,6 +23,7 @@ jobs:
       - run: pnpm --filter @agentlensai/server test
       - run: pnpm --filter @agentlensai/mcp test
       - run: pnpm --filter @agentlensai/sdk test
+      - run: pnpm --filter @agentlensai/sdk-integration-tests test
       - run: pnpm --filter @agentlensai/dashboard build
       - name: Verify SDK packaging
         run: cd packages/sdk && npm pack --dry-run
