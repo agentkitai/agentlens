@@ -20,7 +20,7 @@ describe('Event Query Endpoints (Story 4.5)', () => {
   let apiKey: string;
 
   beforeEach(async () => {
-    const ctx = createTestApp();
+    const ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
 

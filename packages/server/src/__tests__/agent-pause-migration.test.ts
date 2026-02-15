@@ -22,8 +22,8 @@ import { eq, and } from 'drizzle-orm';
 describe('Agent Pause/Override Migration (B1 — Story 1.2)', () => {
   let ctx: TestContext;
 
-  beforeEach(() => {
-    ctx = createTestApp({ authDisabled: false });
+  beforeEach(async () => {
+    ctx = await createTestApp({ authDisabled: false });
   });
 
   describe('Migration', () => {

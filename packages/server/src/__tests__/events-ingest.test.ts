@@ -7,7 +7,7 @@ import { createTestApp, authHeaders } from './test-helpers.js';
 
 describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   it('ingests a single event and returns id + hash', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -33,7 +33,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('ingests a batch of events', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -69,7 +69,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('assigns ULIDs as event IDs', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -92,7 +92,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('chains hashes within a session', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     // First batch
     const res1 = await app.request('/api/events', {
@@ -135,7 +135,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('returns 400 for invalid JSON body', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -150,7 +150,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('returns 400 for missing required fields', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -172,7 +172,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('returns 400 for invalid eventType', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -193,7 +193,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('returns 400 for empty events array', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -205,7 +205,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('validates payload against event-type-specific schema', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     // tool_call requires toolName, arguments, callId
     const res = await app.request('/api/events', {
@@ -229,7 +229,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('defaults severity to info when not provided', async () => {
-    const { app, apiKey, store } = createTestApp();
+    const { app, apiKey, store } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',
@@ -252,7 +252,7 @@ describe('Event Ingestion — POST /api/events (Story 4.4)', () => {
   });
 
   it('handles events across multiple sessions in a single batch', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/events', {
       method: 'POST',

@@ -72,7 +72,7 @@ function parseSSEMessages(text: string): Array<{ event: string; data: string }> 
  * Uses ReadableStream reader to collect chunks, then cancels.
  */
 async function sseRequest(
-  app: ReturnType<typeof createTestApp>['app'],
+  app: Awaited<ReturnType<typeof createTestApp>>['app'],
   url: string,
   opts?: {
     emitAfter?: () => void;
@@ -139,26 +139,26 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   });
 
   it('rejects unauthenticated requests when auth is enabled', async () => {
-    const { app } = createTestApp(); // auth enabled
+    const { app } = await createTestApp(); // auth enabled
     const res = await app.request('/api/stream');
     expect(res.status).toBe(401);
   });
 
   it('accepts ?token= query param for auth', async () => {
-    const { app, apiKey } = createTestApp(); // auth enabled
+    const { app, apiKey } = await createTestApp(); // auth enabled
     const { headers } = await sseRequest(app, `/api/stream?token=${apiKey}`);
     expect(headers.get('Content-Type')).toBe('text/event-stream');
   });
 
   it('returns SSE content-type headers', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
     const { headers } = await sseRequest(app, '/api/stream');
     expect(headers.get('Content-Type')).toBe('text/event-stream');
     expect(headers.get('Cache-Control')).toBe('no-cache');
   });
 
   it('sends initial heartbeat on connection', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
     const { messages } = await sseRequest(app, '/api/stream');
 
     const heartbeats = messages.filter((m) => m.event === 'heartbeat');
@@ -171,7 +171,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   });
 
   it('streams events from EventBus to SSE clients', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
     const event = mockEvent();
 
     const { messages } = await sseRequest(app, '/api/stream', {
@@ -195,7 +195,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   });
 
   it('filters events by sessionId', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
 
     const { messages } = await sseRequest(app, '/api/stream?sessionId=sess_002', {
       emitAfter: () => {
@@ -223,7 +223,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   });
 
   it('filters events by agentId', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
 
     const { messages } = await sseRequest(app, '/api/stream?agentId=agent_002', {
       emitAfter: () => {
@@ -249,7 +249,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   });
 
   it('filters events by eventType', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
 
     const { messages } = await sseRequest(app, '/api/stream?eventType=tool_error', {
       emitAfter: () => {
@@ -275,7 +275,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   });
 
   it('streams session_update events', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
 
     const { messages } = await sseRequest(app, '/api/stream', {
       emitAfter: () => {
@@ -298,7 +298,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   });
 
   it('streams alert events to all clients', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
 
     const { messages } = await sseRequest(app, '/api/stream?sessionId=sess_specific', {
       emitAfter: () => {
@@ -342,7 +342,7 @@ describe('SSE Stream — GET /api/stream (Story 14.1)', () => {
   });
 
   it('supports comma-separated eventType filter', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
 
     const { messages } = await sseRequest(app, '/api/stream?eventType=tool_call,tool_error', {
       emitAfter: () => {
@@ -375,7 +375,7 @@ describe('EventBus emission on ingestion (Story 14.1)', () => {
   });
 
   it('emits event_ingested when events are POST-ed to /api/events', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const emittedEvents: unknown[] = [];
     eventBus.on('event_ingested', (e) => emittedEvents.push(e));
@@ -400,7 +400,7 @@ describe('EventBus emission on ingestion (Story 14.1)', () => {
   });
 
   it('emits session_updated after event ingestion', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const emittedSessions: unknown[] = [];
     eventBus.on('session_updated', (e) => emittedSessions.push(e));

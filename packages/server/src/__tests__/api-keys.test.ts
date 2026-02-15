@@ -8,7 +8,7 @@ import { createTestApp, authHeaders } from './test-helpers.js';
 describe('API Key Management (Story 4.3)', () => {
   describe('POST /api/keys', () => {
     it('creates a new API key and returns the raw key once', async () => {
-      const { app, apiKey } = createTestApp();
+      const { app, apiKey } = await createTestApp();
       const res = await app.request('/api/keys', {
         method: 'POST',
         headers: authHeaders(apiKey),
@@ -25,7 +25,7 @@ describe('API Key Management (Story 4.3)', () => {
     });
 
     it('creates a key with defaults when no name/scopes provided', async () => {
-      const { app, apiKey } = createTestApp();
+      const { app, apiKey } = await createTestApp();
       const res = await app.request('/api/keys', {
         method: 'POST',
         headers: authHeaders(apiKey),
@@ -41,7 +41,7 @@ describe('API Key Management (Story 4.3)', () => {
 
   describe('GET /api/keys', () => {
     it('lists all keys without raw key in response', async () => {
-      const { app, apiKey } = createTestApp();
+      const { app, apiKey } = await createTestApp();
 
       // Create an additional key
       await app.request('/api/keys', {
@@ -72,7 +72,7 @@ describe('API Key Management (Story 4.3)', () => {
 
   describe('DELETE /api/keys/:id', () => {
     it('revokes (soft deletes) an API key', async () => {
-      const { app, apiKey } = createTestApp();
+      const { app, apiKey } = await createTestApp();
 
       // Create a key to revoke
       const createRes = await app.request('/api/keys', {
@@ -102,7 +102,7 @@ describe('API Key Management (Story 4.3)', () => {
     });
 
     it('returns 404 for non-existent key', async () => {
-      const { app, apiKey } = createTestApp();
+      const { app, apiKey } = await createTestApp();
       const res = await app.request('/api/keys/nonexistent-id', {
         method: 'DELETE',
         headers: authHeaders(apiKey),
@@ -112,7 +112,7 @@ describe('API Key Management (Story 4.3)', () => {
     });
 
     it('returns 409 for already revoked key', async () => {
-      const { app, apiKey } = createTestApp();
+      const { app, apiKey } = await createTestApp();
 
       // Create and revoke
       const createRes = await app.request('/api/keys', {

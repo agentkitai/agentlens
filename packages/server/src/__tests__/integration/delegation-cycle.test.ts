@@ -59,8 +59,8 @@ describe('Integration: Delegation Cycle', () => {
     }
   }
 
-  beforeEach(() => {
-    ctx = createTestApp();
+  beforeEach(async () => {
+    ctx = await createTestApp();
     transport = new LocalPoolTransport();
     delegationService = new DelegationService(ctx.db, transport, { acceptTimeoutMs: 30000 });
     discoveryService = new DiscoveryService(ctx.db);

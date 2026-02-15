@@ -22,7 +22,7 @@ export interface TestContext {
  * Create a test app with an in-memory database and a pre-created API key.
  * Auth is NOT disabled — use the returned apiKey for Bearer auth.
  */
-export function createTestApp(opts?: { authDisabled?: boolean; tenantId?: string }): TestContext {
+export async function createTestApp(opts?: { authDisabled?: boolean; tenantId?: string }): Promise<TestContext> {
   const db = createTestDb();
   runMigrations(db);
   const store = new SqliteEventStore(db);
@@ -41,7 +41,7 @@ export function createTestApp(opts?: { authDisabled?: boolean; tenantId?: string
     })
     .run();
 
-  const app = createApp(store, {
+  const app = await createApp(store, {
     authDisabled: opts?.authDisabled ?? false,
     db,
     corsOrigin: '*',

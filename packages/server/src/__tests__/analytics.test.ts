@@ -19,7 +19,7 @@ describe('Analytics Endpoints (Story 11.2)', () => {
   let apiKey: string;
 
   beforeEach(async () => {
-    const ctx = createTestApp();
+    const ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
 

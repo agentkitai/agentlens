@@ -7,8 +7,8 @@ import { createTestApp, authHeaders, type TestContext } from './test-helpers.js'
 
 let ctx: TestContext;
 
-beforeEach(() => {
-  ctx = createTestApp();
+beforeEach(async () => {
+  ctx = await createTestApp();
 });
 
 describe('POST /api/alerts/rules', () => {

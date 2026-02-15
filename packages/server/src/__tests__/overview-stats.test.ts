@@ -37,7 +37,7 @@ describe('Overview Stats API (Story S-3.2)', () => {
   let apiKey: string;
 
   beforeEach(async () => {
-    const ctx = createTestApp();
+    const ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
   });

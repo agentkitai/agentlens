@@ -19,7 +19,7 @@ describe('Agent Endpoints (Story 4.7)', () => {
   let apiKey: string;
 
   beforeEach(async () => {
-    const ctx = createTestApp();
+    const ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
 
@@ -99,7 +99,7 @@ describe('Agent Endpoints (Story 4.7)', () => {
 
 describe('Stats Endpoint (Story 4.7)', () => {
   it('returns storage statistics for empty database', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/stats', {
       headers: authHeaders(apiKey),
@@ -113,7 +113,7 @@ describe('Stats Endpoint (Story 4.7)', () => {
   });
 
   it('returns accurate stats after ingestion', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     await ingestEvents(app, apiKey, [
       {

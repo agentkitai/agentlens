@@ -146,6 +146,12 @@ export function runMigrations(db: SqliteDb): void {
   if (!apiKeyColumnNames.has('tenant_id')) {
     db.run(sql`ALTER TABLE api_keys ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
   }
+  if (!apiKeyColumnNames.has('created_by')) {
+    db.run(sql`ALTER TABLE api_keys ADD COLUMN created_by TEXT REFERENCES users(id)`);
+  }
+  if (!apiKeyColumnNames.has('role')) {
+    db.run(sql`ALTER TABLE api_keys ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'`);
+  }
 
   // events.tenant_id
   const eventColumns = db.all<{ name: string }>(sql`PRAGMA table_info(events)`);
@@ -669,6 +675,44 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_tenant_ts ON delegation_log(tenant_id, created_at)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_agent ON delegation_log(tenant_id, agent_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_delegation_status ON delegation_log(tenant_id, status)`);
+
+  // ─── Users Table (Enterprise Auth — S3) ─────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
+      email TEXT NOT NULL,
+      display_name TEXT,
+      oidc_subject TEXT,
+      oidc_issuer TEXT,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_login_at INTEGER,
+      disabled_at INTEGER
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+  db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_email ON users(tenant_id, email)`);
+  db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oidc ON users(oidc_issuer, oidc_subject)`);
+
+  // ─── Refresh Tokens Table (Enterprise Auth — S3) ───────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      tenant_id TEXT NOT NULL DEFAULT 'default',
+      token_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      user_agent TEXT,
+      ip_address TEXT
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash)`);
 
   // ─── Discovery Config (Story 5.4) ──────────────────────
   db.run(sql`

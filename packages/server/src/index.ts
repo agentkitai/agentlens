@@ -48,6 +48,7 @@ import { createLoreAdapter } from './lib/lore-client.js';
 import { meshProxyRoutes } from './routes/mesh-proxy.js';
 import { RemoteMeshAdapter } from './lib/mesh-client.js';
 import { otlpRoutes } from './routes/otlp.js';
+import { authRoutes } from './routes/auth.js';
 // audit routes removed (v0.12.0 — sharing audit moved to Lore)
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
@@ -164,7 +165,7 @@ function getDashboardIndexHtml(): string | null {
  * @param store - IEventStore implementation for data access
  * @param config - Optional partial config override (defaults from env)
  */
-export function createApp(
+export async function createApp(
   store: IEventStore,
   config?: Partial<ServerConfig> & {
     db?: SqliteDb;
@@ -231,6 +232,36 @@ export function createApp(
     agentgateWebhookSecret: process.env['AGENTGATE_WEBHOOK_SECRET'],
     formbridgeWebhookSecret: process.env['FORMBRIDGE_WEBHOOK_SECRET'],
   }));
+
+  // ─── OIDC Auth routes (no API key auth — handles own auth) ──
+  {
+    const authDb = config?.db;
+    if (authDb) {
+      const { loadOidcConfig } = await import('@agentkit/auth');
+      const oidcConfig = loadOidcConfig();
+      if (oidcConfig) {
+        const jwtSecret = process.env['JWT_SECRET'];
+        if (!jwtSecret && process.env['NODE_ENV'] === 'production') {
+          throw new Error('JWT_SECRET must be set in production. Refusing to start with default secret.');
+        }
+        if (!jwtSecret) {
+          log.warn('JWT_SECRET not set — using insecure default. Do NOT use in production.');
+        }
+        app.route('/auth', authRoutes(authDb, {
+          oidcConfig,
+          authConfig: {
+            oidc: null,
+            jwt: {
+              secret: jwtSecret ?? 'dev-secret-change-me',
+              accessTokenTtlSeconds: Number(process.env['JWT_ACCESS_TTL'] ?? 900),
+              refreshTokenTtlSeconds: Number(process.env['JWT_REFRESH_TTL'] ?? 604800),
+            },
+            authDisabled: resolvedConfig.authDisabled,
+          },
+        }));
+      }
+    }
+  }
 
   // ─── Auth middleware on protected routes ───────────────
   // We need the db reference for auth key lookup
@@ -434,7 +465,7 @@ export async function startServer() {
   }
 
   // Create app with db reference for auth
-  const app = createApp(store, { ...config, db, embeddingService, embeddingWorker });
+  const app = await createApp(store, { ...config, db, embeddingService, embeddingWorker });
 
   // Start listening
   log.info(`AgentLens server starting on port ${config.port}`);

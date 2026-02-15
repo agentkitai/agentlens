@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1771136847662,
+      "tag": "0000_fat_war_machine",
+      "breakpoints": true
+    }
+  ]
+}

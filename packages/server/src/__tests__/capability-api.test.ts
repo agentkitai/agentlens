@@ -16,7 +16,7 @@ describe('Capability Registration REST API (Story 5.2)', () => {
   };
 
   beforeEach(async () => {
-    ctx = createTestApp({ authDisabled: false });
+    ctx = await createTestApp({ authDisabled: false });
     // Create an agent
     await ctx.store.upsertAgent({ id: 'agent-1', name: 'Test Agent', tenantId: 'default' });
   });

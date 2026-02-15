@@ -17,7 +17,7 @@ function createMockEmbeddingService(): EmbeddingService {
 
 describe('GET /api/context (Story 5.4)', () => {
   it('returns 400 when topic parameter is missing', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
     const res = await app.request('/api/context', {
       headers: authHeaders(apiKey),
     });
@@ -28,7 +28,7 @@ describe('GET /api/context (Story 5.4)', () => {
   });
 
   it('returns 200 with empty results when no data exists', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
     const res = await app.request('/api/context?topic=deployment', {
       headers: authHeaders(apiKey),
     });
@@ -42,7 +42,7 @@ describe('GET /api/context (Story 5.4)', () => {
   });
 
   it('returns context with session summaries when data exists', async () => {
-    const { db, app, apiKey } = createTestApp();
+    const { db, app, apiKey } = await createTestApp();
     const { SessionSummaryStore } = await import('../db/session-summary-store.js');
     const summaryStore = new SessionSummaryStore(db);
 
@@ -70,7 +70,7 @@ describe('GET /api/context (Story 5.4)', () => {
   });
 
   it('returns empty lessons array (lessons moved to Lore service)', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/context?topic=Deployment', {
       headers: authHeaders(apiKey),
@@ -82,7 +82,7 @@ describe('GET /api/context (Story 5.4)', () => {
   });
 
   it('respects limit parameter', async () => {
-    const { db, app, apiKey } = createTestApp();
+    const { db, app, apiKey } = await createTestApp();
     const { SessionSummaryStore } = await import('../db/session-summary-store.js');
     const summaryStore = new SessionSummaryStore(db);
 
@@ -109,7 +109,7 @@ describe('GET /api/context (Story 5.4)', () => {
   });
 
   it('passes through agentId filter', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
 
     const res = await app.request('/api/context?topic=test&agentId=agent-1', {
       headers: authHeaders(apiKey),
@@ -121,13 +121,13 @@ describe('GET /api/context (Story 5.4)', () => {
   });
 
   it('requires authentication', async () => {
-    const { app } = createTestApp({ authDisabled: false });
+    const { app } = await createTestApp({ authDisabled: false });
     const res = await app.request('/api/context?topic=test');
     expect(res.status).toBe(401);
   });
 
   it('returns results with correct structure', async () => {
-    const { db, app, apiKey } = createTestApp();
+    const { db, app, apiKey } = await createTestApp();
     const { SessionSummaryStore } = await import('../db/session-summary-store.js');
     const summaryStore = new SessionSummaryStore(db);
 

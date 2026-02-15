@@ -4,6 +4,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { PageSkeleton } from './components/PageSkeleton';
 import { useFeatures } from './hooks/useFeatures';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { Login } from './pages/Login';
 
 // Lazy-loaded page components (named exports)
 const Overview = React.lazy(() => import('./pages/Overview').then(m => ({ default: m.Overview })));
@@ -43,12 +45,39 @@ const TeamManagement = React.lazy(() => import('./cloud/TeamManagement').then(m 
 const ApiKeyManagement = React.lazy(() => import('./cloud/ApiKeyManagement').then(m => ({ default: m.ApiKeyManagement })));
 const UsageDashboard = React.lazy(() => import('./cloud/UsageDashboard').then(m => ({ default: m.UsageDashboard })));
 
+function RequireAuth({ children }: { children: React.ReactElement }): React.ReactElement {
+  const { user, loading, authMode } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  // When SSO is not enabled, skip auth guard
+  if (authMode === 'api-key-only') return children;
+
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
 export function App(): React.ReactElement {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
+  );
+}
+
+function AppRoutes(): React.ReactElement {
   const { lore } = useFeatures();
 
   return (
     <Routes>
-      <Route element={<Layout />}>
+      <Route path="/login" element={<LoginGuard />} />
+      <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Suspense fallback={<PageSkeleton />}><Overview /></Suspense>} />
         <Route path="sessions" element={<Suspense fallback={<PageSkeleton />}><Sessions /></Suspense>} />
         <Route path="sessions/:id" element={<Suspense fallback={<PageSkeleton />}><SessionDetailPage /></Suspense>} />
@@ -84,4 +113,21 @@ export function App(): React.ReactElement {
       </Route>
     </Routes>
   );
+}
+
+function LoginGuard(): React.ReactElement {
+  const { user, loading, authMode } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Already authenticated or SSO not enabled → go to dashboard
+  if (user || authMode === 'api-key-only') return <Navigate to="/" replace />;
+
+  return <Login />;
 }

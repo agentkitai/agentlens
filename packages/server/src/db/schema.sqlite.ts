@@ -7,7 +7,7 @@
  * All indexes per Architecture §6.2.
  */
 
-import { sqliteTable, text, integer, real, blob, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, blob, index, uniqueIndex, primaryKey } from 'drizzle-orm/sqlite-core';
 
 // ─── Events Table ──────────────────────────────────────────
 export const events = sqliteTable(
@@ -162,6 +162,52 @@ export const lessons = sqliteTable(
   ],
 );
 
+// ─── Users Table (Enterprise Auth) ────────────────────────
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(), // ULID
+    tenantId: text('tenant_id').notNull().default('default'),
+    email: text('email').notNull(),
+    displayName: text('display_name'),
+    oidcSubject: text('oidc_subject'),
+    oidcIssuer: text('oidc_issuer'),
+    role: text('role').notNull().default('viewer'), // admin | editor | viewer
+    createdAt: integer('created_at').notNull(), // unix epoch
+    updatedAt: integer('updated_at').notNull(), // unix epoch
+    lastLoginAt: integer('last_login_at'),
+    disabledAt: integer('disabled_at'),
+  },
+  (table) => [
+    index('idx_users_tenant').on(table.tenantId),
+    index('idx_users_email').on(table.email),
+    uniqueIndex('idx_users_tenant_email').on(table.tenantId, table.email),
+    uniqueIndex('idx_users_oidc').on(table.oidcIssuer, table.oidcSubject),
+  ],
+);
+
+// ─── Refresh Tokens Table (Enterprise Auth) ───────────────
+export const refreshTokens = sqliteTable(
+  'refresh_tokens',
+  {
+    id: text('id').primaryKey(), // ULID
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    tenantId: text('tenant_id').notNull().default('default'),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: integer('expires_at').notNull(), // unix epoch
+    createdAt: integer('created_at').notNull(), // unix epoch
+    revokedAt: integer('revoked_at'),
+    userAgent: text('user_agent'),
+    ipAddress: text('ip_address'),
+  },
+  (table) => [
+    index('idx_refresh_tokens_user').on(table.userId),
+    index('idx_refresh_tokens_hash').on(table.tokenHash),
+  ],
+);
+
 // ─── API Keys ─────────────────────────────────────────────
 export const apiKeys = sqliteTable(
   'api_keys',
@@ -175,6 +221,8 @@ export const apiKeys = sqliteTable(
     revokedAt: integer('revoked_at'),
     rateLimit: integer('rate_limit'),
     tenantId: text('tenant_id').notNull().default('default'),
+    createdBy: text('created_by').references(() => users.id), // nullable FK → users
+    role: text('role').notNull().default('editor'), // admin | editor | viewer
   },
   (table) => [index('idx_api_keys_hash').on(table.keyHash)],
 );

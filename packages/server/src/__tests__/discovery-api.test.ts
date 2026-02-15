@@ -19,7 +19,7 @@ describe('Discovery REST API (Stories 5.3 + 5.4)', () => {
   };
 
   beforeEach(async () => {
-    ctx = createTestApp();
+    ctx = await createTestApp();
     capStore = new CapabilityStore(ctx.db);
     service = new DiscoveryService(ctx.db);
     // Lower trust threshold for most tests

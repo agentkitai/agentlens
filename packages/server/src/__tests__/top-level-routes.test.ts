@@ -35,7 +35,7 @@ describe('Top-level dashboard routes', () => {
        VALUES ('k1', 'test', '${hash}', 'default', '["*"]', '${new Date().toISOString()}')`,
     );
 
-    app = createApp(store, { db, authDisabled: true });
+    app = await createApp(store, { db, authDisabled: true });
 
     // Create an agent via events
     await app.request('/api/events', {

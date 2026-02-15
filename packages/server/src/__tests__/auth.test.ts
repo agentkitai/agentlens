@@ -10,7 +10,7 @@ import { eq } from 'drizzle-orm';
 
 describe('API Key Auth Middleware (Story 4.2)', () => {
   it('returns 401 when no Authorization header is provided', async () => {
-    const { app } = createTestApp();
+    const { app } = await createTestApp();
     const res = await app.request('/api/events');
 
     expect(res.status).toBe(401);
@@ -19,7 +19,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
   });
 
   it('returns 401 for invalid header format', async () => {
-    const { app } = createTestApp();
+    const { app } = await createTestApp();
     const res = await app.request('/api/events', {
       headers: { Authorization: 'Basic abc123' },
     });
@@ -30,7 +30,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
   });
 
   it('returns 401 for non-als_ prefixed key', async () => {
-    const { app } = createTestApp();
+    const { app } = await createTestApp();
     const res = await app.request('/api/events', {
       headers: { Authorization: 'Bearer sk_badprefix123' },
     });
@@ -39,7 +39,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
   });
 
   it('returns 401 for unknown API key', async () => {
-    const { app } = createTestApp();
+    const { app } = await createTestApp();
     const res = await app.request('/api/events', {
       headers: { Authorization: 'Bearer als_unknownkey1234567890abcdef1234567890abcdef1234567890abcdef12' },
     });
@@ -50,7 +50,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
   });
 
   it('returns 401 for revoked API key', async () => {
-    const { app, db } = createTestApp();
+    const { app, db } = await createTestApp();
 
     // Revoke the test key
     db.update(apiKeys)
@@ -66,7 +66,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
   });
 
   it('allows requests with a valid API key', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
     const res = await app.request('/api/events', {
       headers: authHeaders(apiKey),
     });
@@ -76,7 +76,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
   });
 
   it('skips auth when AUTH_DISABLED=true', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
     // No auth header
     const res = await app.request('/api/events');
 
@@ -84,7 +84,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
   });
 
   it('updates lastUsedAt on successful auth', async () => {
-    const { app, db, apiKey } = createTestApp();
+    const { app, db, apiKey } = await createTestApp();
     
     // Check lastUsedAt before
     const before = db.select().from(apiKeys).where(eq(apiKeys.id, 'test-key-id')).get();

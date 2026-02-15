@@ -8,8 +8,8 @@ import type { Hono } from 'hono';
 
 let ctx: TestContext;
 
-beforeEach(() => {
-  ctx = createTestApp();
+beforeEach(async () => {
+  ctx = await createTestApp();
 });
 
 /**
@@ -145,7 +145,7 @@ describe('GET /api/optimize/recommendations', () => {
 
   it('enforces tenant isolation', async () => {
     // Insert data for tenant A
-    const tenantACtx = createTestApp({ tenantId: 'tenant-a' });
+    const tenantACtx = await createTestApp({ tenantId: 'tenant-a' });
     for (let i = 0; i < 3; i++) {
       await insertLlmCallPair(tenantACtx.app, tenantACtx.apiKey, {
         model: 'gpt-4o',

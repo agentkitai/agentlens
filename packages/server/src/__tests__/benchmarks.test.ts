@@ -10,8 +10,8 @@ import type { Hono } from 'hono';
 
 let ctx: TestContext;
 
-beforeEach(() => {
-  ctx = createTestApp();
+beforeEach(async () => {
+  ctx = await createTestApp();
 });
 
 // ─── Helpers ───────────────────────────────────────────────

@@ -132,7 +132,7 @@ describe('Lore config validation', () => {
 
 describe('GET /api/config/features', () => {
   it('returns { lore: false } by default', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
     const res = await app.request('/api/config/features');
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -140,7 +140,7 @@ describe('GET /api/config/features', () => {
   });
 
   it('returns { lore: true } when loreEnabled', async () => {
-    const { app } = createTestApp({ authDisabled: true });
+    const { app } = await createTestApp({ authDisabled: true });
     // We need to create an app with loreEnabled — use createApp directly
     const { createApp } = await import('../index.js');
     const { createTestDb } = await import('../db/index.js');
@@ -149,7 +149,7 @@ describe('GET /api/config/features', () => {
     const db = createTestDb();
     runMigrations(db);
     const store = new SqliteEventStore(db);
-    const loreApp = createApp(store, { authDisabled: true, db, loreEnabled: true, loreMode: 'local' });
+    const loreApp = await createApp(store, { authDisabled: true, db, loreEnabled: true, loreMode: 'local' });
     const res = await loreApp.request('/api/config/features');
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -157,7 +157,7 @@ describe('GET /api/config/features', () => {
   });
 
   it('is accessible without authentication', async () => {
-    const { app } = createTestApp(); // auth enabled
+    const { app } = await createTestApp(); // auth enabled
     const res = await app.request('/api/config/features');
     // Should NOT be 401 — this endpoint is before auth middleware
     expect(res.status).toBe(200);

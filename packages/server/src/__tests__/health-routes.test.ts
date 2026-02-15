@@ -7,8 +7,8 @@ import { createTestApp, createApiKey, authHeaders, type TestContext } from './te
 
 let ctx: TestContext;
 
-beforeEach(() => {
-  ctx = createTestApp();
+beforeEach(async () => {
+  ctx = await createTestApp();
 });
 
 // ─── Helper: seed sessions for an agent ───────────────────────────

@@ -45,6 +45,7 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@agentkit/auth": "workspace:*",
     "@agentlensai/core": "workspace:*",
     "@hono/node-server": "^1.14.1",
     "@opentelemetry/otlp-transformer": "^0.211.0",

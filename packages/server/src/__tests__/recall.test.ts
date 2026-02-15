@@ -17,7 +17,7 @@ function createMockEmbeddingService(): EmbeddingService {
 
 describe('GET /api/recall (Story 2.6)', () => {
   it('returns 503 when embedding service is not configured', async () => {
-    const { app, apiKey } = createTestApp();
+    const { app, apiKey } = await createTestApp();
     // Default: no embedding service configured
     const res = await app.request('/api/recall?query=test', {
       headers: authHeaders(apiKey),
@@ -29,7 +29,7 @@ describe('GET /api/recall (Story 2.6)', () => {
   });
 
   it('returns 400 when query parameter is missing', async () => {
-    const { app, apiKey, db } = createTestApp();
+    const { app, apiKey, db } = await createTestApp();
     // We need an app with embedding service configured
     // But for this test, even without it, the 503 will trigger before 400
     // Let's create a custom app
@@ -38,7 +38,7 @@ describe('GET /api/recall (Story 2.6)', () => {
     const store = new SqliteEventStore(db);
     const mockService = createMockEmbeddingService();
 
-    const appWithEmbeddings = createApp(store, {
+    const appWithEmbeddings = await createApp(store, {
       authDisabled: true,
       db,
       embeddingService: mockService,
@@ -51,7 +51,7 @@ describe('GET /api/recall (Story 2.6)', () => {
   });
 
   it('returns results with correct structure', async () => {
-    const { db } = createTestApp();
+    const { db } = await createTestApp();
     const { createApp } = await import('../index.js');
     const { SqliteEventStore } = await import('../db/sqlite-store.js');
     const { EmbeddingStore } = await import('../db/embedding-store.js');
@@ -70,7 +70,7 @@ describe('GET /api/recall (Story 2.6)', () => {
       3,
     );
 
-    const appWithEmbeddings = createApp(store, {
+    const appWithEmbeddings = await createApp(store, {
       authDisabled: true,
       db,
       embeddingService: mockService,
@@ -101,7 +101,7 @@ describe('GET /api/recall (Story 2.6)', () => {
   });
 
   it('respects scope parameter', async () => {
-    const { db } = createTestApp();
+    const { db } = await createTestApp();
     const { createApp } = await import('../index.js');
     const { SqliteEventStore } = await import('../db/sqlite-store.js');
     const { EmbeddingStore } = await import('../db/embedding-store.js');
@@ -119,7 +119,7 @@ describe('GET /api/recall (Story 2.6)', () => {
       new Float32Array([0.1, 0.2, 0.3]), 'test-model', 3,
     );
 
-    const appWithEmbeddings = createApp(store, {
+    const appWithEmbeddings = await createApp(store, {
       authDisabled: true,
       db,
       embeddingService: mockService,
@@ -137,7 +137,7 @@ describe('GET /api/recall (Story 2.6)', () => {
   });
 
   it('respects limit parameter', async () => {
-    const { db } = createTestApp();
+    const { db } = await createTestApp();
     const { createApp } = await import('../index.js');
     const { SqliteEventStore } = await import('../db/sqlite-store.js');
     const { EmbeddingStore } = await import('../db/embedding-store.js');
@@ -153,7 +153,7 @@ describe('GET /api/recall (Story 2.6)', () => {
       );
     }
 
-    const appWithEmbeddings = createApp(store, {
+    const appWithEmbeddings = await createApp(store, {
       authDisabled: true,
       db,
       embeddingService: mockService,
@@ -167,19 +167,19 @@ describe('GET /api/recall (Story 2.6)', () => {
   });
 
   it('requires auth when auth is enabled', async () => {
-    const { app } = createTestApp({ authDisabled: false });
+    const { app } = await createTestApp({ authDisabled: false });
     const res = await app.request('/api/recall?query=test');
     expect(res.status).toBe(401);
   });
 
   it('returns empty results for unmatched queries', async () => {
-    const { db } = createTestApp();
+    const { db } = await createTestApp();
     const { createApp } = await import('../index.js');
     const { SqliteEventStore } = await import('../db/sqlite-store.js');
     const store = new SqliteEventStore(db);
     const mockService = createMockEmbeddingService();
 
-    const appWithEmbeddings = createApp(store, {
+    const appWithEmbeddings = await createApp(store, {
       authDisabled: true,
       db,
       embeddingService: mockService,

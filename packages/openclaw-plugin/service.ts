@@ -1,11 +1,22 @@
 /**
- * AgentLens Relay Service v4
- * 
- * Wraps globalThis.fetch to intercept Anthropic API calls directly.
- * Captures request bodies (prompts) and response bodies (usage/tokens).
- * Posts structured events to AgentLens.
+ * AgentLens Relay Service v5
+ *
+ * Subscribes to OpenClaw's internal diagnostic event system for comprehensive telemetry:
+ * - model.usage → LLM call tracking (tokens, cost, duration, per-agent)
+ * - session.state → Session lifecycle (idle/processing/waiting)
+ * - message.processed → Message handling outcomes
+ * - run.attempt → Agent run tracking
+ * - session.stuck → Stuck session alerts
+ * - diagnostic.heartbeat → System health
+ *
+ * ALSO wraps globalThis.fetch for Anthropic API calls to capture:
+ * - Prompt content (request body)
+ * - Tool calls (response body)
+ *
+ * Combined: full observability of all agents (main + sub-agents like BMAD pm/dev/qa).
  */
-import type { OpenClawPluginService } from "openclaw/plugin-sdk";
+import type { OpenClawPluginService, DiagnosticEventPayload } from "openclaw/plugin-sdk";
+import { onDiagnosticEvent } from "openclaw/plugin-sdk";
 import http from "node:http";
 import fs from "node:fs";
 
@@ -26,6 +37,33 @@ function estimateCost(model: string, inputTokens: number, outputTokens: number, 
   const c = MODEL_COSTS[key];
   const uncachedInput = Math.max(0, inputTokens - cacheRead - cacheWrite);
   return (uncachedInput * c.input + outputTokens * c.output + cacheRead * c.cacheRead + cacheWrite * c.cacheWrite) / 1_000_000;
+}
+
+// ── Event batching ───────────────────────────────────────────────────
+
+let eventBuffer: Record<string, unknown>[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+const FLUSH_INTERVAL = 2000; // 2 seconds
+const FLUSH_MAX_BATCH = 50;
+
+function enqueueEvent(event: Record<string, unknown>) {
+  eventBuffer.push(event);
+  if (eventBuffer.length >= FLUSH_MAX_BATCH) {
+    flushEvents();
+  } else if (!flushTimer) {
+    flushTimer = setTimeout(flushEvents, FLUSH_INTERVAL);
+  }
+}
+
+function flushEvents() {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  if (eventBuffer.length === 0) return;
+  const batch = eventBuffer;
+  eventBuffer = [];
+  postToAgentLens(batch, `batch(${batch.length})`);
 }
 
 function postToAgentLens(events: Record<string, unknown>[], label?: string) {
@@ -50,7 +88,6 @@ function postToAgentLens(events: Record<string, unknown>[], label?: string) {
     req.on("error", (err: Error) => { debugLog(`POST_NET_ERROR[${label || "?"}]: ${err.message}`); });
     req.write(body);
     req.end();
-    debugLog(`POST_SENT[${label || "?"}]: ${body.length} bytes`);
   } catch (err: any) {
     debugLog(`POST_THROW[${label || "?"}]: ${err.message}`);
   }
@@ -60,9 +97,155 @@ function debugLog(msg: string) {
   try { fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} ${msg}\n`); } catch {}
 }
 
+// ── Diagnostic event → AgentLens event translation ───────────────────
+
+function resolveAgentId(sessionKey?: string): string {
+  if (!sessionKey) return AGENT_ID;
+  // Extract agent ID from session key format: "agent:<agentId>:<rest>"
+  const match = sessionKey.match(/^agent:([^:]+)/);
+  return match ? match[1] : AGENT_ID;
+}
+
+function handleModelUsage(evt: Extract<DiagnosticEventPayload, { type: "model.usage" }>) {
+  const agentId = resolveAgentId(evt.sessionKey);
+  const inputTokens = evt.usage.input || 0;
+  const outputTokens = evt.usage.output || 0;
+  const cacheRead = evt.usage.cacheRead || 0;
+  const cacheWrite = evt.usage.cacheWrite || 0;
+  const costUsd = evt.costUsd || estimateCost(evt.model || "", inputTokens, outputTokens, cacheRead, cacheWrite);
+
+  enqueueEvent({
+    sessionId: evt.sessionId || evt.sessionKey || "unknown",
+    agentId,
+    eventType: "llm_response",
+    severity: "info",
+    payload: {
+      provider: evt.provider || "anthropic",
+      model: evt.model || "unknown",
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens: evt.usage.total || (inputTokens + outputTokens),
+        cacheReadTokens: cacheRead,
+        cacheWriteTokens: cacheWrite,
+        promptTokens: evt.usage.promptTokens || 0,
+      },
+      costUsd,
+      latencyMs: evt.durationMs || 0,
+      context: evt.context || null,
+    },
+    metadata: { source: "agentlens-relay-v5", channel: evt.channel },
+  });
+
+  debugLog(`DIAG[model.usage]: ${agentId} | ${evt.model} | ${inputTokens}in/${outputTokens}out | $${costUsd.toFixed(4)} | ${evt.durationMs}ms`);
+}
+
+function handleSessionState(evt: Extract<DiagnosticEventPayload, { type: "session.state" }>) {
+  const agentId = resolveAgentId(evt.sessionKey);
+  enqueueEvent({
+    sessionId: evt.sessionId || evt.sessionKey || "unknown",
+    agentId,
+    eventType: "session_state",
+    severity: "info",
+    payload: {
+      state: evt.state,
+      prevState: evt.prevState || null,
+      reason: evt.reason || null,
+      queueDepth: evt.queueDepth || 0,
+    },
+    metadata: { source: "agentlens-relay-v5" },
+  });
+}
+
+function handleMessageProcessed(evt: Extract<DiagnosticEventPayload, { type: "message.processed" }>) {
+  const agentId = resolveAgentId(evt.sessionKey);
+  enqueueEvent({
+    sessionId: evt.sessionId || evt.sessionKey || "unknown",
+    agentId,
+    eventType: "message_processed",
+    severity: evt.outcome === "error" ? "error" : "info",
+    payload: {
+      channel: evt.channel,
+      outcome: evt.outcome,
+      reason: evt.reason || null,
+      error: evt.error || null,
+      durationMs: evt.durationMs || 0,
+      messageId: evt.messageId || null,
+      chatId: evt.chatId || null,
+    },
+    metadata: { source: "agentlens-relay-v5" },
+  });
+}
+
+function handleRunAttempt(evt: Extract<DiagnosticEventPayload, { type: "run.attempt" }>) {
+  const agentId = resolveAgentId(evt.sessionKey);
+  enqueueEvent({
+    sessionId: evt.sessionId || evt.sessionKey || "unknown",
+    agentId,
+    eventType: "run_attempt",
+    severity: "info",
+    payload: {
+      runId: evt.runId,
+      attempt: evt.attempt,
+    },
+    metadata: { source: "agentlens-relay-v5" },
+  });
+}
+
+function handleSessionStuck(evt: Extract<DiagnosticEventPayload, { type: "session.stuck" }>) {
+  const agentId = resolveAgentId(evt.sessionKey);
+  enqueueEvent({
+    sessionId: evt.sessionId || evt.sessionKey || "unknown",
+    agentId,
+    eventType: "session_stuck",
+    severity: "warning",
+    payload: {
+      state: evt.state,
+      ageMs: evt.ageMs,
+      queueDepth: evt.queueDepth || 0,
+    },
+    metadata: { source: "agentlens-relay-v5" },
+  });
+
+  debugLog(`DIAG[session.stuck]: ${agentId} | age=${evt.ageMs}ms | queue=${evt.queueDepth}`);
+}
+
+function handleHeartbeat(evt: Extract<DiagnosticEventPayload, { type: "diagnostic.heartbeat" }>) {
+  enqueueEvent({
+    sessionId: "system",
+    agentId: AGENT_ID,
+    eventType: "system_heartbeat",
+    severity: "info",
+    payload: {
+      webhooks: evt.webhooks,
+      activeSessions: evt.active,
+      waitingSessions: evt.waiting,
+      queuedMessages: evt.queued,
+    },
+    metadata: { source: "agentlens-relay-v5" },
+  });
+}
+
+function handleMessageQueued(evt: Extract<DiagnosticEventPayload, { type: "message.queued" }>) {
+  const agentId = resolveAgentId(evt.sessionKey);
+  enqueueEvent({
+    sessionId: evt.sessionId || evt.sessionKey || "unknown",
+    agentId,
+    eventType: "message_queued",
+    severity: "info",
+    payload: {
+      channel: evt.channel || "unknown",
+      source: evt.source,
+      queueDepth: evt.queueDepth || 0,
+    },
+    metadata: { source: "agentlens-relay-v5" },
+  });
+}
+
+// ── Fetch wrapper for prompt/tool capture ────────────────────────────
+
 function extractPromptPreview(messages: any[]): string {
   if (!Array.isArray(messages)) return "";
-  // Find the last user message
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m?.role === "user") {
@@ -97,16 +280,48 @@ function extractToolCalls(responseBody: string): Array<{ toolName: string; toolC
 let origFetch: typeof globalThis.fetch | null = null;
 
 export function createAgentLensRelayService(): OpenClawPluginService {
+  let unsubscribe: (() => void) | null = null;
+
   return {
     id: "agentlens-relay",
 
     async start(ctx) {
-      ctx.logger.info("agentlens-relay v4: wrapping globalThis.fetch for Anthropic interception");
-      fs.writeFileSync(LOG_FILE, `=== agentlens-relay v4 started ${new Date().toISOString()} ===\n`);
+      ctx.logger.info("agentlens-relay v5: starting (diagnostic events + fetch wrapper)");
+      fs.writeFileSync(LOG_FILE, `=== agentlens-relay v5 started ${new Date().toISOString()} ===\n`);
 
-      // Save original fetch (may already be wrapped by preload — unwrap if so)
+      // ── Subscribe to OpenClaw diagnostic events ──────────────────
+      unsubscribe = onDiagnosticEvent((evt: DiagnosticEventPayload) => {
+        switch (evt.type) {
+          case "model.usage":
+            handleModelUsage(evt);
+            break;
+          case "session.state":
+            handleSessionState(evt);
+            break;
+          case "message.processed":
+            handleMessageProcessed(evt);
+            break;
+          case "message.queued":
+            handleMessageQueued(evt);
+            break;
+          case "run.attempt":
+            handleRunAttempt(evt);
+            break;
+          case "session.stuck":
+            handleSessionStuck(evt);
+            break;
+          case "diagnostic.heartbeat":
+            handleHeartbeat(evt);
+            break;
+          // queue.lane events are too noisy for AgentLens, skip them
+        }
+      });
+
+      debugLog("Subscribed to OpenClaw diagnostic events ✅");
+      ctx.logger.info("agentlens-relay v5: diagnostic event subscription active");
+
+      // ── Wrap fetch for prompt/tool capture ──────────────────────
       origFetch = globalThis.fetch;
-      // If there's a preload wrapper, try to get the real fetch
       const anyFetch = origFetch as any;
       if (anyFetch?.name === "patchedFetch" && typeof anyFetch.__origFetch === "function") {
         origFetch = anyFetch.__origFetch;
@@ -118,7 +333,6 @@ export function createAgentLensRelayService(): OpenClawPluginService {
       globalThis.fetch = async function agentlensRelayFetch(input: any, init?: any): Promise<Response> {
         const url = typeof input === "string" ? input : (input instanceof URL ? input.href : input?.url || "");
 
-        // Only intercept Anthropic API calls
         if (!url.includes("api.anthropic.com")) {
           return savedFetch!.call(this, input, init);
         }
@@ -149,10 +363,8 @@ export function createAgentLensRelayService(): OpenClawPluginService {
           }
         } catch {}
 
-        debugLog(`CALL: ${model} | prompt: ${promptPreview.slice(0, 80)}...`);
-
-        // Post the llm_call event immediately (match AgentLens expected schema)
-        postToAgentLens([{
+        // Post llm_call event with prompt content
+        enqueueEvent({
           sessionId: "openclaw-main",
           agentId: AGENT_ID,
           eventType: "llm_call",
@@ -169,22 +381,18 @@ export function createAgentLensRelayService(): OpenClawPluginService {
             toolNames: requestBody?.tools?.map((t: any) => t.name) || [],
             toolCount: requestBody?.tools?.length || 0,
           },
-          metadata: { source: "agentlens-relay" },
-        }]);
+          metadata: { source: "agentlens-relay-v5" },
+        });
 
-        // Make the actual request
         const response = await savedFetch!.call(this, input, init);
 
-        // Wrap the response body to tee the stream — clone() doesn't work well with SSE
+        // Tee response for tool call extraction
         const origBody = response.body;
         if (origBody) {
           const chunks: Uint8Array[] = [];
           const [stream1, stream2] = origBody.tee();
-
-          // Replace the response body with one branch
           Object.defineProperty(response, "body", { value: stream1, writable: true });
 
-          // Read the other branch in the background for telemetry
           (async () => {
             try {
               const reader = stream2.getReader();
@@ -194,98 +402,26 @@ export function createAgentLensRelayService(): OpenClawPluginService {
                 if (value) chunks.push(value);
               }
               const bodyText = Buffer.concat(chunks.map(c => Buffer.from(c))).toString("utf-8");
-            const durationMs = Date.now() - startTime;
 
-            let usage: any = null;
-            let responseModel = model;
-            let finishReason = "end_turn";
-
-            if (bodyText.includes("event:")) {
-              // SSE streaming response
-              for (const line of bodyText.split("\n")) {
-                if (!line.startsWith("data:")) continue;
-                try {
-                  const data = JSON.parse(line.replace(/^data:\s*/, ""));
-                  if (data.type === "message_start" && data.message) {
-                    responseModel = data.message.model || responseModel;
-                    if (data.message.usage) usage = { ...(usage || {}), ...data.message.usage };
-                  }
-                  if (data.type === "message_delta") {
-                    if (data.usage) usage = { ...(usage || {}), ...data.usage };
-                    if (data.delta?.stop_reason) finishReason = data.delta.stop_reason;
-                  }
-                } catch {}
-              }
-            } else {
-              // Non-streaming JSON response
-              try {
-                const j = JSON.parse(bodyText);
-                responseModel = j.model || responseModel;
-                usage = j.usage;
-                finishReason = j.stop_reason || "end_turn";
-              } catch {}
-            }
-
-            if (usage && (usage.input_tokens || usage.output_tokens)) {
-              const inputTokens = usage.input_tokens || 0;
-              const outputTokens = usage.output_tokens || 0;
-              const cacheRead = usage.cache_read_input_tokens || 0;
-              const cacheWrite = usage.cache_creation_input_tokens || 0;
-              const costUsd = estimateCost(responseModel, inputTokens, outputTokens, cacheRead, cacheWrite);
-
-              // Extract tool calls
+              // Extract tool calls from streaming response
               const toolCalls = extractToolCalls(bodyText);
-
-              // Post llm_response event
-              const events: Record<string, unknown>[] = [{
-                sessionId: "openclaw-main",
-                agentId: AGENT_ID,
-                eventType: "llm_response",
-                severity: "info",
-                payload: {
-                  callId,
-                  provider: "anthropic",
-                  model: responseModel,
-                  completion: "(streaming)",
-                  finishReason,
-                  usage: {
-                    inputTokens,
-                    outputTokens,
-                    totalTokens: inputTokens + outputTokens,
-                    cacheReadTokens: cacheRead,
-                    cacheWriteTokens: cacheWrite,
-                  },
-                  costUsd,
-                  latencyMs: durationMs,
-                  toolCallCount: toolCalls.length,
-                },
-                metadata: { source: "agentlens-relay" },
-              }];
-
-              // Post individual tool_call events
-              for (const tc of toolCalls) {
-                events.push({
-                  sessionId: "openclaw-main",
-                  agentId: AGENT_ID,
-                  eventType: "tool_call",
-                  severity: "info",
-                  payload: {
-                    callId,
-                    toolName: tc.toolName,
-                    toolCallId: tc.toolCallId,
-                  },
-                  metadata: { source: "agentlens-relay" },
-                });
+              if (toolCalls.length > 0) {
+                for (const tc of toolCalls) {
+                  enqueueEvent({
+                    sessionId: "openclaw-main",
+                    agentId: AGENT_ID,
+                    eventType: "tool_call",
+                    severity: "info",
+                    payload: {
+                      callId,
+                      toolName: tc.toolName,
+                      toolCallId: tc.toolCallId,
+                    },
+                    metadata: { source: "agentlens-relay-v5" },
+                  });
+                }
+                debugLog(`TOOLS: ${toolCalls.map(t => t.toolName).join(", ")}`);
               }
-
-              debugLog(`RESPONSE: ${responseModel} | ${inputTokens}in/${outputTokens}out | $${costUsd.toFixed(4)} | ${durationMs}ms | ${toolCalls.length} tools`);
-              postToAgentLens([events[0]], "llm_response");
-              if (events.length > 1) {
-                postToAgentLens(events.slice(1), "tool_calls");
-              }
-            } else {
-              debugLog(`NO_USAGE: status=${response.status} bodyLen=${bodyText.length}`);
-            }
             } catch (err: any) {
               debugLog(`ERROR reading response: ${err.message}`);
             }
@@ -295,20 +431,31 @@ export function createAgentLensRelayService(): OpenClawPluginService {
         return response;
       };
 
-      debugLog("globalThis.fetch wrapped successfully");
-      ctx.logger.info("agentlens-relay v4: fetch wrapped ✅");
+      debugLog("globalThis.fetch wrapped successfully ✅");
+      ctx.logger.info("agentlens-relay v5: fetch wrapped for prompt capture");
 
-      postToAgentLens([{
-        sessionId: "openclaw-main",
+      // Announce startup
+      enqueueEvent({
+        sessionId: "system",
         agentId: AGENT_ID,
         eventType: "custom",
         severity: "info",
-        payload: { type: "relay_v4_started", data: { ts: new Date().toISOString() } },
-        metadata: { source: "agentlens-relay" },
-      }]);
+        payload: { type: "relay_v5_started", data: { ts: new Date().toISOString() } },
+        metadata: { source: "agentlens-relay-v5" },
+      });
     },
 
     async stop() {
+      // Flush remaining events
+      flushEvents();
+
+      // Unsubscribe from diagnostic events
+      if (unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+
+      // Restore original fetch
       if (origFetch) {
         globalThis.fetch = origFetch;
         origFetch = null;

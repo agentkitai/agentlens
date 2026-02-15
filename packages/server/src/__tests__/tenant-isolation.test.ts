@@ -13,9 +13,9 @@ describe('End-to-End Tenant Isolation (Story 1.4)', () => {
   let keyA: string;
   let keyB: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Create test app with default tenant key
-    ctx = createTestApp({ tenantId: 'tenant-a' });
+    ctx = await createTestApp({ tenantId: 'tenant-a' });
 
     // The default key is already tenant-a; re-assign for clarity
     keyA = ctx.apiKey;
@@ -615,7 +615,7 @@ describe('End-to-End Tenant Isolation (Story 1.4)', () => {
 
   describe('Auth Middleware tenantId (Story 1.1)', () => {
     it('dev mode defaults tenantId to "default"', async () => {
-      const devCtx = createTestApp({ authDisabled: true });
+      const devCtx = await createTestApp({ authDisabled: true });
       const res = await devCtx.app.request('/api/events');
       expect(res.status).toBe(200);
       // Events should be empty — but the fact it returned 200 means auth passed

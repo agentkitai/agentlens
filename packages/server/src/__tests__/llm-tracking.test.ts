@@ -63,8 +63,8 @@ describe('LLM Call Tracking — Server Ingest & Storage (Epic 2)', () => {
   let app: Hono;
   let apiKey: string;
 
-  beforeEach(() => {
-    const ctx = createTestApp();
+  beforeEach(async () => {
+    const ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
   });

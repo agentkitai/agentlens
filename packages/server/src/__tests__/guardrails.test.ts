@@ -8,8 +8,8 @@ import { createTestApp, authHeaders, type TestContext } from './test-helpers.js'
 describe('Guardrail REST API', () => {
   let ctx: TestContext;
 
-  beforeEach(() => {
-    ctx = createTestApp({ authDisabled: false });
+  beforeEach(async () => {
+    ctx = await createTestApp({ authDisabled: false });
   });
 
   const validRule = {

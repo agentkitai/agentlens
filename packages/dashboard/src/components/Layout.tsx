@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { ErrorBoundary } from './ErrorBoundary';
 import { OrgSwitcher } from '../cloud/OrgSwitcher';
 import { useFeatures } from '../hooks/useFeatures';
+import { useAuth } from '../context/AuthContext';
 
 interface NavItem {
   to: string;
@@ -131,6 +132,7 @@ const MESH_NAV_PATHS = new Set(['/delegations']);
 export function Layout(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { lore, mesh } = useFeatures();
+  const { user, logout, authMode } = useAuth();
 
   const visibleSections = useMemo(
     () => navSections.map((section) => ({
@@ -211,6 +213,20 @@ export function Layout(): React.ReactElement {
             </svg>
           </button>
           <h1 className="ml-2 text-lg font-semibold text-gray-900 md:ml-0">Dashboard</h1>
+          <div className="ml-auto flex items-center gap-3">
+            {user && authMode === 'dual' && (
+              <>
+                <span className="hidden sm:inline text-sm text-gray-600">{user.name || user.email}</span>
+                <button
+                  type="button"
+                  onClick={() => { logout().then(() => { window.location.href = '/login'; }); }}
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                >
+                  Logout
+                </button>
+              </>
+            )}
+          </div>
         </header>
 
         {/* Page content */}

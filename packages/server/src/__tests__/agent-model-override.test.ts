@@ -23,7 +23,7 @@ describe('GET /api/agents/:id — Model Override Propagation (Story 3.2)', () =>
   let ctx: TestContext;
 
   beforeEach(async () => {
-    ctx = createTestApp();
+    ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
 

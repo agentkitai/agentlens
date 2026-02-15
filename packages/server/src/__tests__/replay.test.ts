@@ -118,7 +118,7 @@ describe('Story 2.2: Replay REST Endpoint', () => {
 
   beforeEach(async () => {
     replayCache.clear();
-    ctx = createTestApp();
+    ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
 
@@ -299,7 +299,7 @@ describe('Story 2.3: Replay Performance — Pagination & Caching', () => {
 
   beforeEach(async () => {
     replayCache.clear();
-    ctx = createTestApp();
+    ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
   });
