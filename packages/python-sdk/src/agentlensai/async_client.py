@@ -172,7 +172,7 @@ class AsyncAgentLensClient:
 
     def _backoff(self, attempt: int) -> float:
         """Exponential backoff with cap."""
-        return min(self._BACKOFF_BASE * (2**attempt), self._BACKOFF_MAX)
+        return min(self._BACKOFF_BASE * (2**attempt), self._BACKOFF_MAX)  # type: ignore[no-any-return]
 
     async def _do_request(
         self,
@@ -322,7 +322,7 @@ class AsyncAgentLensClient:
         data = await self._request("GET", f"/api/lessons/{lesson_id}")
         return Lesson.model_validate(data)
 
-    async def update_lesson(self, lesson_id: str, updates: dict) -> Lesson:
+    async def update_lesson(self, lesson_id: str, updates: dict[str, Any]) -> Lesson:
         """Update a lesson."""
         warnings.warn(
             "Lessons API is deprecated. Use lore-sdk instead. Will be removed in version 0.13.0.",

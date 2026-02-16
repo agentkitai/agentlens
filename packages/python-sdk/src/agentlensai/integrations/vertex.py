@@ -95,7 +95,7 @@ class VertexInstrumentation(BaseLLMInstrumentation):
             latency_ms=latency_ms,
         )
 
-    def _make_sync_wrapper(self, original):  # type: ignore[override]
+    def _make_sync_wrapper(self, original: Any) -> Any:
         """Override to capture model_name from GenerativeModel instance."""
         instrumentation = self
         import functools
@@ -135,7 +135,7 @@ class VertexInstrumentation(BaseLLMInstrumentation):
 
         return wrapper
 
-    def _make_async_wrapper(self, original):  # type: ignore[override]
+    def _make_async_wrapper(self, original: Any) -> Any:
         """Override to capture model_name from GenerativeModel instance."""
         instrumentation = self
         import functools

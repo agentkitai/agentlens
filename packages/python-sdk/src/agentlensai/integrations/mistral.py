@@ -183,7 +183,7 @@ class MistralInstrumentation(BaseLLMInstrumentation):
 
             return response
 
-        Chat.complete = patched_complete  # type: ignore[method-assign]
+        Chat.complete = patched_complete
 
         # --- Async complete ---
         orig_async = self._original_complete_async
@@ -209,7 +209,7 @@ class MistralInstrumentation(BaseLLMInstrumentation):
 
             return response
 
-        Chat.complete_async = patched_complete_async  # type: ignore[method-assign]
+        Chat.complete_async = patched_complete_async
 
         # --- Stream (pass-through, no capture) ---
         # Streaming calls are passed through without capture (same as other providers)
@@ -226,9 +226,9 @@ class MistralInstrumentation(BaseLLMInstrumentation):
             from mistralai.chat import Chat
 
             if self._original_complete is not None:
-                Chat.complete = self._original_complete  # type: ignore[method-assign]
+                Chat.complete = self._original_complete
             if self._original_complete_async is not None:
-                Chat.complete_async = self._original_complete_async  # type: ignore[method-assign]
+                Chat.complete_async = self._original_complete_async
         except ImportError:
             pass
 

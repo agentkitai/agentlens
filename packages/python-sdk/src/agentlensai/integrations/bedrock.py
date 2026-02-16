@@ -162,7 +162,7 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
         return False
 
     def _extract_model(self, kwargs: dict[str, Any], args: tuple[Any, ...]) -> str:
-        return kwargs.get("modelId", "unknown")
+        return str(kwargs.get("modelId", "unknown"))
 
     def _extract_call_data(
         self, response: Any, kwargs: dict[str, Any], latency_ms: float
@@ -291,7 +291,7 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
             except Exception:
                 pass
 
-        botocore.client.BaseClient.__init__ = patched_init  # type: ignore[method-assign]
+        botocore.client.BaseClient.__init__ = patched_init
         self._instrumented = True
         logger.debug("AgentLens: Bedrock integration instrumented")
 

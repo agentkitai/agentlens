@@ -14,7 +14,7 @@ PII_PHONE = re.compile(r"\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d
 
 def apply_pii_filters(
     value: Any,
-    patterns: list[re.Pattern] | None = None,
+    patterns: list[re.Pattern[str]] | None = None,
     pii_filter: Callable[[str], str] | None = None,
 ) -> Any:
     """Recursively apply PII filtering to a value (deep copy, no mutation).

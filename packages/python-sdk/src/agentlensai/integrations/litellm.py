@@ -95,9 +95,9 @@ def _build_call_data(
         model = str(model_hint)
     else:
         choice = response.choices[0] if getattr(response, "choices", None) else None
-        completion = (
-            choice.message.content
-            if choice and hasattr(choice, "message") and choice.message
+        completion: str | None = (
+            str(choice.message.content)
+            if choice and hasattr(choice, "message") and choice.message and choice.message.content
             else None
         )
         finish_reason = (

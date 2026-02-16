@@ -90,7 +90,7 @@ class GeminiInstrumentation(BaseLLMInstrumentation):
             latency_ms=latency_ms,
         )
 
-    def _make_sync_wrapper(self, original):  # type: ignore[override]
+    def _make_sync_wrapper(self, original: Any) -> Any:
         instrumentation = self
         import functools
 
@@ -128,7 +128,7 @@ class GeminiInstrumentation(BaseLLMInstrumentation):
 
         return wrapper
 
-    def _make_async_wrapper(self, original):  # type: ignore[override]
+    def _make_async_wrapper(self, original: Any) -> Any:
         instrumentation = self
         import functools
 

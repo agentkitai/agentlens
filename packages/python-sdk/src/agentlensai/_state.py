@@ -19,7 +19,7 @@ class InstrumentationState:
     agent_id: str
     session_id: str
     redact: bool = False
-    pii_patterns: list[re.Pattern] | None = None
+    pii_patterns: list[re.Pattern[str]] | None = None
     pii_filter: Callable[[str], str] | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
