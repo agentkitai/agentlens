@@ -11,18 +11,18 @@ Usage::
     instrument_providers(names=["openai"])          # explicit list
     uninstrument_providers()                        # restore all
 """
+
 from __future__ import annotations
 
 import logging
 import threading
-from typing import Type
 
 from agentlensai.integrations.base_llm import BaseLLMInstrumentation
 
 logger = logging.getLogger("agentlensai")
 
 # Maps provider name → instrumentation class
-REGISTRY: dict[str, Type[BaseLLMInstrumentation]] = {}
+REGISTRY: dict[str, type[BaseLLMInstrumentation]] = {}
 
 # Active (instrumented) instances — guarded by _lock
 _active: dict[str, BaseLLMInstrumentation] = {}
@@ -32,7 +32,7 @@ _lock = threading.Lock()
 def register(name: str):  # type: ignore[no-untyped-def]
     """Class decorator that registers a ``BaseLLMInstrumentation`` subclass."""
 
-    def decorator(cls: Type[BaseLLMInstrumentation]) -> Type[BaseLLMInstrumentation]:
+    def decorator(cls: type[BaseLLMInstrumentation]) -> type[BaseLLMInstrumentation]:
         REGISTRY[name] = cls
         return cls
 

@@ -150,9 +150,7 @@ class TestConstructor:
     @respx.mock
     def test_sets_auth_header_when_api_key_provided(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         client.query_events()
@@ -162,9 +160,7 @@ class TestConstructor:
     @respx.mock
     def test_no_auth_header_when_api_key_is_none(self) -> None:
         respx.get(f"{BASE_URL}/api/health").mock(
-            return_value=httpx.Response(
-                200, json={"status": "ok", "version": "1.0.0"}
-            )
+            return_value=httpx.Response(200, json={"status": "ok", "version": "1.0.0"})
         )
         client = AgentLensClient(BASE_URL)
         client.health()
@@ -199,9 +195,7 @@ class TestQueryEvents:
     @respx.mock
     def test_sends_correct_query_params(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         query = EventQuery(
@@ -221,9 +215,7 @@ class TestQueryEvents:
     @respx.mock
     def test_handles_array_event_type(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         query = EventQuery(event_type=["tool_call", "llm_call"])
@@ -235,9 +227,7 @@ class TestQueryEvents:
     @respx.mock
     def test_handles_array_severity(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         query = EventQuery(severity=["warn", "error"])
@@ -249,9 +239,7 @@ class TestQueryEvents:
     @respx.mock
     def test_omits_none_params(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         query = EventQuery(session_id="sess_001")
@@ -265,9 +253,7 @@ class TestQueryEvents:
     @respx.mock
     def test_sends_authorization_header(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         client.query_events()
@@ -277,17 +263,14 @@ class TestQueryEvents:
     @respx.mock
     def test_no_query_sends_no_params(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         client.query_events()
         url = respx.calls[0].request.url
         # Should have no query params
         assert dict(url.params) == {} or all(
-            k not in dict(url.params)
-            for k in ("sessionId", "eventType", "limit", "order")
+            k not in dict(url.params) for k in ("sessionId", "eventType", "limit", "order")
         )
         client.close()
 
@@ -311,9 +294,7 @@ class TestGetEvent:
     @respx.mock
     def test_throws_not_found_for_404(self) -> None:
         respx.get(f"{BASE_URL}/api/events/evt_missing").mock(
-            return_value=httpx.Response(
-                404, json={"error": "Event not found"}
-            )
+            return_value=httpx.Response(404, json={"error": "Event not found"})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         with pytest.raises(NotFoundError):
@@ -737,9 +718,7 @@ class TestHealth:
     @respx.mock
     def test_returns_health_result(self) -> None:
         respx.get(f"{BASE_URL}/api/health").mock(
-            return_value=httpx.Response(
-                200, json={"status": "ok", "version": "1.0.0"}
-            )
+            return_value=httpx.Response(200, json={"status": "ok", "version": "1.0.0"})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         result = client.health()
@@ -750,9 +729,7 @@ class TestHealth:
     @respx.mock
     def test_does_not_send_authorization_header(self) -> None:
         respx.get(f"{BASE_URL}/api/health").mock(
-            return_value=httpx.Response(
-                200, json={"status": "ok", "version": "1.0.0"}
-            )
+            return_value=httpx.Response(200, json={"status": "ok", "version": "1.0.0"})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         client.health()
@@ -767,9 +744,7 @@ class TestErrorHandling:
     @respx.mock
     def test_authentication_error_for_401(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                401, json={"error": "Invalid API key"}
-            )
+            return_value=httpx.Response(401, json={"error": "Invalid API key"})
         )
         client = AgentLensClient(BASE_URL, api_key="bad_key")
         with pytest.raises(AuthenticationError) as exc_info:
@@ -799,9 +774,7 @@ class TestErrorHandling:
     @respx.mock
     def test_not_found_error_for_404(self) -> None:
         respx.get(f"{BASE_URL}/api/sessions/missing").mock(
-            return_value=httpx.Response(
-                404, json={"error": "Session not found"}
-            )
+            return_value=httpx.Response(404, json={"error": "Session not found"})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         with pytest.raises(NotFoundError) as exc_info:
@@ -812,9 +785,7 @@ class TestErrorHandling:
     @respx.mock
     def test_agent_lens_error_for_500(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                500, json={"error": "Internal server error"}
-            )
+            return_value=httpx.Response(500, json={"error": "Internal server error"})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         with pytest.raises(AgentLensError) as exc_info:
@@ -861,9 +832,7 @@ class TestContextManager:
     @respx.mock
     def test_works_with_with_statement(self) -> None:
         respx.get(f"{BASE_URL}/api/health").mock(
-            return_value=httpx.Response(
-                200, json={"status": "ok", "version": "1.0.0"}
-            )
+            return_value=httpx.Response(200, json={"status": "ok", "version": "1.0.0"})
         )
         with AgentLensClient(BASE_URL) as client:
             result = client.health()
@@ -872,9 +841,7 @@ class TestContextManager:
     @respx.mock
     def test_closes_client_on_exit(self) -> None:
         respx.get(f"{BASE_URL}/api/health").mock(
-            return_value=httpx.Response(
-                200, json={"status": "ok", "version": "1.0.0"}
-            )
+            return_value=httpx.Response(200, json={"status": "ok", "version": "1.0.0"})
         )
         with AgentLensClient(BASE_URL) as client:
             client.health()
@@ -895,9 +862,7 @@ class TestEdgeCases:
     @respx.mock
     def test_event_query_with_search_param(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         query = EventQuery(search="error")
@@ -909,9 +874,7 @@ class TestEdgeCases:
     @respx.mock
     def test_event_query_with_from_and_to(self) -> None:
         respx.get(f"{BASE_URL}/api/events").mock(
-            return_value=httpx.Response(
-                200, json={"events": [], "total": 0, "hasMore": False}
-            )
+            return_value=httpx.Response(200, json={"events": [], "total": 0, "hasMore": False})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         query = EventQuery(from_time="2025-01-01", to="2025-01-31")

@@ -3,6 +3,7 @@
 Covers: init/shutdown lifecycle, EventSender, OpenAI monkey-patching,
 Anthropic monkey-patching, and fail-safe behaviour.
 """
+
 from __future__ import annotations
 
 import json
@@ -215,9 +216,7 @@ class TestEventSender:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         client = AgentLensClient("http://localhost:3400")
-        state = InstrumentationState(
-            client=client, agent_id="agent-x", session_id="ses-42"
-        )
+        state = InstrumentationState(client=client, agent_id="agent-x", session_id="ses-42")
 
         sender = EventSender(sync_mode=True)
         sender.send(state, _make_call_data())
@@ -314,9 +313,7 @@ class TestEventSender:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         client = AgentLensClient("http://localhost:3400")
-        state = InstrumentationState(
-            client=client, agent_id="t", session_id="s", redact=True
-        )
+        state = InstrumentationState(client=client, agent_id="t", session_id="s", redact=True)
 
         sender = EventSender(sync_mode=True)
         data = _make_call_data(system_prompt="Top secret instructions")
@@ -338,9 +335,7 @@ class TestEventSender:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         client = AgentLensClient("http://localhost:3400")
-        state = InstrumentationState(
-            client=client, agent_id="t", session_id="s", redact=False
-        )
+        state = InstrumentationState(client=client, agent_id="t", session_id="s", redact=False)
 
         sender = EventSender(sync_mode=True)
         sender.send(state, _make_call_data())
@@ -508,9 +503,7 @@ class TestOpenAIInstrumentation:
         with patch.object(oai_mod, "_original_create", return_value=mock_stream):
             import openai.resources.chat.completions as cmod
 
-            result = cmod.Completions.create(
-                MagicMock(), model="gpt-4o", messages=[], stream=True
-            )
+            result = cmod.Completions.create(MagicMock(), model="gpt-4o", messages=[], stream=True)
 
         assert result is mock_stream
 
@@ -520,9 +513,7 @@ class TestOpenAIInstrumentation:
 
         from agentlensai.integrations import openai as oai_mod
 
-        with patch.object(
-            oai_mod, "_original_create", side_effect=ValueError("rate limit!")
-        ):
+        with patch.object(oai_mod, "_original_create", side_effect=ValueError("rate limit!")):
             import openai.resources.chat.completions as cmod
 
             with pytest.raises(ValueError, match="rate limit!"):
@@ -542,15 +533,11 @@ class TestOpenAIInstrumentation:
 
         with (
             patch.object(oai_mod, "_original_create", return_value=mock_resp),
-            patch.object(
-                oai_mod, "_build_call_data", side_effect=RuntimeError("capture fail")
-            ),
+            patch.object(oai_mod, "_build_call_data", side_effect=RuntimeError("capture fail")),
         ):
             import openai.resources.chat.completions as cmod
 
-            result = cmod.Completions.create(
-                MagicMock(), model="gpt-4o", messages=[]
-            )
+            result = cmod.Completions.create(MagicMock(), model="gpt-4o", messages=[])
 
         assert result is mock_resp
 
@@ -645,9 +632,7 @@ class TestOpenAIInstrumentation:
         )
         init("http://localhost:3400", session_id="oai6", sync_mode=True)
 
-        mock_resp = _mock_openai_response(
-            prompt_tokens=100, completion_tokens=50, total_tokens=150
-        )
+        mock_resp = _mock_openai_response(prompt_tokens=100, completion_tokens=50, total_tokens=150)
 
         from agentlensai.integrations import openai as oai_mod
 
@@ -813,9 +798,7 @@ class TestAnthropicInstrumentation:
 
         from agentlensai.integrations import anthropic as ant_mod
 
-        with patch.object(
-            ant_mod, "_original_create", side_effect=ValueError("overloaded!")
-        ):
+        with patch.object(ant_mod, "_original_create", side_effect=ValueError("overloaded!")):
             from anthropic.resources.messages import Messages
 
             with pytest.raises(ValueError, match="overloaded!"):
@@ -840,9 +823,7 @@ class TestAnthropicInstrumentation:
 
         with (
             patch.object(ant_mod, "_original_create", return_value=mock_resp),
-            patch.object(
-                ant_mod, "_build_call_data", side_effect=RuntimeError("boom")
-            ),
+            patch.object(ant_mod, "_build_call_data", side_effect=RuntimeError("boom")),
         ):
             from anthropic.resources.messages import Messages
 
@@ -962,9 +943,7 @@ class TestFailSafe:
         with patch.object(oai_mod, "_original_create", return_value=mock_resp):
             import openai.resources.chat.completions as cmod
 
-            result = cmod.Completions.create(
-                MagicMock(), model="gpt-4o", messages=[]
-            )
+            result = cmod.Completions.create(MagicMock(), model="gpt-4o", messages=[])
 
         assert result is mock_resp
 
@@ -983,9 +962,7 @@ class TestFailSafe:
         with patch.object(oai_mod, "_original_create", return_value=mock_resp):
             import openai.resources.chat.completions as cmod
 
-            result = cmod.Completions.create(
-                MagicMock(), model="gpt-4o", messages=[]
-            )
+            result = cmod.Completions.create(MagicMock(), model="gpt-4o", messages=[])
 
         assert result is mock_resp
 
@@ -1002,9 +979,7 @@ class TestFailSafe:
         with patch.object(oai_mod, "_original_create", return_value=malformed):
             import openai.resources.chat.completions as cmod
 
-            result = cmod.Completions.create(
-                MagicMock(), model="gpt-4o", messages=[]
-            )
+            result = cmod.Completions.create(MagicMock(), model="gpt-4o", messages=[])
 
         assert result is malformed
 

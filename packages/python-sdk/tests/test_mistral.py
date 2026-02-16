@@ -2,22 +2,23 @@
 
 All mistralai dependencies are mocked — no API key needed.
 """
+
 from __future__ import annotations
 
 import asyncio
 import sys
 import types
 from typing import Any
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from agentlensai._sender import LlmCallData
 
-
 # ---------------------------------------------------------------------------
 # Mock mistralai module hierarchy
 # ---------------------------------------------------------------------------
+
 
 def _setup_mistral_mocks():
     """Create mock mistralai modules in sys.modules."""
@@ -49,16 +50,16 @@ def _setup_mistral_mocks():
 
 _MockChat = _setup_mistral_mocks()
 
-from agentlensai.integrations.mistral import (
+from agentlensai.integrations.mistral import (  # noqa: E402
     MistralInstrumentation,
     _build_call_data,
     _extract_messages,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers to build mock responses
 # ---------------------------------------------------------------------------
+
 
 def _make_response(
     content: str = "Hello!",
@@ -95,6 +96,7 @@ def _make_response(
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _reset():
     yield
@@ -121,6 +123,7 @@ def mock_sender():
 # S2.3: Message extraction
 # ---------------------------------------------------------------------------
 
+
 class TestMessageExtraction:
     def test_extract_with_system(self):
         messages = [
@@ -140,6 +143,7 @@ class TestMessageExtraction:
 # ---------------------------------------------------------------------------
 # S2.3: Call data building
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCallData:
     def test_basic_response(self):
@@ -173,6 +177,7 @@ class TestBuildCallData:
 # S2.3: Instrument / uninstrument lifecycle
 # ---------------------------------------------------------------------------
 
+
 class TestMistralInstrumentation:
     def test_instrument_uninstrument(self):
         inst = MistralInstrumentation()
@@ -195,11 +200,12 @@ class TestMistralInstrumentation:
         response = _make_response()
         chat_instance = _MockChat()
 
-        with patch("agentlensai._state.get_state", return_value=mock_state), \
-             patch("agentlensai._sender.get_sender", return_value=mock_sender):
+        with ( # noqa: SIM117
+            patch("agentlensai._state.get_state", return_value=mock_state),
+            patch("agentlensai._sender.get_sender", return_value=mock_sender),
+        ):
             # The patched complete expects (self, ...) so we call via the class
             # but we need to mock the original to return our response
-            orig = inst._original_complete
             # Patch the original to return our mock response
             with patch.object(type(chat_instance), "complete", return_value=response) as _:
                 # Actually call via the patched method on the class
@@ -210,7 +216,6 @@ class TestMistralInstrumentation:
         inst2 = MistralInstrumentation()
 
         # Save original, patch it, call the patched version
-        original_complete = _MockChat.complete
         inst2.instrument()
 
         # Now _MockChat.complete is patched
@@ -228,9 +233,13 @@ class TestMistralInstrumentation:
         inst2._instrumented = False
         inst2.instrument()
 
-        with patch("agentlensai._state.get_state", return_value=mock_state), \
-             patch("agentlensai._sender.get_sender", return_value=mock_sender):
-            result = _MockChat.complete(chat_instance, model="mistral-large", messages=[{"role": "user", "content": "Hi"}])
+        with (
+            patch("agentlensai._state.get_state", return_value=mock_state),
+            patch("agentlensai._sender.get_sender", return_value=mock_sender),
+        ):
+            result = _MockChat.complete(
+                chat_instance, model="mistral-large", messages=[{"role": "user", "content": "Hi"}]
+            )
 
         assert result == response
         assert mock_sender.send.called
@@ -274,9 +283,13 @@ class TestMistralInstrumentation:
         chat_instance = _MockChat()
 
         async def run():
-            with patch("agentlensai._state.get_state", return_value=mock_state), \
-                 patch("agentlensai._sender.get_sender", return_value=mock_sender):
-                return await _MockChat.complete_async(chat_instance, model="mistral-large", messages=[])
+            with (
+                patch("agentlensai._state.get_state", return_value=mock_state),
+                patch("agentlensai._sender.get_sender", return_value=mock_sender),
+            ):
+                return await _MockChat.complete_async(
+                    chat_instance, model="mistral-large", messages=[]
+                )
 
         result = asyncio.get_event_loop().run_until_complete(run())
         assert result == response
@@ -291,8 +304,10 @@ class TestMistralInstrumentation:
 # S2.3: Registry
 # ---------------------------------------------------------------------------
 
+
 class TestMistralRegistry:
     def test_registered(self):
         from agentlensai.integrations.registry import REGISTRY
+
         assert "mistral" in REGISTRY
         assert REGISTRY["mistral"] is MistralInstrumentation

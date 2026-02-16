@@ -6,22 +6,22 @@ Story 3.3 — AutoGen Plugin (8 tests)
 Story 3.4 — Semantic Kernel Plugin (8 tests)
 """
 
-from unittest.mock import MagicMock, AsyncMock, patch
 import uuid
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-
-from agentlensai.integrations.base import BaseFrameworkPlugin
-
 
 # ═══════════════════════════════════════════════════════════════
 # Story 3.1 — Enhanced LangChain Plugin (10 tests)
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestLangChainEnhanced:
     """Tests for enhanced LangChain callbacks (v0.8.0)."""
 
     def _make_handler(self, **kwargs):
         from agentlensai.integrations.langchain import AgentLensCallbackHandler
+
         client = MagicMock()
         defaults = {"client": client, "agent_id": "agent-1", "session_id": "ses-1"}
         defaults.update(kwargs)
@@ -175,13 +175,20 @@ class TestLangChainEnhanced:
 # Story 3.2 — CrewAI Plugin (10 tests)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestCrewAIPlugin:
     """Tests for CrewAI integration (v0.8.0)."""
 
     def _make_handler(self, **kwargs):
         from agentlensai.integrations.crewai import AgentLensCrewAIHandler
+
         client = MagicMock()
-        defaults = {"client": client, "agent_id": "agent-1", "session_id": "ses-1", "crew_name": "research-crew"}
+        defaults = {
+            "client": client,
+            "agent_id": "agent-1",
+            "session_id": "ses-1",
+            "crew_name": "research-crew",
+        }
         defaults.update(kwargs)
         handler = AgentLensCrewAIHandler(**defaults)
         return handler, client
@@ -343,11 +350,13 @@ class TestCrewAIPlugin:
 # Story 3.3 — AutoGen Plugin (8 tests)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestAutoGenPlugin:
     """Tests for AutoGen integration (v0.8.0)."""
 
     def _make_handler(self, **kwargs):
         from agentlensai.integrations.autogen import AgentLensAutoGenHandler
+
         client = MagicMock()
         defaults = {"client": client, "agent_id": "agent-1", "session_id": "ses-1"}
         defaults.update(kwargs)
@@ -453,7 +462,9 @@ class TestAutoGenPlugin:
         handler, client = self._make_handler()
         client._request.side_effect = Exception("Boom")
 
-        result = handler.on_message_sent(MagicMock(), MagicMock(), {"content": "test", "role": "user"})
+        result = handler.on_message_sent(
+            MagicMock(), MagicMock(), {"content": "test", "role": "user"}
+        )
         assert result == {"content": "test", "role": "user"}  # Must return unchanged
 
     # 8. all methods fail-safe
@@ -477,11 +488,13 @@ class TestAutoGenPlugin:
 # Story 3.4 — Semantic Kernel Plugin (8 tests)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestSemanticKernelPlugin:
     """Tests for Semantic Kernel integration (v0.8.0)."""
 
     def _make_handler(self, **kwargs):
         from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
+
         client = MagicMock()
         defaults = {"client": client, "agent_id": "agent-1", "session_id": "ses-1"}
         defaults.update(kwargs)
@@ -616,15 +629,18 @@ class TestSemanticKernelPlugin:
 # Auto-Detection Tests (shared)
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestAutoDetection:
     """Tests for framework auto-detection in init()."""
 
     def test_instrument_frameworks_handles_missing_crewai(self):
         """Should not error when crewai is not installed."""
         from agentlensai._init import _instrument_frameworks
+
         _instrument_frameworks()
 
     def test_uninstrument_frameworks_handles_missing(self):
         """Should not error when frameworks are not installed."""
         from agentlensai._init import _uninstrument_frameworks
+
         _uninstrument_frameworks()

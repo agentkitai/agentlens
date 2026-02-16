@@ -292,9 +292,7 @@ async def test_query_events_from_to_params():
 @respx.mock
 async def test_get_event_returns_typed_event():
     """get_event returns an AgentLensEvent."""
-    respx.get(f"{BASE}/api/events/evt-1").mock(
-        return_value=httpx.Response(200, json=SAMPLE_EVENT)
-    )
+    respx.get(f"{BASE}/api/events/evt-1").mock(return_value=httpx.Response(200, json=SAMPLE_EVENT))
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         event = await client.get_event("evt-1")
     assert event.id == "evt-1"
@@ -436,9 +434,7 @@ async def test_get_session_timeline_chain_invalid():
 @respx.mock
 async def test_log_llm_call_returns_call_id():
     """log_llm_call returns a LogLlmCallResult with a UUID call_id."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         result = await client.log_llm_call("sess-1", "agent-1", _make_llm_params())
     assert result.call_id  # non-empty string
@@ -450,9 +446,7 @@ async def test_log_llm_call_returns_call_id():
 @respx.mock
 async def test_log_llm_call_sends_two_events():
     """log_llm_call POSTs a batch of exactly 2 events."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         await client.log_llm_call("sess-1", "agent-1", _make_llm_params())
     body = json.loads(respx.calls[0].request.content)
@@ -462,9 +456,7 @@ async def test_log_llm_call_sends_two_events():
 @respx.mock
 async def test_log_llm_call_events_share_call_id():
     """Both events in the batch share the same callId."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         result = await client.log_llm_call("sess-1", "agent-1", _make_llm_params())
     body = json.loads(respx.calls[0].request.content)
@@ -477,9 +469,7 @@ async def test_log_llm_call_events_share_call_id():
 @respx.mock
 async def test_log_llm_call_event_types():
     """First event is llm_call, second is llm_response."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         await client.log_llm_call("sess-1", "agent-1", _make_llm_params())
     body = json.loads(respx.calls[0].request.content)
@@ -490,9 +480,7 @@ async def test_log_llm_call_event_types():
 @respx.mock
 async def test_log_llm_call_request_details():
     """The llm_call event payload contains request details."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     params = _make_llm_params(
         system_prompt="You are helpful",
         parameters={"temperature": 0.7},
@@ -515,9 +503,7 @@ async def test_log_llm_call_request_details():
 @respx.mock
 async def test_log_llm_call_response_details():
     """The llm_response event payload contains response details."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     params = _make_llm_params(
         tool_calls=[ToolCallDef(id="tc-1", name="search", arguments={"q": "test"})],
     )
@@ -539,9 +525,7 @@ async def test_log_llm_call_response_details():
 @respx.mock
 async def test_log_llm_call_null_completion():
     """Null completion is handled without error."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     params = _make_llm_params(completion=None)
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         result = await client.log_llm_call("sess-1", "agent-1", params)
@@ -553,9 +537,7 @@ async def test_log_llm_call_null_completion():
 @respx.mock
 async def test_log_llm_call_session_agent_ids():
     """Session and agent IDs are set correctly on both events."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         await client.log_llm_call("my-sess", "my-agent", _make_llm_params())
     body = json.loads(respx.calls[0].request.content)
@@ -567,9 +549,7 @@ async def test_log_llm_call_session_agent_ids():
 @respx.mock
 async def test_log_llm_call_redaction_strips_content():
     """With redact=True, message content is replaced with [REDACTED]."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     params = _make_llm_params(
         messages=[LlmMessage(role="user", content="Secret data")],
         system_prompt="Secret system prompt",
@@ -590,9 +570,7 @@ async def test_log_llm_call_redaction_strips_content():
 @respx.mock
 async def test_log_llm_call_redaction_preserves_metadata():
     """With redact=True, non-content metadata (provider, model, usage) is preserved."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     params = _make_llm_params(redact=True)
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         await client.log_llm_call("sess-1", "agent-1", params)
@@ -611,9 +589,7 @@ async def test_log_llm_call_redaction_preserves_metadata():
 @respx.mock
 async def test_log_llm_call_redaction_sets_flag():
     """With redact=True, both event payloads include redacted=true."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     params = _make_llm_params(redact=True)
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         await client.log_llm_call("sess-1", "agent-1", params)
@@ -625,9 +601,7 @@ async def test_log_llm_call_redaction_sets_flag():
 @respx.mock
 async def test_log_llm_call_no_redaction_by_default():
     """Without redact=True, content is sent in plaintext and no redacted flag is set."""
-    respx.post(f"{BASE}/api/events").mock(
-        return_value=httpx.Response(200, json={"ok": True})
-    )
+    respx.post(f"{BASE}/api/events").mock(return_value=httpx.Response(200, json={"ok": True}))
     params = _make_llm_params()
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         await client.log_llm_call("sess-1", "agent-1", params)

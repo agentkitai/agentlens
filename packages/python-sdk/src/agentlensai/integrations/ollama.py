@@ -6,6 +6,7 @@ passed through without capture.
 
 Cost is always $0 (local inference), but tokens are still tracked.
 """
+
 from __future__ import annotations
 
 import logging
@@ -40,11 +41,12 @@ def _extract_call_data(response: Any, kwargs: dict[str, Any], latency_ms: float)
     # Response is a dict with keys: model, message, eval_count, prompt_eval_count, etc.
     completion = None
     try:
-        msg = response.get("message", {}) if isinstance(response, dict) else getattr(response, "message", {})
-        if isinstance(msg, dict):
-            completion = msg.get("content")
-        else:
-            completion = getattr(msg, "content", None)
+        msg = (
+            response.get("message", {})
+            if isinstance(response, dict)
+            else getattr(response, "message", {})
+        )
+        completion = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
     except Exception:
         pass
 

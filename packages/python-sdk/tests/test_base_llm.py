@@ -1,24 +1,23 @@
 """Tests for BaseLLMInstrumentation base class (S0.1) and provider registry (S0.2),
 OpenAI/Anthropic refactor (S0.3/S0.4), and init() integrations param (S0.5).
 """
+
 from __future__ import annotations
 
 import sys
+
+# ---------------------------------------------------------------------------
+# Mock subclass for testing the base class
+# ---------------------------------------------------------------------------
+# We need a real module + class to patch. Use a dynamically created one.
+import types
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from agentlensai._sender import LlmCallData
 from agentlensai.integrations.base_llm import BaseLLMInstrumentation, PatchTarget
-
-
-# ---------------------------------------------------------------------------
-# Mock subclass for testing the base class
-# ---------------------------------------------------------------------------
-
-# We need a real module + class to patch. Use a dynamically created one.
-import types
 
 _fake_mod = types.ModuleType("_fake_llm_sdk")
 sys.modules["_fake_llm_sdk"] = _fake_mod
@@ -178,21 +177,22 @@ class TestProviderRegistry:
 
     def setup_method(self) -> None:
         from agentlensai.integrations.registry import _active
+
         _active.clear()
         # Reset FakeClient
         _FakeClient.create = lambda self, **kwargs: {"text": "original", "model": "fake-1"}
 
     def teardown_method(self) -> None:
         from agentlensai.integrations.registry import _active
+
         for inst in _active.values():
             inst.uninstrument()
         _active.clear()
 
     def test_register_decorator(self) -> None:
-        from agentlensai.integrations.registry import REGISTRY
         # OpenAI and Anthropic should already be registered via module import
         # Let's check our fake one
-        from agentlensai.integrations.registry import register
+        from agentlensai.integrations.registry import REGISTRY, register
 
         @register("fake_test")
         class FakeTestInst(FakeLLMInstrumentation):
@@ -267,7 +267,9 @@ class TestProviderRegistry:
             def _extract_model(self, kwargs: dict[str, Any], args: tuple[Any, ...]) -> str:
                 return "x"
 
-            def _extract_call_data(self, response: Any, kwargs: dict[str, Any], latency_ms: float) -> LlmCallData:
+            def _extract_call_data(
+                self, response: Any, kwargs: dict[str, Any], latency_ms: float
+            ) -> LlmCallData:
                 raise NotImplementedError
 
             def instrument(self) -> None:
@@ -281,6 +283,7 @@ class TestProviderRegistry:
 
     def test_unknown_provider_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         import logging
+
         from agentlensai.integrations.registry import instrument_providers
 
         with caplog.at_level(logging.WARNING, logger="agentlensai"):
@@ -298,10 +301,12 @@ class TestOpenAIRefactor:
 
     def test_inherits_base_class(self) -> None:
         from agentlensai.integrations.openai import OpenAIInstrumentation
+
         assert issubclass(OpenAIInstrumentation, BaseLLMInstrumentation)
 
     def test_registered_in_registry(self) -> None:
         from agentlensai.integrations.registry import REGISTRY
+
         assert "openai" in REGISTRY
 
 
@@ -315,10 +320,12 @@ class TestAnthropicRefactor:
 
     def test_inherits_base_class(self) -> None:
         from agentlensai.integrations.anthropic import AnthropicInstrumentation
+
         assert issubclass(AnthropicInstrumentation, BaseLLMInstrumentation)
 
     def test_registered_in_registry(self) -> None:
         from agentlensai.integrations.registry import REGISTRY
+
         assert "anthropic" in REGISTRY
 
 
@@ -334,16 +341,19 @@ class TestInitIntegrations:
         from agentlensai._sender import reset_sender
         from agentlensai._state import clear_state
         from agentlensai.integrations.registry import reset_registry
+
         reset_registry()
         clear_state()
         reset_sender()
 
     def teardown_method(self) -> None:
         import contextlib
+
         from agentlensai import shutdown
         from agentlensai._sender import reset_sender
         from agentlensai._state import clear_state
         from agentlensai.integrations.registry import reset_registry
+
         with contextlib.suppress(Exception):
             shutdown()
         reset_registry()
@@ -352,11 +362,13 @@ class TestInitIntegrations:
         # Reset OpenAI/Anthropic originals
         try:
             from agentlensai.integrations.openai import uninstrument_openai
+
             uninstrument_openai()
         except Exception:
             pass
         try:
             from agentlensai.integrations.anthropic import uninstrument_anthropic
+
             uninstrument_anthropic()
         except Exception:
             pass
@@ -365,6 +377,7 @@ class TestInitIntegrations:
         """integrations='auto' (or None) instruments all available providers."""
         from agentlensai import init
         from agentlensai.integrations.registry import get_active_providers
+
         init("http://localhost:3400", sync_mode=True, integrations="auto")
         active = get_active_providers()
         # Both openai and anthropic SDKs are installed in test env
@@ -375,6 +388,7 @@ class TestInitIntegrations:
         """integrations=["openai"] only instruments OpenAI."""
         from agentlensai import init
         from agentlensai.integrations.registry import get_active_providers
+
         init("http://localhost:3400", sync_mode=True, integrations=["openai"])
         active = get_active_providers()
         assert "openai" in active
@@ -384,6 +398,7 @@ class TestInitIntegrations:
         """integrations=[] instruments no providers."""
         from agentlensai import init
         from agentlensai.integrations.registry import get_active_providers
+
         init("http://localhost:3400", sync_mode=True, integrations=[])
         active = get_active_providers()
         assert len(active) == 0
@@ -392,6 +407,7 @@ class TestInitIntegrations:
         """No integrations param → same as 'auto'."""
         from agentlensai import init
         from agentlensai.integrations.registry import get_active_providers
+
         init("http://localhost:3400", sync_mode=True)
         active = get_active_providers()
         assert "openai" in active

@@ -1,12 +1,14 @@
 """AgentLens auto-instrumentation entry point."""
+
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import logging
 import os
 import re
 import uuid
-from typing import Callable, Union
+from typing import Callable
 
 from agentlensai._sender import get_sender, reset_sender
 from agentlensai._state import InstrumentationState, clear_state, get_state, set_state
@@ -59,7 +61,7 @@ def init(
     pii_patterns: list[re.Pattern] | None = None,
     pii_filter: Callable[[str], str] | None = None,
     sync_mode: bool = False,
-    integrations: Union[str, list[str], None] = None,
+    integrations: str | list[str] | None = None,
 ) -> str:
     """Initialize AgentLens auto-instrumentation.
 
@@ -162,7 +164,7 @@ def current_session_id() -> str | None:
     return state.session_id if state else None
 
 
-def _instrument_providers(integrations: Union[str, list[str], None] = None) -> None:
+def _instrument_providers(integrations: str | list[str] | None = None) -> None:
     """Auto-detect installed providers and instrument them via the registry."""
     # Ensure provider modules are imported so @register decorators fire
     _ensure_providers_imported()
@@ -184,17 +186,13 @@ def _ensure_providers_imported() -> None:
     """Import provider modules so their @register decorators execute."""
     # OpenAI
     if importlib.util.find_spec("openai") is not None:
-        try:
+        with contextlib.suppress(Exception):
             import agentlensai.integrations.openai  # noqa: F401
-        except Exception:
-            pass
 
     # Anthropic
     if importlib.util.find_spec("anthropic") is not None:
-        try:
+        with contextlib.suppress(Exception):
             import agentlensai.integrations.anthropic  # noqa: F401
-        except Exception:
-            pass
 
     # All other providers — try importing each; failures are silently ignored
     _optional_providers = [
@@ -219,6 +217,7 @@ def _instrument_frameworks() -> None:
     if importlib.util.find_spec("crewai") is not None:
         try:
             from agentlensai.integrations.crewai import instrument_crewai
+
             instrument_crewai()
             logger.info("AgentLens: CrewAI instrumented")
         except Exception:
@@ -227,6 +226,7 @@ def _instrument_frameworks() -> None:
     if importlib.util.find_spec("autogen") is not None:
         try:
             from agentlensai.integrations.autogen import instrument_autogen
+
             instrument_autogen()
             logger.info("AgentLens: AutoGen instrumented")
         except Exception:
@@ -235,6 +235,7 @@ def _instrument_frameworks() -> None:
     if importlib.util.find_spec("semantic_kernel") is not None:
         try:
             from agentlensai.integrations.semantic_kernel import instrument_semantic_kernel
+
             instrument_semantic_kernel()
             logger.info("AgentLens: Semantic Kernel instrumented")
         except Exception:
@@ -246,6 +247,7 @@ def _uninstrument_frameworks() -> None:
     if importlib.util.find_spec("crewai") is not None:
         try:
             from agentlensai.integrations.crewai import uninstrument_crewai
+
             uninstrument_crewai()
         except Exception:
             logger.debug("AgentLens: failed to uninstrument CrewAI", exc_info=True)
@@ -253,6 +255,7 @@ def _uninstrument_frameworks() -> None:
     if importlib.util.find_spec("autogen") is not None:
         try:
             from agentlensai.integrations.autogen import uninstrument_autogen
+
             uninstrument_autogen()
         except Exception:
             logger.debug("AgentLens: failed to uninstrument AutoGen", exc_info=True)
@@ -260,6 +263,7 @@ def _uninstrument_frameworks() -> None:
     if importlib.util.find_spec("semantic_kernel") is not None:
         try:
             from agentlensai.integrations.semantic_kernel import uninstrument_semantic_kernel
+
             uninstrument_semantic_kernel()
         except Exception:
             logger.debug("AgentLens: failed to uninstrument Semantic Kernel", exc_info=True)
@@ -268,4 +272,5 @@ def _uninstrument_frameworks() -> None:
 def _uninstrument_providers() -> None:
     """Restore original methods on all providers via registry."""
     from agentlensai.integrations.registry import uninstrument_providers
+
     uninstrument_providers()

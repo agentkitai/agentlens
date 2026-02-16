@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import patch
 
 import httpx
@@ -63,15 +62,13 @@ async def test_async_retry_on_429_with_retry_after():
         httpx.Response(429, text="Rate limited", headers={"Retry-After": "0.01"}),
         httpx.Response(200, json=SAMPLE_EVENTS_RESPONSE),
     ]
-    with patch("asyncio.sleep", return_value=None) as mock_sleep:
+    with patch("asyncio.sleep", return_value=None):
         # We need to make asyncio.sleep a coroutine
         pass
 
     async with AsyncAgentLensClient(BASE, api_key="k") as client:
         # Patch asyncio.sleep to be a no-op coroutine
         import asyncio
-
-        original_sleep = asyncio.sleep
 
         async def fast_sleep(seconds: float) -> None:
             pass  # Don't actually sleep in tests

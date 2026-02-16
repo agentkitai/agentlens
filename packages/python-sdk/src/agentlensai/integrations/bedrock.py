@@ -10,8 +10,10 @@ Usage::
     inst = BedrockInstrumentation()
     inst.instrument()
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -27,6 +29,7 @@ logger = logging.getLogger("agentlensai")
 # ---------------------------------------------------------------------------
 # Model family detection
 # ---------------------------------------------------------------------------
+
 
 def _detect_model_family(model_id: str) -> str:
     """Detect the model family from a Bedrock modelId string."""
@@ -50,6 +53,7 @@ def _detect_model_family(model_id: str) -> str:
 # Response parsing by model family (InvokeModel API)
 # ---------------------------------------------------------------------------
 
+
 def _parse_invoke_response(body: dict[str, Any], family: str) -> dict[str, Any]:
     """Extract content, input_tokens, output_tokens from InvokeModel response body."""
     content = ""
@@ -60,7 +64,11 @@ def _parse_invoke_response(body: dict[str, Any], family: str) -> dict[str, Any]:
         # Anthropic on Bedrock
         content_list = body.get("content", [])
         if content_list and isinstance(content_list, list):
-            content = content_list[0].get("text", "") if isinstance(content_list[0], dict) else str(content_list[0])
+            content = (
+                content_list[0].get("text", "")
+                if isinstance(content_list[0], dict)
+                else str(content_list[0])
+            )
         usage = body.get("usage", {})
         input_tokens = usage.get("input_tokens", 0)
         output_tokens = usage.get("output_tokens", 0)
@@ -125,6 +133,7 @@ def _parse_converse_response(response: dict[str, Any]) -> dict[str, Any]:
 # Bedrock instrumentation
 # ---------------------------------------------------------------------------
 
+
 @register("bedrock")
 class BedrockInstrumentation(BaseLLMInstrumentation):
     """AWS Bedrock Runtime instrumentation.
@@ -172,11 +181,17 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
         messages: list[dict[str, Any]] = []
         system_prompt: str | None = None
         try:
-            req_body = json.loads(kwargs.get("body", "{}")) if isinstance(kwargs.get("body"), (str, bytes)) else {}
+            req_body = (
+                json.loads(kwargs.get("body", "{}"))
+                if isinstance(kwargs.get("body"), (str, bytes))
+                else {}
+            )
             if family == "anthropic":
                 system_prompt = req_body.get("system", None)
                 for msg in req_body.get("messages", []):
-                    messages.append({"role": msg.get("role", "user"), "content": str(msg.get("content", ""))})
+                    messages.append(
+                        {"role": msg.get("role", "user"), "content": str(msg.get("content", ""))}
+                    )
             elif family == "titan":
                 text = req_body.get("inputText", "")
                 if text:
@@ -219,7 +234,9 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
                 messages.append({"role": role, "content": text})
             sys_parts = kwargs.get("system", [])
             if sys_parts:
-                system_prompt = sys_parts[0].get("text", "") if isinstance(sys_parts, list) else str(sys_parts)
+                system_prompt = (
+                    sys_parts[0].get("text", "") if isinstance(sys_parts, list) else str(sys_parts)
+                )
         except Exception:
             pass
 
@@ -260,7 +277,9 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
         # (session.register) would require access to each session instance.
         original_init = botocore.client.BaseClient.__init__
         self._originals["botocore.client.BaseClient.__init__"] = (
-            botocore.client.BaseClient, "__init__", original_init
+            botocore.client.BaseClient,
+            "__init__",
+            original_init,
         )
 
         def patched_init(client_self: Any, *args: Any, **kwargs: Any) -> None:
@@ -303,6 +322,7 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
                     body_bytes = response["body"].read()
                     try:
                         from botocore.response import StreamingBody
+
                         response["body"] = StreamingBody(io.BytesIO(body_bytes), len(body_bytes))
                     except ImportError:
                         response["body"] = io.BytesIO(body_bytes)
@@ -370,10 +390,8 @@ class BedrockInstrumentation(BaseLLMInstrumentation):
 
         # Restore patched client methods
         for client, attr_name, original in self._patched_clients:
-            try:
+            with contextlib.suppress(Exception):
                 setattr(client, attr_name, original)
-            except Exception:
-                pass
         self._patched_clients.clear()
 
         self._instrumented = False

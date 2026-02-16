@@ -1,4 +1,5 @@
 """Tests for Ollama instrumentation (S4.1)."""
+
 from __future__ import annotations
 
 import sys
@@ -10,10 +11,10 @@ import pytest
 
 from agentlensai._sender import LlmCallData
 
-
 # ---------------------------------------------------------------------------
 # Mock ollama module before importing
 # ---------------------------------------------------------------------------
+
 
 def _setup_ollama_mocks():
     """Create mock ollama module in sys.modules."""
@@ -47,12 +48,12 @@ def _setup_ollama_mocks():
 
 _ollama_mod, _MockClient, _MockAsyncClient = _setup_ollama_mocks()
 
-from agentlensai.integrations.ollama import OllamaInstrumentation, _extract_call_data
-
+from agentlensai.integrations.ollama import OllamaInstrumentation, _extract_call_data  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def _reset():
@@ -65,6 +66,7 @@ def _reset():
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestOllamaExtraction:
     """Test response data extraction."""
@@ -140,10 +142,10 @@ class TestOllamaInstrumentation:
         inst = OllamaInstrumentation()
         inst.instrument()
 
-        captured: list[LlmCallData] = []
-
-        with patch("agentlensai._state.get_state") as mock_state, \
-             patch("agentlensai._sender.get_sender") as mock_sender:
+        with (
+            patch("agentlensai._state.get_state") as mock_state,
+            patch("agentlensai._sender.get_sender") as mock_sender,
+        ):
             mock_state.return_value = MagicMock()
             sender = MagicMock()
             mock_sender.return_value = sender
@@ -164,8 +166,10 @@ class TestOllamaInstrumentation:
         inst = OllamaInstrumentation()
         inst.instrument()
 
-        with patch("agentlensai._state.get_state") as mock_state, \
-             patch("agentlensai._sender.get_sender") as mock_sender:
+        with (
+            patch("agentlensai._state.get_state") as mock_state,
+            patch("agentlensai._sender.get_sender") as mock_sender,
+        ):
             mock_state.return_value = MagicMock()
             sender = MagicMock()
             mock_sender.return_value = sender
@@ -182,14 +186,16 @@ class TestOllamaInstrumentation:
         inst = OllamaInstrumentation()
         inst.instrument()
 
-        with patch("agentlensai._state.get_state") as mock_state, \
-             patch("agentlensai._sender.get_sender") as mock_sender:
+        with (
+            patch("agentlensai._state.get_state") as mock_state,
+            patch("agentlensai._sender.get_sender") as mock_sender,
+        ):
             mock_state.return_value = MagicMock()
             sender = MagicMock()
             mock_sender.return_value = sender
 
             # stream=True should pass through without capture
-            result = _ollama_mod.chat(model="llama3", messages=[], stream=True)
+            _ollama_mod.chat(model="llama3", messages=[], stream=True)
             sender.send.assert_not_called()
 
         inst.uninstrument()
@@ -209,8 +215,10 @@ class TestOllamaInstrumentation:
         inst = OllamaInstrumentation()
         inst.instrument()
 
-        with patch("agentlensai._state.get_state") as mock_state, \
-             patch("agentlensai._sender.get_sender") as mock_sender:
+        with (
+            patch("agentlensai._state.get_state") as mock_state,
+            patch("agentlensai._sender.get_sender") as mock_sender,
+        ):
             mock_state.return_value = MagicMock()
             mock_sender.side_effect = RuntimeError("boom")
 

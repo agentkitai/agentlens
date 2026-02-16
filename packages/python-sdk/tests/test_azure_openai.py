@@ -3,10 +3,11 @@
 Tests that the OpenAI integration correctly detects Azure clients and
 extracts deployment_name, api_version, and region metadata.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -16,24 +17,23 @@ import respx
 from agentlensai import init, shutdown
 from agentlensai._sender import reset_sender
 from agentlensai._state import clear_state
-from agentlensai.integrations.openai import _detect_azure, _build_call_data
-
+from agentlensai.integrations.openai import _build_call_data, _detect_azure
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _clean_state():
     yield
-    try:
+    with contextlib.suppress(Exception):
         shutdown()
-    except Exception:
-        pass
     clear_state()
     reset_sender()
     try:
         from agentlensai.integrations.openai import uninstrument_openai
+
         uninstrument_openai()
     except Exception:
         pass
@@ -42,6 +42,7 @@ def _clean_state():
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_azure_client(
     base_url: str = "https://myresource.openai.azure.com/openai/deployments/gpt-4o/",
@@ -178,6 +179,7 @@ class TestAzureOpenAIIntegration:
 
         with patch.object(oai_mod, "_original_create", return_value=mock_resp):
             import openai.resources.chat.completions as cmod
+
             # Manually call the patched method with our azure mock as self
             result = cmod.Completions.create(
                 sdk_self,
@@ -210,6 +212,7 @@ class TestAzureOpenAIIntegration:
 
         with patch.object(oai_mod, "_original_create", return_value=mock_resp):
             import openai.resources.chat.completions as cmod
+
             cmod.Completions.create(
                 sdk_self,
                 model="gpt-4o",
@@ -239,6 +242,7 @@ class TestAzureOpenAIIntegration:
 
         with patch.object(oai_mod, "_original_create", return_value=mock_resp):
             import openai.resources.chat.completions as cmod
+
             cmod.Completions.create(
                 sdk_self,
                 model="gpt-4o",

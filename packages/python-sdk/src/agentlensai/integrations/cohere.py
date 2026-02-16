@@ -5,6 +5,7 @@ Supports:
 - v1 API: ``cohere.Client.chat`` and ``cohere.Client.generate``
 - Streaming: ``chat_stream()`` passed through (not captured).
 """
+
 from __future__ import annotations
 
 import functools

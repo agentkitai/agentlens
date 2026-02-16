@@ -1,11 +1,11 @@
 """Tests for PII filtering hooks (S6)."""
+
 from __future__ import annotations
 
-import re
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
-
+from agentlensai._sender import EventSender, LlmCallData
+from agentlensai._state import InstrumentationState
 from agentlensai.pii import (
     PII_CREDIT_CARD,
     PII_EMAIL,
@@ -13,9 +13,6 @@ from agentlensai.pii import (
     PII_SSN,
     apply_pii_filters,
 )
-from agentlensai._sender import EventSender, LlmCallData
-from agentlensai._state import InstrumentationState
-
 
 # ─── Pattern unit tests ─────────────────────────────────────────────────────
 

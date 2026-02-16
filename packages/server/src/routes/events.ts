@@ -60,8 +60,8 @@ export function eventsRoutes(
       return c.json({
         error: 'Validation failed',
         status: 400,
-        details: parseResult.error.issues.map((issue: { path: (string | number)[]; message: string }) => ({
-          path: issue.path.join('.'),
+        details: parseResult.error.issues.map((issue) => ({
+          path: issue.path.map(String).join('.'),
           message: issue.message,
         })),
       }, 400);

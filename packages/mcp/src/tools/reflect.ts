@@ -33,7 +33,7 @@ export function registerReflectTool(server: McpServer, transport: AgentLensTrans
       agentId: z.string().optional().describe('Filter analysis to a specific agent'),
       from: z.string().optional().describe('Start of time range (ISO 8601)'),
       to: z.string().optional().describe('End of time range (ISO 8601)'),
-      params: z.record(z.unknown()).optional().describe('Additional parameters (e.g., { model: "gpt-4o" } for cost_analysis)'),
+      params: z.record(z.string(), z.unknown()).optional().describe('Additional parameters (e.g., { model: "gpt-4o" } for cost_analysis)'),
       limit: z.number().optional().describe('Maximum number of results to return (default: 20)'),
     },
     async ({ analysis, agentId, from, to, params, limit }) => {

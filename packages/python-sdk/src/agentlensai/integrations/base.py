@@ -94,7 +94,9 @@ class BaseFrameworkPlugin:
             }
             self._send_event(client, event)
         except Exception:
-            logger.debug("AgentLens %s: failed to send custom event", self.framework_name, exc_info=True)
+            logger.debug(
+                "AgentLens %s: failed to send custom event", self.framework_name, exc_info=True
+            )
 
     def _send_tool_call(
         self,
@@ -124,7 +126,9 @@ class BaseFrameworkPlugin:
             }
             self._send_event(client, event)
         except Exception:
-            logger.debug("AgentLens %s: failed to send tool_call", self.framework_name, exc_info=True)
+            logger.debug(
+                "AgentLens %s: failed to send tool_call", self.framework_name, exc_info=True
+            )
 
     def _send_tool_response(
         self,
@@ -157,7 +161,9 @@ class BaseFrameworkPlugin:
             }
             self._send_event(client, event)
         except Exception:
-            logger.debug("AgentLens %s: failed to send tool_response", self.framework_name, exc_info=True)
+            logger.debug(
+                "AgentLens %s: failed to send tool_response", self.framework_name, exc_info=True
+            )
 
     def _send_tool_error(
         self,
@@ -189,7 +195,9 @@ class BaseFrameworkPlugin:
             }
             self._send_event(client, event)
         except Exception:
-            logger.debug("AgentLens %s: failed to send tool_error", self.framework_name, exc_info=True)
+            logger.debug(
+                "AgentLens %s: failed to send tool_error", self.framework_name, exc_info=True
+            )
 
     @staticmethod
     def _now() -> str:

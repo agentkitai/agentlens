@@ -100,7 +100,7 @@ export const WebhookActionConfigSchema = z.object({
   /** Webhook URL to POST to */
   url: z.string().url(),
   /** Optional custom HTTP headers */
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
   /** Optional HMAC secret for signing the payload */
   secret: z.string().optional(),
 });
@@ -130,7 +130,7 @@ export const AgentGatePolicyActionConfigSchema = z.object({
   /** Action to take on the policy */
   action: z.enum(['tighten', 'loosen', 'disable']),
   /** Optional additional parameters */
-  params: z.record(z.unknown()).optional(),
+  params: z.record(z.string(), z.unknown()).optional(),
 });
 export type AgentGatePolicyActionConfig = z.infer<typeof AgentGatePolicyActionConfigSchema>;
 

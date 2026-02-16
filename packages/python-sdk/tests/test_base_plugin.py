@@ -1,13 +1,13 @@
 """Tests for BaseFrameworkPlugin (v0.8.0 — Story 4.1)"""
 
 from unittest.mock import MagicMock, patch
-import pytest
 
 from agentlensai.integrations.base import BaseFrameworkPlugin
 
 
 class ConcretePlugin(BaseFrameworkPlugin):
     """Concrete plugin for testing the base class."""
+
     framework_name = "test_framework"
 
 
@@ -35,7 +35,10 @@ class TestBaseFrameworkPlugin:
     def test_no_client_no_state_returns_none(self):
         """Should return None when no client and no global state."""
         plugin = ConcretePlugin()
-        with patch("agentlensai.integrations.base.BaseFrameworkPlugin._get_client_and_config", return_value=None):
+        with patch(
+            "agentlensai.integrations.base.BaseFrameworkPlugin._get_client_and_config",
+            return_value=None,
+        ):
             # Direct test: no client, mock state to None
             plugin._client = None
         config = plugin._get_client_and_config()

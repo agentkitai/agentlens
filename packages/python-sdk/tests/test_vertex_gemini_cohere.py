@@ -1,21 +1,18 @@
 """Tests for Vertex AI (S3.1), Gemini (S3.2), and Cohere (S3.3) integrations."""
+
 from __future__ import annotations
 
 import asyncio
 import sys
 import types
-from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from agentlensai._sender import LlmCallData
 from agentlensai.integrations.base_llm import BaseLLMInstrumentation
-
 
 # ---------------------------------------------------------------------------
 # Mock SDKs — create fake modules so imports work
 # ---------------------------------------------------------------------------
+
 
 def _setup_vertex_mock():
     """Set up mock google.cloud.aiplatform.generative_models module."""
@@ -198,17 +195,18 @@ GeminiModel, GeminiResponse = _setup_gemini_mock()
 CohereV2, CohereV1, V2Resp, V1Resp, GenResp = _setup_cohere_mock()
 
 # Now import the integrations (they register via @register)
-from agentlensai.integrations.vertex import VertexInstrumentation
-from agentlensai.integrations.gemini import GeminiInstrumentation
-from agentlensai.integrations.cohere import CohereInstrumentation
-
+from agentlensai.integrations.cohere import CohereInstrumentation  # noqa: E402
+from agentlensai.integrations.gemini import GeminiInstrumentation  # noqa: E402
+from agentlensai.integrations.vertex import VertexInstrumentation  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_state():
     from agentlensai._state import InstrumentationState
+
     client_mock = MagicMock()
     return InstrumentationState(client=client_mock, agent_id="test", session_id="sess")
 
@@ -216,6 +214,7 @@ def _make_state():
 def _with_state(fn):
     """Run fn with agentlens state set, then clear."""
     from agentlensai._state import clear_state, set_state
+
     state = _make_state()
     set_state(state)
     try:
@@ -230,13 +229,13 @@ def _with_state(fn):
 
 
 class TestVertexInstrumentation:
-
     def setup_method(self):
         # Reset generate_content to original
         VertexModel.generate_content = lambda self, contents=None, **kw: VertexResponse()
 
         async def _async_gen(self, contents=None, **kw):
             return VertexResponse("Hello async from Vertex")
+
         VertexModel.generate_content_async = _async_gen
 
     def test_inherits_base(self):
@@ -244,6 +243,7 @@ class TestVertexInstrumentation:
 
     def test_registered(self):
         from agentlensai.integrations.registry import REGISTRY
+
         assert "vertex" in REGISTRY
 
     def test_instrument_patches(self):
@@ -257,6 +257,7 @@ class TestVertexInstrumentation:
         inst = VertexInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 model = VertexModel("gemini-1.5-pro")
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -270,6 +271,7 @@ class TestVertexInstrumentation:
                     assert data.model == "gemini-1.5-pro"
                     assert data.input_tokens == 10
                     assert data.output_tokens == 20
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -278,6 +280,7 @@ class TestVertexInstrumentation:
         inst = VertexInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 model = VertexModel("gemini-1.5-pro")
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -288,6 +291,7 @@ class TestVertexInstrumentation:
                     )
                     assert "async" in result.candidates[0].content.parts[0].text
                     assert mock_send.called
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -296,6 +300,7 @@ class TestVertexInstrumentation:
         inst = VertexInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 model = VertexModel()
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -303,6 +308,7 @@ class TestVertexInstrumentation:
                     mock_sender.return_value.send = mock_send
                     model.generate_content(contents="Hello", stream=True)
                     assert not mock_send.called
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -323,7 +329,6 @@ class TestVertexInstrumentation:
 
     def test_uninstrument_restores(self):
         inst = VertexInstrumentation()
-        original = VertexModel.generate_content
         inst.instrument()
         inst.uninstrument()
         # Should be restored (or functionally equivalent)
@@ -336,12 +341,12 @@ class TestVertexInstrumentation:
 
 
 class TestGeminiInstrumentation:
-
     def setup_method(self):
         GeminiModel.generate_content = lambda self, contents=None, **kw: GeminiResponse()
 
         async def _async_gen(self, contents=None, **kw):
             return GeminiResponse("Hello async from Gemini")
+
         GeminiModel.generate_content_async = _async_gen
 
     def test_inherits_base(self):
@@ -349,6 +354,7 @@ class TestGeminiInstrumentation:
 
     def test_registered(self):
         from agentlensai.integrations.registry import REGISTRY
+
         assert "gemini" in REGISTRY
 
     def test_instrument_patches(self):
@@ -362,6 +368,7 @@ class TestGeminiInstrumentation:
         inst = GeminiInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 model = GeminiModel("gemini-1.5-flash")
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -375,6 +382,7 @@ class TestGeminiInstrumentation:
                     assert data.model == "gemini-1.5-flash"
                     assert data.input_tokens == 5
                     assert data.output_tokens == 15
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -383,15 +391,17 @@ class TestGeminiInstrumentation:
         inst = GeminiInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 model = GeminiModel("gemini-1.5-flash")
                 with patch("agentlensai._sender.get_sender") as mock_sender:
                     mock_send = MagicMock()
                     mock_sender.return_value.send = mock_send
-                    result = asyncio.get_event_loop().run_until_complete(
+                    asyncio.get_event_loop().run_until_complete(
                         model.generate_content_async(contents="Hello")
                     )
                     assert mock_send.called
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -400,6 +410,7 @@ class TestGeminiInstrumentation:
         inst = GeminiInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 model = GeminiModel()
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -407,6 +418,7 @@ class TestGeminiInstrumentation:
                     mock_sender.return_value.send = mock_send
                     model.generate_content(contents="Hello", stream=True)
                     assert not mock_send.called
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -419,7 +431,7 @@ class TestGeminiInstrumentation:
             with patch("agentlensai._sender.get_sender") as mock_sender:
                 mock_send = MagicMock()
                 mock_sender.return_value.send = mock_send
-                result = model.generate_content(contents="Hello")
+                model.generate_content(contents="Hello")
                 assert not mock_send.called
         finally:
             inst.uninstrument()
@@ -428,6 +440,7 @@ class TestGeminiInstrumentation:
         inst = GeminiInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 model = GeminiModel("gemini-1.5-flash")
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -437,6 +450,7 @@ class TestGeminiInstrumentation:
                     data = mock_send.call_args[0][1]
                     assert data.completion == "Hello from Gemini"
                     assert data.total_tokens == 20
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -448,7 +462,6 @@ class TestGeminiInstrumentation:
 
 
 class TestCohereInstrumentation:
-
     def setup_method(self):
         CohereV2.chat = lambda self, **kw: V2Resp()
         CohereV1.chat = lambda self, **kw: V1Resp()
@@ -459,6 +472,7 @@ class TestCohereInstrumentation:
 
     def test_registered(self):
         from agentlensai.integrations.registry import REGISTRY
+
         assert "cohere" in REGISTRY
 
     def test_instrument_patches(self):
@@ -472,12 +486,15 @@ class TestCohereInstrumentation:
         inst = CohereInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 client = CohereV2()
                 with patch("agentlensai._sender.get_sender") as mock_sender:
                     mock_send = MagicMock()
                     mock_sender.return_value.send = mock_send
-                    result = client.chat(model="command-r-plus", messages=[{"role": "user", "content": "Hi"}])
+                    result = client.chat(
+                        model="command-r-plus", messages=[{"role": "user", "content": "Hi"}]
+                    )
                     assert result.message.content[0].text == "Hello from Cohere v2"
                     assert mock_send.called
                     data = mock_send.call_args[0][1]
@@ -485,6 +502,7 @@ class TestCohereInstrumentation:
                     assert data.model == "command-r-plus"
                     assert data.input_tokens == 10
                     assert data.output_tokens == 20
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -493,6 +511,7 @@ class TestCohereInstrumentation:
         inst = CohereInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 client = CohereV1()
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -505,6 +524,7 @@ class TestCohereInstrumentation:
                     assert data.provider == "cohere"
                     assert data.input_tokens == 8
                     assert data.output_tokens == 12
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -513,6 +533,7 @@ class TestCohereInstrumentation:
         inst = CohereInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 client = CohereV1()
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -523,6 +544,7 @@ class TestCohereInstrumentation:
                     assert mock_send.called
                     data = mock_send.call_args[0][1]
                     assert data.provider == "cohere"
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -531,6 +553,7 @@ class TestCohereInstrumentation:
         inst = CohereInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 client = CohereV2()
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -538,6 +561,7 @@ class TestCohereInstrumentation:
                     mock_sender.return_value.send = mock_send
                     client.chat(model="command", stream=True)
                     assert not mock_send.called
+
             _with_state(run)
         finally:
             inst.uninstrument()
@@ -550,7 +574,7 @@ class TestCohereInstrumentation:
             with patch("agentlensai._sender.get_sender") as mock_sender:
                 mock_send = MagicMock()
                 mock_sender.return_value.send = mock_send
-                result = client.chat(model="command")
+                client.chat(model="command")
                 assert not mock_send.called
         finally:
             inst.uninstrument()
@@ -565,6 +589,7 @@ class TestCohereInstrumentation:
         inst = CohereInstrumentation()
         inst.instrument()
         try:
+
             def run():
                 client = CohereV2()
                 with patch("agentlensai._sender.get_sender") as mock_sender:
@@ -580,6 +605,7 @@ class TestCohereInstrumentation:
                     data = mock_send.call_args[0][1]
                     assert len(data.messages) == 2
                     assert data.messages[0]["role"] == "system"
+
             _with_state(run)
         finally:
             inst.uninstrument()

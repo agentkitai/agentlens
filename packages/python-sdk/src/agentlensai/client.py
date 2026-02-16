@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
-import warnings
 import time
 import uuid
+import warnings
 from datetime import datetime, timezone
 from typing import Any
 
@@ -115,7 +116,9 @@ class AgentLensClient:
         last_exc: Exception | None = None
         for attempt in range(self._MAX_RETRIES + 1):
             try:
-                response = self._do_request(method, path, params=params, json=json, skip_auth=skip_auth)
+                response = self._do_request(
+                    method, path, params=params, json=json, skip_auth=skip_auth
+                )
             except AgentLensConnectionError:
                 raise
 
@@ -136,10 +139,8 @@ class AgentLensClient:
             if isinstance(error, RateLimitError):
                 retry_after = response.headers.get("Retry-After")
                 if retry_after is not None:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         error.retry_after = float(retry_after)
-                    except (ValueError, TypeError):
-                        pass
                 if attempt < self._MAX_RETRIES:
                     wait = error.retry_after if error.retry_after else self._backoff(attempt)
                     self._logger.debug("AgentLens: 429 rate limited, retrying in %.1fs", wait)
@@ -166,7 +167,7 @@ class AgentLensClient:
 
     def _backoff(self, attempt: int) -> float:
         """Exponential backoff with cap."""
-        return min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_MAX)
+        return min(self._BACKOFF_BASE * (2**attempt), self._BACKOFF_MAX)
 
     def _do_request(
         self,
@@ -181,7 +182,10 @@ class AgentLensClient:
         if skip_auth and "Authorization" in self._client.headers:
             try:
                 request = self._client.build_request(
-                    method, path, params=params, json=json,
+                    method,
+                    path,
+                    params=params,
+                    json=json,
                 )
                 request.headers.pop("Authorization", None)
                 return self._client.send(request)
@@ -215,7 +219,8 @@ class AgentLensClient:
     # ─── Sessions ─────────────────────────────────────────
 
     def get_sessions(
-        self, query: SessionQuery | None = None,
+        self,
+        query: SessionQuery | None = None,
     ) -> SessionQueryResult:
         """Query sessions with filters and pagination."""
         params = build_session_query_params(query)
@@ -255,7 +260,8 @@ class AgentLensClient:
         return LogLlmCallResult(call_id=call_id)
 
     def get_llm_analytics(
-        self, params: LlmAnalyticsParams | None = None,
+        self,
+        params: LlmAnalyticsParams | None = None,
     ) -> LlmAnalyticsResult:
         """Get LLM analytics (aggregate metrics)."""
         query_params = build_llm_analytics_params(params)
@@ -287,7 +293,8 @@ class AgentLensClient:
         return Lesson.model_validate(data)
 
     def get_lessons(
-        self, query: LessonQuery | None = None,
+        self,
+        query: LessonQuery | None = None,
     ) -> LessonListResult:
         """List lessons with optional filters."""
         warnings.warn(
@@ -385,7 +392,9 @@ class AgentLensClient:
         if agent_id is not None:
             params["agentId"] = agent_id
         data = self._request(
-            "GET", "/api/optimize/recommendations", params=params,
+            "GET",
+            "/api/optimize/recommendations",
+            params=params,
         )
         return OptimizationResult.model_validate(data)
 

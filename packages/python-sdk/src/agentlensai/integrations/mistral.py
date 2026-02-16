@@ -10,6 +10,7 @@ Usage::
     inst = MistralInstrumentation()
     inst.instrument()
 """
+
 from __future__ import annotations
 
 import functools
@@ -27,6 +28,7 @@ logger = logging.getLogger("agentlensai")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _extract_messages(raw_messages: Any) -> tuple[str | None, list[dict[str, Any]]]:
     """Extract (system_prompt, messages) from Mistral-style messages."""
@@ -62,9 +64,7 @@ def _extract_params(kwargs: dict[str, Any]) -> dict[str, Any] | None:
     return params or None
 
 
-def _build_call_data(
-    response: Any, kwargs: dict[str, Any], latency_ms: float
-) -> LlmCallData:
+def _build_call_data(response: Any, kwargs: dict[str, Any], latency_ms: float) -> LlmCallData:
     """Build LlmCallData from a Mistral ChatCompletionResponse."""
     choice = response.choices[0] if response.choices else None
     completion = choice.message.content if choice and choice.message else None
@@ -75,11 +75,15 @@ def _build_call_data(
     if choice and choice.message and getattr(choice.message, "tool_calls", None):
         tool_calls = []
         for tc in choice.message.tool_calls:
-            tool_calls.append({
-                "id": getattr(tc, "id", ""),
-                "name": getattr(tc.function, "name", "") if hasattr(tc, "function") else "",
-                "arguments": getattr(tc.function, "arguments", "") if hasattr(tc, "function") else "",
-            })
+            tool_calls.append(
+                {
+                    "id": getattr(tc, "id", ""),
+                    "name": getattr(tc.function, "name", "") if hasattr(tc, "function") else "",
+                    "arguments": getattr(tc.function, "arguments", "")
+                    if hasattr(tc, "function")
+                    else "",
+                }
+            )
 
     input_tokens = response.usage.prompt_tokens if response.usage else 0
     output_tokens = response.usage.completion_tokens if response.usage else 0
@@ -111,6 +115,7 @@ def _build_call_data(
 # ---------------------------------------------------------------------------
 # Instrumentation class
 # ---------------------------------------------------------------------------
+
 
 @register("mistral")
 class MistralInstrumentation(BaseLLMInstrumentation):
@@ -149,8 +154,6 @@ class MistralInstrumentation(BaseLLMInstrumentation):
         except ImportError:
             logger.debug("AgentLens: mistralai not installed, skipping")
             raise
-
-        instrumentation = self
 
         # Save originals (only methods we actually patch)
         self._original_complete = Chat.complete

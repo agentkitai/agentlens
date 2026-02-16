@@ -3,6 +3,7 @@
 Patches ``google.cloud.aiplatform.generative_models.GenerativeModel.generate_content``
 (sync) and ``generate_content_async`` (async).
 """
+
 from __future__ import annotations
 
 import logging
@@ -66,7 +67,7 @@ class VertexInstrumentation(BaseLLMInstrumentation):
         # We get model from kwargs if available, but typically it's on the instance
 
         # Content as messages
-        content_arg = kwargs.get("contents", None)
+        content_arg = kwargs.get("contents")
         messages: list[dict[str, Any]] = []
         if content_arg:
             if isinstance(content_arg, str):
@@ -101,9 +102,10 @@ class VertexInstrumentation(BaseLLMInstrumentation):
 
         @functools.wraps(original)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            import time
+
             from agentlensai._sender import get_sender
             from agentlensai._state import get_state
-            import time
 
             state = get_state()
             if state is None:
@@ -114,7 +116,9 @@ class VertexInstrumentation(BaseLLMInstrumentation):
             # Extract model from instance (first arg = self)
             model_name = "unknown"
             if args:
-                model_name = getattr(args[0], "model_name", getattr(args[0], "_model_name", "unknown"))
+                model_name = getattr(
+                    args[0], "model_name", getattr(args[0], "_model_name", "unknown")
+                )
 
             start_time = time.perf_counter()
             response = original(*args, **kwargs)
@@ -138,9 +142,10 @@ class VertexInstrumentation(BaseLLMInstrumentation):
 
         @functools.wraps(original)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            import time
+
             from agentlensai._sender import get_sender
             from agentlensai._state import get_state
-            import time
 
             state = get_state()
             if state is None:
@@ -150,7 +155,9 @@ class VertexInstrumentation(BaseLLMInstrumentation):
 
             model_name = "unknown"
             if args:
-                model_name = getattr(args[0], "model_name", getattr(args[0], "_model_name", "unknown"))
+                model_name = getattr(
+                    args[0], "model_name", getattr(args[0], "_model_name", "unknown")
+                )
 
             start_time = time.perf_counter()
             response = await original(*args, **kwargs)

@@ -83,9 +83,7 @@ class TestListGuardrails:
     def test_list_returns_rules(self) -> None:
         """list_guardrails returns a list of rules."""
         respx.get(f"{BASE_URL}/api/guardrails").mock(
-            return_value=httpx.Response(
-                200, json={"rules": [_rule_response()]}
-            )
+            return_value=httpx.Response(200, json={"rules": [_rule_response()]})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         result = client.list_guardrails()
@@ -158,6 +156,7 @@ class TestCreateGuardrail:
         assert result.name == "High Error Rate"
         # Verify the POST body
         import json
+
         body = json.loads(respx.calls[0].request.content)
         assert body["name"] == "High Error Rate"
         assert body["conditionType"] == "error_rate_threshold"
@@ -171,14 +170,13 @@ class TestUpdateGuardrail:
     def test_update_sends_kwargs(self) -> None:
         """update_guardrail converts snake_case kwargs to camelCase."""
         respx.put(f"{BASE_URL}/api/guardrails/rule_001").mock(
-            return_value=httpx.Response(
-                200, json=_rule_response(name="Updated Rule")
-            )
+            return_value=httpx.Response(200, json=_rule_response(name="Updated Rule"))
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         result = client.update_guardrail("rule_001", name="Updated Rule", dry_run=True)
         assert isinstance(result, GuardrailRule)
         import json
+
         body = json.loads(respx.calls[0].request.content)
         assert body["name"] == "Updated Rule"
         assert body["dryRun"] is True
@@ -204,14 +202,13 @@ class TestEnableDisableGuardrail:
     def test_enable_sets_enabled_true(self) -> None:
         """enable_guardrail sends enabled=true update."""
         respx.put(f"{BASE_URL}/api/guardrails/rule_001").mock(
-            return_value=httpx.Response(
-                200, json=_rule_response(enabled=True)
-            )
+            return_value=httpx.Response(200, json=_rule_response(enabled=True))
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         result = client.enable_guardrail("rule_001")
         assert result.enabled is True
         import json
+
         body = json.loads(respx.calls[0].request.content)
         assert body["enabled"] is True
         client.close()
@@ -220,9 +217,7 @@ class TestEnableDisableGuardrail:
     def test_disable_sets_enabled_false(self) -> None:
         """disable_guardrail sends enabled=false update."""
         respx.put(f"{BASE_URL}/api/guardrails/rule_001").mock(
-            return_value=httpx.Response(
-                200, json=_rule_response(enabled=False)
-            )
+            return_value=httpx.Response(200, json=_rule_response(enabled=False))
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         result = client.disable_guardrail("rule_001")
@@ -287,9 +282,7 @@ class TestAsyncListGuardrails:
     async def test_async_list(self) -> None:
         """Async list_guardrails returns rules."""
         respx.get(f"{BASE_URL}/api/guardrails").mock(
-            return_value=httpx.Response(
-                200, json={"rules": [_rule_response()]}
-            )
+            return_value=httpx.Response(200, json={"rules": [_rule_response()]})
         )
         async with AsyncAgentLensClient(BASE_URL, api_key=API_KEY) as client:
             result = await client.list_guardrails()
@@ -332,17 +325,19 @@ class TestAgentModelCamelCase:
     """L1: Verify Agent model works with camelCase response from server."""
 
     def test_agent_model_validate_camel_case(self) -> None:
-        agent = Agent.model_validate({
-            "id": "x",
-            "agentId": "a",
-            "tenantId": "t",
-            "name": "Test Agent",
-            "firstSeenAt": "2026-01-01T00:00:00Z",
-            "lastSeenAt": "2026-01-01T00:00:00Z",
-            "sessionCount": 5,
-            "modelOverride": "gpt-4",
-            "pausedAt": None,
-        })
+        agent = Agent.model_validate(
+            {
+                "id": "x",
+                "agentId": "a",
+                "tenantId": "t",
+                "name": "Test Agent",
+                "firstSeenAt": "2026-01-01T00:00:00Z",
+                "lastSeenAt": "2026-01-01T00:00:00Z",
+                "sessionCount": 5,
+                "modelOverride": "gpt-4",
+                "pausedAt": None,
+            }
+        )
         assert agent.id == "x"
         assert agent.tenant_id == "t"
         assert agent.model_override == "gpt-4"
@@ -356,9 +351,7 @@ class TestAsyncGuardrailHistory:
     async def test_async_history(self) -> None:
         """Async get_guardrail_history returns triggers."""
         respx.get(f"{BASE_URL}/api/guardrails/history").mock(
-            return_value=httpx.Response(
-                200, json={"triggers": [_trigger_response()], "total": 1}
-            )
+            return_value=httpx.Response(200, json={"triggers": [_trigger_response()], "total": 1})
         )
         async with AsyncAgentLensClient(BASE_URL, api_key=API_KEY) as client:
             result = await client.get_guardrail_history(rule_id="rule_001")

@@ -54,7 +54,9 @@ class AgentLensSKHandler(BaseFrameworkPlugin):
             return self._kernel_name
         return "default"
 
-    def _framework_metadata(self, component: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _framework_metadata(
+        self, component: str, extra: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Build standard framework metadata."""
         meta: dict[str, Any] = {
             "source": "semantic_kernel",
@@ -237,11 +239,13 @@ class AgentLensSKHandler(BaseFrameworkPlugin):
 
             # Truncate messages
             truncated_msgs = []
-            for msg in (messages or []):
-                truncated_msgs.append({
-                    "role": msg.get("role", "unknown"),
-                    "content": str(msg.get("content", ""))[:300],
-                })
+            for msg in messages or []:
+                truncated_msgs.append(
+                    {
+                        "role": msg.get("role", "unknown"),
+                        "content": str(msg.get("content", ""))[:300],
+                    }
+                )
 
             event = {
                 "sessionId": session_id,
@@ -321,7 +325,9 @@ class AgentLensSKHandler(BaseFrameworkPlugin):
             logger.debug("AgentLens SK: on_planner_step error", exc_info=True)
 
 
-def init(kernel: Any, handler: AgentLensSKHandler | None = None, **kwargs: Any) -> AgentLensSKHandler:
+def init(
+    kernel: Any, handler: AgentLensSKHandler | None = None, **kwargs: Any
+) -> AgentLensSKHandler:
     """Convenience function to add AgentLens filter to a Semantic Kernel kernel.
 
     Args:

@@ -1,9 +1,8 @@
 """Tests for the pricing module (S5.3)."""
+
 from __future__ import annotations
 
 import logging
-
-import pytest
 
 from agentlensai.integrations.pricing import get_cost
 

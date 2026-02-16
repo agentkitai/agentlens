@@ -9,6 +9,7 @@ Subclasses implement only the provider-specific bits:
 - ``_is_streaming()`` — detect streaming calls
 - ``_extract_model()`` — pull model name from kwargs
 """
+
 from __future__ import annotations
 
 import functools
@@ -108,9 +109,7 @@ class BaseLLMInstrumentation(ABC):
 
                 setattr(owner, target.attr_name, wrapper)
             except Exception:
-                logger.debug(
-                    "AgentLens: failed to patch %s", key, exc_info=True
-                )
+                logger.debug("AgentLens: failed to patch %s", key, exc_info=True)
 
         self._instrumented = True
         logger.debug("AgentLens: %s instrumented", self.provider_name)
@@ -124,9 +123,7 @@ class BaseLLMInstrumentation(ABC):
             try:
                 setattr(owner, attr_name, original)
             except Exception:
-                logger.debug(
-                    "AgentLens: failed to restore %s", key, exc_info=True
-                )
+                logger.debug("AgentLens: failed to restore %s", key, exc_info=True)
 
         self._originals.clear()
         self._instrumented = False

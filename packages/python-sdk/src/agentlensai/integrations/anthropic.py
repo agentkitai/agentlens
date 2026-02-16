@@ -4,6 +4,7 @@ Monkey-patches ``anthropic.resources.messages.Messages.create`` (sync) and
 ``anthropic.resources.messages.AsyncMessages.create`` (async) to automatically
 capture every *non-streaming* call and forward telemetry to AgentLens.
 """
+
 from __future__ import annotations
 
 import functools
@@ -25,6 +26,7 @@ _original_async_create: Any = None
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _extract_system_prompt(raw: Any) -> str | None:
     """Normalise the ``system`` parameter to a plain string or ``None``."""
     if raw is None:
@@ -33,8 +35,7 @@ def _extract_system_prompt(raw: Any) -> str | None:
         return raw
     if isinstance(raw, list):
         return " ".join(
-            block.get("text", "") if isinstance(block, dict) else str(block)
-            for block in raw
+            block.get("text", "") if isinstance(block, dict) else str(block) for block in raw
         )
     return str(raw)
 
@@ -82,11 +83,13 @@ def _build_call_data(
         if block.type == "text":
             completion_parts.append(block.text)
         elif block.type == "tool_use":
-            tool_calls.append({
-                "id": block.id,
-                "name": block.name,
-                "arguments": block.input,
-            })
+            tool_calls.append(
+                {
+                    "id": block.id,
+                    "name": block.name,
+                    "arguments": block.input,
+                }
+            )
 
     completion = "\n".join(completion_parts) if completion_parts else None
     user_messages = _normalise_messages(messages)
@@ -111,6 +114,7 @@ def _build_call_data(
 # ---------------------------------------------------------------------------
 # BaseLLMInstrumentation subclass
 # ---------------------------------------------------------------------------
+
 
 @register("anthropic")
 class AnthropicInstrumentation(BaseLLMInstrumentation):
@@ -184,7 +188,9 @@ class AnthropicInstrumentation(BaseLLMInstrumentation):
 
             try:
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                data = _build_call_data(response, model, messages, system_prompt, params, latency_ms)
+                data = _build_call_data(
+                    response, model, messages, system_prompt, params, latency_ms
+                )
                 get_sender().send(state, data)
             except Exception:
                 pass  # Never break user code
@@ -216,7 +222,9 @@ class AnthropicInstrumentation(BaseLLMInstrumentation):
 
             try:
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                data = _build_call_data(response, model, messages, system_prompt, params, latency_ms)
+                data = _build_call_data(
+                    response, model, messages, system_prompt, params, latency_ms
+                )
                 get_sender().send(state, data)
             except Exception:
                 pass  # Never break user code
@@ -236,10 +244,12 @@ class AnthropicInstrumentation(BaseLLMInstrumentation):
 
         if _original_create is not None:
             from anthropic.resources.messages import Messages
+
             Messages.create = _original_create  # type: ignore[method-assign]
 
         if _original_async_create is not None:
             from anthropic.resources.messages import AsyncMessages
+
             AsyncMessages.create = _original_async_create  # type: ignore[method-assign]
 
         _original_create = None
@@ -276,9 +286,11 @@ def uninstrument_anthropic() -> None:
         global _original_create, _original_async_create  # noqa: PLW0603
         if _original_create is not None:
             from anthropic.resources.messages import Messages
+
             Messages.create = _original_create  # type: ignore[method-assign]
             _original_create = None
         if _original_async_create is not None:
             from anthropic.resources.messages import AsyncMessages
+
             AsyncMessages.create = _original_async_create  # type: ignore[method-assign]
             _original_async_create = None

@@ -86,7 +86,7 @@ class TestSyncGetHealth:
     @respx.mock
     def test_url_and_default_window(self) -> None:
         """get_health sends correct URL with default window=7."""
-        route = respx.get(f"{BASE_URL}/api/agents/agent_001/health").mock(
+        respx.get(f"{BASE_URL}/api/agents/agent_001/health").mock(
             return_value=httpx.Response(200, json=_health_score_response())
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
@@ -143,9 +143,7 @@ class TestSyncGetHealth:
     def test_404_raises_not_found(self) -> None:
         """get_health raises NotFoundError for unknown agent."""
         respx.get(f"{BASE_URL}/api/agents/unknown/health").mock(
-            return_value=httpx.Response(
-                404, json={"error": "Agent not found"}
-            )
+            return_value=httpx.Response(404, json={"error": "Agent not found"})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         with pytest.raises(NotFoundError):
@@ -202,7 +200,9 @@ class TestSyncOptimizationRecommendations:
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         client.get_optimization_recommendations(
-            agent_id="agent_001", period=14, limit=5,
+            agent_id="agent_001",
+            period=14,
+            limit=5,
         )
         url = respx.calls[0].request.url
         assert url.params["agentId"] == "agent_001"

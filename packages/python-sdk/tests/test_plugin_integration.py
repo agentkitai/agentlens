@@ -7,16 +7,15 @@ Also tests auto-detection: when multiple frameworks are installed, the correct
 plugin activates based on the framework_name property.
 """
 
-from unittest.mock import MagicMock, call
 import uuid
-import pytest
+from unittest.mock import MagicMock
 
 from agentlensai.integrations.base import BaseFrameworkPlugin
-
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════════
+
 
 def make_mock_client():
     """Create a mock client that captures _request calls."""
@@ -48,11 +47,13 @@ def assert_event_schema(event):
 # Story 3.1 — LangChain Plugin Integration Tests
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestLangChainIntegration:
     """Tests that LangChain plugin sends properly structured events."""
 
     def _make_handler(self, **kwargs):
         from agentlensai.integrations.langchain import AgentLensCallbackHandler
+
         client = make_mock_client()
         defaults = {"client": client, "agent_id": "agent-lc", "session_id": "ses-lc"}
         defaults.update(kwargs)
@@ -115,11 +116,13 @@ class TestLangChainIntegration:
 # CrewAI Plugin Integration Tests
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestCrewAIIntegration:
     """Tests that CrewAI plugin sends properly structured events."""
 
     def _make_handler(self, **kwargs):
         from agentlensai.integrations.crewai import AgentLensCrewAIHandler
+
         client = make_mock_client()
         defaults = {"client": client, "agent_id": "agent-crew", "session_id": "ses-crew"}
         defaults.update(kwargs)
@@ -167,11 +170,13 @@ class TestCrewAIIntegration:
 # AutoGen Plugin Integration Tests
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestAutoGenIntegration:
     """Tests that AutoGen plugin sends properly structured events."""
 
     def _make_handler(self, **kwargs):
         from agentlensai.integrations.autogen import AgentLensAutoGenHandler
+
         client = make_mock_client()
         defaults = {"client": client, "agent_id": "agent-ag", "session_id": "ses-ag"}
         defaults.update(kwargs)
@@ -192,7 +197,9 @@ class TestAutoGenIntegration:
 
     def test_send_tool_call(self):
         handler, client = self._make_handler()
-        handler._send_tool_call(tool_name="code_exec", call_id="call-1", arguments={"code": "print(1)"})
+        handler._send_tool_call(
+            tool_name="code_exec", call_id="call-1", arguments={"code": "print(1)"}
+        )
         events = get_sent_events(client)
         assert len(events) >= 1
         assert events[0]["eventType"] == "tool_call"
@@ -203,11 +210,13 @@ class TestAutoGenIntegration:
 # Semantic Kernel Plugin Integration Tests
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestSemanticKernelIntegration:
     """Tests that Semantic Kernel plugin sends properly structured events."""
 
     def _make_handler(self, **kwargs):
         from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
+
         client = make_mock_client()
         defaults = {"client": client, "agent_id": "agent-sk", "session_id": "ses-sk"}
         defaults.update(kwargs)
@@ -243,12 +252,13 @@ class TestSemanticKernelIntegration:
 # Auto-detection & Cross-plugin Tests
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestAutoDetection:
     """Tests for auto-detection: correct plugin activates based on framework_name."""
 
     def test_each_plugin_has_unique_framework_name(self):
-        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.autogen import AgentLensAutoGenHandler
+        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
 
         client = make_mock_client()
@@ -261,9 +271,8 @@ class TestAutoDetection:
         assert len(names) == 3, f"Expected 3 unique framework names, got {names}"
 
     def test_all_plugins_inherit_from_base(self):
-        from agentlensai.integrations.langchain import AgentLensCallbackHandler
-        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.autogen import AgentLensAutoGenHandler
+        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
 
         client = make_mock_client()
@@ -273,8 +282,8 @@ class TestAutoDetection:
 
     def test_event_payload_schema_consistent_across_plugins(self):
         """All plugins produce events with the same required fields."""
-        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.autogen import AgentLensAutoGenHandler
+        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
 
         for cls in [AgentLensCrewAIHandler, AgentLensAutoGenHandler, AgentLensSKHandler]:
@@ -290,8 +299,8 @@ class TestAutoDetection:
 
     def test_plugin_does_not_crash_on_client_request_error(self):
         """L2: When client._request raises, the plugin should not crash."""
-        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.autogen import AgentLensAutoGenHandler
+        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
 
         for cls in [AgentLensCrewAIHandler, AgentLensAutoGenHandler, AgentLensSKHandler]:
@@ -304,8 +313,8 @@ class TestAutoDetection:
 
     def test_plugins_with_no_client_do_not_raise(self):
         """When no client is configured, plugins should silently no-op."""
-        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.autogen import AgentLensAutoGenHandler
+        from agentlensai.integrations.crewai import AgentLensCrewAIHandler
         from agentlensai.integrations.semantic_kernel import AgentLensSKHandler
 
         for cls in [AgentLensCrewAIHandler, AgentLensAutoGenHandler, AgentLensSKHandler]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import uuid
 import warnings
@@ -117,7 +118,11 @@ class AsyncAgentLensClient:
         for attempt in range(self._MAX_RETRIES + 1):
             try:
                 response = await self._do_request(
-                    method, path, params=params, json=json, skip_auth=skip_auth,
+                    method,
+                    path,
+                    params=params,
+                    json=json,
+                    skip_auth=skip_auth,
                 )
             except AgentLensConnectionError:
                 raise
@@ -139,10 +144,8 @@ class AsyncAgentLensClient:
             if isinstance(error, RateLimitError):
                 retry_after = response.headers.get("Retry-After")
                 if retry_after is not None:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         error.retry_after = float(retry_after)
-                    except (ValueError, TypeError):
-                        pass
                 if attempt < self._MAX_RETRIES:
                     wait = error.retry_after if error.retry_after else self._backoff(attempt)
                     self._logger.debug("AgentLens: 429 rate limited, retrying in %.1fs", wait)
@@ -169,7 +172,7 @@ class AsyncAgentLensClient:
 
     def _backoff(self, attempt: int) -> float:
         """Exponential backoff with cap."""
-        return min(self._BACKOFF_BASE * (2 ** attempt), self._BACKOFF_MAX)
+        return min(self._BACKOFF_BASE * (2**attempt), self._BACKOFF_MAX)
 
     async def _do_request(
         self,
@@ -184,7 +187,10 @@ class AsyncAgentLensClient:
         if skip_auth and "Authorization" in self._client.headers:
             try:
                 request = self._client.build_request(
-                    method, path, params=params, json=json,
+                    method,
+                    path,
+                    params=params,
+                    json=json,
                 )
                 request.headers.pop("Authorization", None)
                 return await self._client.send(request)
@@ -196,7 +202,10 @@ class AsyncAgentLensClient:
         else:
             try:
                 return await self._client.request(
-                    method, path, params=params, json=json,
+                    method,
+                    path,
+                    params=params,
+                    json=json,
                 )
             except httpx.ConnectError as exc:
                 raise AgentLensConnectionError(
@@ -206,9 +215,7 @@ class AsyncAgentLensClient:
 
     # ─── Events ───────────────────────────────────────────
 
-    async def query_events(
-        self, query: EventQuery | None = None
-    ) -> EventQueryResult:
+    async def query_events(self, query: EventQuery | None = None) -> EventQueryResult:
         """Query events with filters and pagination."""
         params = build_event_query_params(query)
         data = await self._request("GET", "/api/events", params=params or None)
@@ -221,9 +228,7 @@ class AsyncAgentLensClient:
 
     # ─── Sessions ─────────────────────────────────────────
 
-    async def get_sessions(
-        self, query: SessionQuery | None = None
-    ) -> SessionQueryResult:
+    async def get_sessions(self, query: SessionQuery | None = None) -> SessionQueryResult:
         """Query sessions with filters and pagination."""
         params = build_session_query_params(query)
         data = await self._request("GET", "/api/sessions", params=params or None)
@@ -257,9 +262,7 @@ class AsyncAgentLensClient:
         """Log a complete LLM call (request + response) as paired events."""
         call_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc).isoformat()
-        events = build_llm_call_events(
-            session_id, agent_id, params, call_id, timestamp
-        )
+        events = build_llm_call_events(session_id, agent_id, params, call_id, timestamp)
         await self._request("POST", "/api/events", json={"events": events})
         return LogLlmCallResult(call_id=call_id)
 
@@ -268,9 +271,7 @@ class AsyncAgentLensClient:
     ) -> LlmAnalyticsResult:
         """Get LLM analytics (aggregate metrics)."""
         query_params = build_llm_analytics_params(params)
-        data = await self._request(
-            "GET", "/api/analytics/llm", params=query_params or None
-        )
+        data = await self._request("GET", "/api/analytics/llm", params=query_params or None)
         return LlmAnalyticsResult.model_validate(data)
 
     # ─── Recall (Semantic Search) ─────────────────────────
@@ -298,7 +299,8 @@ class AsyncAgentLensClient:
         return Lesson.model_validate(data)
 
     async def get_lessons(
-        self, query: LessonQuery | None = None,
+        self,
+        query: LessonQuery | None = None,
     ) -> LessonListResult:
         """List lessons with optional filters."""
         warnings.warn(
@@ -369,7 +371,9 @@ class AsyncAgentLensClient:
         """Get health score for a specific agent."""
         params = {"window": str(window)}
         data = await self._request(
-            "GET", f"/api/agents/{agent_id}/health", params=params,
+            "GET",
+            f"/api/agents/{agent_id}/health",
+            params=params,
         )
         return HealthScore.model_validate(data)
 
@@ -383,7 +387,9 @@ class AsyncAgentLensClient:
         """Get health overview for all agents."""
         params = {"window": str(window)}
         data = await self._request(
-            "GET", "/api/health/overview", params=params,
+            "GET",
+            "/api/health/overview",
+            params=params,
         )
         return [HealthScore.model_validate(item) for item in data]
 
@@ -400,7 +406,9 @@ class AsyncAgentLensClient:
         if agent_id is not None:
             params["agentId"] = agent_id
         data = await self._request(
-            "GET", "/api/optimize/recommendations", params=params,
+            "GET",
+            "/api/optimize/recommendations",
+            params=params,
         )
         return OptimizationResult.model_validate(data)
 

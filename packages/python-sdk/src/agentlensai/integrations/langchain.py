@@ -31,14 +31,16 @@ logger = logging.getLogger("agentlensai")
 
 # ─── LangGraph Detection Helpers ──────────────────────────────
 
-_LANGGRAPH_CHAIN_MARKERS = frozenset({
-    "RunnableSequence",
-    "ChannelWrite",
-    "ChannelRead",
-    "PregelNode",
-    "CompiledGraph",
-    "StateGraph",
-})
+_LANGGRAPH_CHAIN_MARKERS = frozenset(
+    {
+        "RunnableSequence",
+        "ChannelWrite",
+        "ChannelRead",
+        "PregelNode",
+        "CompiledGraph",
+        "StateGraph",
+    }
+)
 
 
 def _is_langgraph_node(serialized: dict[str, Any], tags: list[str] | None = None) -> bool:
@@ -46,12 +48,14 @@ def _is_langgraph_node(serialized: dict[str, Any], tags: list[str] | None = None
     try:
         ids = serialized.get("id", [])
         for part in ids:
-            if isinstance(part, str) and ("langgraph" in part.lower() or part in _LANGGRAPH_CHAIN_MARKERS):
+            if isinstance(part, str) and (
+                "langgraph" in part.lower() or part in _LANGGRAPH_CHAIN_MARKERS
+            ):
                 return True
         name = serialized.get("name", "")
         if isinstance(name, str) and "langgraph" in name.lower():
             return True
-        for tag in (tags or []):
+        for tag in tags or []:
             if "graph:" in tag or "langgraph" in tag.lower():
                 return True
     except Exception:
@@ -76,10 +80,14 @@ def _extract_chain_name(serialized: dict[str, Any]) -> str:
 def _extract_graph_name(serialized: dict[str, Any], tags: list[str] | None = None) -> str | None:
     """Try to extract the graph name from LangGraph metadata."""
     try:
-        name = serialized.get("graph", {}).get("name") if isinstance(serialized.get("graph"), dict) else None
+        name = (
+            serialized.get("graph", {}).get("name")
+            if isinstance(serialized.get("graph"), dict)
+            else None
+        )
         if name:
             return str(name)
-        for tag in (tags or []):
+        for tag in tags or []:
             if tag.startswith("graph:"):
                 return tag[6:]
     except Exception:
@@ -136,7 +144,12 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
         except Exception:
             return None
 
-    def _resolve_agent_id(self, config: tuple[Any, str, str, bool], chain_name: str | None = None, graph_name: str | None = None) -> str:
+    def _resolve_agent_id(
+        self,
+        config: tuple[Any, str, str, bool],
+        chain_name: str | None = None,
+        graph_name: str | None = None,
+    ) -> str:
         """Resolve agentId: explicit > graph name > chain name > configured."""
         _client, agent_id, _session_id, _redact = config
         # If user explicitly set an agent_id, respect it
@@ -149,7 +162,9 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
             return chain_name
         return agent_id
 
-    def _framework_metadata(self, component: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _framework_metadata(
+        self, component: str, extra: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Build standard framework metadata."""
         meta: dict[str, Any] = {
             "source": "langchain",
@@ -441,7 +456,9 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
             chain_name = _extract_chain_name(serialized)
             self._run_chain_names[rid] = chain_name
 
-            chain_type = serialized.get("id", ["unknown"])[-1] if serialized.get("id") else chain_name
+            chain_type = (
+                serialized.get("id", ["unknown"])[-1] if serialized.get("id") else chain_name
+            )
             is_graph_node = _is_langgraph_node(serialized, tags)
             graph_name = _extract_graph_name(serialized, tags) if is_graph_node else None
 
@@ -464,7 +481,9 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
                         "is_graph_node": is_graph_node,
                     },
                 },
-                "metadata": self._framework_metadata("chain", {"graph_name": graph_name} if graph_name else None),
+                "metadata": self._framework_metadata(
+                    "chain", {"graph_name": graph_name} if graph_name else None
+                ),
                 "timestamp": self._now(),
             }
             self._send_event(client, event)
@@ -720,7 +739,7 @@ class AgentLensCallbackHandler(BaseCallbackHandler):
             # Extract sources from document metadata
             sources: list[str] = []
             try:
-                for doc in (documents or []):
+                for doc in documents or []:
                     src = getattr(doc, "metadata", {}).get("source")
                     if src and str(src) not in sources:
                         sources.append(str(src))

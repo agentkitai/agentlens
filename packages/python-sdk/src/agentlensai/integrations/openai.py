@@ -10,6 +10,7 @@ Usage::
     instrument_openai()   # start capturing
     uninstrument_openai() # restore originals
 """
+
 from __future__ import annotations
 
 import functools
@@ -31,6 +32,7 @@ _original_async_create: Any = None
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _extract_content_text(content: Any) -> str:
     """Extract text from an OpenAI message ``content`` field.
@@ -220,6 +222,7 @@ def _build_call_data(
 # BaseLLMInstrumentation subclass
 # ---------------------------------------------------------------------------
 
+
 @register("openai")
 class OpenAIInstrumentation(BaseLLMInstrumentation):
     """OpenAI chat completions instrumentation.
@@ -299,7 +302,9 @@ class OpenAIInstrumentation(BaseLLMInstrumentation):
 
             try:
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                data = _build_call_data(response, model_hint, messages, params, latency_ms, self_sdk=self_sdk)
+                data = _build_call_data(
+                    response, model_hint, messages, params, latency_ms, self_sdk=self_sdk
+                )
                 get_sender().send(state, data)
             except Exception:  # noqa: BLE001
                 logger.debug("AgentLens: failed to capture OpenAI call", exc_info=True)
@@ -329,7 +334,9 @@ class OpenAIInstrumentation(BaseLLMInstrumentation):
 
             try:
                 latency_ms = (time.perf_counter() - start_time) * 1000
-                data = _build_call_data(response, model_hint, messages, params, latency_ms, self_sdk=self_sdk)
+                data = _build_call_data(
+                    response, model_hint, messages, params, latency_ms, self_sdk=self_sdk
+                )
                 get_sender().send(state, data)
             except Exception:  # noqa: BLE001
                 logger.debug("AgentLens: failed to capture async OpenAI call", exc_info=True)
@@ -350,10 +357,12 @@ class OpenAIInstrumentation(BaseLLMInstrumentation):
 
         if _original_create is not None:
             from openai.resources.chat.completions import Completions
+
             Completions.create = _original_create  # type: ignore[method-assign]
 
         if _original_async_create is not None:
             from openai.resources.chat.completions import AsyncCompletions
+
             AsyncCompletions.create = _original_async_create  # type: ignore[method-assign]
 
         _original_create = None
@@ -393,9 +402,11 @@ def uninstrument_openai() -> None:
         global _original_create, _original_async_create  # noqa: PLW0603
         if _original_create is not None:
             from openai.resources.chat.completions import Completions
+
             Completions.create = _original_create  # type: ignore[method-assign]
             _original_create = None
         if _original_async_create is not None:
             from openai.resources.chat.completions import AsyncCompletions
+
             AsyncCompletions.create = _original_async_create  # type: ignore[method-assign]
             _original_async_create = None

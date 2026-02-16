@@ -124,14 +124,14 @@ function registerLogEvent(server: McpServer, transport: AgentLensTransport): voi
       sessionId: z.string().describe('Session ID from agentlens_session_start'),
       eventType: z.string().describe('Event type (e.g., tool_call, tool_response, custom)'),
       payload: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .describe('Event payload — structure depends on eventType'),
       severity: z
         .enum(['debug', 'info', 'warn', 'error', 'critical'])
         .optional()
         .describe('Severity level (default: info)'),
       metadata: z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .optional()
         .describe('Arbitrary metadata (tags, labels, correlation IDs)'),
     },
@@ -341,14 +341,14 @@ function registerQueryEvents(server: McpServer, transport: AgentLensTransport): 
 
 const llmMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant', 'tool']),
-  content: z.union([z.string(), z.array(z.record(z.unknown()))]),
+  content: z.union([z.string(), z.array(z.record(z.string(), z.unknown()))]),
   toolCallId: z.string().optional(),
   toolCalls: z
     .array(
       z.object({
         id: z.string(),
         name: z.string(),
-        arguments: z.record(z.unknown()),
+        arguments: z.record(z.string(), z.unknown()),
       }),
     )
     .optional(),
@@ -357,13 +357,13 @@ const llmMessageSchema = z.object({
 const llmToolDefSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
-  parameters: z.record(z.unknown()).optional(),
+  parameters: z.record(z.string(), z.unknown()).optional(),
 });
 
 const llmToolCallSchema = z.object({
   id: z.string(),
   name: z.string(),
-  arguments: z.record(z.unknown()),
+  arguments: z.record(z.string(), z.unknown()),
 });
 
 function registerLogLlmCall(server: McpServer, transport: AgentLensTransport): void {
@@ -393,7 +393,7 @@ function registerLogLlmCall(server: McpServer, transport: AgentLensTransport): v
         .describe('Token usage counts'),
       costUsd: z.number().describe('Cost of this call in USD'),
       latencyMs: z.number().describe('Latency in milliseconds'),
-      parameters: z.record(z.unknown()).optional().describe('Model parameters (temperature, maxTokens, etc.)'),
+      parameters: z.record(z.string(), z.unknown()).optional().describe('Model parameters (temperature, maxTokens, etc.)'),
       tools: z.array(llmToolDefSchema).optional().describe('Tool/function definitions provided to the model'),
     },
     async ({

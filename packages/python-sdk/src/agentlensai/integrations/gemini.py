@@ -3,6 +3,7 @@
 Patches ``google.generativeai.GenerativeModel.generate_content`` (sync)
 and ``generate_content_async`` (async). Streaming calls are passed through.
 """
+
 from __future__ import annotations
 
 import logging
@@ -62,7 +63,7 @@ class GeminiInstrumentation(BaseLLMInstrumentation):
             pass
 
         # Content as messages
-        content_arg = kwargs.get("contents", None)
+        content_arg = kwargs.get("contents")
         messages: list[dict[str, Any]] = []
         if content_arg:
             if isinstance(content_arg, str):
@@ -95,9 +96,10 @@ class GeminiInstrumentation(BaseLLMInstrumentation):
 
         @functools.wraps(original)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            import time
+
             from agentlensai._sender import get_sender
             from agentlensai._state import get_state
-            import time
 
             state = get_state()
             if state is None:
@@ -107,7 +109,9 @@ class GeminiInstrumentation(BaseLLMInstrumentation):
 
             model_name = "unknown"
             if args:
-                model_name = getattr(args[0], "model_name", getattr(args[0], "_model_name", "unknown"))
+                model_name = getattr(
+                    args[0], "model_name", getattr(args[0], "_model_name", "unknown")
+                )
 
             start_time = time.perf_counter()
             response = original(*args, **kwargs)
@@ -130,9 +134,10 @@ class GeminiInstrumentation(BaseLLMInstrumentation):
 
         @functools.wraps(original)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            import time
+
             from agentlensai._sender import get_sender
             from agentlensai._state import get_state
-            import time
 
             state = get_state()
             if state is None:
@@ -142,7 +147,9 @@ class GeminiInstrumentation(BaseLLMInstrumentation):
 
             model_name = "unknown"
             if args:
-                model_name = getattr(args[0], "model_name", getattr(args[0], "_model_name", "unknown"))
+                model_name = getattr(
+                    args[0], "model_name", getattr(args[0], "_model_name", "unknown")
+                )
 
             start_time = time.perf_counter()
             response = await original(*args, **kwargs)

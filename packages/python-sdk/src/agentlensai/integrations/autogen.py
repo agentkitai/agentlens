@@ -64,7 +64,9 @@ class AgentLensAutoGenHandler(BaseFrameworkPlugin):
             return name
         return self._agent_id or "default"
 
-    def _framework_metadata(self, component: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _framework_metadata(
+        self, component: str, extra: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Build standard framework metadata."""
         meta: dict[str, Any] = {
             "source": "autogen",
@@ -204,11 +206,14 @@ class AgentLensAutoGenHandler(BaseFrameworkPlugin):
             elif isinstance(message, dict):
                 content = str(message.get("content", ""))[:500]
 
-            self._send_custom_event("message_received", {
-                "sender": sender_name,
-                "receiver": receiver_name,
-                "content_preview": content,
-            })
+            self._send_custom_event(
+                "message_received",
+                {
+                    "sender": sender_name,
+                    "receiver": receiver_name,
+                    "content_preview": content,
+                },
+            )
         except Exception:
             logger.debug("AgentLens AutoGen: on_message_received error", exc_info=True)
 
@@ -237,11 +242,13 @@ class AgentLensAutoGenHandler(BaseFrameworkPlugin):
 
             # Truncate messages for storage
             truncated_msgs = []
-            for msg in (messages or []):
-                truncated_msgs.append({
-                    "role": msg.get("role", "unknown"),
-                    "content": str(msg.get("content", ""))[:300],
-                })
+            for msg in messages or []:
+                truncated_msgs.append(
+                    {
+                        "role": msg.get("role", "unknown"),
+                        "content": str(msg.get("content", ""))[:300],
+                    }
+                )
 
             event = {
                 "sessionId": session_id,

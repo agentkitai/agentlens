@@ -3,6 +3,7 @@
 All sending is wrapped in try/except — NEVER raises to user code.
 Supports both sync (inline) and background (threaded queue) modes.
 """
+
 from __future__ import annotations
 
 import logging
@@ -126,9 +127,7 @@ class EventSender:
         # Build messages (potentially redacted)
         messages: list[dict[str, Any]] = data.messages
         if redacted:
-            messages = [
-                {"role": m.get("role", "user"), "content": "[REDACTED]"} for m in messages
-            ]
+            messages = [{"role": m.get("role", "user"), "content": "[REDACTED]"} for m in messages]
         elif has_pii:
             messages = _pii(messages)
 
@@ -166,7 +165,9 @@ class EventSender:
             "latencyMs": data.latency_ms,
         }
         if data.tool_calls is not None:
-            resp_payload["toolCalls"] = _pii(data.tool_calls) if has_pii and not redacted else data.tool_calls
+            resp_payload["toolCalls"] = (
+                _pii(data.tool_calls) if has_pii and not redacted else data.tool_calls
+            )
         if redacted:
             resp_payload["redacted"] = True
 
@@ -205,7 +206,9 @@ class EventSender:
         import os
         import tempfile
 
-        buffer_dir = os.environ.get("AGENTLENS_BUFFER_DIR", os.path.join(tempfile.gettempdir(), "agentlens_buffer"))
+        buffer_dir = os.environ.get(
+            "AGENTLENS_BUFFER_DIR", os.path.join(tempfile.gettempdir(), "agentlens_buffer")
+        )
         os.makedirs(buffer_dir, exist_ok=True)
         filename = os.path.join(buffer_dir, f"events_{uuid.uuid4().hex}.json")
         with open(filename, "w") as f:

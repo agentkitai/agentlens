@@ -1,4 +1,5 @@
 """Global instrumentation state for AgentLens auto-instrumentation."""
+
 from __future__ import annotations
 
 import re

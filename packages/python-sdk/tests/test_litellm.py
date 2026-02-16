@@ -2,6 +2,7 @@
 
 All tests mock the litellm SDK — no actual litellm installation required.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -9,7 +10,7 @@ import json
 import sys
 import types
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
@@ -19,10 +20,10 @@ from agentlensai import init, shutdown
 from agentlensai._sender import reset_sender
 from agentlensai._state import clear_state
 
-
 # ---------------------------------------------------------------------------
 # Mock litellm module — injected before importing the integration
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_litellm() -> types.ModuleType:
     """Create a fake ``litellm`` top-level module."""
@@ -63,17 +64,13 @@ def _clean_state():
         shutdown()
     clear_state()
     reset_sender()
-    # Uninstrument if needed
-    try:
-        from agentlensai.integrations.litellm import LiteLLMInstrumentation
-        # Reset any active instance
-    except Exception:
-        pass
+    # Uninstrument if needed — nothing to do currently
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _mock_litellm_response(
     content: str = "Hello!",
@@ -131,6 +128,7 @@ class TestLiteLLMInstrumentation:
     def test_instrument_and_uninstrument(self, _setup_litellm: Any) -> None:
         """Instrument patches litellm.completion; uninstrument restores it."""
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         original = litellm.completion
@@ -142,6 +140,7 @@ class TestLiteLLMInstrumentation:
 
     def test_double_instrument_is_noop(self, _setup_litellm: Any) -> None:
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         inst = LiteLLMInstrumentation()
@@ -154,6 +153,7 @@ class TestLiteLLMInstrumentation:
     def test_passthrough_when_no_state(self, _setup_litellm: Any) -> None:
         """Without init(), original called directly."""
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         mock_resp = _mock_litellm_response()
@@ -173,6 +173,7 @@ class TestLiteLLMInstrumentation:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         mock_resp = _mock_litellm_response(content="Hi there!", model="gpt-4o-2024")
@@ -201,9 +202,12 @@ class TestLiteLLMInstrumentation:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
-        mock_resp = _mock_litellm_response(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+        mock_resp = _mock_litellm_response(
+            prompt_tokens=100, completion_tokens=50, total_tokens=150
+        )
         litellm.completion = MagicMock(return_value=mock_resp)
 
         inst = LiteLLMInstrumentation()
@@ -227,6 +231,7 @@ class TestLiteLLMInstrumentation:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         mock_resp = _mock_litellm_response()
@@ -251,6 +256,7 @@ class TestLiteLLMInstrumentation:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         mock_resp = _mock_litellm_response(custom_llm_provider="bedrock")
@@ -271,6 +277,7 @@ class TestLiteLLMInstrumentation:
     def test_error_propagates(self, _setup_litellm: Any) -> None:
         """If litellm raises, the error must propagate."""
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         litellm.completion = MagicMock(side_effect=ValueError("rate limit!"))
@@ -291,6 +298,7 @@ class TestLiteLLMInstrumentation:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         mock_resp = _mock_litellm_response(content="Async hello!")
@@ -304,7 +312,9 @@ class TestLiteLLMInstrumentation:
         inst.instrument()
         init("http://localhost:3400", session_id="ll5", sync_mode=True)
 
-        result = await litellm.acompletion(model="gpt-4o", messages=[{"role": "user", "content": "Hello"}])
+        result = await litellm.acompletion(
+            model="gpt-4o", messages=[{"role": "user", "content": "Hello"}]
+        )
         assert result is mock_resp
 
         body = json.loads(respx.calls[0].request.content)
@@ -314,9 +324,10 @@ class TestLiteLLMInstrumentation:
 
     def test_registry_registration(self) -> None:
         """LiteLLM is registered in the provider registry."""
-        from agentlensai.integrations.registry import REGISTRY
         # Force import to trigger registration
         import agentlensai.integrations.litellm  # noqa: F401
+        from agentlensai.integrations.registry import REGISTRY
+
         assert "litellm" in REGISTRY
 
 
@@ -335,6 +346,7 @@ class TestLiteLLMStreaming:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         chunks = _mock_stream_chunks(
@@ -347,7 +359,9 @@ class TestLiteLLMStreaming:
         inst.instrument()
         init("http://localhost:3400", session_id="lls1", sync_mode=True)
 
-        stream = litellm.completion(model="gpt-4o", messages=[{"role": "user", "content": "Hi"}], stream=True)
+        stream = litellm.completion(
+            model="gpt-4o", messages=[{"role": "user", "content": "Hi"}], stream=True
+        )
 
         collected = []
         for chunk in stream:
@@ -369,6 +383,7 @@ class TestLiteLLMStreaming:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         chunks = _mock_stream_chunks(
@@ -386,8 +401,8 @@ class TestLiteLLMStreaming:
             async def __anext__(self) -> Any:
                 try:
                     return next(self._items)
-                except StopIteration:
-                    raise StopAsyncIteration
+                except StopIteration as exc:
+                    raise StopAsyncIteration from exc
 
         async def _fake_acompletion(*args: Any, **kwargs: Any) -> Any:
             return MockAsyncIter(chunks)
@@ -398,7 +413,9 @@ class TestLiteLLMStreaming:
         inst.instrument()
         init("http://localhost:3400", session_id="lls2", sync_mode=True)
 
-        stream = await litellm.acompletion(model="gpt-4o", messages=[{"role": "user", "content": "Hi"}], stream=True)
+        stream = await litellm.acompletion(
+            model="gpt-4o", messages=[{"role": "user", "content": "Hi"}], stream=True
+        )
 
         collected = []
         async for chunk in stream:
@@ -415,6 +432,7 @@ class TestLiteLLMStreaming:
     def test_stream_no_state_passthrough(self, _setup_litellm: Any) -> None:
         """Without init(), streaming passes through without wrapping."""
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         sentinel = MagicMock()
@@ -436,6 +454,7 @@ class TestLiteLLMStreaming:
             return_value=httpx.Response(200, json={"processed": 2})
         )
         import litellm
+
         from agentlensai.integrations.litellm import LiteLLMInstrumentation
 
         litellm.completion = MagicMock(return_value=iter([]))
@@ -444,7 +463,9 @@ class TestLiteLLMStreaming:
         inst.instrument()
         init("http://localhost:3400", session_id="lls3", sync_mode=True)
 
-        stream = litellm.completion(model="gpt-4o", messages=[{"role": "user", "content": "Hi"}], stream=True)
+        stream = litellm.completion(
+            model="gpt-4o", messages=[{"role": "user", "content": "Hi"}], stream=True
+        )
         collected = list(stream)
         assert len(collected) == 0
 

@@ -1,7 +1,7 @@
 """PII filtering constants and utilities for AgentLens."""
+
 from __future__ import annotations
 
-import copy
 import re
 from typing import Any, Callable
 

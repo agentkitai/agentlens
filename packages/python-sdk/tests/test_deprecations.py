@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import warnings
-
 import httpx
 import pytest
 import respx
@@ -39,9 +37,7 @@ class TestSyncLessonsDeprecation:
 
     @respx.mock
     def test_create_lesson(self) -> None:
-        respx.post(f"{BASE_URL}/api/lessons").mock(
-            return_value=httpx.Response(200, json=_LESSON)
-        )
+        respx.post(f"{BASE_URL}/api/lessons").mock(return_value=httpx.Response(200, json=_LESSON))
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         with pytest.warns(DeprecationWarning, match=_DEPRECATION_MSG):
             client.create_lesson(CreateLessonInput(title="t", content="c"))
@@ -94,9 +90,7 @@ class TestAsyncLessonsDeprecation:
     @respx.mock
     @pytest.mark.anyio
     async def test_create_lesson(self) -> None:
-        respx.post(f"{BASE_URL}/api/lessons").mock(
-            return_value=httpx.Response(200, json=_LESSON)
-        )
+        respx.post(f"{BASE_URL}/api/lessons").mock(return_value=httpx.Response(200, json=_LESSON))
         async with AsyncAgentLensClient(BASE_URL, api_key=API_KEY) as client:
             with pytest.warns(DeprecationWarning, match=_DEPRECATION_MSG):
                 await client.create_lesson(CreateLessonInput(title="t", content="c"))
@@ -127,10 +121,13 @@ class TestVersion:
 
     def test_version_is_not_hardcoded(self) -> None:
         import agentlensai
+
         # Should NOT be the old hardcoded value
         assert agentlensai.__version__ != "0.4.0"
 
     def test_version_matches_metadata(self) -> None:
-        import agentlensai
         from importlib.metadata import version
+
+        import agentlensai
+
         assert agentlensai.__version__ == version("agentlensai")

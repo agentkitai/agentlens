@@ -8,10 +8,10 @@ providers that don't have built-in cost calculation.
 - Ollama: always $0 (local)
 - Bedrock, Vertex, Mistral, Cohere: use this module's lookup tables
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger("agentlensai")
 
@@ -68,7 +68,7 @@ def get_cost(
     model: str,
     input_tokens: int,
     output_tokens: int,
-) -> Optional[float]:
+) -> float | None:
     """Calculate cost in USD for a given provider/model/token count.
 
     Returns ``None`` if the model is not in the pricing table (with a
@@ -85,9 +85,7 @@ def get_cost(
 
     pricing = provider_pricing.get(model)
     if pricing is None:
-        logger.warning(
-            "AgentLens pricing: unknown model '%s' for provider '%s'", model, provider
-        )
+        logger.warning("AgentLens pricing: unknown model '%s' for provider '%s'", model, provider)
         return None
 
     input_cost_per_1m, output_cost_per_1m = pricing

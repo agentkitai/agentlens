@@ -77,9 +77,7 @@ class TestSyncGetLessons:
     @respx.mock
     def test_returns_list_result(self) -> None:
         respx.get(f"{BASE_URL}/api/lessons").mock(
-            return_value=httpx.Response(
-                200, json={"lessons": [_lesson_data()], "total": 1}
-            )
+            return_value=httpx.Response(200, json={"lessons": [_lesson_data()], "total": 1})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         result = client.get_lessons()
@@ -90,14 +88,10 @@ class TestSyncGetLessons:
     @respx.mock
     def test_sends_filter_params(self) -> None:
         respx.get(f"{BASE_URL}/api/lessons").mock(
-            return_value=httpx.Response(
-                200, json={"lessons": [], "total": 0}
-            )
+            return_value=httpx.Response(200, json={"lessons": [], "total": 0})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
-        client.get_lessons(
-            LessonQuery(category="error-handling", importance="high", limit=10)
-        )
+        client.get_lessons(LessonQuery(category="error-handling", importance="high", limit=10))
         url = respx.calls[0].request.url
         assert url.params["category"] == "error-handling"
         assert url.params["importance"] == "high"
@@ -137,9 +131,7 @@ class TestSyncDeleteLesson:
     @respx.mock
     def test_sends_delete(self) -> None:
         respx.delete(f"{BASE_URL}/api/lessons/les_001").mock(
-            return_value=httpx.Response(
-                200, json={"id": "les_001", "archived": True}
-            )
+            return_value=httpx.Response(200, json={"id": "les_001", "archived": True})
         )
         client = AgentLensClient(BASE_URL, api_key=API_KEY)
         result = client.delete_lesson("les_001")
@@ -159,9 +151,7 @@ class TestAsyncCreateLesson:
             return_value=httpx.Response(200, json=_lesson_data())
         )
         async with AsyncAgentLensClient(BASE_URL, api_key=API_KEY) as client:
-            result = await client.create_lesson(
-                CreateLessonInput(title="Retry", content="Content")
-            )
+            result = await client.create_lesson(CreateLessonInput(title="Retry", content="Content"))
         assert result.id == "les_001"
 
 
@@ -170,9 +160,7 @@ class TestAsyncGetLessons:
     @pytest.mark.anyio
     async def test_returns_list_result(self) -> None:
         respx.get(f"{BASE_URL}/api/lessons").mock(
-            return_value=httpx.Response(
-                200, json={"lessons": [_lesson_data()], "total": 1}
-            )
+            return_value=httpx.Response(200, json={"lessons": [_lesson_data()], "total": 1})
         )
         async with AsyncAgentLensClient(BASE_URL, api_key=API_KEY) as client:
             result = await client.get_lessons()
@@ -184,9 +172,7 @@ class TestAsyncDeleteLesson:
     @pytest.mark.anyio
     async def test_returns_delete_result(self) -> None:
         respx.delete(f"{BASE_URL}/api/lessons/les_001").mock(
-            return_value=httpx.Response(
-                200, json={"id": "les_001", "archived": True}
-            )
+            return_value=httpx.Response(200, json={"id": "les_001", "archived": True})
         )
         async with AsyncAgentLensClient(BASE_URL, api_key=API_KEY) as client:
             result = await client.delete_lesson("les_001")

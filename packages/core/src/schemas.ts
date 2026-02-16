@@ -39,7 +39,7 @@ export const severitySchema = z.enum(['debug', 'info', 'warn', 'error', 'critica
 export const toolCallPayloadSchema = z.object({
   toolName: z.string().min(1),
   callId: z.string().min(1),
-  arguments: z.record(z.unknown()),
+  arguments: z.record(z.string(), z.unknown()),
   serverName: z.string().optional(),
 });
 
@@ -61,7 +61,7 @@ export const toolErrorPayloadSchema = z.object({
 export const sessionStartedPayloadSchema = z.object({
   agentName: z.string().optional(),
   agentVersion: z.string().optional(),
-  mcpClientInfo: z.record(z.unknown()).optional(),
+  mcpClientInfo: z.record(z.string(), z.unknown()).optional(),
   tags: z.array(z.string()).optional(),
 });
 
@@ -75,7 +75,7 @@ export const sessionEndedPayloadSchema = z.object({
 export const approvalRequestedPayloadSchema = z.object({
   requestId: z.string().min(1),
   action: z.string().min(1),
-  params: z.record(z.unknown()),
+  params: z.record(z.string(), z.unknown()),
   urgency: z.string(),
 });
 
@@ -133,12 +133,12 @@ export const alertResolvedPayloadSchema = z.object({
 
 export const llmMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant', 'tool']),
-  content: z.union([z.string(), z.array(z.record(z.unknown()))]),
+  content: z.union([z.string(), z.array(z.record(z.string(), z.unknown()))]),
   toolCallId: z.string().optional(),
   toolCalls: z.array(z.object({
     id: z.string(),
     name: z.string(),
-    arguments: z.record(z.unknown()),
+    arguments: z.record(z.string(), z.unknown()),
   })).optional(),
 });
 
@@ -157,7 +157,7 @@ export const llmCallPayloadSchema = z.object({
   tools: z.array(z.object({
     name: z.string(),
     description: z.string().optional(),
-    parameters: z.record(z.unknown()).optional(),
+    parameters: z.record(z.string(), z.unknown()).optional(),
   })).optional(),
   redacted: z.boolean().optional(),
 });
@@ -170,7 +170,7 @@ export const llmResponsePayloadSchema = z.object({
   toolCalls: z.array(z.object({
     id: z.string(),
     name: z.string(),
-    arguments: z.record(z.unknown()),
+    arguments: z.record(z.string(), z.unknown()),
   })).optional(),
   finishReason: z.string().min(1),
   usage: z.object({
@@ -188,7 +188,7 @@ export const llmResponsePayloadSchema = z.object({
 
 export const customPayloadSchema = z.object({
   type: z.string(),
-  data: z.record(z.unknown()),
+  data: z.record(z.string(), z.unknown()),
 });
 
 /**
@@ -227,8 +227,8 @@ export const ingestEventSchema = z
     agentId: z.string().min(1, 'agentId is required'),
     eventType: eventTypeSchema,
     severity: severitySchema.default('info'),
-    payload: z.record(z.unknown()),
-    metadata: z.record(z.unknown()).default({}),
+    payload: z.record(z.string(), z.unknown()),
+    metadata: z.record(z.string(), z.unknown()).default({}),
     /** Optional client-side timestamp; server will validate and may override */
     timestamp: z.string().datetime().optional(),
   })
@@ -399,9 +399,9 @@ export const CreateGuardrailRuleSchema = z.object({
   description: z.string().max(1000).optional(),
   enabled: z.boolean().default(true),
   conditionType: GuardrailConditionTypeSchema,
-  conditionConfig: z.record(z.unknown()),
+  conditionConfig: z.record(z.string(), z.unknown()),
   actionType: GuardrailActionTypeSchema,
-  actionConfig: z.record(z.unknown()),
+  actionConfig: z.record(z.string(), z.unknown()),
   agentId: z.string().optional(),
   cooldownMinutes: z.number().int().min(0).max(1440).default(15),
   dryRun: z.boolean().default(true),
@@ -412,9 +412,9 @@ export const UpdateGuardrailRuleSchema = z.object({
   description: z.string().max(1000).optional(),
   enabled: z.boolean().optional(),
   conditionType: GuardrailConditionTypeSchema.optional(),
-  conditionConfig: z.record(z.unknown()).optional(),
+  conditionConfig: z.record(z.string(), z.unknown()).optional(),
   actionType: GuardrailActionTypeSchema.optional(),
-  actionConfig: z.record(z.unknown()).optional(),
+  actionConfig: z.record(z.string(), z.unknown()).optional(),
   agentId: z.string().nullable().optional(),
   cooldownMinutes: z.number().int().min(0).max(1440).optional(),
   dryRun: z.boolean().optional(),
@@ -427,9 +427,9 @@ export const GuardrailRuleSchema = z.object({
   description: z.string().optional(),
   enabled: z.boolean(),
   conditionType: GuardrailConditionTypeSchema,
-  conditionConfig: z.record(z.unknown()),
+  conditionConfig: z.record(z.string(), z.unknown()),
   actionType: GuardrailActionTypeSchema,
-  actionConfig: z.record(z.unknown()),
+  actionConfig: z.record(z.string(), z.unknown()),
   agentId: z.string().optional(),
   cooldownMinutes: z.number().int().min(0),
   dryRun: z.boolean(),

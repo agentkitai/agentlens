@@ -2,23 +2,23 @@
 
 All boto3/botocore dependencies are mocked — no AWS credentials needed.
 """
+
 from __future__ import annotations
 
 import io
 import json
 import sys
 import types
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from agentlensai._sender import LlmCallData
 
-
 # ---------------------------------------------------------------------------
 # Mock botocore module hierarchy before importing bedrock integration
 # ---------------------------------------------------------------------------
+
 
 def _setup_botocore_mocks():
     """Create mock botocore modules in sys.modules."""
@@ -47,17 +47,17 @@ def _setup_botocore_mocks():
 _botocore_client_mod, _MockBaseClient = _setup_botocore_mocks()
 
 
-from agentlensai.integrations.bedrock import (
+from agentlensai.integrations.bedrock import (  # noqa: E402
     BedrockInstrumentation,
     _detect_model_family,
     _parse_converse_response,
     _parse_invoke_response,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def _reset_instrumentation():
@@ -88,6 +88,7 @@ def mock_sender():
 # S2.1: Model family detection
 # ---------------------------------------------------------------------------
 
+
 class TestModelFamilyDetection:
     def test_anthropic_family(self):
         assert _detect_model_family("anthropic.claude-3-sonnet-20240229-v1:0") == "anthropic"
@@ -108,6 +109,7 @@ class TestModelFamilyDetection:
 # ---------------------------------------------------------------------------
 # S2.1: InvokeModel response parsing
 # ---------------------------------------------------------------------------
+
 
 class TestInvokeResponseParsing:
     def test_anthropic_response(self):
@@ -156,6 +158,7 @@ class TestInvokeResponseParsing:
 # S2.1: BedrockInstrumentation invoke_model integration
 # ---------------------------------------------------------------------------
 
+
 class TestBedrockInvokeModel:
     def test_instrument_uninstrument_idempotent(self):
         inst = BedrockInstrumentation()
@@ -176,23 +179,29 @@ class TestBedrockInvokeModel:
         client = MagicMock()
         client._service_model.service_name = "bedrock-runtime"
 
-        response_body = json.dumps({
-            "content": [{"type": "text", "text": "Hello!"}],
-            "usage": {"input_tokens": 10, "output_tokens": 5},
-        }).encode()
+        response_body = json.dumps(
+            {
+                "content": [{"type": "text", "text": "Hello!"}],
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+            }
+        ).encode()
 
-        original_invoke = MagicMock(return_value={
-            "body": io.BytesIO(response_body),
-            "ResponseMetadata": {},
-        })
+        original_invoke = MagicMock(
+            return_value={
+                "body": io.BytesIO(response_body),
+                "ResponseMetadata": {},
+            }
+        )
         client.invoke_model = original_invoke
 
         # Manually trigger client patching
         inst._patch_bedrock_client(client)
 
-        with patch("agentlensai._state.get_state", return_value=mock_state), \
-             patch("agentlensai._sender.get_sender", return_value=mock_sender):
-            result = client.invoke_model(
+        with (
+            patch("agentlensai._state.get_state", return_value=mock_state),
+            patch("agentlensai._sender.get_sender", return_value=mock_sender),
+        ):
+            client.invoke_model(
                 modelId="anthropic.claude-3-sonnet-20240229-v1:0",
                 body=json.dumps({"messages": [{"role": "user", "content": "Hi"}]}),
             )
@@ -230,6 +239,7 @@ class TestBedrockInvokeModel:
 # ---------------------------------------------------------------------------
 # S2.2: Converse API
 # ---------------------------------------------------------------------------
+
 
 class TestConverseAPI:
     def test_parse_converse_response(self):
@@ -269,9 +279,11 @@ class TestConverseAPI:
         client.converse = original_converse
         inst._patch_bedrock_client(client)
 
-        with patch("agentlensai._state.get_state", return_value=mock_state), \
-             patch("agentlensai._sender.get_sender", return_value=mock_sender):
-            result = client.converse(
+        with (
+            patch("agentlensai._state.get_state", return_value=mock_state),
+            patch("agentlensai._sender.get_sender", return_value=mock_sender),
+        ):
+            client.converse(
                 modelId="anthropic.claude-3-sonnet-20240229-v1:0",
                 messages=[{"role": "user", "content": [{"text": "Hello"}]}],
             )
@@ -317,8 +329,10 @@ class TestConverseAPI:
         client.converse = original_converse
         inst._patch_bedrock_client(client)
 
-        with patch("agentlensai._state.get_state", return_value=mock_state), \
-             patch("agentlensai._sender.get_sender", return_value=mock_sender):
+        with (
+            patch("agentlensai._state.get_state", return_value=mock_state),
+            patch("agentlensai._sender.get_sender", return_value=mock_sender),
+        ):
             client.converse(
                 modelId="anthropic.claude-3-sonnet",
                 messages=[{"role": "user", "content": [{"text": "Hi there"}]}],
@@ -336,8 +350,10 @@ class TestConverseAPI:
 # S2.1: Registry integration
 # ---------------------------------------------------------------------------
 
+
 class TestBedrockRegistry:
     def test_registered_in_registry(self):
         from agentlensai.integrations.registry import REGISTRY
+
         assert "bedrock" in REGISTRY
         assert REGISTRY["bedrock"] is BedrockInstrumentation

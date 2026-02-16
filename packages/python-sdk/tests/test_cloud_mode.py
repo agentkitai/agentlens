@@ -5,19 +5,19 @@ S-5.2: Cloud Convenience Init
 S-5.3: Cloud Error Handling & Retry
 S-5.4: SDK Integration Tests
 """
+
 from __future__ import annotations
 
 import json
 import os
-import time
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
 from agentlensai._init import (
-    CLOUD_URL,
     _DEFAULT_URL,
+    CLOUD_URL,
     _mask_key,
     _resolve_api_key,
     _resolve_url,
@@ -31,7 +31,6 @@ from agentlensai.exceptions import (
     QuotaExceededError,
     RateLimitError,
 )
-
 
 # ─── S-5.1: API Key Header Support ────────────────────────
 
@@ -71,11 +70,11 @@ class TestApiKeySupport:
 
     def test_init_with_env_api_key(self):
         """init() picks up AGENTLENS_API_KEY from environment."""
-        with patch.dict(os.environ, {"AGENTLENS_API_KEY": "als_fromenv"}):
+        with patch.dict(os.environ, {"AGENTLENS_API_KEY": "als_fromenv"}): # noqa: SIM117
             with patch("agentlensai._init.AgentLensClient") as MockClient:
                 mock_instance = MagicMock()
                 MockClient.return_value = mock_instance
-                with patch("agentlensai._init.get_state", return_value=None):
+                with patch("agentlensai._init.get_state", return_value=None): # noqa: SIM117
                     with patch("agentlensai._init.set_state"):
                         with patch("agentlensai._init.get_sender"):
                             with patch("agentlensai._init._instrument_providers"):
@@ -87,6 +86,7 @@ class TestApiKeySupport:
     def test_api_key_not_logged_in_full(self, caplog):
         """Full API key must never appear in logs."""
         import logging
+
         with caplog.at_level(logging.DEBUG, logger="agentlensai"):
             _mask_key("als_supersecretkey123")
         # The full key should never appear in any log
@@ -135,7 +135,7 @@ class TestCloudConvenienceInit:
         with patch("agentlensai._init.AgentLensClient") as MockClient:
             mock_instance = MagicMock()
             MockClient.return_value = mock_instance
-            with patch("agentlensai._init.get_state", return_value=None):
+            with patch("agentlensai._init.get_state", return_value=None): # noqa: SIM117
                 with patch("agentlensai._init.set_state"):
                     with patch("agentlensai._init.get_sender"):
                         with patch("agentlensai._init._instrument_providers"):
@@ -149,7 +149,7 @@ class TestCloudConvenienceInit:
         with patch("agentlensai._init.AgentLensClient") as MockClient:
             mock_instance = MagicMock()
             MockClient.return_value = mock_instance
-            with patch("agentlensai._init.get_state", return_value=None):
+            with patch("agentlensai._init.get_state", return_value=None): # noqa: SIM117
                 with patch("agentlensai._init.set_state"):
                     with patch("agentlensai._init.get_sender"):
                         with patch("agentlensai._init._instrument_providers"):
@@ -178,18 +178,24 @@ class TestCloudErrorHandling:
     def test_401_raises_auth_error_no_retry(self):
         """401 raises AuthenticationError immediately (no retry)."""
         client = AgentLensClient("http://localhost:3400", api_key="bad_key")
-        with patch.object(client, "_do_request", return_value=self._make_response(401, '{"error":"Invalid API key"}')):
-            with pytest.raises(AuthenticationError, match="Invalid API key"):
-                client._request("POST", "/api/events", json={})
+        with patch.object(
+            client,
+            "_do_request",
+            return_value=self._make_response(401, '{"error":"Invalid API key"}'),
+        ), pytest.raises(AuthenticationError, match="Invalid API key"):
+            client._request("POST", "/api/events", json={})
         # Should only be called once (no retry)
         client.close()
 
     def test_402_raises_quota_error(self):
         """402 raises QuotaExceededError immediately."""
         client = AgentLensClient("http://localhost:3400", api_key="key")
-        with patch.object(client, "_do_request", return_value=self._make_response(402, '{"error":"Quota exceeded"}')):
-            with pytest.raises(QuotaExceededError):
-                client._request("POST", "/api/events", json={})
+        with patch.object(
+            client,
+            "_do_request",
+            return_value=self._make_response(402, '{"error":"Quota exceeded"}'),
+        ), pytest.raises(QuotaExceededError):
+            client._request("POST", "/api/events", json={})
         client.close()
 
     def test_429_retries_with_retry_after(self):
@@ -199,9 +205,12 @@ class TestCloudErrorHandling:
         resp_200 = self._make_response(200)
         # Mock response.json() for success
         resp_200_data = {"ok": True}
-        resp_200 = httpx.Response(200, json=resp_200_data, request=httpx.Request("POST", "http://test/api/events"))
+        resp_200 = httpx.Response(
+            200, json=resp_200_data, request=httpx.Request("POST", "http://test/api/events")
+        )
 
         call_count = 0
+
         def side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -209,7 +218,7 @@ class TestCloudErrorHandling:
                 return resp_429
             return resp_200
 
-        with patch.object(client, "_do_request", side_effect=side_effect):
+        with patch.object(client, "_do_request", side_effect=side_effect): # noqa: SIM117
             with patch("agentlensai.client.time.sleep") as mock_sleep:
                 result = client._request("POST", "/api/events", json={})
                 assert result == {"ok": True}
@@ -221,7 +230,7 @@ class TestCloudErrorHandling:
         client = AgentLensClient("http://localhost:3400", api_key="key")
         resp_429 = self._make_response(429, '{"error":"Rate limited"}', {"Retry-After": "0.01"})
 
-        with patch.object(client, "_do_request", return_value=resp_429):
+        with patch.object(client, "_do_request", return_value=resp_429): # noqa: SIM117
             with patch("agentlensai.client.time.sleep"):
                 with pytest.raises(RateLimitError):
                     client._request("POST", "/api/events", json={})
@@ -231,9 +240,12 @@ class TestCloudErrorHandling:
         """503 retries with exponential backoff."""
         client = AgentLensClient("http://localhost:3400", api_key="key")
         resp_503 = self._make_response(503, '{"error":"Backpressure"}')
-        resp_200 = httpx.Response(200, json={"ok": True}, request=httpx.Request("POST", "http://test/api/events"))
+        resp_200 = httpx.Response(
+            200, json={"ok": True}, request=httpx.Request("POST", "http://test/api/events")
+        )
 
         call_count = 0
+
         def side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -241,7 +253,7 @@ class TestCloudErrorHandling:
                 return resp_503
             return resp_200
 
-        with patch.object(client, "_do_request", side_effect=side_effect):
+        with patch.object(client, "_do_request", side_effect=side_effect): # noqa: SIM117
             with patch("agentlensai.client.time.sleep") as mock_sleep:
                 result = client._request("POST", "/api/events", json={})
                 assert result == {"ok": True}
@@ -256,7 +268,7 @@ class TestCloudErrorHandling:
         client = AgentLensClient("http://localhost:3400", api_key="key")
         resp_503 = self._make_response(503, '{"error":"Backpressure"}')
 
-        with patch.object(client, "_do_request", return_value=resp_503):
+        with patch.object(client, "_do_request", return_value=resp_503): # noqa: SIM117
             with patch("agentlensai.client.time.sleep"):
                 with pytest.raises(BackpressureError):
                     client._request("POST", "/api/events", json={})
@@ -329,11 +341,12 @@ class TestSDKIntegration:
     def test_init_shutdown_lifecycle(self):
         """Full init → shutdown lifecycle works."""
         shutdown()  # Clean state
-        with patch("agentlensai._init._instrument_providers"):
+        with patch("agentlensai._init._instrument_providers"): # noqa: SIM117
             with patch("agentlensai._init._instrument_frameworks"):
                 sid = init("http://localhost:3400", integrations=[])
                 assert sid is not None
                 from agentlensai._init import current_session_id
+
                 assert current_session_id() == sid
                 shutdown()
                 assert current_session_id() is None
@@ -341,10 +354,11 @@ class TestSDKIntegration:
     def test_init_cloud_with_api_key_lifecycle(self):
         """Cloud init with API key creates correct client."""
         shutdown()
-        with patch("agentlensai._init._instrument_providers"):
+        with patch("agentlensai._init._instrument_providers"): # noqa: SIM117
             with patch("agentlensai._init._instrument_frameworks"):
-                sid = init(cloud=True, api_key="als_test", integrations=[])
+                init(cloud=True, api_key="als_test", integrations=[])
                 from agentlensai._init import get_state
+
                 state = get_state()
                 assert state is not None
                 assert state.client._base_url == CLOUD_URL
@@ -354,10 +368,11 @@ class TestSDKIntegration:
     def test_backward_compat_positional_url(self):
         """Old-style init(url) still works."""
         shutdown()
-        with patch("agentlensai._init._instrument_providers"):
+        with patch("agentlensai._init._instrument_providers"): # noqa: SIM117
             with patch("agentlensai._init._instrument_frameworks"):
-                sid = init("http://myserver:3400", integrations=[])
+                init("http://myserver:3400", integrations=[])
                 from agentlensai._init import get_state
+
                 state = get_state()
                 assert state.client._base_url == "http://myserver:3400"
                 shutdown()
@@ -365,10 +380,11 @@ class TestSDKIntegration:
     def test_backward_compat_url_with_api_key(self):
         """Old-style init(url, api_key=...) still works."""
         shutdown()
-        with patch("agentlensai._init._instrument_providers"):
+        with patch("agentlensai._init._instrument_providers"): # noqa: SIM117
             with patch("agentlensai._init._instrument_frameworks"):
-                sid = init("http://myserver:3400", api_key="als_x", integrations=[])
+                init("http://myserver:3400", api_key="als_x", integrations=[])
                 from agentlensai._init import get_state
+
                 state = get_state()
                 assert state.client._api_key == "als_x"
                 shutdown()
@@ -376,12 +392,13 @@ class TestSDKIntegration:
     def test_double_init_warns(self):
         """Double init without shutdown logs warning."""
         shutdown()
-        with patch("agentlensai._init._instrument_providers"):
+        with patch("agentlensai._init._instrument_providers"): # noqa: SIM117
             with patch("agentlensai._init._instrument_frameworks"):
                 init("http://localhost:3400", integrations=[])
                 sid2 = init("http://localhost:3400", integrations=[])
                 # Returns existing session
                 from agentlensai._init import current_session_id
+
                 assert current_session_id() == sid2
                 shutdown()
 
@@ -400,9 +417,13 @@ class TestSDKIntegration:
     def test_health_endpoint_skips_auth(self):
         """Health endpoint does not send auth header."""
         client = AgentLensClient("http://localhost:3400", api_key="als_test")
-        with patch.object(client._client, "build_request", wraps=client._client.build_request) as mock_build:
+        with patch.object(client._client, "build_request", wraps=client._client.build_request): # noqa: SIM117
             with patch.object(client._client, "send") as mock_send:
-                mock_resp = httpx.Response(200, json={"status": "ok", "version": "1.0"}, request=httpx.Request("GET", "http://test/api/health"))
+                mock_resp = httpx.Response(
+                    200,
+                    json={"status": "ok", "version": "1.0"},
+                    request=httpx.Request("GET", "http://test/api/health"),
+                )
                 mock_send.return_value = mock_resp
                 client.health()
                 # Verify the request was built and auth header stripped
@@ -435,10 +456,11 @@ class TestSDKIntegration:
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("AGENTLENS_SERVER_URL", None)
             os.environ.pop("AGENTLENS_API_KEY", None)
-            with patch("agentlensai._init._instrument_providers"):
+            with patch("agentlensai._init._instrument_providers"): # noqa: SIM117
                 with patch("agentlensai._init._instrument_frameworks"):
-                    sid = init(integrations=[])
+                    init(integrations=[])
                     from agentlensai._init import get_state
+
                     state = get_state()
                     assert state.client._base_url == _DEFAULT_URL
                     shutdown()

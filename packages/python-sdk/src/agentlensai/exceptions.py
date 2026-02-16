@@ -60,7 +60,9 @@ class QuotaExceededError(AgentLensError):
 class RateLimitError(AgentLensError):
     """Raised on 429 Too Many Requests."""
 
-    def __init__(self, message: str = "Rate limit exceeded", retry_after: float | None = None) -> None:
+    def __init__(
+        self, message: str = "Rate limit exceeded", retry_after: float | None = None
+    ) -> None:
         super().__init__(message, status=429, code="RATE_LIMITED")
         self.retry_after = retry_after
 

@@ -12,6 +12,7 @@ Usage::
     inst.instrument()   # start capturing
     inst.uninstrument() # restore originals
 """
+
 from __future__ import annotations
 
 import functools
@@ -29,6 +30,7 @@ logger = logging.getLogger("agentlensai")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _extract_messages(kwargs: dict[str, Any]) -> tuple[str | None, list[dict[str, Any]]]:
     """Return ``(system_prompt, messages_list)`` from kwargs."""
@@ -50,7 +52,14 @@ def _extract_messages(kwargs: dict[str, Any]) -> tuple[str | None, list[dict[str
 
 def _extract_params(kwargs: dict[str, Any]) -> dict[str, Any] | None:
     params: dict[str, Any] = {}
-    for key in ("temperature", "max_tokens", "top_p", "stop", "frequency_penalty", "presence_penalty"):
+    for key in (
+        "temperature",
+        "max_tokens",
+        "top_p",
+        "stop",
+        "frequency_penalty",
+        "presence_penalty",
+    ):
         val = kwargs.get(key)
         if val is not None:
             params[key] = val
@@ -86,8 +95,14 @@ def _build_call_data(
         model = str(model_hint)
     else:
         choice = response.choices[0] if getattr(response, "choices", None) else None
-        completion = choice.message.content if choice and hasattr(choice, "message") and choice.message else None
-        finish_reason = str(choice.finish_reason) if choice and hasattr(choice, "finish_reason") else "unknown"
+        completion = (
+            choice.message.content
+            if choice and hasattr(choice, "message") and choice.message
+            else None
+        )
+        finish_reason = (
+            str(choice.finish_reason) if choice and hasattr(choice, "finish_reason") else "unknown"
+        )
         usage = getattr(response, "usage", None)
         input_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
         output_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
@@ -99,6 +114,7 @@ def _build_call_data(
     if not is_streaming:
         try:
             import litellm
+
             cost_usd = litellm.completion_cost(completion_response=response)
         except Exception:
             pass
@@ -120,14 +136,23 @@ def _build_call_data(
     tool_calls: list[dict[str, Any]] | None = None
     if not is_streaming and response is not None:
         choice = response.choices[0] if getattr(response, "choices", None) else None
-        if choice and hasattr(choice, "message") and choice.message and getattr(choice.message, "tool_calls", None):
+        if (
+            choice
+            and hasattr(choice, "message")
+            and choice.message
+            and getattr(choice.message, "tool_calls", None)
+        ):
             tool_calls = []
             for tc in choice.message.tool_calls:
-                tool_calls.append({
-                    "id": getattr(tc, "id", ""),
-                    "name": getattr(tc.function, "name", "") if hasattr(tc, "function") else "",
-                    "arguments": getattr(tc.function, "arguments", "") if hasattr(tc, "function") else "",
-                })
+                tool_calls.append(
+                    {
+                        "id": getattr(tc, "id", ""),
+                        "name": getattr(tc.function, "name", "") if hasattr(tc, "function") else "",
+                        "arguments": getattr(tc.function, "arguments", "")
+                        if hasattr(tc, "function")
+                        else "",
+                    }
+                )
 
     # Merge metadata into parameters
     combined_params = params or {}
@@ -154,6 +179,7 @@ def _build_call_data(
 # ---------------------------------------------------------------------------
 # Stream wrappers
 # ---------------------------------------------------------------------------
+
 
 class _SyncStreamWrapper:
     """Wraps a LiteLLM sync stream to accumulate chunks and emit event on completion."""
@@ -286,6 +312,7 @@ class _AsyncStreamWrapper:
 # LiteLLMInstrumentation
 # ---------------------------------------------------------------------------
 
+
 @register("litellm")
 class LiteLLMInstrumentation(BaseLLMInstrumentation):
     """LiteLLM auto-instrumentation.
@@ -301,8 +328,12 @@ class LiteLLMInstrumentation(BaseLLMInstrumentation):
 
     def _get_patch_targets(self) -> list[PatchTarget]:
         return [
-            PatchTarget(module_path="litellm", class_name=None, attr_name="completion", is_async=False),
-            PatchTarget(module_path="litellm", class_name=None, attr_name="acompletion", is_async=True),
+            PatchTarget(
+                module_path="litellm", class_name=None, attr_name="completion", is_async=False
+            ),
+            PatchTarget(
+                module_path="litellm", class_name=None, attr_name="acompletion", is_async=True
+            ),
         ]
 
     def _is_streaming(self, kwargs: dict[str, Any]) -> bool:
@@ -311,7 +342,9 @@ class LiteLLMInstrumentation(BaseLLMInstrumentation):
     def _extract_model(self, kwargs: dict[str, Any], args: tuple[Any, ...]) -> str:
         return str(kwargs.get("model", args[0] if args else "unknown"))
 
-    def _extract_call_data(self, response: Any, kwargs: dict[str, Any], latency_ms: float) -> LlmCallData:
+    def _extract_call_data(
+        self, response: Any, kwargs: dict[str, Any], latency_ms: float
+    ) -> LlmCallData:
         return _build_call_data(response, kwargs, latency_ms)
 
     def instrument(self) -> None:

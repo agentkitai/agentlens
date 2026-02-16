@@ -1,6 +1,7 @@
 """AgentLens Python SDK — observability and audit trail for AI agents."""
 
-from importlib.metadata import version as _meta_version, PackageNotFoundError as _PNF
+from importlib.metadata import PackageNotFoundError as _PNF
+from importlib.metadata import version as _meta_version
 
 try:
     __version__ = _meta_version("agentlensai")
@@ -8,7 +9,6 @@ except _PNF:
     __version__ = "0.0.0"
 
 from agentlensai._init import current_session_id, init, shutdown
-from agentlensai.pii import PII_CREDIT_CARD, PII_EMAIL, PII_PHONE, PII_SSN
 from agentlensai.async_client import AsyncAgentLensClient
 from agentlensai.client import AgentLensClient
 from agentlensai.exceptions import (
@@ -74,6 +74,7 @@ from agentlensai.models import (
     ToolCallDef,
     ToolDef,
 )
+from agentlensai.pii import PII_CREDIT_CARD, PII_EMAIL, PII_PHONE, PII_SSN
 
 __all__ = [
     "__version__",
