@@ -285,7 +285,7 @@ export async function createApp(
   {
     const authDb = config?.db;
     if (authDb) {
-      const { loadOidcConfig } = await import('@agentkit/auth');
+      const { loadOidcConfig } = await import('agentkit-auth');
       const oidcConfig = loadOidcConfig();
       if (oidcConfig) {
         const jwtSecret = process.env['JWT_SECRET'];

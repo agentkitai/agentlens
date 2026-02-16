@@ -66,3 +66,4 @@ logs/security/
 # BMAD planning artifacts
 _bmad/
 _bmad-output/
+packages/auth/*.tgz

@@ -1,5 +1,5 @@
 {
-  "name": "@agentkit/auth",
+  "name": "agentkit-auth",
   "version": "0.1.0",
   "description": "Enterprise SSO/OIDC authentication for AgentLens",
   "type": "module",

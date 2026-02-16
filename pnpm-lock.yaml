@@ -188,9 +188,6 @@ importers:
 
   packages/server:
     dependencies:
-      '@agentkit/auth':
-        specifier: workspace:*
-        version: link:../auth
       '@agentlensai/core':
         specifier: workspace:*
         version: link:../core
@@ -200,6 +197,9 @@ importers:
       '@opentelemetry/otlp-transformer':
         specifier: ^0.211.0
         version: 0.211.0(@opentelemetry/api@1.9.0)
+      agentkit-auth:
+        specifier: workspace:*
+        version: link:../auth
       better-sqlite3:
         specifier: ^11.9.1
         version: 11.10.0

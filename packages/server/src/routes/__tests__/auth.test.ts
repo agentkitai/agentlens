@@ -7,7 +7,7 @@ import { authRoutes, type AuthRoutesConfig } from '../auth.js';
 import { createTestDb } from '../../db/index.js';
 import { runMigrations } from '../../db/migrate.js';
 import { users, refreshTokens } from '../../db/schema.sqlite.js';
-import { signAccessToken, hashToken, OidcClient, type AuthConfig } from '@agentkit/auth';
+import { signAccessToken, hashToken, OidcClient, type AuthConfig } from 'agentkit-auth';
 import { eq } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 
