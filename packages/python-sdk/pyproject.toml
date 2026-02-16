@@ -100,6 +100,18 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 
+[[tool.mypy.overrides]]
+module = [
+    "botocore.*",
+    "litellm.*",
+    "mistralai.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["_pytest.*"]
+follow_imports = "skip"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

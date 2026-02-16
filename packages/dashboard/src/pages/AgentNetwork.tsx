@@ -11,8 +11,8 @@ export default function AgentNetwork() {
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) { setSearchResults(null); return; }
-    const results = await discoverAgents(searchQuery.trim());
-    setSearchResults(results);
+    const resp = await discoverAgents({ query: searchQuery.trim() });
+    setSearchResults(resp.results as { agent: MeshAgent; score: number; matchedTerms: string[] }[]);
   };
 
   const displayAgents = searchResults

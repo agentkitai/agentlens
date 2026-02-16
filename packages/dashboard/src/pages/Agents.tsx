@@ -399,8 +399,8 @@ export function Agents(): React.ReactElement {
       setDiscoveryResults(null);
       return;
     }
-    const results = await discoverAgents(discoveryQuery.trim());
-    setDiscoveryResults(results);
+    const resp = await discoverAgents({ query: discoveryQuery.trim() });
+    setDiscoveryResults(resp.results as { agent: MeshAgent; score: number; matchedTerms: string[] }[]);
   };
 
   return (

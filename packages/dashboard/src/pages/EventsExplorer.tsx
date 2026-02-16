@@ -234,7 +234,7 @@ export function EventsExplorer(): React.ReactElement {
 
   // Debounce search input (300ms) to avoid firing API calls on every keystroke
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     debounceTimer.current = setTimeout(() => {
