@@ -105,10 +105,10 @@ describe('S-4.1: StorageAdapter interface — SQLite', () => {
     adapter = new SqliteStorageAdapter(store);
   });
 
-  it('getStorageBackend() defaults to sqlite', () => {
-    // DB_DIALECT/STORAGE_BACKEND not set in test env
+  it('getStorageBackend() returns expected dialect', () => {
     const backend = getStorageBackend();
-    expect(backend).toBe('sqlite');
+    const expected = process.env['DB_DIALECT'] === 'postgresql' ? 'postgres' : 'sqlite';
+    expect(backend).toBe(expected);
   });
 
   it('queryEvents returns empty result for no data', async () => {

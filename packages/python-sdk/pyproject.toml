@@ -95,11 +95,12 @@ line-length = 100
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 strict = false
 warn_return_any = false
 warn_unused_configs = true
 warn_unused_ignores = false
+exclude = ["_pytest", "pytest"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -111,7 +112,7 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["_pytest.*", "pytest.*"]
-follow_imports = "silent"
+follow_imports = "skip"
 ignore_errors = true
 
 [[tool.mypy.overrides]]

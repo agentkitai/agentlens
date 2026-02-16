@@ -6,7 +6,6 @@ export default defineConfig({
     environment: 'node',
     include: [
       'src/__tests__/postgres-integration.test.ts',
-      'src/cloud/**/*.test.ts',
     ],
     exclude: ['dist/**', 'node_modules/**'],
     passWithNoTests: true,

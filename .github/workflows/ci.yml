@@ -47,7 +47,7 @@ jobs:
         run: ruff check .
       - name: Type check
         working-directory: packages/python-sdk
-        run: mypy src/
+        run: mypy src/ --exclude '_pytest|pytest'
       - name: Test
         working-directory: packages/python-sdk
         run: pytest

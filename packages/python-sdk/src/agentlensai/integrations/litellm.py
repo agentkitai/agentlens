@@ -98,7 +98,7 @@ def _build_call_data(
         completion = (
             str(choice.message.content)
             if choice and hasattr(choice, "message") and choice.message and choice.message.content
-            else None
+            else ""
         )
         finish_reason = (
             str(choice.finish_reason) if choice and hasattr(choice, "finish_reason") else "unknown"

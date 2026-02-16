@@ -63,5 +63,5 @@ export function createDb(options: CreateDbOptions = {}): DbInstance {
  * Tables are created via push (no migration files needed).
  */
 export function createTestDb(): SqliteDb {
-  return createDb({ databasePath: ':memory:' });
+  return createDb({ dialect: 'sqlite', databasePath: ':memory:' });
 }
