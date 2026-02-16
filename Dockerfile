@@ -9,6 +9,7 @@ RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
 # Copy workspace config first for layer caching
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/core/package.json packages/core/
+COPY packages/auth/package.json packages/auth/
 COPY packages/server/package.json packages/server/
 COPY packages/dashboard/package.json packages/dashboard/
 
@@ -18,6 +19,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source
 COPY tsconfig.json ./
 COPY packages/core/ packages/core/
+COPY packages/auth/ packages/auth/
 COPY packages/server/ packages/server/
 COPY packages/dashboard/ packages/dashboard/
 
@@ -34,6 +36,7 @@ RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
 # Copy workspace config
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/core/package.json packages/core/
+COPY packages/auth/package.json packages/auth/
 COPY packages/server/package.json packages/server/
 COPY packages/dashboard/package.json packages/dashboard/
 
@@ -51,9 +54,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules/ node_modules/
 COPY --from=deps /app/pnpm-workspace.yaml /app/package.json ./
 COPY --from=deps /app/packages/core/package.json packages/core/
+COPY --from=deps /app/packages/auth/package.json packages/auth/
 COPY --from=deps /app/packages/server/package.json packages/server/
 COPY --from=deps /app/packages/dashboard/package.json packages/dashboard/
 COPY --from=build /app/packages/core/dist/ packages/core/dist/
+COPY --from=build /app/packages/auth/dist/ packages/auth/dist/
 COPY --from=build /app/packages/server/dist/ packages/server/dist/
 COPY --from=build /app/packages/dashboard/dist/ packages/dashboard/dist/
 

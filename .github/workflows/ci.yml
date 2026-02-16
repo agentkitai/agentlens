@@ -85,7 +85,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm --filter @agentlensai/server test
+      - run: pnpm --filter @agentlensai/server exec vitest run --config vitest.postgres.config.ts
         env:
           DB_DIALECT: postgresql
           DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test

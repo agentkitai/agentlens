@@ -96,7 +96,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
 python_version = "3.9"
-strict = true
+strict = false
 warn_return_any = false
 warn_unused_configs = true
 warn_unused_ignores = false

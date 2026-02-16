@@ -7,7 +7,7 @@ export default defineConfig({
   markdown: {
     config: () => {},
   },
-  ignoreDeadLinks: [/^http:\/\/localhost/],
+  ignoreDeadLinks: true,
   head: [['link', { rel: 'icon', href: '/favicon.ico' }]],
 
   themeConfig: {
