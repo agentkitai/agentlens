@@ -1,3 +1,4 @@
+from __future__ import annotations
 """CrewAI integration plugin for AgentLens.
 
 Usage:

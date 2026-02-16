@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Auto-instrumentation for the Ollama Python SDK.
 
 Patches ``ollama.chat`` (module-level), ``ollama.Client.chat``, and

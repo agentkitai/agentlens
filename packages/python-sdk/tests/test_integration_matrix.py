@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Cross-provider integration test suite (S4.3).
 
 Parametrized tests verifying that every provider can be instrumented,

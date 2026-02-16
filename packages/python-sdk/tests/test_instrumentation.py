@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Comprehensive tests for AgentLens auto-instrumentation.
 
 Covers: init/shutdown lifecycle, EventSender, OpenAI monkey-patching,

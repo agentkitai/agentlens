@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Auto-instrumentation for AWS Bedrock Runtime (invoke_model + converse APIs).
 
 Uses botocore event hooks to intercept calls without monkey-patching generated clients.

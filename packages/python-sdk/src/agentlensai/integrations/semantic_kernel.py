@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Semantic Kernel integration plugin for AgentLens.
 
 Usage:

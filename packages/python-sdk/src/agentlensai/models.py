@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Pydantic v2 models for the AgentLens API.
 
 All models use camelCase aliases for JSON serialization to match the server API,

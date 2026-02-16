@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Fail-safe event sender for auto-instrumentation.
 
 All sending is wrapped in try/except — NEVER raises to user code.
