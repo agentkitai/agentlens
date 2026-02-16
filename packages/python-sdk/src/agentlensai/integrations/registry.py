@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Provider registry for LLM auto-instrumentation.
 
 Maintains a mapping of provider names to their ``BaseLLMInstrumentation``

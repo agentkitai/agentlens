@@ -1,4 +1,3 @@
-from __future__ import annotations
 """LangChain callback handler for AgentLens.
 
 Usage:

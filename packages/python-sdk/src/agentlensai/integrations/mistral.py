@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Auto-instrumentation for the Mistral AI Python SDK.
 
 Monkey-patches ``mistralai.Mistral.chat`` methods so that every

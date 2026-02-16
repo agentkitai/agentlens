@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Base class for all framework plugins.
 
 All framework plugins (LangChain, CrewAI, AutoGen, Semantic Kernel)

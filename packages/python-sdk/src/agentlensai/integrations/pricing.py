@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Centralized model→pricing lookup for LLM providers.
 
 Provides ``get_cost(provider, model, input_tokens, output_tokens)`` for

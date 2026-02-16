@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Tests for Azure OpenAI metadata enhancement (S1.3).
 
 Tests that the OpenAI integration correctly detects Azure clients and

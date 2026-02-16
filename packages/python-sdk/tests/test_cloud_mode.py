@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Tests for B8A: Cloud mode (S-5.1, S-5.2, S-5.3, S-5.4).
 
 S-5.1: API Key Header Support

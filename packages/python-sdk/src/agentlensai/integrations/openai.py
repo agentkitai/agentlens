@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Auto-instrumentation for the OpenAI Python SDK.
 
 Monkey-patches ``openai.resources.chat.completions`` so that every

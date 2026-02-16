@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 """Pydantic v2 models for the AgentLens API.
 

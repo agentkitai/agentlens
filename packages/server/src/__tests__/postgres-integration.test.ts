@@ -28,7 +28,7 @@ describePg('Postgres integration tests', () => {
     db = drizzle(pool, { schema });
 
     // Run migrations
-    const migrationsFolder = resolve(__dirname, '../db/drizzle/pg');
+    const migrationsFolder = resolve(__dirname, '../db/drizzle');
     await migrate(db, { migrationsFolder });
   });
 

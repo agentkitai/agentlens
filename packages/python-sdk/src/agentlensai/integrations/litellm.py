@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Auto-instrumentation for the LiteLLM library.
 
 Monkey-patches ``litellm.completion`` and ``litellm.acompletion`` so that

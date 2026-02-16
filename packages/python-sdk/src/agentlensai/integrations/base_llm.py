@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Base class for LLM provider auto-instrumentation.
 
 Extracts the shared monkey-patching lifecycle, timing, state check,

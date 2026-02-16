@@ -1,4 +1,3 @@
-from __future__ import annotations
 """AutoGen integration plugin for AgentLens.
 
 Usage:

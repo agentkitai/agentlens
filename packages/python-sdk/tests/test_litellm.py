@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Tests for LiteLLM auto-instrumentation (S1.1 + S1.2).
 
 All tests mock the litellm SDK — no actual litellm installation required.

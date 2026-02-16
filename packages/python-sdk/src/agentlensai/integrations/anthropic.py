@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Auto-instrumentation for the Anthropic Python SDK.
 
 Monkey-patches ``anthropic.resources.messages.Messages.create`` (sync) and
