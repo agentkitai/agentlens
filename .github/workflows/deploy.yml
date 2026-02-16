@@ -1,0 +1,178 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+
+# Prevent concurrent deployments to same environment
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/v') && 'prod') || 'staging' }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  determine-env:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+    steps:
+      - id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "environment=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-push:
+    needs: determine-env
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-env.outputs.environment }}
+    outputs:
+      image-tag: ${{ steps.meta.outputs.image-tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Determine image tag
+        id: meta
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="sha-${GITHUB_SHA::8}"
+          fi
+          echo "image-tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPO: agentlens-${{ needs.determine-env.outputs.environment }}
+          IMAGE_TAG: ${{ steps.meta.outputs.image-tag }}
+        run: |
+          docker build -t "$ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG" \
+                        -t "$ECR_REGISTRY/$ECR_REPO:latest" .
+          docker push "$ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$ECR_REPO:latest"
+
+  deploy:
+    needs: [determine-env, build-and-push]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-env.outputs.environment }}
+    env:
+      ENVIRONMENT: ${{ needs.determine-env.outputs.environment }}
+      IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install CDK dependencies
+        working-directory: infra
+        run: npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: CDK Synth
+        working-directory: infra
+        run: npx cdk synth -c env=$ENVIRONMENT
+
+      - name: CDK Deploy
+        working-directory: infra
+        run: npx cdk deploy --all -c env=$ENVIRONMENT --require-approval never
+
+      - name: Run database migration
+        run: |
+          CLUSTER_NAME="agentlens-${ENVIRONMENT}"
+          TASK_DEF="agentlens-${ENVIRONMENT}-migration"
+
+          # Get network config from ECS service
+          NETWORK_CONFIG=$(aws ecs describe-services \
+            --cluster "$CLUSTER_NAME" \
+            --services "agentlens-${ENVIRONMENT}" \
+            --query 'services[0].networkConfiguration' \
+            --output json 2>/dev/null || echo "")
+
+          if [ -z "$NETWORK_CONFIG" ] || [ "$NETWORK_CONFIG" = "" ]; then
+            echo "::error::Could not retrieve service network configuration"
+            exit 1
+          fi
+
+          # Run migration task
+          echo "Running migration task..."
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER_NAME" \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK_CONFIG" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+            echo "::error::Failed to start migration task"
+            exit 1
+          fi
+
+          echo "Migration task started: $TASK_ARN"
+          echo "Waiting for migration to complete..."
+
+          aws ecs wait tasks-stopped --cluster "$CLUSTER_NAME" --tasks "$TASK_ARN"
+
+          # Check exit code
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER_NAME" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Migration failed with exit code $EXIT_CODE"
+            # Fetch logs for debugging
+            aws logs tail "/ecs/agentlens-${ENVIRONMENT}" --since 10m --filter-pattern "migration" || true
+            exit 1
+          fi
+
+          echo "Migration completed successfully"
+
+      - name: Force new deployment
+        run: |
+          aws ecs update-service \
+            --cluster "agentlens-${ENVIRONMENT}" \
+            --service "agentlens-${ENVIRONMENT}" \
+            --force-new-deployment \
+            --query 'service.serviceName' \
+            --output text
+          echo "Deployment triggered. Service will roll out new tasks."

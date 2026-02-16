@@ -259,12 +259,47 @@ export class ServiceStack extends cdk.Stack {
       alarmDescription: 'ECS Memory > 85%',
     }).addAlarmAction(alarmAction);
 
-    // ALB Alarms
-    new cloudwatch.Alarm(this, 'Alb5xxAlarm', {
-      metric: this.alb.metrics.httpCodeElb(elbv2.HttpCodeElb.ELB_5XX_COUNT, { period: cdk.Duration.minutes(3) }),
-      threshold: 10,
+    // ECS Running Count < Desired
+    new cloudwatch.Alarm(this, 'EcsRunningCountAlarm', {
+      metric: new cloudwatch.MathExpression({
+        expression: 'desired - running',
+        usingMetrics: {
+          desired: new cloudwatch.Metric({
+            namespace: 'ECS/ContainerInsights',
+            metricName: 'DesiredTaskCount',
+            dimensionsMap: { ClusterName: cluster.clusterName, ServiceName: this.service.serviceName },
+            period: cdk.Duration.minutes(5),
+            statistic: 'Average',
+          }),
+          running: new cloudwatch.Metric({
+            namespace: 'ECS/ContainerInsights',
+            metricName: 'RunningTaskCount',
+            dimensionsMap: { ClusterName: cluster.clusterName, ServiceName: this.service.serviceName },
+            period: cdk.Duration.minutes(5),
+            statistic: 'Average',
+          }),
+        },
+        period: cdk.Duration.minutes(5),
+      }),
+      threshold: 0,
       evaluationPeriods: 1,
-      alarmDescription: 'ALB 5xx errors > 10 in 3 min',
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'ECS running task count < desired',
+    }).addAlarmAction(alarmAction);
+
+    // ALB Alarms — 5xx rate >1% (using math expression)
+    new cloudwatch.Alarm(this, 'Alb5xxAlarm', {
+      metric: new cloudwatch.MathExpression({
+        expression: 'IF(requests > 0, (errors / requests) * 100, 0)',
+        usingMetrics: {
+          errors: this.alb.metrics.httpCodeElb(elbv2.HttpCodeElb.ELB_5XX_COUNT, { period: cdk.Duration.minutes(3), statistic: 'Sum' }),
+          requests: this.alb.metrics.requestCount({ period: cdk.Duration.minutes(3), statistic: 'Sum' }),
+        },
+        period: cdk.Duration.minutes(3),
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      alarmDescription: 'ALB 5xx rate > 1%',
     }).addAlarmAction(alarmAction);
 
     new cloudwatch.Alarm(this, 'AlbLatencyAlarm', {
@@ -311,6 +346,25 @@ export class ServiceStack extends cdk.Stack {
       evaluationPeriods: 1,
       comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
       alarmDescription: 'RDS free storage < 5GB',
+    }).addAlarmAction(alarmAction);
+
+    // RDS Connections > 80% of max (t4g.medium max ~150, use 80% = 120; configurable via instance class)
+    // Using metric math: connections / max * 100 > 80
+    // Max connections varies by instance class; use the DatabaseConnections metric with a reasonable threshold
+    new cloudwatch.Alarm(this, 'RdsConnectionsAlarm', {
+      metric: new cloudwatch.Metric({
+        namespace: rdsNamespace,
+        metricName: 'DatabaseConnections',
+        dimensionsMap: { DBInstanceIdentifier: dbId },
+        period: cdk.Duration.minutes(5),
+        statistic: 'Average',
+      }),
+      // RDS max_connections depends on instance memory. For t4g.micro ~85, t4g.small ~170, t4g.medium ~340
+      // We use 80% of a conservative estimate; operators should tune per instance class
+      threshold: config.dbMaxConnections ? config.dbMaxConnections * 0.8 : 120,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'RDS connections > 80% of max',
     }).addAlarmAction(alarmAction);
 
     // CloudWatch Dashboard

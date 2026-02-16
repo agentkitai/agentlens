@@ -12,6 +12,7 @@ export interface EnvironmentConfig {
   backupRetention: number;
   dbMaxStorageGib: number;
   dbAllocatedStorageGib: number;
+  dbMaxConnections?: number;
   // Redis
   redisNodeType: string;
   redisReplicas: number;
