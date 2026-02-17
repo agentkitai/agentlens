@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - '!packages/openclaw-plugin'
+  - '!packages/relay-plugin'
 
 onlyBuiltDependencies:
   - better-sqlite3

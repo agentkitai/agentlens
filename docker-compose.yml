@@ -38,9 +38,12 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://agentlens:agentlens@postgres:5432/agentlens
+      DATABASE_PATH: /app/data/agentlens.db
       REDIS_URL: redis://redis:6379
       STORAGE_BACKEND: postgres
       AUTH_DISABLED: "true"
+      JWT_SECRET: dev-secret-agentlens-local
+      ADMIN_API_KEY: dev-admin-key
       PORT: "3000"
 
 volumes:
