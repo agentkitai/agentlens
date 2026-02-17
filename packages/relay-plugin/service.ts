@@ -169,31 +169,27 @@ function extractUsageFromMessages(messages: unknown[]): {
   cacheRead: number;
   cacheWrite: number;
 } {
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let cacheRead = 0;
-  let cacheWrite = 0;
-  let model = "";
+  if (!Array.isArray(messages)) return { model: "", inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 };
 
-  if (!Array.isArray(messages)) return { model, inputTokens, outputTokens, cacheRead, cacheWrite };
-
-  for (const m of messages) {
-    const msg = m as any;
+  // Only use the LAST assistant message's usage — earlier messages contain
+  // cumulative/stale usage data that would inflate totals if summed.
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i] as any;
     if (msg?.role !== "assistant") continue;
-
-    // Try to get model from assistant message
-    if (msg.model) model = msg.model;
 
     const u = msg.usage;
     if (!u) continue;
 
-    inputTokens += u.input_tokens ?? u.inputTokens ?? u.input ?? 0;
-    outputTokens += u.output_tokens ?? u.outputTokens ?? u.output ?? 0;
-    cacheRead += u.cache_read_input_tokens ?? u.cacheRead ?? u.cache_read ?? 0;
-    cacheWrite += u.cache_creation_input_tokens ?? u.cacheWrite ?? u.cache_write ?? 0;
+    return {
+      model: msg.model || "",
+      inputTokens: u.input_tokens ?? u.inputTokens ?? u.input ?? 0,
+      outputTokens: u.output_tokens ?? u.outputTokens ?? u.output ?? 0,
+      cacheRead: u.cache_read_input_tokens ?? u.cacheRead ?? u.cache_read ?? 0,
+      cacheWrite: u.cache_creation_input_tokens ?? u.cacheWrite ?? u.cache_write ?? 0,
+    };
   }
 
-  return { model, inputTokens, outputTokens, cacheRead, cacheWrite };
+  return { model: "", inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 };
 }
 
 // ── Per-run state to correlate before_agent_start with agent_end ────────────
