@@ -173,21 +173,24 @@ export function Overview(): React.ReactElement {
   const llmCallCount = llmToday.data?.summary?.totalCalls ?? 0;
   const llmCostUsd = llmToday.data?.summary?.totalCostUsd ?? 0;
 
+  // Short suffix for metric card labels based on selected range
+  const rangeSuffix = timeRange.range === '24h' ? 'Today' : timeRange.label.replace('Last ', '');
+
   const cards: MetricCard[] = [
     {
-      label: 'Sessions Today',
+      label: `Sessions (${rangeSuffix})`,
       value: overview.data?.sessionsTodayCount ?? 0,
       currentValue: overview.data?.sessionsTodayCount ?? 0,
       previousValue: overview.data?.sessionsYesterdayCount ?? 0,
     },
     {
-      label: 'Events Today',
+      label: `Events (${rangeSuffix})`,
       value: eventsTodayCount,
       currentValue: eventsTodayCount,
       previousValue: overview.data?.eventsYesterdayCount ?? 0,
     },
     {
-      label: 'Errors Today',
+      label: `Errors (${rangeSuffix})`,
       value: overview.data?.errorsTodayCount ?? 0,
       currentValue: overview.data?.errorsTodayCount ?? 0,
       previousValue: overview.data?.errorsYesterdayCount ?? 0,
@@ -202,11 +205,11 @@ export function Overview(): React.ReactElement {
   if (llmCallCount > 0 || (llmToday.data && !llmToday.loading)) {
     cards.push(
       {
-        label: 'LLM Calls Today',
+        label: `LLM Calls (${rangeSuffix})`,
         value: llmCallCount,
       },
       {
-        label: 'LLM Cost Today',
+        label: `LLM Cost (${rangeSuffix})`,
         value: llmCostUsd < 0.01 ? `$${llmCostUsd.toFixed(4)}` : llmCostUsd < 1 ? `$${llmCostUsd.toFixed(3)}` : `$${llmCostUsd.toFixed(2)}`,
       },
     );
