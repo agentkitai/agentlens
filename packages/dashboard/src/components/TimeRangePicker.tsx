@@ -9,7 +9,7 @@ export interface TimeRange {
 }
 
 const PRESETS: Array<{ label: string; rangeName: string; offsetMs: number; granularity: string }> = [
-  { label: 'Last 1 hour',  rangeName: '1h',  offsetMs: 3_600_000,       granularity: 'minute' },
+  { label: 'Last 1 hour',  rangeName: '1h',  offsetMs: 3_600_000,       granularity: 'hour' },
   { label: 'Last 6 hours', rangeName: '6h',  offsetMs: 21_600_000,      granularity: 'hour' },
   { label: 'Last 24 hours', rangeName: '24h', offsetMs: 86_400_000,     granularity: 'hour' },
   { label: 'Last 3 days',  rangeName: '3d',  offsetMs: 259_200_000,     granularity: 'hour' },

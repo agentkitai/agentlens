@@ -21,8 +21,22 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
   // GET /api/analytics — bucketed metrics over time
   app.get('/', async (c) => {
     const tenantStore = getTenantStore(store, c);
-    const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
-    const to = c.req.query('to') ?? new Date().toISOString();
+    const range = c.req.query('range');
+    const now = Date.now();
+    let from: string;
+    let to: string = c.req.query('to') ?? new Date(now).toISOString();
+
+    if (range && !c.req.query('from')) {
+      const rangeMs: Record<string, number> = {
+        '1h': 3_600_000, '6h': 21_600_000, '24h': 86_400_000,
+        '3d': 259_200_000, '7d': 604_800_000, '30d': 2_592_000_000,
+      };
+      const ms = rangeMs[range];
+      from = ms ? new Date(now - ms).toISOString() : new Date(now - 86_400_000).toISOString();
+    } else {
+      from = c.req.query('from') ?? new Date(now - 86_400_000).toISOString();
+    }
+
     const granularity = (c.req.query('granularity') ?? 'hour') as 'hour' | 'day' | 'week';
     const agentId = c.req.query('agentId');
 
