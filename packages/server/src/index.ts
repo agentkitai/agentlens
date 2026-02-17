@@ -311,6 +311,11 @@ export async function createApp(
     }
   }
 
+  // ─── Fallback auth endpoints when auth is disabled ─────
+  if (resolvedConfig.authDisabled) {
+    app.get('/auth/me', (c) => c.json({ authMode: 'api-key-only' }, 200));
+  }
+
   // ─── Auth middleware on protected routes ───────────────
   // We need the db reference for auth key lookup
   const db = config?.db;
