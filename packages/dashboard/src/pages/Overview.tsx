@@ -215,14 +215,16 @@ export function Overview(): React.ReactElement {
   // Chart data — use pre-bucketed analytics data
   const chartData = useMemo(() => {
     if (!eventsChart.data?.buckets) return [];
-    return eventsChart.data.buckets.map((b) => ({
-      hour: timeRange.granularity === 'day'
-        ? new Date(b.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })
-        : timeRange.granularity === 'minute'
-          ? new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : formatHour(b.timestamp),
-      count: b.eventCount,
-    }));
+    return eventsChart.data.buckets.map((b) => {
+      const d = new Date(b.timestamp);
+      const label = timeRange.granularity === 'day'
+        ? d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+        : formatHour(b.timestamp);
+      const tooltip = timeRange.granularity === 'day'
+        ? d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+        : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return { hour: label, tooltip, count: b.eventCount };
+    });
   }, [eventsChart.data, timeRange.granularity]);
 
   const recentSessions: Session[] = sessions.data?.sessions ?? [];
@@ -288,6 +290,10 @@ export function Overview(): React.ReactElement {
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px',
                     fontSize: '13px',
+                  }}
+                  labelFormatter={(_label, payload) => {
+                    const item = payload?.[0]?.payload;
+                    return item?.tooltip ?? _label;
                   }}
                 />
                 <Bar dataKey="count" fill="#0c8ce9" radius={[4, 4, 0, 0]} name="Events" />
