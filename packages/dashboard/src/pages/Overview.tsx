@@ -21,6 +21,8 @@ import { getOverviewStats, getEvents, getSessions, getLlmAnalytics, getAnalytics
 import type { LlmAnalyticsResult, OverviewStats } from '../api/client';
 import { MetricsGrid } from '../components/MetricsGrid';
 import type { MetricCard } from '../components/MetricsGrid';
+import { TimeRangePicker, DEFAULT_TIME_RANGE } from '../components/TimeRangePicker';
+import type { TimeRange } from '../components/TimeRangePicker';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -117,6 +119,8 @@ export function Overview(): React.ReactElement {
     }, []),
   });
 
+  const [timeRange, setTimeRange] = useState<TimeRange>(DEFAULT_TIME_RANGE);
+
   const now = useMemo(() => new Date(), []);
   const todayStart = useMemo(() => {
     const d = new Date(now);
@@ -134,10 +138,12 @@ export function Overview(): React.ReactElement {
     [liveSessionRefreshKey],
   );
 
-  // ─── API call 3: Events last 24h for chart (use analytics buckets) ──
+  // ─── API call 3: Events for chart (use analytics buckets) ──
   const eventsChart = useApi<{ buckets: Array<{ timestamp: string; eventCount: number; toolCallCount: number; errorCount: number }> }>(
-    () => getAnalytics({ range: '24h' }),
-    [],
+    () => getAnalytics(timeRange.range
+      ? { range: timeRange.range, granularity: timeRange.granularity }
+      : { from: timeRange.from, to: timeRange.to, granularity: timeRange.granularity }),
+    [timeRange],
   );
 
   // Recent errors (included as sub-query in eventsChart or separate small call)
@@ -146,10 +152,14 @@ export function Overview(): React.ReactElement {
     [],
   );
 
-  // LLM analytics (today)
+  // LLM analytics (selected range)
   const llmToday = useApi<LlmAnalyticsResult>(
-    () => getLlmAnalytics({ from: todayStart, granularity: 'hour' }),
-    [todayStart],
+    () => getLlmAnalytics({
+      from: timeRange.from,
+      to: timeRange.to,
+      granularity: timeRange.granularity,
+    }),
+    [timeRange],
   );
 
   // ─── Computed metrics ───────────────────────────────────────────
@@ -206,10 +216,14 @@ export function Overview(): React.ReactElement {
   const chartData = useMemo(() => {
     if (!eventsChart.data?.buckets) return [];
     return eventsChart.data.buckets.map((b) => ({
-      hour: formatHour(b.timestamp),
+      hour: timeRange.granularity === 'day'
+        ? new Date(b.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })
+        : timeRange.granularity === 'minute'
+          ? new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : formatHour(b.timestamp),
       count: b.eventCount,
     }));
-  }, [eventsChart.data]);
+  }, [eventsChart.data, timeRange.granularity]);
 
   const recentSessions: Session[] = sessions.data?.sessions ?? [];
   const recentErrorEvents: AgentLensEvent[] = recentErrors.data?.events ?? [];
@@ -223,6 +237,8 @@ export function Overview(): React.ReactElement {
             Real-time overview of your agent activity.
           </p>
         </div>
+        <div className="flex items-center gap-4">
+          <TimeRangePicker value={timeRange} onChange={setTimeRange} />
         {/* SSE Connection Indicator (Story 14.4) */}
         <div className="flex items-center gap-2 text-xs mt-1">
           {sseConnected ? (
@@ -242,6 +258,7 @@ export function Overview(): React.ReactElement {
             </>
           )}
         </div>
+        </div>
       </div>
 
       {/* Metrics Cards */}
@@ -252,7 +269,7 @@ export function Overview(): React.ReactElement {
         {/* Events Over Time */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="text-base font-semibold text-gray-900">Events Over Time</h3>
-          <p className="text-xs text-gray-500 mb-4">Last 24 hours (hourly)</p>
+          <p className="text-xs text-gray-500 mb-4">{timeRange.label}</p>
           {eventsChart.loading ? (
             <div className="h-64 animate-pulse rounded bg-gray-100" />
           ) : (
