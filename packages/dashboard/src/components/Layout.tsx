@@ -91,9 +91,19 @@ const navSections: NavSection[] = [
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">🛡️</span>,
       },
       {
+        to: '/budgets',
+        label: 'Budgets',
+        icon: <span className="w-5 h-5 flex items-center justify-center text-base">💰</span>,
+      },
+      {
         to: '/sharing',
         label: 'Sharing',
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">🔗</span>,
+      },
+      {
+        to: '/compliance',
+        label: 'Compliance',
+        icon: <span className="w-5 h-5 flex items-center justify-center text-base">📋</span>,
       },
       {
         to: '/alerts',

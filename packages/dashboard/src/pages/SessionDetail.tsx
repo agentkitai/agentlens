@@ -23,9 +23,14 @@ import { useSSE } from '../hooks/useSSE';
 import { Timeline } from '../components/Timeline';
 import { EventDetailPanel } from '../components/EventDetailPanel';
 import { SearchBar } from '../components/search/SearchBar';
+import { BudgetStatusBadge } from '../components/BudgetStatusBadge';
+import { listBudgets, getBudgetStatus, type CostBudgetStatusData } from '../api/budgets';
 import { ErrorNav } from '../components/navigation/ErrorNav';
 import { ExportMenu } from '../components/export/ExportMenu';
 import { useErrorIndices } from '../hooks/useErrorIndices';
+import { diagnoseSession } from '../api/diagnose';
+import type { DiagnosticReport } from '../api/diagnose';
+import { DiagnosticPanel } from '../components/DiagnosticPanel';
 
 // ─── Filter definitions ─────────────────────────────────────────────
 
@@ -143,9 +148,16 @@ export function SessionDetail(): React.ReactElement | null {
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [selectedEvent, setSelectedEvent] = useState<AgentLensEvent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  // Diagnostics state (Story 18.10)
+  const [diagReport, setDiagReport] = useState<DiagnosticReport | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
+  const [showDiag, setShowDiag] = useState(false);
   // SSE live events that arrive after initial load (Story 14.3)
   const [liveEvents, setLiveEvents] = useState<AgentLensEvent[]>([]);
   const [liveSession, setLiveSession] = useState<Session | null>(null);
+  // Budget status for session (Story 8)
+  const [budgetStatus, setBudgetStatus] = useState<CostBudgetStatusData | null>(null);
 
   // Fetch session info
   const {
@@ -161,6 +173,15 @@ export function SessionDetail(): React.ReactElement | null {
     error: timelineError,
     refetch: refetchTimeline,
   } = useApi<SessionTimeline>(() => getSessionTimeline(id!), [id]);
+
+  // Load session budget status (Story 8)
+  React.useEffect(() => {
+    listBudgets({ scope: 'session', enabled: true }).then(({ budgets }) => {
+      if (budgets.length > 0) {
+        getBudgetStatus(budgets[0].id).then(setBudgetStatus).catch(() => {});
+      }
+    }).catch(() => {});
+  }, []);
 
   // Determine effective session (live updates override initial fetch)
   const effectiveSession = liveSession ?? session;
@@ -481,6 +502,66 @@ export function SessionDetail(): React.ReactElement | null {
           </div>
         );
       })()}
+
+      {/* Diagnose button + panel (Story 18.10) */}
+      {displaySession.errorCount > 0 && (
+        <div className="space-y-3">
+          {!showDiag && (
+            <button
+              type="button"
+              onClick={async () => {
+                setShowDiag(true);
+                setDiagLoading(true);
+                setDiagError(null);
+                try {
+                  const report = await diagnoseSession(id!);
+                  setDiagReport(report);
+                } catch (err: any) {
+                  setDiagError(err?.message || 'Diagnosis failed');
+                } finally {
+                  setDiagLoading(false);
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors"
+            >
+              🧠 Diagnose Session with AI
+            </button>
+          )}
+          {showDiag && (
+            <DiagnosticPanel
+              report={diagReport}
+              loading={diagLoading}
+              error={diagError}
+              onRefresh={async () => {
+                setDiagLoading(true);
+                setDiagError(null);
+                try {
+                  const report = await diagnoseSession(id!, true);
+                  setDiagReport(report);
+                } catch (err: any) {
+                  setDiagError(err?.message || 'Diagnosis failed');
+                } finally {
+                  setDiagLoading(false);
+                }
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Budget Status (Story 8) */}
+      {budgetStatus && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex items-center gap-4">
+          <span className="text-sm font-medium text-gray-700">Session Budget:</span>
+          <BudgetStatusBadge
+            currentSpend={budgetStatus.currentSpend}
+            limitUsd={budgetStatus.limitUsd}
+          />
+          {budgetStatus.breached && (
+            <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded">BREACHED</span>
+          )}
+        </div>
+      )}
 
       {/* [F11-S1] Search bar */}
       <SearchBar

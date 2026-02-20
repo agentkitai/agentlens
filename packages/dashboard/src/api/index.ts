@@ -18,3 +18,5 @@ export * from './lessons';
 export * from './reflect';
 export * from './discovery';
 export * from './delegations';
+export * from './compliance';
+export * from './budgets';

@@ -18,6 +18,8 @@ import {
 } from '../api/discovery';
 import { getAgents } from '../api/agents';
 import type { Agent as TelemetryAgent } from '../api/core';
+import { listBudgets, getBudgetStatus, type CostBudgetStatusData } from '../api/budgets';
+import { BudgetStatusBadge } from '../components/BudgetStatusBadge';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -76,12 +78,14 @@ function AgentCard({
   onSelect,
   selected,
   onUnregister,
+  budgetStatus,
 }: {
   agent: MeshAgent;
   telemetry?: TelemetryAgent;
   onSelect: () => void;
   selected: boolean;
   onUnregister: () => void;
+  budgetStatus?: CostBudgetStatusData;
 }): React.ReactElement {
   const status = statusDot(agent.last_seen);
 
@@ -120,6 +124,17 @@ function AgentCard({
           </span>
         ))}
       </div>
+
+      {budgetStatus && (
+        <div className="mt-2 px-1">
+          <BudgetStatusBadge
+            currentSpend={budgetStatus.currentSpend}
+            limitUsd={budgetStatus.limitUsd}
+            periodLabel={budgetStatus.budget.period}
+            compact
+          />
+        </div>
+      )}
 
       <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
         <span>{agent.protocol}</span>
@@ -346,6 +361,21 @@ export function Agents(): React.ReactElement {
   const agents = agentsQuery.data ?? [];
 
   // Fetch telemetry data (observability) — optional enrichment
+  // Budget statuses for agents (Story 9)
+  const [agentBudgetStatuses, setAgentBudgetStatuses] = React.useState<Record<string, CostBudgetStatusData>>({});
+  React.useEffect(() => {
+    listBudgets({ scope: 'agent', enabled: true }).then(({ budgets }) => {
+      budgets.forEach((b) => {
+        getBudgetStatus(b.id).then((status) => {
+          setAgentBudgetStatuses((prev) => ({
+            ...prev,
+            ...(b.agentId ? { [b.agentId]: status } : {}),
+          }));
+        }).catch(() => {});
+      });
+    }).catch(() => {});
+  }, []);
+
   const telemetryQuery = useApi(() => getAgents(), []);
   const telemetryMap = useMemo(() => {
     const map = new Map<string, TelemetryAgent>();
@@ -519,6 +549,7 @@ export function Agents(): React.ReactElement {
                   setSelectedAgent(selectedAgent === agent.name ? null : agent.name)
                 }
                 onUnregister={() => handleUnregister(agent.name)}
+                budgetStatus={agentBudgetStatuses[agent.name]}
               />
             ))}
           </div>
