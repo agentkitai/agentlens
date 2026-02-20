@@ -15,6 +15,7 @@ import {
   DiagnosticCache,
   createLLMProvider,
   getLLMConfigFromEnv,
+  type DiagnosticReport,
 } from '../lib/diagnostics/index.js';
 
 const DIAGNOSE_RATE_MAX = Number(process.env['AGENTLENS_DIAGNOSTIC_RATE_LIMIT'] ?? 5);
@@ -42,7 +43,9 @@ export function diagnoseRoutes(store: IEventStore) {
   // LLM provider (null if no API key — feature degrades gracefully)
   const llmConfig = getLLMConfigFromEnv();
   const llmProvider = llmConfig ? createLLMProvider(llmConfig) : null;
-  const cache = new DiagnosticCache(CACHE_TTL_S * 1000);
+  const cacheTtlMs = CACHE_TTL_S * 1000;
+  const cache = new DiagnosticCache(cacheTtlMs);
+  const inflight = new Map<string, Promise<DiagnosticReport>>();
 
   // POST /agents/:id/diagnose
   app.post('/agents/:id/diagnose', diagnoseRateLimit, async (c) => {
@@ -56,7 +59,7 @@ export function diagnoseRoutes(store: IEventStore) {
       return c.json({ error: 'Window must be between 1 and 90', status: 400 }, 400);
     }
 
-    const engine = new DiagnosticEngine(tenantStore, llmProvider, cache);
+    const engine = new DiagnosticEngine(tenantStore, llmProvider, cache, cacheTtlMs, inflight);
 
     try {
       const report = await engine.diagnoseAgent(agentId, window, { refresh });
@@ -80,7 +83,7 @@ export function diagnoseRoutes(store: IEventStore) {
     const sessionId = c.req.param('id');
     const refresh = c.req.query('refresh') === 'true';
 
-    const engine = new DiagnosticEngine(tenantStore, llmProvider, cache);
+    const engine = new DiagnosticEngine(tenantStore, llmProvider, cache, cacheTtlMs, inflight);
 
     try {
       const report = await engine.diagnoseSession(sessionId, { refresh });

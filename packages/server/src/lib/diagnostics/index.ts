@@ -20,13 +20,19 @@ import {
 import { parseLLMResponse } from './response-parser.js';
 
 export class DiagnosticEngine {
-  private readonly inflight = new Map<string, Promise<DiagnosticReport>>();
+  private readonly inflight: Map<string, Promise<DiagnosticReport>>;
+  private readonly cacheTtlMs: number;
 
   constructor(
     private readonly store: IEventStore,
     private readonly llmProvider: LLMProvider | null,
     private readonly cache: DiagnosticCache,
-  ) {}
+    cacheTtlMs?: number,
+    inflight?: Map<string, Promise<DiagnosticReport>>,
+  ) {
+    this.cacheTtlMs = cacheTtlMs ?? 15 * 60 * 1000;
+    this.inflight = inflight ?? new Map();
+  }
 
   async diagnoseAgent(
     agentId: string,
@@ -207,7 +213,7 @@ export class DiagnosticEngine {
               latencyMs: response.latencyMs,
             },
             createdAt: now.toISOString(),
-            expiresAt: new Date(now.getTime() + 15 * 60 * 1000).toISOString(),
+            expiresAt: new Date(now.getTime() + this.cacheTtlMs).toISOString(),
             source: 'llm',
           };
         }
@@ -276,7 +282,7 @@ export class DiagnosticEngine {
         latencyMs: 0,
       },
       createdAt: now.toISOString(),
-      expiresAt: new Date(now.getTime() + 15 * 60 * 1000).toISOString(),
+      expiresAt: new Date(now.getTime() + this.cacheTtlMs).toISOString(),
       source: 'fallback',
     };
   }
