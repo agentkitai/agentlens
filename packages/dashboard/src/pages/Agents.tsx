@@ -358,9 +358,10 @@ export function Agents(): React.ReactElement {
   >(null);
 
   const agentsQuery = useApi(() => getMeshAgents(), []);
-  const agents = agentsQuery.data ?? [];
+  const meshAgents = agentsQuery.data ?? [];
+  const meshAvailable = meshAgents.length > 0;
 
-  // Fetch telemetry data (observability) — optional enrichment
+  // Fetch telemetry data (observability) — used as primary when mesh is unavailable
   // Budget statuses for agents (Story 9)
   const [agentBudgetStatuses, setAgentBudgetStatuses] = React.useState<Record<string, CostBudgetStatusData>>({});
   React.useEffect(() => {
@@ -377,9 +378,10 @@ export function Agents(): React.ReactElement {
   }, []);
 
   const telemetryQuery = useApi(() => getAgents(), []);
+  const telemetryAgents = telemetryQuery.data ?? [];
   const telemetryMap = useMemo(() => {
     const map = new Map<string, TelemetryAgent>();
-    for (const t of telemetryQuery.data ?? []) {
+    for (const t of telemetryAgents) {
       const name = t.name.toLowerCase();
       map.set(name, t);
       // Also map without common prefixes (e.g. "openclaw-brad" → "brad")
@@ -387,7 +389,21 @@ export function Agents(): React.ReactElement {
       if (stripped !== name) map.set(stripped, t);
     }
     return map;
-  }, [telemetryQuery.data]);
+  }, [telemetryAgents]);
+
+  // When mesh is available, use mesh agents. Otherwise, convert telemetry agents to MeshAgent shape.
+  const agents: MeshAgent[] = useMemo(() => {
+    if (meshAvailable) return meshAgents;
+    return telemetryAgents.map((t) => ({
+      name: t.name,
+      description: t.description || '',
+      capabilities: [],
+      endpoint: '',
+      protocol: '',
+      registered_at: t.firstSeenAt,
+      last_seen: t.lastSeenAt,
+    }));
+  }, [meshAvailable, meshAgents, telemetryAgents]);
 
   // Filter agents by search
   const filtered = (discoveryResults ? discoveryResults.map((r) => r.agent) : agents).filter(
