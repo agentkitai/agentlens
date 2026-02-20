@@ -16,8 +16,9 @@ export interface OverviewStats {
   errorRate: number;
 }
 
-export async function getOverviewStats(): Promise<OverviewStats> {
-  return request<OverviewStats>('/api/stats/overview');
+export async function getOverviewStats(params?: { from?: string; to?: string }): Promise<OverviewStats> {
+  const qs = params ? toQueryString(params) : '';
+  return request<OverviewStats>(`/api/stats/overview${qs}`);
 }
 
 export interface AnalyticsBucket {

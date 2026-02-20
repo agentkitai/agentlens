@@ -130,7 +130,10 @@ export function Overview(): React.ReactElement {
   const last24h = useMemo(() => new Date(now.getTime() - 86400_000).toISOString(), [now]);
 
   // ─── API call 1: Consolidated overview stats ────────────────────
-  const overview = useApi<OverviewStats>(() => getOverviewStats(), []);
+  const overview = useApi<OverviewStats>(
+    () => getOverviewStats({ from: timeRange.from, to: timeRange.to }),
+    [timeRange],
+  );
 
   // ─── API call 2: Recent sessions (refetched on SSE session updates) ──
   const sessions = useApi<SessionQueryResult & { hasMore: boolean }>(
