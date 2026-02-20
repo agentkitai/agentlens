@@ -516,6 +516,7 @@ export async function startServer() {
   // Create and initialize database
   // For Postgres, we need the raw sql client for shutdown & health checks
   let pgSql: import('postgres').Sql | undefined;
+  let pgDb: import('./db/connection.postgres.js').PostgresDb | undefined;
   let store: IEventStore;
   let db: SqliteDb;
 
@@ -529,12 +530,13 @@ export async function startServer() {
     const conn = createPostgresConnection();
     await verifyPostgresConnection(conn.sql); // fail fast if unreachable
     pgSql = conn.sql;
+    pgDb = conn.db;
 
     const { runPostgresMigrations } = await import('./db/migrate.postgres.js');
-    await runPostgresMigrations(conn.db);
+    await runPostgresMigrations(pgDb);
 
     const { PostgresEventStore } = await import('./db/postgres-store.js');
-    store = new PostgresEventStore(conn.db);
+    store = new PostgresEventStore(pgDb);
 
     // Warn about silent SQLite → PG switch for existing Docker Compose users
     log.warn('STORAGE_BACKEND=postgres is now active. Previous SQLite data at ' +
@@ -556,11 +558,9 @@ export async function startServer() {
       embeddingService = createEmbeddingService();
 
       let embeddingStore: IEmbeddingStore;
-      if (config.storageBackend === 'postgres' && pgSql) {
-        const { createPostgresConnection } = await import('./db/connection.postgres.js');
-        const conn = createPostgresConnection();
+      if (config.storageBackend === 'postgres' && pgDb) {
         const { PostgresEmbeddingStore } = await import('./db/postgres-embedding-store.js');
-        const pgEmbeddingStore = new PostgresEmbeddingStore(conn.db);
+        const pgEmbeddingStore = new PostgresEmbeddingStore(pgDb);
         await pgEmbeddingStore.initialize();
         embeddingStore = pgEmbeddingStore;
       } else {

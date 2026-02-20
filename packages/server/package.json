@@ -43,6 +43,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx watch src/index.ts",
+    "benchmark:postgres": "tsx scripts/benchmark-postgres.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
