@@ -235,6 +235,42 @@ export class EventRepository {
   }
 
   /**
+   * Get events for a session in batches with raw (pre-serialized) payload/metadata.
+   * Avoids JSON parse+stringify overhead for verification workloads.
+   */
+  getSessionEventsBatchRaw(
+    sessionId: string,
+    tenantId: string,
+    offset: number,
+    limit: number,
+  ): import('@agentlensai/core').RawChainEvent[] {
+    const rows = this.db
+      .select()
+      .from(events)
+      .where(and(
+        eq(events.tenantId, tenantId),
+        eq(events.sessionId, sessionId),
+      ))
+      .orderBy(asc(events.timestamp), asc(events.id))
+      .limit(limit)
+      .offset(offset)
+      .all();
+
+    return rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      sessionId: row.sessionId,
+      agentId: row.agentId,
+      eventType: row.eventType,
+      severity: row.severity,
+      payloadRaw: row.payload ?? '{}',
+      metadataRaw: row.metadata ?? '{}',
+      prevHash: row.prevHash,
+      hash: row.hash,
+    }));
+  }
+
+  /**
    * Get distinct session IDs that have at least one event in [from, to].
    */
   getSessionIdsInRange(

@@ -194,6 +194,58 @@ export function verifyChainBatch(
   return { valid: true, failedAtIndex: -1, reason: null };
 }
 
+/**
+ * A chain event with raw (pre-serialized) payload/metadata strings.
+ * Used for optimized verification that avoids JSON parse+stringify overhead.
+ */
+export interface RawChainEvent extends RawHashableEvent {
+  hash: string;
+}
+
+/**
+ * Verify a batch of events using pre-serialized payload/metadata strings.
+ * Identical logic to verifyChainBatch() but uses computeEventHashRaw()
+ * to avoid JSON parse+stringify overhead.
+ */
+export function verifyChainBatchRaw(
+  events: RawChainEvent[],
+  expectedPrevHash: string | null,
+): ChainVerificationResult {
+  if (events.length === 0) {
+    return { valid: true, failedAtIndex: -1, reason: null };
+  }
+
+  if (events[0].prevHash !== expectedPrevHash) {
+    return {
+      valid: false,
+      failedAtIndex: 0,
+      reason: expectedPrevHash === null
+        ? 'First event must have prevHash = null'
+        : `Batch linkage broken: expected prevHash=${expectedPrevHash}, got ${events[0].prevHash}`,
+    };
+  }
+
+  for (let i = 0; i < events.length; i++) {
+    const recomputed = computeEventHashRaw(events[i]);
+    if (recomputed !== events[i].hash) {
+      return {
+        valid: false,
+        failedAtIndex: i,
+        reason: `Event ${i} hash mismatch: expected ${recomputed}, got ${events[i].hash}`,
+      };
+    }
+    if (i > 0 && events[i].prevHash !== events[i - 1].hash) {
+      return {
+        valid: false,
+        failedAtIndex: i,
+        reason: `Event ${i} prevHash does not match previous event's hash`,
+      };
+    }
+  }
+
+  return { valid: true, failedAtIndex: -1, reason: null };
+}
+
 export function verifyChain(events: ChainEvent[]): ChainVerificationResult {
   if (events.length === 0) {
     return { valid: true, failedAtIndex: -1, reason: null };

@@ -6,14 +6,15 @@
  */
 
 import { createHmac } from 'node:crypto';
-import { verifyChainBatch } from '@agentlensai/core';
-import type { ChainEvent } from '@agentlensai/core';
+import { verifyChainBatchRaw } from '@agentlensai/core';
+import type { RawChainEvent } from '@agentlensai/core';
 import type { EventRepository } from '../db/repositories/event-repository.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('AuditVerify');
 
 const BATCH_SIZE = 5000;
+const SESSION_CONCURRENCY = 4;
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -55,6 +56,8 @@ export interface VerifyOptions {
   to?: string;
   sessionId?: string;
   signingKey?: string;
+  /** Enable parallel session verification (use for PostgreSQL; keep false for SQLite) */
+  parallel?: boolean;
 }
 
 interface SessionVerifyResult {
@@ -77,7 +80,7 @@ function verifySessionChain(
   let lastHash: string | null = null;
 
   while (true) {
-    const batch: ChainEvent[] = repo.getSessionEventsBatch(sessionId, tenantId, offset, BATCH_SIZE);
+    const batch: RawChainEvent[] = repo.getSessionEventsBatchRaw(sessionId, tenantId, offset, BATCH_SIZE);
     if (batch.length === 0) break;
 
     if (offset === 0 && batch.length > 0) {
@@ -85,7 +88,7 @@ function verifySessionChain(
     }
 
     const expectedPrev = offset === 0 ? null : prevHash;
-    const result = verifyChainBatch(batch, expectedPrev);
+    const result = verifyChainBatchRaw(batch, expectedPrev);
 
     if (!result.valid) {
       return {
@@ -113,11 +116,41 @@ function verifySessionChain(
   return { sessionId, totalEvents, firstHash, lastHash };
 }
 
-export function runVerification(
+/**
+ * Simple concurrency limiter for parallel session verification.
+ */
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => SessionVerifyResult,
+): Promise<SessionVerifyResult[]> {
+  if (concurrency <= 1) {
+    return items.map(fn);
+  }
+  const results: SessionVerifyResult[] = [];
+  const executing: Set<Promise<void>> = new Set();
+
+  for (const item of items) {
+    const p = Promise.resolve().then(() => {
+      const result = fn(item);
+      results.push(result);
+    });
+    executing.add(p);
+    p.then(() => executing.delete(p));
+    if (executing.size >= concurrency) {
+      await Promise.race(executing);
+    }
+  }
+  await Promise.all(executing);
+  return results;
+}
+
+export async function runVerification(
   repo: EventRepository,
   options: VerifyOptions,
-): VerificationReport {
+): Promise<VerificationReport> {
   const { tenantId, signingKey } = options;
+  const parallel = options.parallel ?? false;
 
   // Determine which sessions to verify
   let sessionIds: string[];
@@ -127,13 +160,19 @@ export function runVerification(
     sessionIds = repo.getSessionIdsInRange(tenantId, options.from!, options.to!);
   }
 
+  const concurrency = parallel ? SESSION_CONCURRENCY : 1;
+  const sessionResults = await runWithConcurrency(
+    sessionIds,
+    concurrency,
+    (sid) => verifySessionChain(repo, tenantId, sid),
+  );
+
   const brokenChains: BrokenChainDetail[] = [];
   let totalEvents = 0;
   let globalFirstHash: string | null = null;
   let globalLastHash: string | null = null;
 
-  for (const sid of sessionIds) {
-    const result = verifySessionChain(repo, tenantId, sid);
+  for (const result of sessionResults) {
     totalEvents += result.totalEvents;
 
     if (globalFirstHash === null && result.firstHash !== null) {

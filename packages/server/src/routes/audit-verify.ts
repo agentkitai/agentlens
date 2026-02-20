@@ -59,7 +59,9 @@ export function auditVerifyRoutes(db: SqliteDb, signingKey?: string) {
       }
     }
 
-    const report = runVerification(repo, {
+    const TIMEOUT_MS = 30_000;
+
+    const verificationPromise = runVerification(repo, {
       tenantId,
       from: from || undefined,
       to: to || undefined,
@@ -67,7 +69,24 @@ export function auditVerifyRoutes(db: SqliteDb, signingKey?: string) {
       signingKey,
     });
 
-    return c.json(report, 200);
+    const timeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), TIMEOUT_MS),
+    );
+
+    const result = await Promise.race([verificationPromise, timeoutPromise]);
+
+    if (result === null) {
+      return c.json(
+        {
+          error: 'Verification timed out',
+          message: 'Verification did not complete within 30 seconds. Try a smaller date range or a specific sessionId.',
+          status: 504,
+        },
+        504,
+      );
+    }
+
+    return c.json(result, 200);
   });
 
   return app;

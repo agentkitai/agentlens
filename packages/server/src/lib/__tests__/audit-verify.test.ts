@@ -38,6 +38,21 @@ function createMockRepo(sessionChains: Record<string, ChainEvent[]>) {
       const chain = sessionChains[sessionId] ?? [];
       return chain.slice(offset, offset + limit);
     }),
+    getSessionEventsBatchRaw: vi.fn((sessionId: string, _tenantId: string, offset: number, limit: number) => {
+      const chain = sessionChains[sessionId] ?? [];
+      return chain.slice(offset, offset + limit).map(e => ({
+        id: e.id,
+        timestamp: e.timestamp,
+        sessionId: e.sessionId,
+        agentId: e.agentId,
+        eventType: e.eventType,
+        severity: e.severity,
+        payloadRaw: JSON.stringify(e.payload),
+        metadataRaw: JSON.stringify(e.metadata),
+        prevHash: e.prevHash,
+        hash: e.hash,
+      }));
+    }),
   } as any;
 }
 
@@ -45,7 +60,7 @@ function createMockRepo(sessionChains: Record<string, ChainEvent[]>) {
 
 describe('Audit Verification Engine', () => {
   describe('signReport()', () => {
-    it('AC 3.4 — signs report with HMAC-SHA256', () => {
+    it('AC 3.4 — signs report with HMAC-SHA256', async () => {
       const report = {
         verified: true,
         verifiedAt: '2026-02-20T06:00:00.000Z',
@@ -69,10 +84,10 @@ describe('Audit Verification Engine', () => {
   });
 
   describe('runVerification()', () => {
-    it('AC 3.1 — single session verification', () => {
+    it('AC 3.1 — single session verification', async () => {
       const chain = buildChain(500, 'sess_abc');
       const repo = createMockRepo({ sess_abc: chain });
-      const report = runVerification(repo, {
+      const report = await runVerification(repo, {
         tenantId: 'default',
         sessionId: 'sess_abc',
       });
@@ -83,13 +98,13 @@ describe('Audit Verification Engine', () => {
       expect(report.sessionId).toBe('sess_abc');
     });
 
-    it('AC 3.2 — multi-session range verification', () => {
+    it('AC 3.2 — multi-session range verification', async () => {
       const chains: Record<string, ChainEvent[]> = {};
       for (let s = 0; s < 5; s++) {
         chains[`sess_${s}`] = buildChain(100, `sess_${s}`);
       }
       const repo = createMockRepo(chains);
-      const report = runVerification(repo, {
+      const report = await runVerification(repo, {
         tenantId: 'default',
         from: '2026-01-01',
         to: '2026-02-01',
@@ -99,12 +114,12 @@ describe('Audit Verification Engine', () => {
       expect(report.totalEvents).toBe(500);
     });
 
-    it('AC 3.3 — broken chain detection', () => {
+    it('AC 3.3 — broken chain detection', async () => {
       const chain = buildChain(30, 'sess_bad');
       // Tamper event at index 17
       chain[17] = { ...chain[17], payload: { index: 999 } };
       const repo = createMockRepo({ sess_bad: chain });
-      const report = runVerification(repo, {
+      const report = await runVerification(repo, {
         tenantId: 'default',
         sessionId: 'sess_bad',
       });
@@ -116,10 +131,10 @@ describe('Audit Verification Engine', () => {
       expect(report.brokenChains[0].reason).toContain('hash mismatch');
     });
 
-    it('AC 3.4 — report signed when key provided', () => {
+    it('AC 3.4 — report signed when key provided', async () => {
       const chain = buildChain(10);
       const repo = createMockRepo({ sess_1: chain });
-      const report = runVerification(repo, {
+      const report = await runVerification(repo, {
         tenantId: 'default',
         sessionId: 'sess_1',
         signingKey: 'my-secret',
@@ -134,19 +149,19 @@ describe('Audit Verification Engine', () => {
       expect(signature).toBe(expected);
     });
 
-    it('AC 3.5 — signature null when no key', () => {
+    it('AC 3.5 — signature null when no key', async () => {
       const chain = buildChain(10);
       const repo = createMockRepo({ sess_1: chain });
-      const report = runVerification(repo, {
+      const report = await runVerification(repo, {
         tenantId: 'default',
         sessionId: 'sess_1',
       });
       expect(report.signature).toBeNull();
     });
 
-    it('AC 3.6 — empty range returns valid', () => {
+    it('AC 3.6 — empty range returns valid', async () => {
       const repo = createMockRepo({});
-      const report = runVerification(repo, {
+      const report = await runVerification(repo, {
         tenantId: 'default',
         from: '2026-01-01',
         to: '2026-02-01',
@@ -157,10 +172,10 @@ describe('Audit Verification Engine', () => {
       expect(report.brokenChains).toEqual([]);
     });
 
-    it('AC 3.7 — first/last hash tracking', () => {
+    it('AC 3.7 — first/last hash tracking', async () => {
       const chain = buildChain(10);
       const repo = createMockRepo({ sess_1: chain });
-      const report = runVerification(repo, {
+      const report = await runVerification(repo, {
         tenantId: 'default',
         sessionId: 'sess_1',
       });
@@ -168,18 +183,18 @@ describe('Audit Verification Engine', () => {
       expect(report.lastHash).toBe(chain[9].hash);
     });
 
-    it('AC 3.8 — batched streaming (processes in chunks)', () => {
+    it('AC 3.8 — batched streaming (processes in chunks)', async () => {
       // 20,000 events — the mock repo will be called multiple times with batches
       const chain = buildChain(200, 'sess_big'); // use 200 for test speed
       const repo = createMockRepo({ sess_big: chain });
-      const report = runVerification(repo, {
+      const report = await runVerification(repo, {
         tenantId: 'default',
         sessionId: 'sess_big',
       });
       expect(report.verified).toBe(true);
       expect(report.totalEvents).toBe(200);
       // Verify getSessionEventsBatch was called (batching works)
-      expect(repo.getSessionEventsBatch).toHaveBeenCalled();
+      expect(repo.getSessionEventsBatchRaw).toHaveBeenCalled();
     });
   });
 });
