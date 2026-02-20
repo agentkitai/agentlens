@@ -1,0 +1,75 @@
+name: Helm Chart CI
+
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+  push:
+    tags:
+      - 'helm-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  lint-and-template:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Build dependencies
+        run: helm dependency build charts/agentlens
+
+      - name: Lint (default values)
+        run: helm lint charts/agentlens
+
+      - name: Lint (prod values)
+        run: helm lint charts/agentlens -f charts/agentlens/values-prod.yaml
+
+      - name: Template (default values) — dry-run
+        run: |
+          helm template test charts/agentlens \
+            --set secrets.jwtSecret=ci-test \
+            | kubectl apply --dry-run=client -f -
+
+      - name: Template (prod values) — dry-run
+        run: |
+          helm template test charts/agentlens \
+            -f charts/agentlens/values-prod.yaml \
+            --set secrets.jwtSecret=ci-test \
+            | kubectl apply --dry-run=client -f -
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/helm-v')
+    needs: lint-and-template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Build dependencies
+        run: helm dependency build charts/agentlens
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username ${{ github.actor }} --password-stdin
+
+      - name: Package chart
+        run: helm package charts/agentlens
+
+      - name: Push to OCI registry
+        run: helm push agentlens-*.tgz oci://ghcr.io/agentkitai/charts
