@@ -1,48 +1,57 @@
 /**
- * Helper to create a TenantScopedStore from request context.
+ * Tenant Helper — unified tenant extraction and store scoping [F6-S1, F6-S2]
  *
- * If the store is a SqliteEventStore and the request has an API key
- * with a tenantId, returns a TenantScopedStore. Otherwise returns
- * the store as-is (backward compatibility for tests, etc.).
+ * getTenantId(c)    — extract tenantId from request context (fail-closed)
+ * getTenantStore()  — wrap IEventStore with TenantScopedStore
  */
 
 import type { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { SqliteEventStore } from '../db/sqlite-store.js';
+import { PostgresEventStore } from '../db/postgres-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
-import { createLogger } from '../lib/logger.js';
-
-const log = createLogger('TenantHelper');
 
 /**
- * Get a tenant-scoped store from the request context.
+ * Extract tenantId from request context. [F6-S1]
  *
- * For SqliteEventStore: wraps in TenantScopedStore with the tenant from auth.
+ * Priority: auth.orgId (F2 unified auth) -> apiKey.tenantId (legacy) -> throw 401
+ *
+ * When AUTH_DISABLED=true, F2's middleware sets orgId='default',
+ * so this still returns 'default' without special-casing.
+ */
+export function getTenantId(
+  c: Context<{ Variables: AuthVariables }>,
+): string {
+  // F2 unified auth context (preferred)
+  const auth = (c as any).get('auth') as { orgId?: string } | undefined;
+  if (auth?.orgId) return auth.orgId;
+
+  // Legacy API key context (backward compat)
+  const apiKey = c.get('apiKey');
+  if (apiKey?.tenantId) return apiKey.tenantId;
+
+  // No auth context — fail closed
+  throw new HTTPException(401, { message: 'No tenant context available' });
+}
+
+/**
+ * Get a tenant-scoped event store from request context. [F6-S2]
+ *
+ * For SqliteEventStore or PostgresEventStore: wraps in TenantScopedStore.
  * For other IEventStore impls (tests, mocks): returns as-is.
  */
 export function getTenantStore(
   store: IEventStore,
   c: Context<{ Variables: AuthVariables }>,
 ): IEventStore {
-  const apiKeyInfo = c.get('apiKey');
-  if (apiKeyInfo?.tenantId && store instanceof SqliteEventStore) {
-    return new TenantScopedStore(store, apiKeyInfo.tenantId);
+  const tenantId = getTenantId(c);
+
+  if (store instanceof SqliteEventStore || store instanceof PostgresEventStore) {
+    return new TenantScopedStore(store, tenantId);
   }
 
-  // If auth provided a tenantId but the store isn't SqliteEventStore,
-  // tenant isolation cannot be applied — warn or reject.
-  if (apiKeyInfo?.tenantId && !(store instanceof SqliteEventStore)) {
-    const isTest = process.env['NODE_ENV'] === 'test' || process.env['VITEST'];
-    if (isTest) {
-      log.warn(`Store is not SqliteEventStore; tenant isolation skipped for tenant "${apiKeyInfo.tenantId}".`);
-    } else {
-      throw new Error(
-        `Tenant isolation requires SqliteEventStore but got ${store.constructor.name}. ` +
-          `Cannot safely scope data for tenant "${apiKeyInfo.tenantId}".`,
-      );
-    }
-  }
-
+  // Test mocks / other IEventStore implementations — return as-is
   return store;
 }

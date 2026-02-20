@@ -14,6 +14,8 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentLensEvent, EventType } from '@agentlensai/core';
+import { highlightMatches } from '../../utils/highlight';
+import { useBookmarks } from './BookmarkProvider';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -22,6 +24,8 @@ export interface ReplayTimelineProps {
   currentStep: number;
   onStepChange: (step: number) => void;
   sessionStartTime: string;
+  /** [F11-S1] Search query for filtering and highlighting */
+  searchQuery?: string;
 }
 
 // ─── Event type styles ──────────────────────────────────────────────
@@ -259,6 +263,7 @@ interface ReplayEventCardProps {
   isCurrent: boolean;
   sessionStartTime: string;
   onClick: () => void;
+  searchQuery?: string;
 }
 
 function ReplayEventCard({
@@ -267,9 +272,11 @@ function ReplayEventCard({
   isCurrent,
   sessionStartTime,
   onClick,
+  searchQuery,
 }: ReplayEventCardProps): React.ReactElement {
   const [expanded, setExpanded] = useState(false);
   const style = getEventStyle(entry.event.eventType);
+  const { isBookmarked, toggle: toggleBookmark } = useBookmarks();
 
   const handleToggleExpand = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -317,11 +324,23 @@ function ReplayEventCard({
               {entry.event.severity}
             </span>
           )}
+
+          {/* [F11-S4] Bookmark toggle */}
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleBookmark(entry.index); }}
+            className="text-sm flex-shrink-0 hover:scale-110 transition-transform"
+            aria-label={isBookmarked(entry.index) ? 'Remove bookmark' : 'Add bookmark'}
+            title={isBookmarked(entry.index) ? 'Remove bookmark' : 'Add bookmark'}
+          >
+            {isBookmarked(entry.index) ? '⭐' : '☆'}
+          </button>
         </div>
 
         {/* Summary */}
         <div className="mt-1 ml-9 text-sm text-gray-600 truncate">
-          {getEventSummary(entry.event)}
+          {searchQuery
+            ? highlightMatches(getEventSummary(entry.event), searchQuery)
+            : getEventSummary(entry.event)}
         </div>
 
         {/* Paired response inline */}
@@ -394,6 +413,7 @@ export function ReplayTimeline({
   currentStep,
   onStepChange,
   sessionStartTime,
+  searchQuery,
 }: ReplayTimelineProps): React.ReactElement {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentCardRef = useRef<HTMLDivElement>(null);
@@ -422,9 +442,19 @@ export function ReplayTimeline({
   }, [filters]);
 
   // Filter entries based on active types
-  const filteredEntries = useMemo(() => {
+  const typeFilteredEntries = useMemo(() => {
     return pairedEntries.filter(entry => activeEventTypes.has(entry.event.eventType));
   }, [pairedEntries, activeEventTypes]);
+
+  // [F11-S1] Search filter
+  const filteredEntries = useMemo(() => {
+    if (!searchQuery) return typeFilteredEntries;
+    const q = searchQuery.toLowerCase();
+    return typeFilteredEntries.filter(entry =>
+      JSON.stringify(entry.event.payload).toLowerCase().includes(q) ||
+      entry.event.eventType.toLowerCase().includes(q),
+    );
+  }, [typeFilteredEntries, searchQuery]);
 
   // Find the current step index within the filtered list
   const currentFilteredIndex = useMemo(() => {
@@ -538,6 +568,7 @@ export function ReplayTimeline({
                 isCurrent={isCurrentCard}
                 sessionStartTime={sessionStartTime}
                 onClick={() => onStepChange(entry.index)}
+                searchQuery={searchQuery}
               />
             </div>
           );

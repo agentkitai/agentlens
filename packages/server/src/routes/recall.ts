@@ -13,6 +13,7 @@ import type { AuthVariables } from '../middleware/auth.js';
 import type { EmbeddingService } from '../lib/embeddings/index.js';
 import type { EmbeddingStore, SimilaritySearchOptions } from '../db/embedding-store.js';
 import { createLogger } from '../lib/logger.js';
+import { getTenantId } from './tenant-helper.js';
 
 const log = createLogger('Recall');
 
@@ -51,9 +52,8 @@ export function recallRoutes(deps: RecallRouteDeps) {
     const limit = limitStr ? Math.max(1, Math.min(parseInt(limitStr, 10) || 10, 100)) : 10;
     const minScore = minScoreStr ? Math.max(0, Math.min(parseFloat(minScoreStr) || 0, 1)) : 0;
 
-    // Get tenantId from auth context
-    const apiKeyInfo = c.get('apiKey');
-    const tenantId = apiKeyInfo?.tenantId ?? 'default';
+    // Get tenantId from auth context [F6-S3]
+    const tenantId = getTenantId(c);
 
     try {
       // Embed the query text

@@ -13,7 +13,7 @@ import { Hono } from 'hono';
 import type { IEventStore, BenchmarkMetric, BenchmarkStatus } from '@agentlensai/core';
 import { BENCHMARK_METRICS } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
-import { getTenantStore } from './tenant-helper.js';
+import { getTenantStore, getTenantId } from './tenant-helper.js';
 import {
   BenchmarkStore,
   type CreateBenchmarkInput,
@@ -112,11 +112,6 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
   function getBenchmarkStore(c: any): BenchmarkStore | null {
     if (!db) return null;
     return new BenchmarkStore(db);
-  }
-
-  function getTenantId(c: any): string {
-    const apiKey = c.get('apiKey');
-    return apiKey?.tenantId ?? 'default';
   }
 
   /**

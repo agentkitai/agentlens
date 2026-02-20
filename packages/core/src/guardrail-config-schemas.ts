@@ -61,6 +61,55 @@ export const CustomMetricConditionConfigSchema = z.object({
 });
 export type CustomMetricConditionConfig = z.infer<typeof CustomMetricConditionConfigSchema>;
 
+// ─── Content Condition Configs (Feature 8) ──────────────────────────
+
+export const PiiDetectionConfigSchema = z.object({
+  patterns: z.array(z.enum([
+    'ssn', 'credit_card', 'email', 'phone_us', 'phone_intl',
+    'ip_address', 'date_of_birth', 'passport', 'drivers_license',
+  ])).default(['ssn', 'credit_card', 'email', 'phone_us']),
+  customPatterns: z.record(z.string(), z.string()).optional(),
+  minConfidence: z.number().min(0).max(1).default(0.8),
+});
+export type PiiDetectionConfig = z.infer<typeof PiiDetectionConfigSchema>;
+
+export const SecretsDetectionConfigSchema = z.object({
+  patterns: z.array(z.enum([
+    'aws_access_key', 'aws_secret_key', 'github_token', 'github_fine_grained',
+    'openai_key', 'anthropic_key', 'stripe_key', 'generic_bearer',
+    'generic_api_key', 'private_key_pem', 'jwt',
+  ])).default([
+    'aws_access_key', 'github_token', 'openai_key', 'anthropic_key',
+    'generic_bearer', 'private_key_pem',
+  ]),
+  customPatterns: z.record(z.string(), z.string()).optional(),
+});
+export type SecretsDetectionConfig = z.infer<typeof SecretsDetectionConfigSchema>;
+
+export const ContentRegexConfigSchema = z.object({
+  pattern: z.string().min(1),
+  flags: z.string().default('gi'),
+  patternName: z.string().default('custom_match'),
+});
+export type ContentRegexConfig = z.infer<typeof ContentRegexConfigSchema>;
+
+export const ToxicityDetectionConfigSchema = z.object({
+  backend: z.enum(['local_wordlist', 'perspective_api', 'openai_moderation']).default('local_wordlist'),
+  threshold: z.number().min(0).max(1).default(0.7),
+  apiKey: z.string().optional(),
+  categories: z.array(z.string()).default(['toxic', 'threat', 'insult', 'profanity']),
+});
+export type ToxicityDetectionConfig = z.infer<typeof ToxicityDetectionConfigSchema>;
+
+export const PromptInjectionConfigSchema = z.object({
+  strategies: z.array(z.enum([
+    'instruction_override', 'role_play', 'encoding_attack',
+    'delimiter_injection', 'context_manipulation',
+  ])).default(['instruction_override', 'role_play', 'delimiter_injection']),
+  sensitivity: z.enum(['low', 'medium', 'high']).default('medium'),
+});
+export type PromptInjectionConfig = z.infer<typeof PromptInjectionConfigSchema>;
+
 /**
  * Discriminated union of all condition config types.
  */
@@ -78,61 +127,76 @@ export const conditionConfigSchemas: Record<string, z.ZodTypeAny> = {
   cost_limit: CostLimitConditionConfigSchema,
   health_score_threshold: HealthScoreConditionConfigSchema,
   custom_metric: CustomMetricConditionConfigSchema,
+  pii_detection: PiiDetectionConfigSchema,
+  secrets_detection: SecretsDetectionConfigSchema,
+  content_regex: ContentRegexConfigSchema,
+  toxicity_detection: ToxicityDetectionConfigSchema,
+  prompt_injection: PromptInjectionConfigSchema,
 };
 
 // ─── Action Configs ─────────────────────────────────────────────────
 
 /**
  * Config for `pause_agent` action.
- * Pauses the agent, optionally with a human-readable message.
  */
 export const PauseAgentActionConfigSchema = z.object({
-  /** Optional message explaining why the agent was paused */
   message: z.string().optional(),
 });
 export type PauseAgentActionConfig = z.infer<typeof PauseAgentActionConfigSchema>;
 
 /**
  * Config for `notify_webhook` action.
- * Sends a POST request to a webhook URL with trigger details.
  */
 export const WebhookActionConfigSchema = z.object({
-  /** Webhook URL to POST to */
   url: z.string().url(),
-  /** Optional custom HTTP headers */
   headers: z.record(z.string(), z.string()).optional(),
-  /** Optional HMAC secret for signing the payload */
   secret: z.string().optional(),
 });
 export type WebhookActionConfig = z.infer<typeof WebhookActionConfigSchema>;
 
 /**
  * Config for `downgrade_model` action.
- * Switches the agent to a cheaper/safer model.
  */
 export const DowngradeModelActionConfigSchema = z.object({
-  /** Target model identifier to switch to */
   targetModel: z.string().min(1),
-  /** Optional message explaining the downgrade */
   message: z.string().optional(),
 });
 export type DowngradeModelActionConfig = z.infer<typeof DowngradeModelActionConfigSchema>;
 
 /**
  * Config for `agentgate_policy` action.
- * Adjusts an AgentGate policy in response to a guardrail trigger.
  */
 export const AgentGatePolicyActionConfigSchema = z.object({
-  /** AgentGate API URL */
   agentgateUrl: z.string().url(),
-  /** Policy ID to modify */
   policyId: z.string().min(1),
-  /** Action to take on the policy */
   action: z.enum(['tighten', 'loosen', 'disable']),
-  /** Optional additional parameters */
   params: z.record(z.string(), z.unknown()).optional(),
 });
 export type AgentGatePolicyActionConfig = z.infer<typeof AgentGatePolicyActionConfigSchema>;
+
+// ─── Inline Action Configs (Feature 8) ──────────────────────────────
+
+export const BlockActionConfigSchema = z.object({
+  message: z.string().default('Request blocked by content guardrail policy'),
+  includeDetails: z.boolean().default(false),
+});
+export type BlockActionConfig = z.infer<typeof BlockActionConfigSchema>;
+
+export const RedactActionConfigSchema = z.object({
+  replacementFormat: z.string().default('[{TYPE}_REDACTED]'),
+});
+export type RedactActionConfig = z.infer<typeof RedactActionConfigSchema>;
+
+export const LogAndContinueActionConfigSchema = z.object({
+  logSeverity: z.enum(['info', 'warn']).default('warn'),
+});
+export type LogAndContinueActionConfig = z.infer<typeof LogAndContinueActionConfigSchema>;
+
+export const AlertActionConfigSchema = z.object({
+  webhookUrl: z.string().url().optional(),
+  busSeverity: z.enum(['warn', 'error', 'critical']).default('error'),
+});
+export type AlertActionConfig = z.infer<typeof AlertActionConfigSchema>;
 
 /**
  * Discriminated union of all action config types.
@@ -151,4 +215,8 @@ export const actionConfigSchemas: Record<string, z.ZodTypeAny> = {
   notify_webhook: WebhookActionConfigSchema,
   downgrade_model: DowngradeModelActionConfigSchema,
   agentgate_policy: AgentGatePolicyActionConfigSchema,
+  block: BlockActionConfigSchema,
+  redact: RedactActionConfigSchema,
+  log_and_continue: LogAndContinueActionConfigSchema,
+  alert: AlertActionConfigSchema,
 };

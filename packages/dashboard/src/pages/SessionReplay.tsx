@@ -24,6 +24,10 @@ import { ReplayControls } from '../components/replay/ReplayControls';
 import { ReplayScrubber } from '../components/replay/ReplayScrubber';
 import { ReplayTimeline } from '../components/replay/ReplayTimeline';
 import { ContextPanel } from '../components/replay/ContextPanel';
+import { BookmarkProvider, useBookmarks } from '../components/replay/BookmarkProvider';
+import { SearchBar } from '../components/search/SearchBar';
+import { ErrorNav } from '../components/navigation/ErrorNav';
+import { useErrorIndices, findNextError, findPrevError } from '../hooks/useErrorIndices';
 
 // ─── Status badge (reuse pattern from SessionDetail) ────────────────
 
@@ -99,6 +103,7 @@ export function SessionReplay(): React.ReactElement | null {
   }, []); // Only on mount — URL is updated by ReplayControls
 
   const [currentStep, setCurrentStep] = useState(initialStep);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch replay data
   const {
@@ -150,6 +155,37 @@ export function SessionReplay(): React.ReactElement | null {
     return { total: events.length, errorCount, llmCount, toolCount };
   }, [replay]);
 
+  // [F11-S2] Error navigation
+  const errorIndices = useErrorIndices(replay?.events ?? []);
+
+  const handleErrorNavigate = useCallback(
+    (index: number) => {
+      handleStepChange(index);
+    },
+    [handleStepChange],
+  );
+
+  // [F11-S2] Keyboard shortcuts for error navigation
+  React.useEffect(() => {
+    if (!replay) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'E' && e.shiftKey) {
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) {
+          const prev = findPrevError(errorIndices, clampedStep);
+          if (prev !== null) handleStepChange(prev);
+        } else {
+          const next = findNextError(errorIndices, clampedStep);
+          if (next !== null) handleStepChange(next);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [replay, errorIndices, clampedStep, handleStepChange]);
+
   // ── 404 ───────────────────────────────────────────────────────
 
   if (error?.includes('404') || error?.toLowerCase().includes('not found')) {
@@ -195,9 +231,21 @@ export function SessionReplay(): React.ReactElement | null {
 
   const { session, events } = replay;
 
+  // [F11-S1] Search-filtered events for count display
+  const searchFilteredCount = useMemo(() => {
+    if (!searchQuery) return events.length;
+    const q = searchQuery.toLowerCase();
+    return events.filter(
+      (ev) =>
+        JSON.stringify(ev.payload).toLowerCase().includes(q) ||
+        ev.eventType.toLowerCase().includes(q),
+    ).length;
+  }, [events, searchQuery]);
+
   // ── Render ────────────────────────────────────────────────────
 
   return (
+    <BookmarkProvider sessionId={sessionId!}>
     <div className="space-y-4">
       {/* Back button */}
       <Link
@@ -238,6 +286,20 @@ export function SessionReplay(): React.ReactElement | null {
         </div>
       </div>
 
+      {/* [F11-S1] Search bar + [F11-S2] Error nav */}
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchBar
+          onQueryChange={setSearchQuery}
+          resultCount={searchFilteredCount}
+          totalCount={events.length}
+        />
+        <ErrorNav
+          errorIndices={errorIndices}
+          currentIndex={clampedStep}
+          onNavigate={handleErrorNavigate}
+        />
+      </div>
+
       {/* Replay controls */}
       <ReplayControls
         currentStep={clampedStep}
@@ -262,6 +324,7 @@ export function SessionReplay(): React.ReactElement | null {
             currentStep={clampedStep}
             onStepChange={handleStepChange}
             sessionStartTime={session.startedAt}
+            searchQuery={searchQuery}
           />
         </div>
 
@@ -273,5 +336,6 @@ export function SessionReplay(): React.ReactElement | null {
         />
       </div>
     </div>
+    </BookmarkProvider>
   );
 }

@@ -22,6 +22,10 @@ import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';
 import { Timeline } from '../components/Timeline';
 import { EventDetailPanel } from '../components/EventDetailPanel';
+import { SearchBar } from '../components/search/SearchBar';
+import { ErrorNav } from '../components/navigation/ErrorNav';
+import { ExportMenu } from '../components/export/ExportMenu';
+import { useErrorIndices } from '../hooks/useErrorIndices';
 
 // ─── Filter definitions ─────────────────────────────────────────────
 
@@ -138,6 +142,7 @@ export function SessionDetail(): React.ReactElement | null {
   const { id } = useParams<{ id: string }>();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [selectedEvent, setSelectedEvent] = useState<AgentLensEvent | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   // SSE live events that arrive after initial load (Story 14.3)
   const [liveEvents, setLiveEvents] = useState<AgentLensEvent[]>([]);
   const [liveSession, setLiveSession] = useState<Session | null>(null);
@@ -205,9 +210,23 @@ export function SessionDetail(): React.ReactElement | null {
     [activeFilter],
   );
 
-  const filteredEvents = useMemo(() => {
+  const typeFilteredEvents = useMemo(() => {
     return allEvents.filter(currentFilter.match);
   }, [allEvents, currentFilter]);
+
+  // [F11-S1] Search filter step
+  const filteredEvents = useMemo(() => {
+    if (!searchQuery) return typeFilteredEvents;
+    const q = searchQuery.toLowerCase();
+    return typeFilteredEvents.filter(
+      (ev) =>
+        JSON.stringify(ev.payload).toLowerCase().includes(q) ||
+        ev.eventType.toLowerCase().includes(q),
+    );
+  }, [typeFilteredEvents, searchQuery]);
+
+  // [F11-S2] Error navigation indices
+  const errorIndices = useErrorIndices(filteredEvents);
 
   // Count per filter (uses merged events)
   const filterCounts = useMemo(() => {
@@ -223,6 +242,15 @@ export function SessionDetail(): React.ReactElement | null {
   const handleEventClick = useCallback((event: AgentLensEvent) => {
     setSelectedEvent(event);
   }, []);
+
+  // [F11-S2] Error navigation handler
+  const handleErrorNavigate = useCallback(
+    (index: number) => {
+      const event = filteredEvents[index];
+      if (event) setSelectedEvent(event);
+    },
+    [filteredEvents],
+  );
 
   const handleClosePanel = useCallback(() => {
     setSelectedEvent(null);
@@ -283,12 +311,23 @@ export function SessionDetail(): React.ReactElement | null {
         >
           ← Sessions
         </Link>
-        <Link
-          to={`/replay/${id}`}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-        >
-          🎬 Replay
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* [F11-S3] Export */}
+          {timeline && (
+            <ExportMenu
+              sessionId={id!}
+              session={displaySession}
+              events={allEvents}
+              chainValid={timeline.chainValid}
+            />
+          )}
+          <Link
+            to={`/replay/${id}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+          >
+            🎬 Replay
+          </Link>
+        </div>
       </div>
 
       {/* SSE Connection Indicator (Story 14.3) */}
@@ -443,8 +482,21 @@ export function SessionDetail(): React.ReactElement | null {
         );
       })()}
 
-      {/* Filter buttons (Story 7.5) */}
+      {/* [F11-S1] Search bar */}
+      <SearchBar
+        onQueryChange={setSearchQuery}
+        resultCount={filteredEvents.length}
+        totalCount={allEvents.length}
+      />
+
+      {/* Filter buttons (Story 7.5) + [F11-S2] Error nav */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* [F11-S2] Error navigation */}
+        <ErrorNav
+          errorIndices={errorIndices}
+          currentIndex={filteredEvents.indexOf(selectedEvent!)}
+          onNavigate={handleErrorNavigate}
+        />
         {FILTERS.map((f) => {
           const count = filterCounts.get(f.key) ?? 0;
           const isActive = activeFilter === f.key;
@@ -489,6 +541,7 @@ export function SessionDetail(): React.ReactElement | null {
           chainValid={timeline.chainValid}
           onEventClick={handleEventClick}
           selectedEventId={selectedEvent?.id}
+          searchQuery={searchQuery}
         />
       ) : null}
 

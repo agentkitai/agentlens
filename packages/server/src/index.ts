@@ -58,10 +58,12 @@ import { authRateLimit, apiRateLimit } from './middleware/rate-limit.js';
 import { apiBodyLimit } from './middleware/body-limit.js';
 import { auditRoutes } from './routes/audit.js';
 import { auditVerifyRoutes } from './routes/audit-verify.js';
+import { complianceRoutes } from './routes/compliance.js';
 import { createAuditLogger, cleanupAuditLogs } from './lib/audit.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
+import { ContentGuardrailEngine } from './lib/guardrails/content-engine.js';
 import { setAgentStore } from './lib/guardrails/actions.js';
 import { BudgetEngine } from './lib/budget-engine.js';
 import { CostAnomalyDetector } from './lib/cost-anomaly-detector.js';
@@ -356,6 +358,8 @@ export async function createApp(
     app.use('/api/keys', manageGuard);
     app.use('/api/audit/*', manageGuard);
     app.use('/api/audit', manageGuard);
+    app.use('/api/compliance/*', manageGuard);
+    app.use('/api/compliance', manageGuard);
     const configGuard = requireCategoryByMethod({ GET: 'read', PUT: 'manage', PATCH: 'manage' });
     app.use('/api/config/*', configGuard);
     app.use('/api/config', configGuard);
@@ -430,7 +434,8 @@ export async function createApp(
   // ─── Guardrails / Proactive Guardrails ────────────────
   if (db) {
     const gStore = new GuardrailStore(db);
-    app.route('/api/guardrails', guardrailRoutes(gStore));
+    const contentEngine = new ContentGuardrailEngine(gStore);
+    app.route('/api/guardrails', guardrailRoutes(gStore, contentEngine));
   }
 
   // ─── Cost Budgets (Feature 5) ─────────────────────────
@@ -469,6 +474,9 @@ export async function createApp(
   if (db) {
     app.route('/api/audit', auditRoutes(db));
     app.route('/api/audit/verify', auditVerifyRoutes(db, resolvedConfig.auditSigningKey));
+    app.route('/api/compliance', complianceRoutes(db, resolvedConfig.auditSigningKey, {
+      retentionDays: resolvedConfig.retentionDays,
+    }));
   }
 
   // ─── Community Sharing (Stories 4.1–4.3) ────────────────
@@ -509,6 +517,18 @@ export async function createApp(
     }));
   }
   app.route('/v1', otlpRoutes(store, resolvedConfig));
+
+  // ─── Server Info (Feature 10, Story 10.1) ─────────────
+  {
+    const features = [
+      'sessions', 'agents', 'alerts', 'analytics', 'stats',
+      'recall', 'reflect', 'optimize', 'context', 'health',
+      'replay', 'benchmarks', 'guardrails', 'discovery', 'delegation',
+      'cost-budgets', 'trust', 'lessons',
+    ];
+    const { serverInfoRoutes } = await import('./routes/server-info.js');
+    app.route('/api/server-info', serverInfoRoutes(features));
+  }
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();

@@ -291,6 +291,129 @@ export class EventRepository {
     return rows.map(r => r.sessionId);
   }
 
+  /**
+   * Tenant-wide batched event reader for compliance export.
+   * Returns raw event rows across all sessions, ordered by timestamp ASC, id ASC.
+   */
+  getEventsBatchByTenantAndRange(
+    tenantId: string,
+    from: string,
+    to: string,
+    offset: number,
+    limit: number,
+  ): { id: string; timestamp: string; sessionId: string; agentId: string; eventType: string; severity: string; payload: string; metadata: string; prevHash: string | null; hash: string }[] {
+    const rows = this.db
+      .select()
+      .from(events)
+      .where(and(
+        eq(events.tenantId, tenantId),
+        gte(events.timestamp, from),
+        lte(events.timestamp, to),
+      ))
+      .orderBy(asc(events.timestamp), asc(events.id))
+      .limit(limit)
+      .offset(offset)
+      .all();
+
+    return rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      sessionId: row.sessionId,
+      agentId: row.agentId,
+      eventType: row.eventType,
+      severity: row.severity,
+      payload: row.payload,
+      metadata: row.metadata ?? '{}',
+      prevHash: row.prevHash,
+      hash: row.hash,
+    }));
+  }
+
+  /**
+   * Aggregate approval event stats for compliance report.
+   */
+  getApprovalStats(
+    tenantId: string,
+    from: string,
+    to: string,
+  ): { total: number; granted: number; denied: number; expired: number; avgResponseTimeMs: number | null } {
+    const result = this.db.get<{
+      total: number;
+      granted: number;
+      denied: number;
+      expired: number;
+    }>(sql`
+      SELECT
+        SUM(CASE WHEN event_type = 'approval_requested' THEN 1 ELSE 0 END) as total,
+        SUM(CASE WHEN event_type = 'approval_granted' THEN 1 ELSE 0 END) as granted,
+        SUM(CASE WHEN event_type = 'approval_denied' THEN 1 ELSE 0 END) as denied,
+        SUM(CASE WHEN event_type = 'approval_expired' THEN 1 ELSE 0 END) as expired
+      FROM events
+      WHERE tenant_id = ${tenantId}
+        AND timestamp >= ${from}
+        AND timestamp <= ${to}
+        AND event_type IN ('approval_requested', 'approval_granted', 'approval_denied', 'approval_expired')
+    `);
+
+    // Compute average response time from granted/denied events that have responseTimeMs in payload
+    const avgResult = this.db.get<{ avg: number | null }>(sql`
+      SELECT AVG(json_extract(payload, '$.responseTimeMs')) as avg
+      FROM events
+      WHERE tenant_id = ${tenantId}
+        AND timestamp >= ${from}
+        AND timestamp <= ${to}
+        AND event_type IN ('approval_granted', 'approval_denied')
+        AND json_extract(payload, '$.responseTimeMs') IS NOT NULL
+    `);
+
+    return {
+      total: Number(result?.total ?? 0),
+      granted: Number(result?.granted ?? 0),
+      denied: Number(result?.denied ?? 0),
+      expired: Number(result?.expired ?? 0),
+      avgResponseTimeMs: avgResult?.avg != null ? Number(avgResult.avg) : null,
+    };
+  }
+
+  /**
+   * Get incident events (error/critical severity or alert_triggered) for compliance report.
+   */
+  getIncidentEvents(
+    tenantId: string,
+    from: string,
+    to: string,
+    limit: number = 1000,
+  ): { id: string; timestamp: string; sessionId: string; agentId: string; eventType: string; severity: string; payload: string }[] {
+    const rows = this.db.all<{
+      id: string;
+      timestamp: string;
+      session_id: string;
+      agent_id: string;
+      event_type: string;
+      severity: string;
+      payload: string;
+    }>(sql`
+      SELECT id, timestamp, session_id, agent_id, event_type, severity, payload
+      FROM events
+      WHERE tenant_id = ${tenantId}
+        AND timestamp >= ${from}
+        AND timestamp <= ${to}
+        AND (severity IN ('error', 'critical') OR event_type = 'alert_triggered')
+      ORDER BY timestamp DESC
+      LIMIT ${limit}
+    `);
+
+    return rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      sessionId: row.session_id,
+      agentId: row.agent_id,
+      eventType: row.event_type,
+      severity: row.severity,
+      payload: row.payload,
+    }));
+  }
+
   async countEventsBatch(
     query: { agentId: string; from: string; to: string; tenantId?: string },
   ): Promise<{ total: number; error: number; critical: number; toolError: number }> {

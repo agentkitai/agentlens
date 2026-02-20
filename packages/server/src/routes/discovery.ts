@@ -14,16 +14,13 @@ import { DiscoveryService } from '../services/discovery-service.js';
 import { TASK_TYPES, type DiscoveryQuery, type TaskType } from '@agentlensai/core';
 import { updateDiscoveryConfigSchema, updateCapabilityPermissionsSchema } from '../schemas/discovery.js';
 import { formatZodErrors } from '../middleware/validation.js';
+import { getTenantId } from './tenant-helper.js';
 
 const VALID_TASK_TYPES = new Set<string>(TASK_TYPES);
 
 export function discoveryRoutes(db: SqliteDb) {
   const app = new Hono<{ Variables: AuthVariables }>();
   const service = new DiscoveryService(db);
-
-  function getTenantId(c: { get(key: 'apiKey'): { tenantId?: string } | undefined }): string {
-    return c.get('apiKey')?.tenantId ?? 'default';
-  }
 
   /**
    * @summary Discover agent capabilities by task type

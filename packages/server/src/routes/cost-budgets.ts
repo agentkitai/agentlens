@@ -21,14 +21,10 @@ import type { CostBudget, CostAnomalyConfig, IEventStore } from '@agentlensai/co
 import type { AuthVariables } from '../middleware/auth.js';
 import type { CostBudgetStore } from '../db/cost-budget-store.js';
 import type { BudgetEngine } from '../lib/budget-engine.js';
+import { getTenantId } from './tenant-helper.js';
 
 export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore, budgetEngine: BudgetEngine) {
   const app = new Hono<{ Variables: AuthVariables }>();
-
-  function getTenantId(c: any): string {
-    const apiKeyInfo = c.get('apiKey');
-    return apiKeyInfo?.tenantId ?? 'default';
-  }
 
   // ─── Budget CRUD ─────────────────────────────────────────
 

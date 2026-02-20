@@ -1,17 +1,14 @@
 /**
- * @agentlensai/mcp — Tool Definitions and Handlers (Stories 5.2–5.5, 3.1)
+ * @agentlensai/mcp — Tool Definitions and Handlers
  *
- * Defines and registers the 5 MCP tools on an McpServer instance:
- *  - agentlens_session_start
- *  - agentlens_log_event
- *  - agentlens_session_end
- *  - agentlens_query_events
- *  - agentlens_log_llm_call
+ * Registers all MCP tools, with optional conditional registration
+ * based on server capabilities, allowlist, and denylist.
  */
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AgentLensTransport } from './transport.js';
+import { shouldRegisterTool, type ToolRegistrationOptions } from './capabilities.js';
 import { registerContextTool } from './tools/context.js';
 import { registerOptimizeTool } from './tools/optimize.js';
 import { registerRecallTool } from './tools/recall.js';
@@ -22,28 +19,79 @@ import { registerBenchmarkTool } from './tools/benchmark.js';
 import { registerGuardrailsTool } from './tools/guardrails.js';
 import { registerDiscoverTool } from './tools/discover.js';
 import { registerDelegateTool } from './tools/delegate.js';
+import { registerSessionsTool } from './tools/sessions.js';
+import { registerAgentsTool } from './tools/agents.js';
+import { registerAlertsTool } from './tools/alerts.js';
+import { registerAnalyticsTool } from './tools/analytics.js';
+import { registerCostBudgetsTool } from './tools/cost-budgets.js';
+import { registerLessonsTool } from './tools/lessons.js';
+import { registerStatsTool } from './tools/stats.js';
+import { registerTrustTool } from './tools/trust.js';
 
 // ─── Tool Registration ─────────────────────────────────────────────
 
+interface ToolEntry {
+  name: string;
+  register: (server: McpServer, transport: AgentLensTransport) => void;
+}
+
+export const ALL_TOOLS: ToolEntry[] = [
+  // Existing 15 tools
+  { name: 'agentlens_session_start', register: registerSessionStart },
+  { name: 'agentlens_log_event', register: registerLogEvent },
+  { name: 'agentlens_session_end', register: registerSessionEnd },
+  { name: 'agentlens_query_events', register: registerQueryEvents },
+  { name: 'agentlens_log_llm_call', register: registerLogLlmCall },
+  { name: 'agentlens_recall', register: registerRecallTool },
+  { name: 'agentlens_reflect', register: registerReflectTool },
+  { name: 'agentlens_optimize', register: registerOptimizeTool },
+  { name: 'agentlens_context', register: registerContextTool },
+  { name: 'agentlens_health', register: registerHealthTool },
+  { name: 'agentlens_replay', register: registerReplayTool },
+  { name: 'agentlens_benchmark', register: registerBenchmarkTool },
+  { name: 'agentlens_guardrails', register: registerGuardrailsTool },
+  { name: 'agentlens_discover', register: registerDiscoverTool },
+  { name: 'agentlens_delegate', register: registerDelegateTool },
+  // New 8 tools (Feature 10)
+  { name: 'agentlens_sessions', register: registerSessionsTool },
+  { name: 'agentlens_agents', register: registerAgentsTool },
+  { name: 'agentlens_alerts', register: registerAlertsTool },
+  { name: 'agentlens_analytics', register: registerAnalyticsTool },
+  { name: 'agentlens_cost_budgets', register: registerCostBudgetsTool },
+  { name: 'agentlens_lessons', register: registerLessonsTool },
+  { name: 'agentlens_stats', register: registerStatsTool },
+  { name: 'agentlens_trust', register: registerTrustTool },
+];
+
 /**
- * Register all AgentLens tools on the given MCP server.
+ * Register AgentLens tools on the given MCP server.
+ * When options is provided, conditionally registers based on capabilities/allowlist/denylist.
+ * When options is omitted, registers all tools unconditionally (backward compatible).
  */
-export function registerTools(server: McpServer, transport: AgentLensTransport): void {
-  registerSessionStart(server, transport);
-  registerLogEvent(server, transport);
-  registerSessionEnd(server, transport);
-  registerQueryEvents(server, transport);
-  registerLogLlmCall(server, transport);
-  registerRecallTool(server, transport);
-  registerReflectTool(server, transport);
-  registerOptimizeTool(server, transport);
-  registerContextTool(server, transport);
-  registerHealthTool(server, transport);
-  registerReplayTool(server, transport);
-  registerBenchmarkTool(server, transport);
-  registerGuardrailsTool(server, transport);
-  registerDiscoverTool(server, transport);
-  registerDelegateTool(server, transport);
+export function registerTools(
+  server: McpServer,
+  transport: AgentLensTransport,
+  options?: ToolRegistrationOptions,
+): void {
+  const registered: string[] = [];
+  const skipped: string[] = [];
+
+  for (const tool of ALL_TOOLS) {
+    if (options) {
+      const result = shouldRegisterTool(tool.name, options);
+      if (!result.register) {
+        skipped.push(`${tool.name} (${result.reason})`);
+        continue;
+      }
+    }
+    tool.register(server, transport);
+    registered.push(tool.name);
+  }
+
+  process.stderr.write(`MCP tools registered: ${registered.length}/${ALL_TOOLS.length}\n`);
+  if (skipped.length > 0) {
+    process.stderr.write(`MCP tools skipped: ${skipped.join(', ')}\n`);
+  }
 }
 
 // ─── 5.2: agentlens_session_start ──────────────────────────────────
@@ -88,7 +136,6 @@ function registerSessionStart(server: McpServer, transport: AgentLensTransport):
           };
         }
 
-        // Store agentId for this session so log_event and session_end can use it
         transport.setSessionAgent(sessionId, agentId);
 
         return {
@@ -213,7 +260,6 @@ function registerSessionEnd(server: McpServer, transport: AgentLensTransport): v
           timestamp: new Date().toISOString(),
         };
 
-        // Flush any buffered events first, then send the end event
         await transport.flush();
         const response = await transport.sendEventImmediate(event);
 
@@ -230,7 +276,6 @@ function registerSessionEnd(server: McpServer, transport: AgentLensTransport): v
           };
         }
 
-        // Clean up the session-agent mapping
         transport.clearSessionAgent(sessionId);
 
         return {
@@ -298,7 +343,6 @@ function registerQueryEvents(server: McpServer, transport: AgentLensTransport): 
         };
         const events = data.events ?? [];
 
-        // Summarize events for the agent
         const summaries = events.map(
           (e: {
             eventType: string;
@@ -416,7 +460,6 @@ function registerLogLlmCall(server: McpServer, transport: AgentLensTransport): v
         const timestamp = new Date().toISOString();
         const agentId = transport.getSessionAgent(sessionId);
 
-        // Build llm_call event (request details)
         const llmCallEvent = {
           sessionId,
           agentId,
@@ -435,7 +478,6 @@ function registerLogLlmCall(server: McpServer, transport: AgentLensTransport): v
           timestamp,
         };
 
-        // Build llm_response event (response details)
         const llmResponseEvent = {
           sessionId,
           agentId,
@@ -456,7 +498,6 @@ function registerLogLlmCall(server: McpServer, transport: AgentLensTransport): v
           timestamp,
         };
 
-        // Send both events via the transport
         const callResponse = await transport.sendEventImmediate(llmCallEvent);
         if (!callResponse.ok) {
           const body = await callResponse.text().catch(() => 'Unknown error');
@@ -510,10 +551,6 @@ function registerLogLlmCall(server: McpServer, transport: AgentLensTransport): v
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-/**
- * Generate a simple session ID (timestamp + random suffix).
- * The server may replace this with a ULID on ingest.
- */
 function generateSessionId(): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).slice(2, 10);

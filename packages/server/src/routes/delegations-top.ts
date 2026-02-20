@@ -9,13 +9,10 @@ import { eq } from 'drizzle-orm';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import * as schema from '../db/schema.sqlite.js';
+import { getTenantId } from './tenant-helper.js';
 
 export function delegationTopRoutes(db: SqliteDb) {
   const app = new Hono<{ Variables: AuthVariables }>();
-
-  function getTenantId(c: { get(key: 'apiKey'): { tenantId?: string } | undefined }): string {
-    return c.get('apiKey')?.tenantId ?? 'default';
-  }
 
   // GET / — list delegation log entries
   app.get('/', async (c) => {

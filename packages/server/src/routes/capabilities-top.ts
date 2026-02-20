@@ -11,15 +11,11 @@ import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { CapabilityStore, ValidationError } from '../db/capability-store.js';
-import { getTenantStore } from './tenant-helper.js';
+import { getTenantStore, getTenantId } from './tenant-helper.js';
 
 export function capabilityTopRoutes(store: IEventStore, db: SqliteDb) {
   const app = new Hono<{ Variables: AuthVariables }>();
   const capStore = new CapabilityStore(db);
-
-  function getTenantId(c: { get(key: 'apiKey'): { tenantId?: string } | undefined }): string {
-    return c.get('apiKey')?.tenantId ?? 'default';
-  }
 
   // GET / — list all capabilities for tenant
   app.get('/', async (c) => {

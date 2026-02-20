@@ -1130,7 +1130,13 @@ export type GuardrailConditionType =
   | 'error_rate_threshold'
   | 'cost_limit'
   | 'health_score_threshold'
-  | 'custom_metric';
+  | 'custom_metric'
+  // Content-level conditions (Feature 8):
+  | 'pii_detection'
+  | 'secrets_detection'
+  | 'content_regex'
+  | 'toxicity_detection'
+  | 'prompt_injection';
 
 /**
  * Action types for guardrail rules
@@ -1139,11 +1145,19 @@ export type GuardrailActionType =
   | 'pause_agent'
   | 'notify_webhook'
   | 'downgrade_model'
-  | 'agentgate_policy';
+  | 'agentgate_policy'
+  // Inline enforcement actions (Feature 8):
+  | 'block'
+  | 'redact'
+  | 'log_and_continue'
+  | 'alert';
 
 /**
  * A guardrail rule — configurable condition + action with cooldown
  */
+/** Content scanning direction (Feature 8) */
+export type GuardrailDirection = 'input' | 'output' | 'both';
+
 export interface GuardrailRule {
   id: string;
   tenantId: string;
@@ -1159,6 +1173,10 @@ export interface GuardrailRule {
   dryRun: boolean;
   createdAt: string;
   updatedAt: string;
+  // Feature 8 — content-level fields (all optional for backward compat):
+  direction?: GuardrailDirection;
+  toolNames?: string[];
+  priority?: number;
 }
 
 /**
@@ -1196,4 +1214,23 @@ export interface GuardrailConditionResult {
   currentValue: number;
   threshold: number;
   message: string;
+}
+
+/** Result of a single content scanner match (Feature 8) */
+export interface ContentMatch {
+  conditionType: GuardrailConditionType;
+  patternName: string;
+  offset: { start: number; end: number };
+  confidence: number;
+  redactionToken: string;
+}
+
+/** Aggregate result of evaluating all content rules (Feature 8) */
+export interface ContentGuardrailResult {
+  decision: 'allow' | 'block' | 'redact';
+  matches: ContentMatch[];
+  blockingRuleId?: string;
+  redactedContent?: string;
+  evaluationMs: number;
+  rulesEvaluated: number;
 }

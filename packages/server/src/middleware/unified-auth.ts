@@ -25,7 +25,7 @@ import {
 
 // ── Types ──────────────────────────────────────────────────
 
-export type Role = 'owner' | 'admin' | 'member' | 'viewer';
+export type Role = 'owner' | 'admin' | 'auditor' | 'member' | 'viewer';
 
 export interface AuthContext {
   type: 'api-key' | 'jwt';
@@ -59,6 +59,7 @@ export interface UnifiedAuthConfig {
 function deriveRoleFromScopes(scopes: string[]): Role {
   if (scopes.includes('*')) return 'admin';
   if (scopes.includes('manage')) return 'admin';
+  if (scopes.includes('audit')) return 'auditor';
   if (scopes.includes('write')) return 'member';
   return 'viewer';
 }

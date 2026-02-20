@@ -15,6 +15,8 @@ import { ulid } from 'ulid';
 import { CreateGuardrailRuleSchema, UpdateGuardrailRuleSchema } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { GuardrailStore } from '../db/guardrail-store.js';
+import type { ContentGuardrailEngine } from '../lib/guardrails/content-engine.js';
+import { getTenantId } from './tenant-helper.js';
 
 /**
  * Validate that conditionConfig contains required fields for the given condition type.
@@ -52,14 +54,8 @@ function validateConditionConfig(conditionType: string, config: Record<string, u
   return null;
 }
 
-export function guardrailRoutes(guardrailStore: GuardrailStore) {
+export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: ContentGuardrailEngine) {
   const app = new Hono<{ Variables: AuthVariables }>();
-
-  // Helper to get tenant ID from auth
-  function getTenantId(c: any): string {
-    const apiKeyInfo = c.get('apiKey');
-    return apiKeyInfo?.tenantId ?? 'default';
-  }
 
   /**
    * @summary Create a new guardrail rule
@@ -114,15 +110,49 @@ export function guardrailRoutes(guardrailStore: GuardrailStore) {
   });
 
   /**
+   * @summary Evaluate content against guardrail rules (Feature 8)
+   */
+  app.post('/evaluate', async (c) => {
+    if (!contentEngine) {
+      return c.json({ error: 'Content engine not available', status: 501 }, 501);
+    }
+    const body = await c.req.json().catch(() => null);
+    if (!body?.content || !body?.context?.tenantId || !body?.context?.agentId) {
+      return c.json({ error: 'Missing content or context (tenantId, agentId required)', status: 400 }, 400);
+    }
+
+    const result = await contentEngine.evaluateContentSync(
+      body.content,
+      {
+        tenantId: body.context.tenantId,
+        agentId: body.context.agentId,
+        toolName: body.context.toolName ?? 'unknown',
+        direction: body.context.direction ?? 'input',
+      },
+      body.timeoutMs,
+    );
+
+    return c.json(result);
+  });
+
+  /**
    * @summary List guardrail rules
    * @description Returns all guardrail rules for the tenant, optionally filtered by agent.
    * @param {string} [agentId] — filter by agent ID (query param)
+   * @param {string} [type] — filter: 'content' for content rules only (query param)
    * @returns {200} `{ rules: GuardrailRule[] }`
    */
   app.get('/', async (c) => {
     const tenantId = getTenantId(c);
     const agentId = c.req.query('agentId');
-    const rules = guardrailStore.listRules(tenantId, agentId || undefined);
+    const type = c.req.query('type');
+    let rules = guardrailStore.listRules(tenantId, agentId || undefined);
+
+    if (type === 'content') {
+      const contentTypes = new Set(['pii_detection', 'secrets_detection', 'content_regex', 'toxicity_detection', 'prompt_injection']);
+      rules = rules.filter((r) => contentTypes.has(r.conditionType));
+    }
+
     return c.json({ rules });
   });
 

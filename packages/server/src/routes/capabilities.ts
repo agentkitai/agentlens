@@ -12,19 +12,12 @@ import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { CapabilityStore, ValidationError } from '../db/capability-store.js';
 import { AnonymousIdManager } from '../db/anonymous-id-manager.js';
-import { getTenantStore } from './tenant-helper.js';
+import { getTenantStore, getTenantId } from './tenant-helper.js';
 
 export function capabilityRoutes(store: IEventStore, db: SqliteDb) {
   const app = new Hono<{ Variables: AuthVariables }>();
   const capStore = new CapabilityStore(db);
   const anonIdManager = new AnonymousIdManager(db);
-
-  /**
-   * Helper to get tenant ID from auth context.
-   */
-  function getTenantId(c: { get(key: 'apiKey'): { tenantId?: string } | undefined }): string {
-    return c.get('apiKey')?.tenantId ?? 'default';
-  }
 
   // PUT /:id/capabilities — register or update a capability
   app.put('/:id/capabilities', async (c) => {

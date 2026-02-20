@@ -332,6 +332,7 @@ interface MappedEvent {
 async function buildAndInsertEvents(
   tenantStore: IEventStore,
   mappedEvents: MappedEvent[],
+  tenantId: string = 'default',
 ): Promise<AgentLensEvent[]> {
   if (mappedEvents.length === 0) return [];
 
@@ -375,7 +376,7 @@ async function buildAndInsertEvents(
         metadata: input.metadata,
         prevHash,
         hash,
-        tenantId: 'default',
+        tenantId,
       };
 
       sessionEvents.push(event);
@@ -444,11 +445,40 @@ export function resetRateLimiter(): void {
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 
-export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfig, 'otlpAuthToken' | 'otlpRateLimit'>>) {
+export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfig, 'otlpAuthToken' | 'otlpRateLimit' | 'multiTenantMode'>>) {
   const app = new Hono();
   const tenantStore = store;
   const authToken = config?.otlpAuthToken;
   const rateLimit = config?.otlpRateLimit ?? 1000;
+  const multiTenantMode = config?.multiTenantMode ?? false;
+
+  /**
+   * Extract tenantId from OTLP request context. [F6-S7]
+   * 1. From unified auth context (when OTLP_AUTH_REQUIRED=true)
+   * 2. From openclaw.tenant_id resource attribute
+   * 3. Reject if MULTI_TENANT_MODE=true, else fall back to 'default'
+   */
+  function resolveOtlpTenantId(
+    c: any,
+    resourceAttrs?: OtlpKeyValue[],
+  ): string | null {
+    // F2 auth context
+    const auth = c.get('auth') as { orgId?: string } | undefined;
+    if (auth?.orgId) return auth.orgId;
+
+    // Legacy API key context
+    const apiKey = c.get('apiKey') as { tenantId?: string } | undefined;
+    if (apiKey?.tenantId) return apiKey.tenantId;
+
+    // Resource attribute
+    const attrTenant = getAttrStr(resourceAttrs, 'openclaw.tenant_id');
+    if (attrTenant) return attrTenant;
+
+    // Multi-tenant mode: reject unscoped ingestion
+    if (multiTenantMode) return null;
+
+    return 'default';
+  }
 
   // ── Auth middleware ──
   app.use('*', async (c, next) => {
@@ -516,7 +546,14 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
       }
     }
 
-    await buildAndInsertEvents(tenantStore, mapped);
+    // [F6-S7] Resolve tenant from first resource's attributes
+    const firstResourceAttrs = body.resourceSpans?.[0]?.resource?.attributes;
+    const otlpTenantId = resolveOtlpTenantId(c, firstResourceAttrs);
+    if (otlpTenantId === null) {
+      return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
+    }
+
+    await buildAndInsertEvents(tenantStore, mapped, otlpTenantId);
     return c.json({ partialSuccess: {} }, 200);
   });
 
@@ -583,7 +620,13 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
     }
 
     if (mapped.length > 0) {
-      await buildAndInsertEvents(tenantStore, mapped);
+      // [F6-S7] Resolve tenant from first resource's attributes
+      const firstMetricAttrs = body.resourceMetrics?.[0]?.resource?.attributes;
+      const metricTenantId = resolveOtlpTenantId(c, firstMetricAttrs);
+      if (metricTenantId === null) {
+        return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
+      }
+      await buildAndInsertEvents(tenantStore, mapped, metricTenantId);
     }
     return c.json({ partialSuccess: {} }, 200);
   });
@@ -630,7 +673,13 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
     }
 
     if (mapped.length > 0) {
-      await buildAndInsertEvents(tenantStore, mapped);
+      // [F6-S7] Resolve tenant from first resource's attributes
+      const firstLogAttrs = body.resourceLogs?.[0]?.resource?.attributes;
+      const logTenantId = resolveOtlpTenantId(c, firstLogAttrs);
+      if (logTenantId === null) {
+        return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
+      }
+      await buildAndInsertEvents(tenantStore, mapped, logTenantId);
     }
     return c.json({ partialSuccess: {} }, 200);
   });

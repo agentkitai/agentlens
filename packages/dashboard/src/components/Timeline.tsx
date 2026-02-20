@@ -25,6 +25,7 @@ import type {
   LlmResponsePayload,
   LlmMessage,
 } from '@agentlensai/core';
+import { highlightMatches } from '../utils/highlight';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ export interface TimelineProps {
   chainValid: boolean;
   onEventClick: (event: AgentLensEvent) => void;
   selectedEventId?: string;
+  /** [F11-S1] Search query for text highlighting */
+  searchQuery?: string;
 }
 
 interface TimelineNode {
@@ -381,9 +384,10 @@ interface TimelineRowProps {
   node: TimelineNode;
   isSelected: boolean;
   onClick: (event: AgentLensEvent) => void;
+  searchQuery?: string;
 }
 
-function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
+function TimelineRow({ node, isSelected, onClick, searchQuery }: TimelineRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const style = getEventStyle(node.event.eventType);
@@ -455,7 +459,7 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-base">{style.icon}</span>
             <span className={`font-medium text-sm ${style.color}`}>
-              {eventName(node.event)}
+              {searchQuery ? highlightMatches(eventName(node.event), searchQuery) : eventName(node.event)}
             </span>
             <span className="text-xs text-gray-500 bg-white/60 px-1.5 py-0.5 rounded">
               {node.event.eventType}
@@ -634,7 +638,7 @@ function TimelineRow({ node, isSelected, onClick }: TimelineRowProps) {
 
 const ESTIMATED_ROW_HEIGHT = 64;
 
-export function Timeline({ events, chainValid, onEventClick, selectedEventId }: TimelineProps) {
+export function Timeline({ events, chainValid, onEventClick, selectedEventId, searchQuery }: TimelineProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const nodes = useMemo(() => buildTimelineNodes(events), [events]);
@@ -695,6 +699,7 @@ export function Timeline({ events, chainValid, onEventClick, selectedEventId }: 
                     node.responseEvent?.id === selectedEventId
                   }
                   onClick={onEventClick}
+                  searchQuery={searchQuery}
                 />
               </div>
             );

@@ -522,6 +522,19 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_trigger_history_tenant ON guardrail_trigger_history(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_guardrail_trigger_history_rule ON guardrail_trigger_history(rule_id, triggered_at)`);
 
+  // ─── Feature 8: Content guardrail columns ──────────────────
+  const grColsF8 = db.all<{ name: string }>(sql`PRAGMA table_info(guardrail_rules)`);
+  const grColNamesF8 = new Set(grColsF8.map((c) => c.name));
+  if (!grColNamesF8.has('direction')) {
+    db.run(sql`ALTER TABLE guardrail_rules ADD COLUMN direction TEXT DEFAULT 'both'`);
+  }
+  if (!grColNamesF8.has('tool_names')) {
+    db.run(sql`ALTER TABLE guardrail_rules ADD COLUMN tool_names TEXT`);
+  }
+  if (!grColNamesF8.has('priority')) {
+    db.run(sql`ALTER TABLE guardrail_rules ADD COLUMN priority INTEGER DEFAULT 0`);
+  }
+
   // ─── Agent model override & pause columns (B1 — Story 1.2) ──────
   // Idempotent: only adds columns if they don't already exist
   const agentColsB1 = db.all<{ name: string }>(sql`PRAGMA table_info(agents)`);

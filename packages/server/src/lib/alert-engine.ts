@@ -13,6 +13,7 @@ import { ulid } from 'ulid';
 import type { IEventStore } from '@agentlensai/core';
 import type { AlertRule, AlertHistory, AlertCondition } from '@agentlensai/core';
 import { SqliteEventStore } from '../db/sqlite-store.js';
+import { PostgresEventStore } from '../db/postgres-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { eventBus } from './event-bus.js';
 import { createLogger } from './logger.js';
@@ -128,7 +129,7 @@ export class AlertEngine {
    */
   private getTenantStore(rule: AlertRule): IEventStore {
     const tenantId = rule.tenantId ?? 'default';
-    if (this.store instanceof SqliteEventStore) {
+    if (this.store instanceof SqliteEventStore || this.store instanceof PostgresEventStore) {
       return new TenantScopedStore(this.store, tenantId);
     }
     return this.store;
@@ -172,7 +173,7 @@ export class AlertEngine {
       for (const [tenantId, tenantRules] of rulesByTenant) {
         // Build a single tenant-scoped store per tenant
         const tenantStore =
-          this.store instanceof SqliteEventStore
+          this.store instanceof SqliteEventStore || this.store instanceof PostgresEventStore
             ? new TenantScopedStore(this.store, tenantId)
             : this.store;
 

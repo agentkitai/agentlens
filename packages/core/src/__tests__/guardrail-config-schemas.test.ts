@@ -331,23 +331,32 @@ describe('AgentGatePolicyActionConfigSchema', () => {
 // ─── Schema Maps ────────────────────────────────────────────────────
 
 describe('conditionConfigSchemas map', () => {
-  it('should have all 4 condition types', () => {
+  it('should have all condition types', () => {
     expect(Object.keys(conditionConfigSchemas)).toEqual([
       'error_rate_threshold',
       'cost_limit',
       'health_score_threshold',
       'custom_metric',
+      'pii_detection',
+      'secrets_detection',
+      'content_regex',
+      'toxicity_detection',
+      'prompt_injection',
     ]);
   });
 });
 
 describe('actionConfigSchemas map', () => {
-  it('should have all 4 action types', () => {
+  it('should have all action types', () => {
     expect(Object.keys(actionConfigSchemas)).toEqual([
       'pause_agent',
       'notify_webhook',
       'downgrade_model',
       'agentgate_policy',
+      'block',
+      'redact',
+      'log_and_continue',
+      'alert',
     ]);
   });
 });

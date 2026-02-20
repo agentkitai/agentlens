@@ -659,6 +659,200 @@ export class AgentLensTransport {
     });
   }
 
+  // ─── Server Info / Auto-Discovery (Feature 10, Story 10.3) ───
+
+  async probeCapabilities(): Promise<ServerInfo | null> {
+    try {
+      const url = `${this.baseUrl}/api/server-info`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.buildHeaders(),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) return null;
+      return (await response.json()) as ServerInfo;
+    } catch {
+      return null;
+    }
+  }
+
+  // ─── Sessions API (Feature 10, Story 10.6) ───────────────────
+
+  async listSessions(params: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params);
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/sessions${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getSession(id: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(id)}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getSessionTimeline(id: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/sessions/${encodeURIComponent(id)}/timeline`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  // ─── Agents API (Feature 10, Story 10.7) ─────────────────────
+
+  async listAgents(): Promise<Response> {
+    const url = `${this.baseUrl}/api/agents`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getAgent(id: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/agents/${encodeURIComponent(id)}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async unpauseAgent(id: string, clearModelOverride?: boolean): Promise<Response> {
+    const url = `${this.baseUrl}/api/agents/${encodeURIComponent(id)}/unpause`;
+    return fetch(url, {
+      method: 'PUT',
+      headers: this.buildHeaders(),
+      body: JSON.stringify({ clearModelOverride: clearModelOverride ?? false }),
+    });
+  }
+
+  // ─── Alerts API (Feature 10, Story 10.8) ─────────────────────
+
+  async listAlertRules(): Promise<Response> {
+    const url = `${this.baseUrl}/api/alerts/rules`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async createAlertRule(body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/alerts/rules`;
+    return fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateAlertRule(id: string, body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/alerts/rules/${encodeURIComponent(id)}`;
+    return fetch(url, {
+      method: 'PUT',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteAlertRule(id: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/alerts/rules/${encodeURIComponent(id)}`;
+    return fetch(url, { method: 'DELETE', headers: this.buildHeaders() });
+  }
+
+  async getAlertHistory(params?: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params ?? {});
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/alerts/history${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  // ─── Analytics API (Feature 10, Story 10.9) ──────────────────
+
+  async getAnalytics(params: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params);
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/analytics${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getAnalyticsCosts(params: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params);
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/analytics/costs${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getAnalyticsAgents(params: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params);
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/analytics/agents${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getAnalyticsTools(params: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params);
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/analytics/tools${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  // ─── Cost Budgets API (Feature 10, Story 10.10) ──────────────
+
+  async listCostBudgets(params?: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params ?? {});
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/cost-budgets${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async createCostBudget(body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/cost-budgets`;
+    return fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  async updateCostBudget(id: string, body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/cost-budgets/${encodeURIComponent(id)}`;
+    return fetch(url, {
+      method: 'PUT',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteCostBudget(id: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/cost-budgets/${encodeURIComponent(id)}`;
+    return fetch(url, { method: 'DELETE', headers: this.buildHeaders() });
+  }
+
+  async getCostBudgetStatus(id: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/cost-budgets/${encodeURIComponent(id)}/status`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getAnomalyConfig(): Promise<Response> {
+    const url = `${this.baseUrl}/api/cost-budgets/anomaly/config`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async updateAnomalyConfig(body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/cost-budgets/anomaly/config`;
+    return fetch(url, {
+      method: 'PUT',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ─── Stats API (Feature 10, Story 10.12) ─────────────────────
+
+  async getStats(): Promise<Response> {
+    const url = `${this.baseUrl}/api/stats`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getStatsOverview(): Promise<Response> {
+    const url = `${this.baseUrl}/api/stats/overview`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  // ─── Trust API (Feature 10, Story 10.13) ─────────────────────
+
+  async getTrustScore(agentId: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}/trust`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

@@ -15,16 +15,13 @@ import { DelegationService, type PoolTransport } from '../services/delegation-se
 import { TASK_TYPES } from '@agentlensai/core';
 import { createDelegationSchema, rejectDelegationSchema, completeDelegationSchema } from '../schemas/delegation.js';
 import { formatZodErrors } from '../middleware/validation.js';
+import { getTenantId } from './tenant-helper.js';
 
 const VALID_TASK_TYPES = new Set<string>(TASK_TYPES);
 
 export function delegationRoutes(db: SqliteDb, transport: PoolTransport) {
   const app = new Hono<{ Variables: AuthVariables }>();
   const service = new DelegationService(db, transport);
-
-  function getTenantId(c: { get(key: 'apiKey'): { tenantId?: string } | undefined }): string {
-    return c.get('apiKey')?.tenantId ?? 'default';
-  }
 
   /**
    * @summary Send a delegation request to another agent

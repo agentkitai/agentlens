@@ -48,6 +48,9 @@ export interface ServerConfig {
 
   /** HMAC-SHA256 key for signing audit verification reports (optional) */
   auditSigningKey?: string;
+
+  /** Enable strict multi-tenant mode — rejects unscoped ingestion (default: false) [F6-S13] */
+  multiTenantMode: boolean;
 }
 
 /**
@@ -98,6 +101,9 @@ export function getConfig(): ServerConfig {
 
     // Audit verification signing
     auditSigningKey: process.env['AGENTLENS_AUDIT_SIGNING_KEY'] || undefined,
+
+    // Multi-tenant mode [F6-S13]
+    multiTenantMode: process.env['MULTI_TENANT_MODE'] === 'true',
   };
 }
 

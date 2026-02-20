@@ -115,6 +115,27 @@ export class AnalyticsRepository {
     };
   }
 
+  /**
+   * Get per-agent cost breakdown for compliance report.
+   */
+  getCostByAgent(tenantId: string, from: string, to: string): Record<string, number> {
+    const rows = this.db.all<{ agent_id: string; total_cost: number }>(sql`
+      SELECT agent_id, COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as total_cost
+      FROM events
+      WHERE tenant_id = ${tenantId}
+        AND timestamp >= ${from}
+        AND timestamp <= ${to}
+        AND event_type = 'cost_tracked'
+      GROUP BY agent_id
+    `);
+
+    const result: Record<string, number> = {};
+    for (const row of rows) {
+      result[row.agent_id] = Number(row.total_cost);
+    }
+    return result;
+  }
+
   async getStats(tenantId?: string): Promise<StorageStats> {
     const eventConditions = tenantId ? [eq(events.tenantId, tenantId)] : [];
     const sessionConditions = tenantId ? [eq(sessions.tenantId, tenantId)] : [];

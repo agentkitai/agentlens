@@ -385,6 +385,12 @@ export const GuardrailConditionTypeSchema = z.enum([
   'cost_limit',
   'health_score_threshold',
   'custom_metric',
+  // Content-level conditions (Feature 8):
+  'pii_detection',
+  'secrets_detection',
+  'content_regex',
+  'toxicity_detection',
+  'prompt_injection',
 ]);
 
 export const GuardrailActionTypeSchema = z.enum([
@@ -392,7 +398,14 @@ export const GuardrailActionTypeSchema = z.enum([
   'notify_webhook',
   'downgrade_model',
   'agentgate_policy',
+  // Inline enforcement actions (Feature 8):
+  'block',
+  'redact',
+  'log_and_continue',
+  'alert',
 ]);
+
+export const GuardrailDirectionSchema = z.enum(['input', 'output', 'both']);
 
 export const CreateGuardrailRuleSchema = z.object({
   name: z.string().min(1).max(200),
@@ -405,6 +418,10 @@ export const CreateGuardrailRuleSchema = z.object({
   agentId: z.string().optional(),
   cooldownMinutes: z.number().int().min(0).max(1440).default(15),
   dryRun: z.boolean().default(true),
+  // Feature 8 — content-level fields:
+  direction: GuardrailDirectionSchema.optional(),
+  toolNames: z.array(z.string()).optional(),
+  priority: z.number().int().min(-1000).max(1000).optional(),
 });
 
 export const UpdateGuardrailRuleSchema = z.object({
@@ -418,6 +435,10 @@ export const UpdateGuardrailRuleSchema = z.object({
   agentId: z.string().nullable().optional(),
   cooldownMinutes: z.number().int().min(0).max(1440).optional(),
   dryRun: z.boolean().optional(),
+  // Feature 8 — content-level fields:
+  direction: GuardrailDirectionSchema.optional(),
+  toolNames: z.array(z.string()).optional(),
+  priority: z.number().int().min(-1000).max(1000).optional(),
 });
 
 export const GuardrailRuleSchema = z.object({

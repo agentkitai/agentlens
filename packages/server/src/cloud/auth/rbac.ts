@@ -11,7 +11,7 @@
 
 import type { AuditLogService } from './audit-log.js';
 
-export type Role = 'owner' | 'admin' | 'member' | 'viewer';
+export type Role = 'owner' | 'admin' | 'auditor' | 'member' | 'viewer';
 
 export type ActionCategory =
   | 'read'           // View dashboard data
@@ -23,9 +23,9 @@ export type ActionCategory =
  * Permission matrix: which roles can perform which action categories.
  */
 export const PERMISSION_MATRIX: Record<ActionCategory, readonly Role[]> = {
-  read:    ['owner', 'admin', 'member', 'viewer'],
+  read:    ['owner', 'admin', 'auditor', 'member', 'viewer'],
   write:   ['owner', 'admin', 'member'],
-  manage:  ['owner', 'admin'],
+  manage:  ['owner', 'admin', 'auditor'],
   billing: ['owner'],
 } as const;
 

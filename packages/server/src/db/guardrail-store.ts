@@ -23,7 +23,8 @@ export class GuardrailStore {
       INSERT INTO guardrail_rules (
         id, tenant_id, name, description, enabled,
         condition_type, condition_config, action_type, action_config,
-        agent_id, cooldown_minutes, dry_run, created_at, updated_at
+        agent_id, cooldown_minutes, dry_run, created_at, updated_at,
+        direction, tool_names, priority
       ) VALUES (
         ${rule.id}, ${rule.tenantId}, ${rule.name}, ${rule.description ?? null},
         ${rule.enabled ? 1 : 0},
@@ -31,7 +32,10 @@ export class GuardrailStore {
         ${rule.actionType}, ${JSON.stringify(rule.actionConfig)},
         ${rule.agentId ?? null}, ${rule.cooldownMinutes},
         ${rule.dryRun ? 1 : 0},
-        ${rule.createdAt}, ${rule.updatedAt}
+        ${rule.createdAt}, ${rule.updatedAt},
+        ${rule.direction ?? 'both'},
+        ${rule.toolNames ? JSON.stringify(rule.toolNames) : null},
+        ${rule.priority ?? 0}
       )
     `);
   }
@@ -91,7 +95,10 @@ export class GuardrailStore {
         agent_id = ${merged.agentId ?? null},
         cooldown_minutes = ${merged.cooldownMinutes},
         dry_run = ${merged.dryRun ? 1 : 0},
-        updated_at = ${merged.updatedAt}
+        updated_at = ${merged.updatedAt},
+        direction = ${merged.direction ?? 'both'},
+        tool_names = ${merged.toolNames ? JSON.stringify(merged.toolNames) : null},
+        priority = ${merged.priority ?? 0}
       WHERE id = ${ruleId} AND tenant_id = ${tenantId}
     `);
     return true;
@@ -202,6 +209,57 @@ export class GuardrailStore {
       .map((r) => this._mapTrigger(r));
   }
 
+  /**
+   * Aggregate guardrail trigger stats for compliance report.
+   * Joins with guardrail_rules to get condition_type and action_type.
+   */
+  getTriggerStats(
+    tenantId: string,
+    from: string,
+    to: string,
+  ): { total: number; byConditionType: Record<string, number>; byActionType: Record<string, number> } {
+    // Get total triggers in range
+    const totalRow = this.db.get<{ count: number }>(sql`
+      SELECT COUNT(*) as count FROM guardrail_trigger_history
+      WHERE tenant_id = ${tenantId}
+        AND triggered_at >= ${from}
+        AND triggered_at <= ${to}
+    `);
+    const total = totalRow?.count ?? 0;
+
+    // Get breakdown by condition_type (via JOIN with rules)
+    const conditionRows = this.db.all<{ condition_type: string; count: number }>(sql`
+      SELECT r.condition_type, COUNT(*) as count
+      FROM guardrail_trigger_history h
+      JOIN guardrail_rules r ON h.rule_id = r.id AND h.tenant_id = r.tenant_id
+      WHERE h.tenant_id = ${tenantId}
+        AND h.triggered_at >= ${from}
+        AND h.triggered_at <= ${to}
+      GROUP BY r.condition_type
+    `);
+    const byConditionType: Record<string, number> = {};
+    for (const row of conditionRows) {
+      byConditionType[row.condition_type] = Number(row.count);
+    }
+
+    // Get breakdown by action_type (via JOIN with rules)
+    const actionRows = this.db.all<{ action_type: string; count: number }>(sql`
+      SELECT r.action_type, COUNT(*) as count
+      FROM guardrail_trigger_history h
+      JOIN guardrail_rules r ON h.rule_id = r.id AND h.tenant_id = r.tenant_id
+      WHERE h.tenant_id = ${tenantId}
+        AND h.triggered_at >= ${from}
+        AND h.triggered_at <= ${to}
+      GROUP BY r.action_type
+    `);
+    const byActionType: Record<string, number> = {};
+    for (const row of actionRows) {
+      byActionType[row.action_type] = Number(row.count);
+    }
+
+    return { total, byConditionType, byActionType };
+  }
+
   // ─── Mappers ─────────────────────────────────────────────
 
   private _mapRule(row: Record<string, unknown>): GuardrailRule {
@@ -220,6 +278,10 @@ export class GuardrailStore {
       dryRun: row['dry_run'] === 1 || row['dry_run'] === true,
       createdAt: row['created_at'] as string,
       updatedAt: row['updated_at'] as string,
+      // Feature 8 fields:
+      direction: (row['direction'] as GuardrailRule['direction']) || 'both',
+      toolNames: row['tool_names'] ? JSON.parse(row['tool_names'] as string) : undefined,
+      priority: (row['priority'] as number) ?? 0,
     };
   }
 

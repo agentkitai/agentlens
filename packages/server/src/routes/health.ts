@@ -12,7 +12,7 @@ import { Hono } from 'hono';
 import type { IEventStore } from '@agentlensai/core';
 import { DEFAULT_HEALTH_WEIGHTS, HealthWeightsSchema as WeightsSchema } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
-import { getTenantStore } from './tenant-helper.js';
+import { getTenantStore, getTenantId } from './tenant-helper.js';
 import { HealthComputer } from '../lib/health/computer.js';
 import { HealthSnapshotStore } from '../db/health-snapshot-store.js';
 import type { SqliteDb } from '../db/index.js';
@@ -72,8 +72,7 @@ export function registerHealthRoutes(
 
       // Lazy snapshot: save if first query of the day
       if (snapshotStore) {
-        const apiKeyInfo = c.get('apiKey');
-        const tenantId = apiKeyInfo?.tenantId ?? 'default';
+        const tenantId = getTenantId(c);
         const today = new Date().toISOString().slice(0, 10);
         const existing = snapshotStore.get(tenantId, agentId, today);
         if (!existing) {
@@ -147,8 +146,7 @@ export function registerHealthRoutes(
       );
     }
 
-    const apiKeyInfo = c.get('apiKey');
-    const tenantId = apiKeyInfo?.tenantId ?? 'default';
+    const tenantId = getTenantId(c);
 
     const snapshots = snapshotStore.getHistory(tenantId, agentId, days);
     return c.json({ snapshots, agentId, days });

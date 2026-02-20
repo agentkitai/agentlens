@@ -20,6 +20,8 @@ export interface ReplayScrubberProps {
   events: AgentLensEvent[];
   currentStep: number;
   onStepChange: (step: number) => void;
+  /** [F11-S4] Bookmarked step indices */
+  bookmarks?: Set<number>;
 }
 
 // ─── Color mapping per event type ───────────────────────────────────
@@ -79,6 +81,7 @@ export function ReplayScrubber({
   events,
   currentStep,
   onStepChange,
+  bookmarks,
 }: ReplayScrubberProps): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
