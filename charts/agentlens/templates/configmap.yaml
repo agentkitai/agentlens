@@ -1,0 +1,30 @@
+{{- include "agentlens.validateValues" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agentlens.fullname" . }}
+  labels:
+    {{- include "agentlens.labels" . | nindent 4 }}
+data:
+  STORAGE_BACKEND: {{ .Values.config.storageBackend | quote }}
+  PORT: {{ .Values.config.port | quote }}
+  AUTH_DISABLED: {{ .Values.config.authDisabled | quote }}
+  RETENTION_DAYS: {{ .Values.config.retentionDays | quote }}
+  OTLP_RATE_LIMIT: {{ .Values.config.otlpRateLimit | quote }}
+  OTLP_AUTH_REQUIRED: {{ .Values.config.otlpAuthRequired | quote }}
+  CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
+  MESH_ENABLED: {{ .Values.config.meshEnabled | quote }}
+  {{- if .Values.config.meshUrl }}
+  MESH_URL: {{ .Values.config.meshUrl | quote }}
+  {{- end }}
+  LORE_ENABLED: {{ .Values.config.loreEnabled | quote }}
+  LORE_MODE: {{ .Values.config.loreMode | quote }}
+  {{- if .Values.config.loreApiUrl }}
+  LORE_API_URL: {{ .Values.config.loreApiUrl | quote }}
+  {{- end }}
+  {{- if .Values.config.loreDbPath }}
+  LORE_DB_PATH: {{ .Values.config.loreDbPath | quote }}
+  {{- end }}
+  {{- range $key, $value := .Values.config.extraEnv }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

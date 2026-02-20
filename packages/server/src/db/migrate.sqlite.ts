@@ -842,6 +842,88 @@ export function runMigrations(db: SqliteDb): void {
       updated_at TEXT NOT NULL
     )
   `);
+
+  // ─── Eval Framework tables (Feature 15) ──────────────────
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS eval_datasets (
+      id            TEXT PRIMARY KEY,
+      tenant_id     TEXT NOT NULL,
+      agent_id      TEXT,
+      name          TEXT NOT NULL,
+      description   TEXT,
+      version       INTEGER NOT NULL DEFAULT 1,
+      parent_id     TEXT,
+      immutable     INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT NOT NULL,
+      updated_at    TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_datasets_tenant ON eval_datasets(tenant_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS eval_test_cases (
+      id                TEXT PRIMARY KEY,
+      dataset_id        TEXT NOT NULL REFERENCES eval_datasets(id) ON DELETE CASCADE,
+      tenant_id         TEXT NOT NULL,
+      input             TEXT NOT NULL,
+      expected_output   TEXT,
+      tags              TEXT NOT NULL DEFAULT '[]',
+      metadata          TEXT NOT NULL DEFAULT '{}',
+      scoring_criteria  TEXT,
+      sort_order        INTEGER NOT NULL DEFAULT 0,
+      created_at        TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_test_cases_dataset ON eval_test_cases(dataset_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS eval_runs (
+      id              TEXT PRIMARY KEY,
+      tenant_id       TEXT NOT NULL,
+      dataset_id      TEXT NOT NULL REFERENCES eval_datasets(id),
+      dataset_version INTEGER NOT NULL,
+      agent_id        TEXT NOT NULL,
+      webhook_url     TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      config          TEXT NOT NULL DEFAULT '{}',
+      baseline_run_id TEXT,
+      total_cases     INTEGER NOT NULL DEFAULT 0,
+      passed_cases    INTEGER NOT NULL DEFAULT 0,
+      failed_cases    INTEGER NOT NULL DEFAULT 0,
+      avg_score       REAL,
+      total_cost_usd  REAL,
+      total_duration_ms INTEGER,
+      started_at      TEXT,
+      completed_at    TEXT,
+      created_at      TEXT NOT NULL,
+      error           TEXT
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_runs_tenant ON eval_runs(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_runs_dataset ON eval_runs(dataset_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_runs_agent ON eval_runs(tenant_id, agent_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS eval_results (
+      id              TEXT PRIMARY KEY,
+      run_id          TEXT NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+      test_case_id    TEXT NOT NULL REFERENCES eval_test_cases(id),
+      tenant_id       TEXT NOT NULL,
+      session_id      TEXT,
+      actual_output   TEXT,
+      score           REAL NOT NULL,
+      passed          INTEGER NOT NULL,
+      scorer_type     TEXT NOT NULL,
+      scorer_details  TEXT NOT NULL DEFAULT '{}',
+      latency_ms      INTEGER,
+      cost_usd        REAL,
+      token_count     INTEGER,
+      error           TEXT,
+      created_at      TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_results_run ON eval_results(run_id)`);
 }
 
 /**

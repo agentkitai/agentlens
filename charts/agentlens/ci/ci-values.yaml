@@ -1,0 +1,8 @@
+# Minimal overrides for CI linting (no secrets required)
+config:
+  storageBackend: postgres
+  authDisabled: true
+
+secrets:
+  create: true
+  jwtSecret: "ci-test-secret-not-for-production"

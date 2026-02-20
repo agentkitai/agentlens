@@ -39,3 +39,6 @@ export * from './notification-schemas.js';
 
 // Re-export error utilities (Phase 7 — Story S-4.2)
 export { getErrorMessage } from './errors.js';
+
+// Re-export eval types (Feature 15)
+export * from './eval-types.js';

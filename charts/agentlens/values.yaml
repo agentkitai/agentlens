@@ -1,0 +1,263 @@
+# -- Number of AgentLens replicas
+replicaCount: 1
+
+# -- Override chart name
+nameOverride: ""
+# -- Override fully qualified app name
+fullnameOverride: ""
+
+image:
+  # -- Container image repository
+  repository: ghcr.io/agentkitai/agentlens
+  # -- Image tag (defaults to Chart.appVersion)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets
+imagePullSecrets: []
+
+# ─── Application Config (→ ConfigMap) ──────────────────
+config:
+  # -- Storage backend: "postgres" or "sqlite"
+  storageBackend: postgres
+  # -- Server listen port
+  port: 3000
+  # -- Disable authentication (dev only)
+  authDisabled: false
+  # -- Data retention in days
+  retentionDays: 90
+  # -- OTLP ingestion rate limit
+  otlpRateLimit: 1000
+  # -- Require auth for OTLP ingestion
+  otlpAuthRequired: false
+  # -- CORS allowed origins (comma-separated)
+  corsOrigins: ""
+  # -- Enable mesh integration
+  meshEnabled: false
+  # -- Mesh service URL
+  meshUrl: ""
+  # -- Enable Lore integration
+  loreEnabled: false
+  # -- Lore mode: "local" or "remote"
+  loreMode: remote
+  # -- Lore API URL (required when loreMode=remote and loreEnabled=true)
+  loreApiUrl: ""
+  # -- Lore database path (local mode)
+  loreDbPath: ""
+  # -- Extra environment variables for ConfigMap
+  extraEnv: {}
+
+# ─── Secrets (→ Secret) ────────────────────────────────
+secrets:
+  # -- Create a Secret resource (set false to use existingSecret)
+  create: true
+  # -- Name of pre-existing Secret
+  existingSecret: ""
+  # -- JWT signing secret
+  jwtSecret: ""
+  # -- Admin API key
+  adminApiKey: ""
+  # -- OTLP auth token
+  otlpAuthToken: ""
+  # -- Stripe secret key
+  stripeSecretKey: ""
+  # -- Stripe webhook secret
+  stripeWebhookSecret: ""
+  # -- Lore API key
+  loreApiKey: ""
+  # -- Audit signing key
+  auditSigningKey: ""
+
+# ─── External Database ─────────────────────────────────
+externalDatabase:
+  # -- Use an external PostgreSQL database
+  enabled: false
+  # -- Full DATABASE_URL
+  url: ""
+  # -- Existing secret containing database URL
+  existingSecret: ""
+  # -- Key in the existing secret
+  secretKey: "database-url"
+
+# ─── External Redis ────────────────────────────────────
+externalRedis:
+  # -- Use an external Redis instance
+  enabled: false
+  # -- Full REDIS_URL
+  url: ""
+  # -- Existing secret containing Redis URL
+  existingSecret: ""
+  # -- Key in the existing secret
+  secretKey: "redis-url"
+
+# ─── Bitnami PostgreSQL Sub-Chart ──────────────────────
+postgresql:
+  enabled: true
+  image:
+    repository: pgvector/pgvector
+    tag: pg16
+  auth:
+    database: agentlens
+    username: agentlens
+    password: ""
+    existingSecret: ""
+  primary:
+    persistence:
+      size: 20Gi
+    initdb:
+      scripts:
+        create-extension.sql: |
+          CREATE EXTENSION IF NOT EXISTS vector;
+
+# ─── Bitnami Redis Sub-Chart ──────────────────────────
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 2Gi
+
+# ─── Service ───────────────────────────────────────────
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 80
+  # -- Target port on the container
+  targetPort: 3000
+
+# ─── Ingress ──────────────────────────────────────────
+ingress:
+  # -- Enable ingress
+  enabled: false
+  # -- Ingress class name
+  className: ""
+  # -- Ingress annotations
+  annotations: {}
+  # -- Ingress hosts
+  hosts:
+    - host: agentlens.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+
+# ─── Probes ───────────────────────────────────────────
+probes:
+  liveness:
+    httpGet:
+      path: /api/stats
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /api/stats
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    httpGet:
+      path: /api/stats
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 12
+
+# ─── Resources ────────────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# ─── Autoscaling ──────────────────────────────────────
+autoscaling:
+  # -- Enable HPA
+  enabled: false
+  # -- Minimum replicas
+  minReplicas: 2
+  # -- Maximum replicas
+  maxReplicas: 10
+  # -- Target CPU utilization percentage
+  targetCPUUtilizationPercentage: 70
+  # -- Target memory utilization percentage
+  targetMemoryUtilizationPercentage: 80
+
+# ─── Pod Disruption Budget ────────────────────────────
+podDisruptionBudget:
+  # -- Enable PDB
+  enabled: false
+  # -- Minimum available pods
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# ─── Persistence (SQLite mode) ────────────────────────
+persistence:
+  # -- Enable PVC for SQLite data
+  enabled: false
+  # -- PVC size
+  size: 10Gi
+  # -- Storage class
+  storageClass: ""
+  # -- Access modes
+  accessModes:
+    - ReadWriteOnce
+  # -- Use an existing PVC
+  existingClaim: ""
+
+# ─── Migration Job ────────────────────────────────────
+migration:
+  # -- Run migrations as a Helm hook
+  enabled: true
+  # -- Job backoff limit
+  backoffLimit: 3
+  # -- TTL for completed jobs
+  ttlSecondsAfterFinished: 600
+  # -- Migration job resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ─── ServiceAccount ───────────────────────────────────
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- ServiceAccount name (defaults to fullname)
+  name: ""
+  # -- ServiceAccount annotations
+  annotations: {}
+
+# ─── Pod-level settings ──────────────────────────────
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: [ALL]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []

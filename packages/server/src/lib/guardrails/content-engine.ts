@@ -71,6 +71,7 @@ export class ContentGuardrailEngine {
 
       try {
         const scanner = getScannerForRule(rule);
+        if (!scanner) continue;
         const result = scanner.isAsync
           ? await Promise.race([
               scanner.scan(content, { ...context }),

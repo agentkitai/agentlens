@@ -1,0 +1,64 @@
+# Production-hardened values for AgentLens Helm chart
+
+replicaCount: 3
+
+config:
+  authDisabled: false
+  otlpAuthRequired: true
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/rate-limit-connections: "10"
+  hosts:
+    - host: agentlens.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: agentlens-tls
+      hosts:
+        - agentlens.example.com
+
+postgresql:
+  primary:
+    persistence:
+      size: 100Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+redis:
+  master:
+    persistence:
+      size: 5Gi
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: agentlens

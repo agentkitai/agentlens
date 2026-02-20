@@ -16,6 +16,7 @@ import { CreateGuardrailRuleSchema, UpdateGuardrailRuleSchema } from '@agentlens
 import type { AuthVariables } from '../middleware/auth.js';
 import type { GuardrailStore } from '../db/guardrail-store.js';
 import type { ContentGuardrailEngine } from '../lib/guardrails/content-engine.js';
+import { invalidateScanner } from '../lib/guardrails/scanners/scanner-registry.js';
 import { getTenantId } from './tenant-helper.js';
 
 /**
@@ -242,6 +243,8 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
       return c.json({ error: 'Guardrail rule not found', status: 404 }, 404);
     }
 
+    invalidateScanner(ruleId);
+
     const rule = guardrailStore.getRule(tenantId, ruleId);
     return c.json(rule);
   });
@@ -260,6 +263,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     if (!deleted) {
       return c.json({ error: 'Guardrail rule not found', status: 404 }, 404);
     }
+    invalidateScanner(ruleId);
     return c.json({ ok: true });
   });
 

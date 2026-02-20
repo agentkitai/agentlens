@@ -7,6 +7,8 @@
  */
 
 import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { apiReference } from '@scalar/hono-api-reference';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { serve } from '@hono/node-server';
@@ -15,6 +17,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { IEventStore } from '@agentlensai/core';
+import { BearerAuthScheme } from './schemas/common.js';
 import { getConfig, validateConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';
 import { unifiedAuthMiddleware, type UnifiedAuthVariables } from './middleware/unified-auth.js';
@@ -208,7 +211,23 @@ export async function createApp(
 ) {
   const resolvedConfig = { ...getConfig(), ...config };
 
-  const app = new Hono<{ Variables: AuthVariables }>();
+  const app = new OpenAPIHono<{ Variables: AuthVariables }>({
+    defaultHook: (result, c) => {
+      if (!result.success) {
+        return c.json({
+          error: 'Validation failed',
+          status: 400,
+          details: result.error.issues.map((i: any) => ({
+            path: i.path.map(String).join('.'),
+            message: i.message,
+          })),
+        }, 400);
+      }
+    },
+  });
+
+  // Register Bearer auth security scheme for OpenAPI [F13-S1]
+  app.openAPIRegistry.registerComponent('securitySchemes', 'Bearer', BearerAuthScheme);
 
   // ─── Security headers (position 1 — must be first) ────
   app.use('*', securityHeadersMiddleware());
@@ -552,6 +571,39 @@ export async function createApp(
     const { serverInfoRoutes } = await import('./routes/server-info.js');
     app.route('/api/server-info', serverInfoRoutes(features));
   }
+
+  // ─── OpenAPI Spec & Documentation [F13-S1] ────────────
+  app.doc('/api/openapi.json', {
+    openapi: '3.1.0',
+    info: {
+      title: 'AgentLens API',
+      version: '0.12.1',
+      description: 'Observability, governance, and orchestration for AI agents.',
+      license: { name: 'MIT' },
+    },
+    servers: [
+      { url: 'http://localhost:3000', description: 'Local development' },
+    ],
+    security: [{ Bearer: [] }],
+    tags: [
+      { name: 'Sessions', description: 'Agent session lifecycle and queries' },
+      { name: 'Events', description: 'Event ingestion and retrieval' },
+      { name: 'Agents', description: 'Agent management and health' },
+      { name: 'Auth', description: 'Authentication and API keys' },
+      { name: 'Analytics', description: 'Metrics, costs, and statistics' },
+      { name: 'Alerts', description: 'Alert rules and history' },
+      { name: 'Intelligence', description: 'Reflect, recall, context, optimize' },
+      { name: 'Trust & Governance', description: 'Trust scores, guardrails, cost budgets' },
+      { name: 'Multi-Agent', description: 'Discovery, delegation, capabilities, mesh' },
+      { name: 'Observability', description: 'Health, benchmarks, audit' },
+      { name: 'Platform', description: 'Config, OTLP, streaming, webhooks' },
+    ],
+  });
+
+  app.get('/api/docs', apiReference({
+    spec: { url: '/api/openapi.json' },
+    theme: 'kepler',
+  }));
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();
