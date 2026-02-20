@@ -25,7 +25,7 @@ import { EVENT_TYPES, EVENT_SEVERITIES } from '../types.js';
 describe('Story 2.1: Core Event Types and Interfaces', () => {
   describe('EventType union', () => {
     it('should include all 18 event types', () => {
-      expect(EVENT_TYPES).toHaveLength(18);
+      expect(EVENT_TYPES).toHaveLength(19);
 
       const expectedTypes: EventType[] = [
         'session_started',
@@ -45,6 +45,7 @@ describe('Story 2.1: Core Event Types and Interfaces', () => {
         'llm_response',
         'alert_triggered',
         'alert_resolved',
+        'error',
         'custom',
       ];
 

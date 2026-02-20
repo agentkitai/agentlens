@@ -50,7 +50,7 @@ export const sessions = sqliteTable(
     startedAt: text('started_at').notNull(), // ISO 8601
     endedAt: text('ended_at'),
     status: text('status', {
-      enum: ['active', 'completed', 'error'],
+      enum: ['active', 'completed', 'error', 'failed'],
     })
       .notNull()
       .default('active'),

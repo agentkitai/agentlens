@@ -4,6 +4,7 @@
  * Wraps tool handlers to intercept input/output for content scanning.
  */
 import type { ContentGuardrailResult } from '@agentlensai/core';
+export type { ContentGuardrailResult };
 
 export interface ContentEvalContext {
   tenantId: string;

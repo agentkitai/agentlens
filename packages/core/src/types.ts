@@ -46,6 +46,8 @@ export type EventType =
   // Alerting
   | 'alert_triggered'
   | 'alert_resolved'
+  // General error
+  | 'error'
   // Custom / extension
   | 'custom';
 
@@ -70,6 +72,7 @@ export const EVENT_TYPES: readonly EventType[] = [
   'llm_response',
   'alert_triggered',
   'alert_resolved',
+  'error',
   'custom',
 ] as const;
 

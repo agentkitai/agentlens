@@ -101,7 +101,7 @@ export class SessionRepository {
       tx.update(sessions)
         .set({
           endedAt: event.timestamp,
-          status: status as 'active' | 'completed' | 'error',
+          status: status as 'active' | 'completed' | 'error' | 'failed',
           eventCount: sql`${sessions.eventCount} + 1`,
           errorCount: isError
             ? sql`${sessions.errorCount} + 1`

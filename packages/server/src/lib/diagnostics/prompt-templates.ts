@@ -162,7 +162,7 @@ ${toolChainStr}
 ### Cost: $${totalCost.toFixed(4)} across ${costBreakdown.length} models
 ${costStr}
 
-Analyze this session and identify why it ${session.status === 'failed' ? 'failed' : 'had errors/degraded'}.`;
+Analyze this session and identify why it ${session.status === 'error' ? 'failed' : 'had errors/degraded'}.`;
 
   return { system: SYSTEM_PROMPT, user };
 }

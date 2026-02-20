@@ -108,14 +108,13 @@ export function registerPromptsTool(server: McpServer, transport: AgentLensTrans
 
         if (!response.ok) {
           const errorText = await response.text();
-          return { content: [{ type: 'text' as const, text: formatApiError(params.action, response.status, errorText) }], isError: true };
+          throw new Error(`${response.status}: ${errorText}`);
         }
 
         const data = await response.json();
         return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: [{ type: 'text' as const, text: `Error: ${message}` }], isError: true };
+        return formatApiError(err, 'prompts');
       }
     },
   );

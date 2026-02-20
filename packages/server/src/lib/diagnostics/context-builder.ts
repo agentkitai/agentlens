@@ -154,7 +154,7 @@ export async function buildSessionContext(
     if (e.eventType === 'error' || e.eventType === 'tool_error') {
       const payload = e.payload as Record<string, unknown>;
       if (payload.message && typeof payload.message === 'string') {
-        return { ...e, payload: { ...payload, message: sanitizeForLLM(payload.message) } };
+        return { ...e, payload: { ...payload, message: sanitizeForLLM(payload.message) } } as typeof e;
       }
     }
     return e;

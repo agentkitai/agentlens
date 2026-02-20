@@ -7,7 +7,7 @@
 import { z } from 'zod';
 
 const EvidenceSchema = z.object({
-  type: z.string(),
+  type: z.enum(['error_pattern', 'tool_sequence', 'metric', 'trend', 'event']),
   summary: z.string(),
 });
 

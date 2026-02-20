@@ -5,6 +5,8 @@
  * Includes an in-memory event buffer with automatic flush and graceful shutdown.
  */
 
+import type { ServerInfo } from './capabilities.js';
+
 export interface TransportConfig {
   /** Base URL for the AgentLens API server */
   baseUrl: string;
