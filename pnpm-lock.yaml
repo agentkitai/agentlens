@@ -52,6 +52,8 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.2.3)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/api-spec: {}
+
   packages/auth:
     dependencies:
       jose:
@@ -71,8 +73,8 @@ importers:
   packages/cli:
     dependencies:
       '@agentlensai/sdk':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: workspace:*
+        version: link:../sdk
 
   packages/core:
     dependencies:
@@ -245,9 +247,6 @@ packages:
 
   '@agentlensai/core@0.8.0':
     resolution: {integrity: sha512-hXxajW6MznAvDOyeSS5s3NCJ4zl/Jgigy4k8bp0FdigAiKK3AVlF1bJZqAozVzgwPsuhV+jeiob1t2IsOilvoA==}
-
-  '@agentlensai/sdk@0.8.0':
-    resolution: {integrity: sha512-8VQQyvO2ksQUbq88DCJf8sA6teNgs5fqumjNUKJqYj8tWhh6ntrX/YrR6nA48CPyoELnlfzpE7zQ4WWfm3ArOg==}
 
   '@algolia/abtesting@1.14.0':
     resolution: {integrity: sha512-cZfj+1Z1dgrk3YPtNQNt0H9Rr67P8b4M79JjUKGS0d7/EbFbGxGgSu6zby5f22KXo3LT0LZa4O2c6VVbupJuDg==}
@@ -4260,10 +4259,6 @@ snapshots:
     dependencies:
       ulid: 3.0.2
       zod: 3.25.76
-
-  '@agentlensai/sdk@0.8.0':
-    dependencies:
-      '@agentlensai/core': 0.8.0
 
   '@algolia/abtesting@1.14.0':
     dependencies:

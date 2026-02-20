@@ -12,7 +12,7 @@ import { runContextCommand } from './commands/context.js';
 import { runEventsCommand } from './commands/events.js';
 import { runGuardrailsCommand } from './commands/guardrails.js';
 import { runHealthCommand } from './commands/health.js';
-import { runLessonsCommand } from './commands/lessons.js';
+import { lessonsCommand } from './commands/lessons.js';
 import { runLlmCommand } from './commands/llm.js';
 import { runOptimizeCommand } from './commands/optimize.js';
 import { runRecallCommand } from './commands/recall.js';
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
       break;
 
     case 'lessons':
-      await runLessonsCommand(rest);
+      await lessonsCommand(rest);
       break;
 
     case 'llm':
