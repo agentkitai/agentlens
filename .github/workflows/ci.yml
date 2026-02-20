@@ -19,14 +19,24 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm typecheck
-      - run: pnpm --filter @agentlensai/core test
-      - run: pnpm --filter @agentlensai/server test
-      - run: pnpm --filter @agentlensai/mcp test
-      - run: pnpm --filter @agentlensai/sdk test
+      - run: pnpm --filter @agentlensai/core test -- --coverage
+      - run: pnpm --filter @agentlensai/server test -- --coverage
+      - run: pnpm --filter @agentlensai/mcp test -- --coverage
+      - run: pnpm --filter @agentlensai/sdk test -- --coverage
+      - run: pnpm --filter @agentlensai/auth test -- --coverage
+      - run: pnpm --filter @agentlensai/cli test -- --coverage
       - run: pnpm --filter @agentlensai/sdk-integration-tests test
+      - run: pnpm --filter @agentlensai/dashboard test
       - run: pnpm --filter @agentlensai/dashboard build
       - name: Verify SDK packaging
         run: cd packages/sdk && npm pack --dry-run
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/*/coverage/lcov.info
+          fail_ci_if_error: false
 
   test-python-sdk:
     runs-on: ubuntu-latest
