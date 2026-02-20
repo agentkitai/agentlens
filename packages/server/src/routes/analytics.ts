@@ -43,9 +43,12 @@ function jn(isPg: boolean, field: string): SQL {
 /** Time bucket expression */
 function tb(isPg: boolean, fmt: string): SQL {
   if (!isPg) return sql.raw(`strftime('${fmt}', timestamp)`);
+  // PostgreSQL to_char: replace strftime tokens and quote literals (T, Z, -, :)
   const pgFmt = fmt
     .replace('%Y', 'YYYY').replace('%m', 'MM').replace('%d', 'DD')
-    .replace('%H', 'HH24').replace('%W', 'IW');
+    .replace('%H', 'HH24').replace('%W', 'IW')
+    // Quote literal characters that PostgreSQL might interpret as patterns
+    .replace(/T/g, '"T"').replace(/Z/g, '"Z"');
   return sql.raw(`to_char(timestamp::timestamptz, '${pgFmt}')`);
 }
 

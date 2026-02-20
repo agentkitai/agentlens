@@ -13,6 +13,7 @@
 import React, { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageSkeleton } from '../components/PageSkeleton';
+import { TimeRangePicker, DEFAULT_TIME_RANGE, type TimeRange as PickerTimeRange } from '../components/TimeRangePicker';
 import {
   BarChart,
   Bar,
@@ -134,21 +135,23 @@ function MetricCard({ label, value, icon }: { label: string; value: string | num
 // ─── Component ──────────────────────────────────────────────────────
 
 function AnalyticsOverview(): React.ReactElement {
-  const [range, setRange] = useState<TimeRange>('24h');
+  const [timeRange, setTimeRange] = useState<PickerTimeRange>(DEFAULT_TIME_RANGE);
 
-  const config = TIME_RANGES[range];
-  const from = useMemo(() => config.from(), [range]);
-  const to = useMemo(() => new Date().toISOString(), [range]);
+  const from = timeRange.from;
+  const to = timeRange.to ?? new Date().toISOString();
+  const granularity = (timeRange.granularity ?? 'hour') as 'hour' | 'day' | 'week';
+  // Keep `range` for bucket label formatting
+  const range: TimeRange = (['24h', '7d', '30d'].includes(timeRange.range ?? '') ? timeRange.range : '24h') as TimeRange;
 
   // Fetch analytics data
   const { data: analytics, loading: analyticsLoading } = useApi<AnalyticsResult>(
-    () => getAnalytics({ from, to, granularity: config.granularity }),
-    [from, to, config.granularity],
+    () => getAnalytics({ from, to, granularity }),
+    [from, to, granularity],
   );
 
   const { data: costs, loading: costsLoading } = useApi<CostAnalyticsResult>(
-    () => getCostAnalytics({ from, to, granularity: config.granularity }),
-    [from, to, config.granularity],
+    () => getCostAnalytics({ from, to, granularity }),
+    [from, to, granularity],
   );
 
   const { data: toolsData, loading: toolsLoading } = useApi<{ tools: ToolAnalytics[] }>(
@@ -236,21 +239,7 @@ function AnalyticsOverview(): React.ReactElement {
             Aggregated metrics, trends, and cost insights.
           </p>
         </div>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          {(Object.keys(TIME_RANGES) as TimeRange[]).map((key) => (
-            <button
-              key={key}
-              onClick={() => setRange(key)}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                range === key
-                  ? 'bg-white shadow-sm font-medium text-gray-900'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {key}
-            </button>
-          ))}
-        </div>
+        <TimeRangePicker value={timeRange} onChange={setTimeRange} />
       </div>
 
       {/* Summary Metrics */}
@@ -261,7 +250,7 @@ function AnalyticsOverview(): React.ReactElement {
           <MetricCard label="Errors" value={formatNumber(analytics.totals.errorCount)} icon="❌" />
           <MetricCard label="Sessions" value={formatNumber(analytics.totals.uniqueSessions)} icon="📋" />
           <MetricCard label="Agents" value={formatNumber(analytics.totals.uniqueAgents)} icon="🤖" />
-          <MetricCard label="Total Cost" value={formatCost(analytics.totals.totalCostUsd)} icon="💰" />
+          <MetricCard label="Total Cost" value={formatCost(costs?.totals?.totalCostUsd ?? analytics.totals.totalCostUsd)} icon="💰" />
         </div>
       )}
 
@@ -270,7 +259,7 @@ function AnalyticsOverview(): React.ReactElement {
         {/* Events Over Time */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="text-base font-semibold text-gray-900">Events Over Time</h3>
-          <p className="text-xs text-gray-500 mb-4">{config.label}</p>
+          <p className="text-xs text-gray-500 mb-4">{timeRange.label}</p>
           {isLoading ? (
             <div className="h-64 animate-pulse rounded bg-gray-100" />
           ) : (
@@ -298,7 +287,7 @@ function AnalyticsOverview(): React.ReactElement {
         {/* Error Rate */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="text-base font-semibold text-gray-900">Error Rate</h3>
-          <p className="text-xs text-gray-500 mb-4">{config.label}</p>
+          <p className="text-xs text-gray-500 mb-4">{timeRange.label}</p>
           {isLoading ? (
             <div className="h-64 animate-pulse rounded bg-gray-100" />
           ) : (
@@ -388,7 +377,7 @@ function AnalyticsOverview(): React.ReactElement {
         {/* Cost Over Time */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <h3 className="text-base font-semibold text-gray-900">Cost Over Time</h3>
-          <p className="text-xs text-gray-500 mb-4">{config.label}</p>
+          <p className="text-xs text-gray-500 mb-4">{timeRange.label}</p>
           {isLoading ? (
             <div className="h-64 animate-pulse rounded bg-gray-100" />
           ) : costChartData.length === 0 ? (
