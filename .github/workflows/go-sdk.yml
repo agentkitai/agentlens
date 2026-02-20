@@ -1,0 +1,32 @@
+name: Go SDK
+
+on:
+  push:
+    paths: ['sdks/go/**']
+  pull_request:
+    paths: ['sdks/go/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.21', '1.22', '1.23']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build
+        working-directory: sdks/go
+        run: go build ./...
+
+      - name: Vet
+        working-directory: sdks/go
+        run: go vet ./...
+
+      - name: Test
+        working-directory: sdks/go
+        run: go test ./... -race -count=1 -v

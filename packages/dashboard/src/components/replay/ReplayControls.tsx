@@ -10,6 +10,7 @@
  *  - Updates URL ?step=N via pushState (no navigation)
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { findNextError, findPrevError } from '../../hooks/useErrorIndices';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ export interface ReplayControlsProps {
   totalSteps: number;
   onStepChange: (step: number) => void;
   disabled?: boolean;
+  /** Pre-computed error event indices for Shift+E / Shift+Ctrl+E navigation */
+  errorIndices?: number[];
 }
 
 const SPEED_OPTIONS = [1, 2, 5, 10] as const;
@@ -33,6 +36,7 @@ export function ReplayControls({
   totalSteps,
   onStepChange,
   disabled = false,
+  errorIndices = [],
 }: ReplayControlsProps): React.ReactElement {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<Speed>(1);
@@ -138,6 +142,20 @@ export function ReplayControls({
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
+      // Shift+E = next error, Shift+Ctrl+E = previous error
+      if (e.key === 'E' && e.shiftKey) {
+        e.preventDefault();
+        if (playing) stopPlaying();
+        if (e.ctrlKey || e.metaKey) {
+          const prev = findPrevError(errorIndices, stepRef.current);
+          if (prev !== null) onStepChange(prev);
+        } else {
+          const next = findNextError(errorIndices, stepRef.current);
+          if (next !== null) onStepChange(next);
+        }
+        return;
+      }
+
       switch (e.key) {
         case ' ':
           e.preventDefault();
@@ -168,7 +186,7 @@ export function ReplayControls({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [disabled, togglePlay, stopPlaying, stepForward, stepBackward, goToFirst, goToLast, playing]);
+  }, [disabled, togglePlay, stopPlaying, stepForward, stepBackward, goToFirst, goToLast, playing, errorIndices, onStepChange]);
 
   // ── Render ────────────────────────────────────────────────────
 

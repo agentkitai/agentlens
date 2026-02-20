@@ -43,10 +43,11 @@ import { reflectRoutes } from './routes/reflect.js';
 import { recallRoutes } from './routes/recall.js';
 import { contextRoutes } from './routes/context.js';
 import { optimizeRoutes } from './routes/optimize.js';
-import { registerHealthRoutes } from './routes/health.js';
+import { healthRoutes } from './routes/health.js';
 import { registerReplayRoutes } from './routes/replay.js';
 import { benchmarkRoutes } from './routes/benchmarks.js';
 import { guardrailRoutes } from './routes/guardrails.js';
+import { evalRoutes } from './routes/eval.js';
 import { capabilityRoutes } from './routes/capabilities.js';
 import { capabilityTopRoutes } from './routes/capabilities-top.js';
 import { discoveryRoutes } from './routes/discovery.js';
@@ -127,7 +128,7 @@ export { validateBody, formatZodErrors } from './middleware/validation.js';
 export { apiBodyLimit } from './middleware/body-limit.js';
 export type { AuditLogger, AuditEntry, ActorType } from './lib/audit.js';
 export { auditMiddleware } from './middleware/audit.js';
-export { registerHealthRoutes } from './routes/health.js';
+export { healthRoutes, registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
 export { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
 export { createLoreAdapter, RemoteLoreAdapter, LocalLoreAdapter, LoreError } from './lib/lore-client.js';
@@ -412,8 +413,8 @@ export async function createApp(
   // (otherwise the sessions sub-app catches /api/sessions/* first)
   registerReplayRoutes(app, store);
   app.route('/api/sessions', sessionsRoutes(store));
-  // Health routes registered directly on main app (before generic agents routes)
-  registerHealthRoutes(app, store, db);
+  // Health routes [F13-S2] — factory pattern, mounted at /api
+  app.route('/api', healthRoutes(store, db));
   if (db) {
     const { app: discApp } = discoveryRoutes(db);
     app.route('/api/agents', discApp);
@@ -460,6 +461,7 @@ export async function createApp(
   // ─── Benchmarks / A/B Testing ─────────────────────────
   if (db) {
     app.route('/api/benchmarks', benchmarkRoutes(store, db));
+    app.route('/api/eval', evalRoutes(db));
   }
 
   // ─── Guardrails / Proactive Guardrails ────────────────
@@ -601,9 +603,9 @@ export async function createApp(
   });
 
   app.get('/api/docs', apiReference({
-    spec: { url: '/api/openapi.json' },
+    url: '/api/openapi.json',
     theme: 'kepler',
-  }));
+  } as any));
 
   // ─── Dashboard SPA static assets ──────────────────────
   const dashboardRoot = getDashboardRoot();

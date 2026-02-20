@@ -313,6 +313,7 @@ export function SessionReplay(): React.ReactElement | null {
         totalSteps={totalSteps}
         onStepChange={handleStepChange}
         disabled={loading}
+        errorIndices={errorIndices}
       />
 
       {/* Timeline scrubber */}
