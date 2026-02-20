@@ -44,8 +44,10 @@ import { recallRoutes } from './routes/recall.js';
 import { contextRoutes } from './routes/context.js';
 import { optimizeRoutes } from './routes/optimize.js';
 import { healthRoutes } from './routes/health.js';
+import { diagnoseRoutes } from './routes/diagnose.js';
 import { registerReplayRoutes } from './routes/replay.js';
 import { benchmarkRoutes } from './routes/benchmarks.js';
+import { promptRoutes } from './routes/prompts.js';
 import { guardrailRoutes } from './routes/guardrails.js';
 import { evalRoutes } from './routes/eval.js';
 import { capabilityRoutes } from './routes/capabilities.js';
@@ -452,6 +454,9 @@ export async function createApp(
     app.route('/api/lessons', loreProxyRoutes(loreAdapter));
   }
 
+  // ─── AI Diagnostics (Feature 18) ───────────────────────
+  app.route('/api', diagnoseRoutes(store));
+
   // ─── Reflect / Pattern Analysis ────────────────────────
   app.route('/api/reflect', reflectRoutes(store));
 
@@ -461,6 +466,7 @@ export async function createApp(
   // ─── Benchmarks / A/B Testing ─────────────────────────
   if (db) {
     app.route('/api/benchmarks', benchmarkRoutes(store, db));
+    app.route('/api/prompts', promptRoutes(db));
     app.route('/api/eval', evalRoutes(db));
   }
 
