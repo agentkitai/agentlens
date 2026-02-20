@@ -18,7 +18,12 @@ export interface DiscoveryResult {
 }
 
 export async function getMeshAgents(): Promise<MeshAgent[]> {
-  return request<MeshAgent[]>('/api/mesh/agents');
+  try {
+    return await request<MeshAgent[]>('/api/mesh/agents');
+  } catch {
+    // Mesh not configured — return empty list
+    return [];
+  }
 }
 
 export async function registerMeshAgent(data: {
