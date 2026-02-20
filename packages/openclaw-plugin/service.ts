@@ -31,7 +31,7 @@ const MODEL_COSTS: Record<string, { input: number; output: number; cacheRead: nu
   "claude-3-5-sonnet-20241022": { input: 3,    output: 15,  cacheRead: 0.3,  cacheWrite: 3.75 },
 };
 
-function estimateCost(model: string, inputTokens: number, outputTokens: number, cacheRead: number, cacheWrite: number): number {
+export function estimateCost(model: string, inputTokens: number, outputTokens: number, cacheRead: number, cacheWrite: number): number {
   const key = Object.keys(MODEL_COSTS).find(k => model.includes(k));
   if (!key) return 0;
   const c = MODEL_COSTS[key];
@@ -99,7 +99,7 @@ function debugLog(msg: string) {
 
 // ── Diagnostic event → AgentLens event translation ───────────────────
 
-function resolveAgentId(sessionKey?: string): string {
+export function resolveAgentId(sessionKey?: string): string {
   if (!sessionKey) return AGENT_ID;
   // Extract agent ID from session key format: "agent:<agentId>:<rest>"
   const match = sessionKey.match(/^agent:([^:]+)/);
@@ -260,7 +260,7 @@ function extractPromptPreview(messages: any[]): string {
   return "";
 }
 
-function extractToolCalls(responseBody: string): Array<{ toolName: string; toolCallId: string }> {
+export function extractToolCalls(responseBody: string): Array<{ toolName: string; toolCallId: string }> {
   const tools: Array<{ toolName: string; toolCallId: string }> = [];
   for (const line of responseBody.split("\n")) {
     if (!line.startsWith("data:")) continue;

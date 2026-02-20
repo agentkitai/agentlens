@@ -3,7 +3,13 @@
   "version": "0.1.0",
   "description": "OpenClaw plugin that captures LLM calls and relays telemetry to AgentLens",
   "type": "module",
-  "keywords": ["openclaw", "agentlens", "observability", "telemetry", "anthropic"],
+  "keywords": [
+    "openclaw",
+    "agentlens",
+    "observability",
+    "telemetry",
+    "anthropic"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,10 +17,16 @@
     "directory": "packages/openclaw-plugin"
   },
   "openclaw": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "dependencies": {},
   "peerDependencies": {
     "openclaw": ">=2026.2.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
   }
 }
