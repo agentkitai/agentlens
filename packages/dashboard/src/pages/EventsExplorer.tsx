@@ -52,6 +52,7 @@ const TYPE_LABELS: Record<EventType, string> = {
   llm_response: 'LLM Response',
   alert_triggered: 'Alert Triggered',
   alert_resolved: 'Alert Resolved',
+  error: 'Error',
   custom: 'Custom',
 };
 
