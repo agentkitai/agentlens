@@ -86,6 +86,13 @@ function StatCard({ label, value, icon, className = '' }: { label: string; value
   );
 }
 
+// ─── [F11-S4] Scrubber wrapper that reads bookmark context ──────────
+
+function BookmarkedScrubber(props: React.ComponentProps<typeof ReplayScrubber>): React.ReactElement {
+  const { bookmarks } = useBookmarks();
+  return <ReplayScrubber {...props} bookmarks={bookmarks} />;
+}
+
 // ─── Main component ─────────────────────────────────────────────────
 
 export function SessionReplay(): React.ReactElement | null {
@@ -309,7 +316,7 @@ export function SessionReplay(): React.ReactElement | null {
       />
 
       {/* Timeline scrubber */}
-      <ReplayScrubber
+      <BookmarkedScrubber
         events={events}
         currentStep={clampedStep}
         onStepChange={handleStepChange}

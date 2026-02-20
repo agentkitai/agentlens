@@ -580,6 +580,41 @@ export class AgentLensTransport {
     return response.json();
   }
 
+  // ─── Content Guardrails (Feature 8) ────────────────────
+
+  /**
+   * Evaluate content against guardrail rules via the server API.
+   * Fail-open: returns allow on error/timeout.
+   */
+  async evaluateContent(
+    content: string,
+    context: { tenantId: string; agentId: string; toolName: string; direction: 'input' | 'output' },
+    timeoutMs?: number,
+  ): Promise<{ decision: 'allow' | 'block' | 'redact'; matches: unknown[]; blockingRuleId?: string; redactedContent?: string; evaluationMs: number; rulesEvaluated: number }> {
+    try {
+      const effectiveTimeout = timeoutMs ?? 200;
+      const url = `${this.baseUrl}/api/guardrails/evaluate`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({ content, context, timeoutMs }),
+        signal: AbortSignal.timeout(effectiveTimeout + 100),
+      });
+      if (!response.ok) {
+        return { decision: 'allow', matches: [], evaluationMs: 0, rulesEvaluated: 0 };
+      }
+      return response.json() as any;
+    } catch {
+      // Fail-open
+      return { decision: 'allow', matches: [], evaluationMs: 0, rulesEvaluated: 0 };
+    }
+  }
+
+  /** Get the tenant ID from the API key or default */
+  getTenantId(): string {
+    return 'default';
+  }
+
   // ─── Guardrails (v0.8.0) ──────────────────────────────
 
   async getGuardrailRules(): Promise<unknown> {

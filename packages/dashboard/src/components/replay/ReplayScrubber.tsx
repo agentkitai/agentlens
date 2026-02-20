@@ -190,6 +190,23 @@ export function ReplayScrubber({
 
     ctx.globalAlpha = 1;
 
+    // [F11-S4] Bookmark diamond markers
+    if (bookmarks) {
+      for (const stepIdx of bookmarks) {
+        if (stepIdx >= 0 && stepIdx < eventPositions.length) {
+          const pos = eventPositions[stepIdx];
+          ctx.fillStyle = '#f59e0b'; // amber-500
+          ctx.beginPath();
+          ctx.moveTo(pos.x, trackY - 6);
+          ctx.lineTo(pos.x + 4, trackY);
+          ctx.lineTo(pos.x, trackY + 6);
+          ctx.lineTo(pos.x - 4, trackY);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+
     // Playhead
     if (events.length > 0 && currentStep >= 0 && currentStep < eventPositions.length) {
       const px = eventPositions[currentStep].x;
@@ -219,7 +236,7 @@ export function ReplayScrubber({
       ctx.closePath();
       ctx.fill();
     }
-  }, [canvasWidth, eventPositions, currentStep, events.length]);
+  }, [canvasWidth, eventPositions, currentStep, events.length, bookmarks]);
 
   // ── Click handler → jump to nearest event ─────────────────────
 

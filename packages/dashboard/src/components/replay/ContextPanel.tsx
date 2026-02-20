@@ -20,6 +20,7 @@ import type {
   ApprovalDecisionPayload,
   CostTrackedPayload,
 } from '@agentlensai/core';
+import { useBookmarks } from './BookmarkProvider';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -27,9 +28,11 @@ export interface ContextPanelProps {
   events: AgentLensEvent[];
   currentStep: number;
   sessionStartTime: string;
+  /** [F11-S4] Callback to jump to a specific step (used by bookmarks tab) */
+  onStepChange?: (step: number) => void;
 }
 
-type TabKey = 'summary' | 'llm' | 'tools' | 'approvals';
+type TabKey = 'summary' | 'llm' | 'tools' | 'approvals' | 'bookmarks';
 
 interface TabDef {
   key: TabKey;
@@ -42,6 +45,7 @@ const TABS: TabDef[] = [
   { key: 'llm',       label: 'LLM History', icon: '🧠' },
   { key: 'tools',     label: 'Tool Results', icon: '🔧' },
   { key: 'approvals', label: 'Approvals',   icon: '🔐' },
+  { key: 'bookmarks', label: 'Bookmarks',   icon: '⭐' },
 ];
 
 // ─── Cumulative context computation ─────────────────────────────────
