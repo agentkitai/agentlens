@@ -24,7 +24,7 @@ import type { NotificationRouter } from '../lib/notifications/router.js';
 import { NotFoundError } from '../db/errors.js';
 
 /** Secret fields that should be redacted in API responses (SEC-3) */
-const SECRET_FIELDS = ['smtpPass', 'routingKey'];
+const SECRET_FIELDS = ['smtpPass', 'routingKey', 'webhookUrl', 'headers'];
 
 function redactSecrets(config: Record<string, unknown>): Record<string, unknown> {
   const redacted = { ...config };
