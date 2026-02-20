@@ -30,8 +30,12 @@ export interface ExportHistoryEntry {
 
 // ─── API Functions ──────────────────────────────────────────
 
-export async function verifyAuditChain(): Promise<ChainVerification> {
-  return request<ChainVerification>('/api/audit/verify');
+export async function verifyAuditChain(from?: string, to?: string): Promise<ChainVerification> {
+  const qs = toQueryString({
+    from: from ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+    to: to ?? new Date().toISOString().slice(0, 10),
+  });
+  return request<ChainVerification>(`/api/audit/verify${qs}`);
 }
 
 export async function generateComplianceReport(from: string, to: string): Promise<ComplianceReportSummary> {
