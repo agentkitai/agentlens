@@ -6,7 +6,7 @@ import {
   getExportEventsUrl,
   type ComplianceReportSummary,
   type ChainVerification,
-} from '../api/client';
+} from '../api/compliance';
 
 // ─── Helpers ────────────────────────────────────────────────
 
