@@ -15,7 +15,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error).toContain('Missing Authorization');
+    expect(body.error).toContain('Authentication required');
   });
 
   it('returns 401 for invalid header format', async () => {
@@ -26,7 +26,7 @@ describe('API Key Auth Middleware (Story 4.2)', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error).toContain('Invalid Authorization');
+    expect(body.error).toContain('Authentication required');
   });
 
   it('returns 401 for non-als_ prefixed key', async () => {

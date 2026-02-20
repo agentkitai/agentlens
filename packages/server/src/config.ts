@@ -25,6 +25,8 @@ export interface ServerConfig {
   otlpAuthToken?: string;
   /** OTLP rate limit per IP per minute (default: 1000) */
   otlpRateLimit: number;
+  /** Whether OTLP endpoints require full unified auth (default: false) */
+  otlpAuthRequired: boolean;
 
   // ─── Mesh Integration ───────────────────────────────────
   /** Enable mesh proxy (default: false) */
@@ -77,6 +79,7 @@ export function getConfig(): ServerConfig {
       return isNaN(parsed) ? 90 : parsed;
     })(),
     otlpAuthToken: process.env['OTLP_AUTH_TOKEN'] || undefined,
+    otlpAuthRequired: process.env['OTLP_AUTH_REQUIRED'] === 'true',
     otlpRateLimit: (() => {
       const parsed = parseInt(process.env['OTLP_RATE_LIMIT'] ?? '1000', 10);
       return isNaN(parsed) ? 1000 : parsed;

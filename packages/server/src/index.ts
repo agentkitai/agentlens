@@ -17,6 +17,9 @@ import { fileURLToPath } from 'node:url';
 import type { IEventStore } from '@agentlensai/core';
 import { getConfig, validateConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';
+import { unifiedAuthMiddleware, type UnifiedAuthVariables } from './middleware/unified-auth.js';
+import { requireCategory, requireMethodCategory, requireCategoryByMethod } from './middleware/rbac.js';
+import { otlpAuthRequired as otlpAuthRequiredError, otlpInvalidToken } from './middleware/auth-errors.js';
 import { securityHeadersMiddleware } from './middleware/security-headers.js';
 import { sanitizeErrorMessage, getErrorStatus } from './lib/error-sanitizer.js';
 import { buildCorsOptions } from './middleware/cors-config.js';
@@ -319,8 +322,8 @@ export async function createApp(
     app.get('/auth/me', (c) => c.json({ authMode: 'api-key-only' }, 200));
   }
 
-  // ─── Auth middleware on protected routes ───────────────
-  // We need the db reference for auth key lookup
+  // ─── Auth middleware on protected routes [F2-S3] ───────
+  // Fail-closed: single catch-all for /api/* with public routes registered above.
   const db = config?.db;
   if (!db && !resolvedConfig.authDisabled) {
     throw new Error(
@@ -328,47 +331,32 @@ export async function createApp(
       'Either provide a database or set authDisabled: true.',
     );
   }
-  if (db) {
-    app.use('/api/keys/*', authMiddleware(db, resolvedConfig.authDisabled));
-    // Protect event endpoints but exclude webhook ingest (uses HMAC auth instead)
-    app.use('/api/events/*', async (c, next) => {
-      const path = new URL(c.req.url).pathname;
-      if (path.startsWith('/api/events/ingest')) return next();
-      return authMiddleware(db, resolvedConfig.authDisabled)(c, next);
-    });
-    app.use('/api/sessions/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/agents/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/stats/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/config/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/analytics/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/alerts/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/lessons/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/reflect/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/reflect', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/recall/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/recall', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/context/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/context', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/optimize/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/optimize', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/benchmarks/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/benchmarks', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/health/overview', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/health/history', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/guardrails/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/guardrails', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/capabilities/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/capabilities', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/delegations/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/delegations', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/discovery/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/discovery', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/audit/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/audit', authMiddleware(db, resolvedConfig.authDisabled));
 
-    // Inject audit logger into context
-    const auditLogger = createAuditLogger(db);
-    app.use('/api/*', auditMiddleware(auditLogger));
+  {
+    const authLookup = config?.apiKeyLookup ?? db ?? null;
+    const authConfig = {
+      authDisabled: resolvedConfig.authDisabled,
+      jwtSecret: process.env['JWT_SECRET'],
+    };
+
+    // ── Unified auth catch-all (replaces 40+ individual app.use calls) ──
+    app.use('/api/*', unifiedAuthMiddleware(authLookup, authConfig));
+
+    // ── RBAC enforcement per architecture §3.3 ──────────
+    // Manage-level routes (owner, admin only)
+    app.use('/api/keys/*', requireCategory('manage'));
+    app.use('/api/audit/*', requireCategory('manage'));
+    app.use('/api/config/*', requireCategoryByMethod({ GET: 'read', PUT: 'manage', PATCH: 'manage' }));
+    app.use('/api/guardrails/*', requireCategoryByMethod({ GET: 'read', POST: 'manage', PUT: 'manage', DELETE: 'manage' }));
+
+    // Default safety net: GET = read (all roles), mutations = write (member+)
+    app.use('/api/*', requireMethodCategory());
+
+    // ── Audit middleware (after auth — has access to auth context) ──
+    if (db) {
+      const auditLogger = createAuditLogger(db);
+      app.use('/api/*', auditMiddleware(auditLogger));
+    }
   }
 
   // ─── Routes ────────────────────────────────────────────
@@ -463,30 +451,42 @@ export async function createApp(
   }
 
   // ─── Community Sharing (Stories 4.1–4.3) ────────────────
+  // Auth is handled by the unified catch-all above.
   if (loreAdapter) {
-    if (db) {
-      app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
-      app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
-    }
     app.route('/api/community', loreCommunityProxyRoutes(loreAdapter));
-  } else if (db) {
-    // Audit routes (Story 7.4) — kept for observability
-    app.use('/api/community/*', authMiddleware(db, resolvedConfig.authDisabled));
-    app.use('/api/community', authMiddleware(db, resolvedConfig.authDisabled));
-    // audit routes removed (v0.12.0 — sharing audit moved to Lore)
   }
 
   // ─── Mesh Proxy (agentkit-mesh) ─────────────────────────
+  // Auth is handled by the unified catch-all above.
   if (resolvedConfig.meshEnabled && resolvedConfig.meshUrl) {
     const meshAdapter = new RemoteMeshAdapter(resolvedConfig.meshUrl);
-    if (db) {
-      app.use('/api/mesh/*', authMiddleware(db, resolvedConfig.authDisabled));
-      app.use('/api/mesh', authMiddleware(db, resolvedConfig.authDisabled));
-    }
     app.route('/api/mesh', meshProxyRoutes(meshAdapter));
   }
 
-  // ─── OTLP HTTP Receiver (no auth — standard OTel paths) ──
+  // ─── OTLP HTTP Receiver [F2-S5] ─────────────────────────
+  // Default: no auth (standard OTel convention). Opt-in via env vars.
+  if (resolvedConfig.otlpAuthRequired) {
+    // Full unified auth on OTLP endpoints
+    const authLookup = config?.apiKeyLookup ?? db ?? null;
+    app.use('/v1/*', unifiedAuthMiddleware(authLookup, {
+      authDisabled: resolvedConfig.authDisabled,
+      jwtSecret: process.env['JWT_SECRET'],
+    }));
+  } else if (resolvedConfig.otlpAuthToken) {
+    // Simple bearer token check
+    const { createMiddleware } = await import('hono/factory');
+    app.use('/v1/*', createMiddleware(async (c, next) => {
+      const authHeader = c.req.header('Authorization');
+      if (!authHeader?.startsWith('Bearer ')) {
+        return otlpAuthRequiredError(c);
+      }
+      const token = authHeader.slice(7);
+      if (token !== resolvedConfig.otlpAuthToken) {
+        return otlpInvalidToken(c);
+      }
+      return next();
+    }));
+  }
   app.route('/v1', otlpRoutes(store, resolvedConfig));
 
   // ─── Dashboard SPA static assets ──────────────────────
