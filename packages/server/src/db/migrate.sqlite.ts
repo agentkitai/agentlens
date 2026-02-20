@@ -752,6 +752,49 @@ export function runMigrations(db: SqliteDb): void {
       updated_at TEXT NOT NULL
     )
   `);
+
+  // ─── Cost Budget tables (Feature 5) ──────────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS cost_budgets (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      agent_id TEXT,
+      period TEXT NOT NULL,
+      limit_usd REAL NOT NULL,
+      on_breach TEXT NOT NULL DEFAULT 'alert',
+      downgrade_target_model TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_cost_budgets_tenant ON cost_budgets(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_cost_budgets_tenant_enabled ON cost_budgets(tenant_id, enabled)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_cost_budgets_tenant_agent ON cost_budgets(tenant_id, agent_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS cost_budget_state (
+      budget_id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      last_breach_at TEXT,
+      breach_count INTEGER NOT NULL DEFAULT 0,
+      current_spend REAL,
+      period_start TEXT,
+      PRIMARY KEY (budget_id, tenant_id)
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS cost_anomaly_config (
+      tenant_id TEXT PRIMARY KEY,
+      multiplier REAL NOT NULL DEFAULT 3.0,
+      min_sessions INTEGER NOT NULL DEFAULT 5,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL
+    )
+  `);
 }
 
 /**

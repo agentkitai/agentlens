@@ -18,15 +18,25 @@ describe('GET /api/audit', () => {
   });
 
   it('returns 403 for non-admin role', async () => {
-    // Set role to viewer
-    ctx.db.update(apiKeys).set({ role: 'viewer' }).where(eq(apiKeys.id, 'test-key-id')).run();
+    // Create a read-only key (scopes: ['read'] → viewer role → blocked by RBAC manage check)
+    const { createApiKey: createKey } = await import('./test-helpers.js');
+    const { hashApiKey: hashKey } = await import('../middleware/auth.js');
+    const readOnlyRaw = 'als_readonly_' + 'x'.repeat(50);
+    ctx.db.insert(apiKeys).values({
+      id: 'readonly-key-id',
+      keyHash: hashKey(readOnlyRaw),
+      name: 'Read Only',
+      scopes: JSON.stringify(['read']),
+      createdAt: Math.floor(Date.now() / 1000),
+      tenantId: 'default',
+    }).run();
 
     const res = await ctx.app.request('/api/audit', {
-      headers: authHeaders(ctx.apiKey),
+      headers: authHeaders(readOnlyRaw),
     });
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toContain('admin');
+    expect(body.error).toContain('permissions');
   });
 
   it('returns empty list when no audit entries', async () => {

@@ -63,6 +63,9 @@ import { auditMiddleware } from './middleware/audit.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
 import { setAgentStore } from './lib/guardrails/actions.js';
+import { BudgetEngine } from './lib/budget-engine.js';
+import { CostAnomalyDetector } from './lib/cost-anomaly-detector.js';
+import { costBudgetRoutes } from './routes/cost-budgets.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { SqliteEventStore } from './db/sqlite-store.js';
@@ -127,6 +130,10 @@ export { otlpRoutes } from './routes/otlp.js';
 export { guardrailRoutes } from './routes/guardrails.js';
 export { GuardrailEngine } from './lib/guardrails/engine.js';
 export { GuardrailStore } from './db/guardrail-store.js';
+export { BudgetEngine } from './lib/budget-engine.js';
+export { CostAnomalyDetector } from './lib/cost-anomaly-detector.js';
+export { CostBudgetStore } from './db/cost-budget-store.js';
+export { costBudgetRoutes } from './routes/cost-budgets.js';
 // ─── Dashboard SPA helpers ───────────────────────────────────
 
 /**
@@ -344,10 +351,17 @@ export async function createApp(
 
     // ── RBAC enforcement per architecture §3.3 ──────────
     // Manage-level routes (owner, admin only)
-    app.use('/api/keys/*', requireCategory('manage'));
-    app.use('/api/audit/*', requireCategory('manage'));
-    app.use('/api/config/*', requireCategoryByMethod({ GET: 'read', PUT: 'manage', PATCH: 'manage' }));
-    app.use('/api/guardrails/*', requireCategoryByMethod({ GET: 'read', POST: 'manage', PUT: 'manage', DELETE: 'manage' }));
+    const manageGuard = requireCategory('manage');
+    app.use('/api/keys/*', manageGuard);
+    app.use('/api/keys', manageGuard);
+    app.use('/api/audit/*', manageGuard);
+    app.use('/api/audit', manageGuard);
+    const configGuard = requireCategoryByMethod({ GET: 'read', PUT: 'manage', PATCH: 'manage' });
+    app.use('/api/config/*', configGuard);
+    app.use('/api/config', configGuard);
+    const guardrailGuard = requireCategoryByMethod({ GET: 'read', POST: 'manage', PUT: 'manage', DELETE: 'manage' });
+    app.use('/api/guardrails/*', guardrailGuard);
+    app.use('/api/guardrails', guardrailGuard);
 
     // Default safety net: GET = read (all roles), mutations = write (member+)
     app.use('/api/*', requireMethodCategory());
@@ -417,6 +431,14 @@ export async function createApp(
   if (db) {
     const gStore = new GuardrailStore(db);
     app.route('/api/guardrails', guardrailRoutes(gStore));
+  }
+
+  // ─── Cost Budgets (Feature 5) ─────────────────────────
+  let budgetEngine: BudgetEngine | undefined;
+  if (db) {
+    budgetEngine = new BudgetEngine(store, db);
+    const budgetStore = budgetEngine.getStore();
+    app.route('/api/cost-budgets', costBudgetRoutes(budgetStore, store, budgetEngine));
   }
 
   // ─── Recall / Semantic Search ─────────────────────────
@@ -612,6 +634,14 @@ export async function startServer() {
   const guardrailEngine = new GuardrailEngine(store, db);
   guardrailEngine.start();
   log.info('Guardrails: enabled');
+
+  // Start budget engine and anomaly detector (Feature 5)
+  if (budgetEngine) {
+    budgetEngine.start();
+    const anomalyDetector = new CostAnomalyDetector(store, budgetEngine.getStore());
+    anomalyDetector.start();
+    log.info('Cost budgets & anomaly detection: enabled');
+  }
 
   // M-11 FIX: Graceful shutdown for engines, workers, HTTP server, and PG pool
   let httpServer: ReturnType<typeof serve> | undefined;

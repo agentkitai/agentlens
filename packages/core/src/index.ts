@@ -29,5 +29,9 @@ export * from './guardrail-config-schemas.js';
 // Re-export discovery types (Phase 4 — Story 1.2)
 export * from './discovery-types.js';
 
+// Re-export cost budget types and schemas (Feature 5)
+export * from './cost-budget-types.js';
+export * from './cost-budget-schemas.js';
+
 // Re-export error utilities (Phase 7 — Story S-4.2)
 export { getErrorMessage } from './errors.js';
