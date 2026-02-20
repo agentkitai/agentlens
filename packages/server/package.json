@@ -7,12 +7,12 @@
   "author": "Amit Paz",
   "repository": {
     "type": "git",
-    "url": "https://github.com/amitpaz/agentlens.git",
+    "url": "https://github.com/agentkitai/agentlens.git",
     "directory": "packages/server"
   },
-  "homepage": "https://github.com/amitpaz/agentlens",
+  "homepage": "https://github.com/agentkitai/agentlens",
   "bugs": {
-    "url": "https://github.com/amitpaz/agentlens/issues"
+    "url": "https://github.com/agentkitai/agentlens/issues"
   },
   "keywords": [
     "agentlens",

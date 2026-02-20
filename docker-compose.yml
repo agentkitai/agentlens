@@ -46,9 +46,8 @@ services:
       ADMIN_API_KEY: dev-admin-key
       PORT: "3000"
     volumes:
-      - agentkit-stack_agentlens-data:/app/data
+      - agentlens-data:/app/data
 
 volumes:
   pgdata:
-  agentkit-stack_agentlens-data:
-    external: true
+  agentlens-data:

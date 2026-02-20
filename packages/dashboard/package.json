@@ -7,7 +7,7 @@
   "author": "Amit Paz",
   "repository": {
     "type": "git",
-    "url": "https://github.com/amitpaz/agentlens.git",
+    "url": "https://github.com/agentkitai/agentlens.git",
     "directory": "packages/dashboard"
   },
   "private": true,

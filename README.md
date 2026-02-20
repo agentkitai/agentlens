@@ -8,32 +8,34 @@
     <a href="https://www.npmjs.com/package/@agentlensai/server"><img src="https://img.shields.io/npm/v/@agentlensai/server?label=npm" alt="npm server"></a>
     <a href="https://www.npmjs.com/package/@agentlensai/mcp"><img src="https://img.shields.io/npm/v/@agentlensai/mcp?label=mcp" alt="npm mcp"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
-    <a href="https://github.com/amitpaz1/agentlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/amitpaz/agentlens/ci.yml?branch=main" alt="Build Status"></a>
+    <a href="https://github.com/agentkitai/agentlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/agentkitai/agentlens/ci.yml?branch=main" alt="Build Status"></a>
+    <!-- TODO: Add Docker badge when image is published to GHCR/Docker Hub -->
+    <!-- <a href="https://ghcr.io/agentkitai/agentlens"><img src="https://img.shields.io/docker/v/agentkitai/agentlens?label=docker" alt="Docker"></a> -->
+  </p>
+  <p align="center">
+    <a href="./docs/">📖 Documentation</a> · <a href="#-quick-start">Quick Start</a> · <a href="#-dashboard">Dashboard</a> · <a href="https://app.agentlens.ai">☁️ Cloud</a>
   </p>
 </p>
 
 ---
 
-## 🐳 Quick Start (Docker)
+## 📑 Table of Contents
 
-```bash
-git clone https://github.com/amitpaz1/agentlens
-cd agentlens
-cp .env.example .env
-docker compose up
-# Open http://localhost:3000
-```
-
-For production (auth enabled, Stripe, TLS):
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up
-```
+- [Quick Start](#-quick-start)
+- [Architecture](#-architecture)
+- [Integration Guides](#-integration-guides)
+- [Key Features](#-key-features)
+- [Dashboard](#-dashboard)
+- [AgentLens Cloud](#-agentlens-cloud)
+- [Packages](#-packages)
+- [API Overview](#-api-overview)
+- [CLI](#-cli)
+- [Development](#-development)
+- [Contributing](#-contributing)
+- [AgentKit Ecosystem](#-agentkit-ecosystem)
+- [License](#-license)
 
 ---
-
-<p align="center">
-  <img src="demo/agentlens-demo.gif" alt="AgentLens Demo" width="720">
-</p>
 
 AgentLens is a **flight recorder for AI agents**. It captures every LLM call, tool invocation, approval decision, and error — then presents it through a queryable API and real-time web dashboard.
 
@@ -46,190 +48,31 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 | 🔌 **[MCP Server](#-mcp-integration)** | Any (MCP) | Config block | Tool calls, sessions, events from Claude Desktop / Cursor |
 | 📦 **[SDK](#-programmatic-sdk)** | Python, TypeScript | Code | Full control — log events, query analytics, build integrations |
 
-## ✨ Key Features
-
-- **🐍 Python Auto-Instrumentation** — `agentlensai.init()` and every LLM call across 9 providers (OpenAI, Anthropic, LiteLLM, Bedrock, Vertex, Gemini, Mistral, Cohere, Ollama) is captured automatically. Deterministic — no reliance on LLM behavior.
-- **🔌 MCP-Native** — Ships as an MCP server. Agents connect to it like any other tool. Works with Claude Desktop, Cursor, and any MCP client.
-- **🧠 LLM Call Tracking** — Full prompt/completion visibility, token usage, cost aggregation, latency measurement, and privacy redaction.
-- **📊 Real-Time Dashboard** — Session timelines, event explorer, LLM analytics, cost tracking, and alerting in a beautiful web UI.
-- **🔒 Tamper-Evident Audit Trail** — Append-only event storage with SHA-256 hash chains per session. Cryptographically linked and verifiable.
-- **💰 Cost Tracking** — Track token usage and estimated costs per session, per agent, per model, over time. Alert on cost spikes.
-- **🚨 Alerting** — Configurable rules for error rate, cost threshold, latency anomalies, and inactivity.
-- **🔗 AgentKit Ecosystem** — First-class integrations with [AgentGate](https://github.com/amitpaz1/agentgate) (approval flows), [FormBridge](https://github.com/amitpaz1/formbridge) (data collection), [Lore](https://github.com/amitpaz1/lore) (cross-agent memory), and [AgentEval](https://github.com/amitpaz1/agenteval) (testing & evaluation).
-- **🔒 Tenant Isolation** — Multi-tenant support with per-tenant data scoping, API key binding, and embedding isolation.
-- **❤️‍🩹 Health Scores** — 5-dimension health scoring (error rate, cost efficiency, tool success, latency, completion rate) with trend tracking. Monitor agent reliability at a glance.
-- **💡 Cost Optimization** — Complexity-aware model recommendation engine. Classifies LLM calls by complexity tier and suggests cheaper alternatives with projected savings.
-- **📼 Session Replay** — Step-through any past session with full context reconstruction — LLM history, tool results, cost accumulation, and error tracking at every step.
-- **⚖️ A/B Benchmarking** — Statistical comparison of agent variants using Welch's t-test and chi-squared analysis across 8 metrics. Create experiments, collect data, get p-values.
-- **🛡️ Guardrails** — Automated safety rules that monitor error rates, costs, health scores, and custom metrics. Actions include pausing agents, sending webhooks, downgrading models, and applying AgentGate policies. Dry-run mode for safe testing.
-- **🔌 Framework Plugins** — Optional plugins for LangChain, CrewAI, AutoGen, and Semantic Kernel. Auto-detection, fail-safe, non-blocking instrumentation with zero code changes.
-- **🏠 Self-Hosted** — SQLite by default, no external dependencies. MIT licensed. Your data stays on your infrastructure.
-
-## 📸 Dashboard
-
-AgentLens ships with a real-time web dashboard for monitoring your agents.
-
-### Overview — At-a-Glance Metrics
-
-![Dashboard Overview](demo/dashboard-overview.jpg)
-
-The overview page shows **live metrics** — sessions, events, errors, and active agents — with a 24-hour event timeline chart, recent sessions with status badges (active/completed), and a recent errors feed. Everything updates in real-time via SSE.
-
-### Sessions — Track Every Agent Run
-
-![Sessions List](demo/dashboard-sessions.jpg)
-
-The sessions table shows **every agent session** with sortable columns: agent name, status, start time, duration, event count, error count, and total cost. Filter by agent or status (Active / Completed / Error) to drill down.
-
-### Session Detail — Timeline & Hash Chain
-
-![Session Detail](demo/dashboard-session-detail.jpg)
-
-Click into any session to see the **full event timeline** — every tool call, error, cost event, and session lifecycle event in chronological order. The green **✓ Chain Valid** badge confirms the tamper-evident hash chain is intact. Filter by event type (Tool Calls, Errors, Approvals, Custom). Cost breakdown shows token usage and spend.
-
-### Events Explorer — Search & Filter Everything
-
-![Events Explorer](demo/dashboard-events.jpg)
-
-The events explorer gives you a **searchable, filterable view** of every event across all sessions. Filter by event type, severity, agent, or time range. Full-text search works on payload content. Each row shows the tool name, agent, session, severity level, and duration.
-
-### 🧠 LLM Analytics — Prompt & Cost Tracking
-
-![LLM Analytics](demo/dashboard-llm-analytics.jpg)
-
-The LLM Analytics page shows **total LLM calls, cost, latency, and token usage** across all agents. Cost and calls over time charts, plus a **model comparison table** breaking down usage by provider and model (Anthropic, OpenAI, Google). Filter by agent, provider, or model.
-
-### 🧠 Session Timeline — LLM Call Pairing
-
-![LLM Timeline](demo/dashboard-llm-timeline.jpg)
-
-LLM calls appear in the session timeline with **🧠 icons and indigo styling**, paired with their completions by `callId`. Each node shows the model, message count, token usage (in/out), cost badge, and latency. Tool calls and LLM calls are interleaved chronologically — see exactly what the agent thought, then did.
-
-### 💬 Prompt Detail — Chat Bubble Viewer
-
-![LLM Call Detail](demo/dashboard-llm-detail.jpg)
-
-Click any LLM call to see the **full prompt and completion** in a chat-bubble style viewer. System, user, assistant, and tool messages each get distinct styling. The metadata panel shows provider, model, parameters (temperature, max tokens), token breakdown (input/output/thinking/cache), cost, latency, tools provided to the model, and the tamper-evident hash chain.
-
-### ❤️‍🩹 Health Overview — Agent Reliability at a Glance
-
-![Health Overview](demo/dashboard-health.jpg)
-
-The Health Overview page shows a **5-dimension health score** (0–100) for every agent: error rate, cost efficiency, tool success, latency, and completion rate. Each dimension is scored independently and combined into a weighted overall score. Trend arrows (↑ improving, → stable, ↓ degrading) show direction over time. Click any agent to see a historical sparkline of their score.
-
-### 💡 Cost Optimization — Model Recommendations
-
-![Cost Optimization](demo/dashboard-cost-optimization.jpg)
-
-The Cost Optimization page analyzes your **LLM call patterns** and recommends cheaper model alternatives. Calls are classified by complexity tier (simple / moderate / complex), and the recommendation engine suggests where you can safely downgrade — e.g., "Switch gpt-4o → gpt-4o-mini for SIMPLE tasks, saving $89/month." Confidence levels and success rate comparisons are shown for each recommendation.
-
-### 📼 Session Replay — Step-Through Debugger
-
-![Session Replay](demo/dashboard-session-replay.jpg)
-
-Session Replay lets you **step through any past session** event by event with full context reconstruction. A scrubber/timeline control moves through steps chronologically. At each step, the context panel shows cumulative cost, LLM conversation history, tool call results, pending approvals, and error count. Filter by event type, jump to specific steps, or replay just the summary.
-
-### ⚖️ Benchmarks — A/B Testing for Agents
-
-![Benchmarks](demo/dashboard-benchmarks.jpg)
-
-The Benchmarks page lets you **create and manage A/B experiments** comparing agent variants. Define 2–10 variants with session tags, pick metrics (cost, latency, error rate, success rate, tokens, duration), and collect data. Results include per-variant statistics, Welch's t-test p-values, confidence stars (★ ★★ ★★★), and distribution charts. The full workflow — draft → running → completed — is managed from the dashboard.
-
-### 🛡️ Guardrails — Automated Safety Rules
-
-![Guardrails](demo/dashboard-guardrails.jpg)
-
-The Guardrails page lets you **create and manage automated safety rules** that monitor error rates, costs, health scores, and custom metrics. Each rule has a condition, action, cooldown, and optional dry-run mode. The list shows trigger counts and last triggered time. Click any rule for the detail page with full configuration, runtime state, and trigger history. The Activity Feed shows a real-time log of all triggers across all rules with filtering by agent and rule.
-
-## ☁️ AgentLens Cloud
-
-Don't want to self-host? **AgentLens Cloud** is a fully managed SaaS — same SDK, zero infrastructure:
-
-```python
-import agentlensai
-
-agentlensai.init(
-    cloud=True,
-    api_key="als_cloud_your_key_here",
-    agent_id="my-agent",
-)
-# That's it — all LLM calls are captured and sent to the cloud
-```
-
-- **Same SDK, one parameter change** — switch `url=` to `cloud=True`
-- **Managed Postgres** — multi-tenant with row-level security
-- **Team features** — organizations, RBAC, audit logs, usage billing
-- **No server to run** — dashboard at [app.agentlens.ai](https://app.agentlens.ai)
-
-📖 **[Cloud Setup Guide](./docs/guide/cloud-setup.md)** — sign up, create API key, verify first event
-📖 **[Migration Guide](./docs/guide/cloud-migration.md)** — move from self-hosted to cloud in 5 minutes
-🔧 **[Troubleshooting](./docs/guide/troubleshooting.md)** — common issues and how to fix them
-
-## 🏗️ Architecture
-
-```
-┌───────────────────────────────────────────────────────────────────┐
-│  Your AI Agents                                                   │
-│                                                                   │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
-│  │  Python App       │  │  MCP Client       │  │  TypeScript    │  │
-│  │  (OpenAI,         │  │  (Claude Desktop,  │  │  App           │  │
-│  │   Anthropic,      │  │   Cursor, etc.)    │  │                │  │
-│  │   LangChain)      │  │                    │  │                │  │
-│  └────────┬─────────┘  └────────┬───────────┘  └───────┬────────┘  │
-│           │                     │                       │          │
-│    agentlensai.init()    MCP Protocol (stdio)    @agentlensai/sdk │
-│    Auto-instrumentation         │                       │          │
-│           │              ┌──────┴───────────┐           │          │
-│           │              │ @agentlensai/mcp │           │          │
-│           │              └──────┬───────────┘           │          │
-│           │                     │                       │          │
-│           └─────────────────────┼───────────────────────┘          │
-│                                 │                                  │
-│                          HTTP REST API                             │
-└─────────────────────────────────┼──────────────────────────────────┘
-                                  ▼
-┌──────────────────────────────────────────────────────────────────┐
-│              @agentlensai/server                                  │
-│                                                                   │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
-│  │  Ingest    │ │   Query    │ │   Alert    │ │  LLM         │  │
-│  │  Engine    │ │   Engine   │ │   Engine   │ │  Analytics   │  │
-│  └─────┬──────┘ └─────┬──────┘ └────────────┘ └──────────────┘  │
-│        └───────────────┘                                         │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
-│  │  Recall    │ │  Reflect   │ │  Context   │ │  Guardrails  │  │
-│  │ (Semantic) │ │ (Patterns) │ │ (X-Session)│ │  Engine      │  │
-│  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
-│  │  Health    │ │   Cost     │ │  Session   │ │  Benchmark   │  │
-│  │  Scoring   │ │  Optimizer │ │  Replay    │ │  Engine      │  │
-│  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
-│               │                                                   │
-│        ┌──────┴──────┐         ┌─────────────┐                   │
-│        │   SQLite    │         │  Dashboard  │                   │
-│        │  (append    │         │  React SPA  │                   │
-│        │   only)     │         │  (served    │                   │
-│        └─────────────┘         │   at /)     │                   │
-│                                └─────────────┘                   │
-└──────────────────────────────────────────────────────────────────┘
-
-  Integrations:  AgentGate ──┐
-                 FormBridge ─┤──► POST /api/events/ingest
-                 Generic ────┘     (HMAC-SHA256 verified)
-```
-
 ## 🚀 Quick Start
 
-### 1. Start the Server
+### Docker (recommended)
+
+```bash
+git clone https://github.com/agentkitai/agentlens
+cd agentlens
+cp .env.example .env
+docker compose up
+# Open http://localhost:3000
+```
+
+For production (auth enabled, Stripe, TLS):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+```
+
+### Without Docker
 
 ```bash
 npx @agentlensai/server
+# Opens on http://localhost:3400 with SQLite — zero config
 ```
 
-Opens on **http://localhost:3400** with SQLite — zero config.
-
-### 2. Create an API Key
+### Create an API Key
 
 ```bash
 curl -X POST http://localhost:3400/api/keys \
@@ -237,39 +80,66 @@ curl -X POST http://localhost:3400/api/keys \
   -d '{"name": "my-agent"}'
 ```
 
-Save the `als_...` key from the response — it's shown only once.
+Save the `als_...` key from the response — it's shown only once. Then head to the [Integration Guides](#-integration-guides) to instrument your agent.
 
-### 3. Instrument Your Agent
+📖 [Full setup guide →](./docs/guide/)
 
-#### 🤖 OpenClaw Plugin
+## 🏗️ Architecture
 
-If you're running [OpenClaw](https://github.com/openclaw/openclaw), the AgentLens plugin captures every Anthropic API call automatically — prompts, completions, token usage, costs, latency, and tool calls. No proxy, no preload scripts, no code changes.
+```mermaid
+graph TB
+    subgraph Agents["Your AI Agents"]
+        PY["Python App<br/>(OpenAI, Anthropic, LangChain)"]
+        MCP_C["MCP Client<br/>(Claude Desktop, Cursor)"]
+        TS["TypeScript App"]
+        OC["OpenClaw Plugin"]
+    end
+
+    PY -->|"agentlensai.init()<br/>auto-instrumentation"| SERVER
+    MCP_C -->|MCP Protocol| MCP_S["@agentlensai/mcp"]
+    MCP_S -->|HTTP| SERVER
+    TS -->|"@agentlensai/sdk"| SERVER
+    OC -->|HTTP| SERVER
+
+    subgraph Server["@agentlensai/server"]
+        direction TB
+        INGEST[Ingest Engine]
+        QUERY[Query Engine]
+        ALERT[Alert Engine]
+        LLM_A[LLM Analytics]
+        HEALTH[Health Scoring]
+        COST[Cost Optimizer]
+        REPLAY[Session Replay]
+        BENCH[Benchmark Engine]
+        GUARD[Guardrails]
+    end
+
+    SERVER --> DB[(SQLite / Postgres)]
+    SERVER --> DASH["Dashboard<br/>(React SPA)"]
+
+    EXT["AgentGate / FormBridge"] -->|Webhook| SERVER
+```
+
+## 🔧 Integration Guides
+
+### 🤖 OpenClaw Plugin
+
+If you're running [OpenClaw](https://github.com/openclaw/openclaw), the AgentLens plugin captures every Anthropic API call automatically — prompts, completions, token usage, costs, latency, and tool calls.
 
 ```bash
-# Copy the plugin into OpenClaw's extensions directory
 cp -r packages/openclaw-plugin /usr/lib/node_modules/openclaw/extensions/agentlens-relay
-
-# Enable it
 openclaw config patch '{"plugins":{"entries":{"agentlens-relay":{"enabled":true}}}}'
-
-# Restart
 openclaw gateway restart
 ```
 
-That's it. Open the AgentLens dashboard and you'll see every LLM call with full prompt visibility, cost tracking, and tool call extraction.
-
 Set `AGENTLENS_URL` if your AgentLens instance isn't on `localhost:3000`. See the [plugin README](./packages/openclaw-plugin/README.md) for details.
 
-#### 🐍 Python Auto-Instrumentation
+### 🐍 Python Auto-Instrumentation
 
-One line — every LLM call captured automatically. **9 providers supported:**
-OpenAI, Anthropic, LiteLLM, AWS Bedrock, Google Vertex AI, Google Gemini, Mistral AI, Cohere, and Ollama.
+One line — every LLM call captured automatically across **9 providers** (OpenAI, Anthropic, LiteLLM, AWS Bedrock, Google Vertex AI, Google Gemini, Mistral AI, Cohere, Ollama):
 
 ```bash
-pip install agentlensai[all-providers]   # all 9 providers
-# or pick specific ones:
-pip install agentlensai[openai]          # just OpenAI
-pip install agentlensai[bedrock,ollama]  # Bedrock + Ollama
+pip install agentlensai[all-providers]
 ```
 
 ```python
@@ -280,44 +150,16 @@ agentlensai.init(
     api_key="als_your_key",
     agent_id="my-agent",
 )
-
-# Every LLM call is now captured automatically (all installed providers)
-import openai
-client = openai.OpenAI()
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-# ^ Logged: model, tokens, cost, latency, full prompt/completion
-
-# Works with Anthropic too
-import anthropic
-client = anthropic.Anthropic()
-message = client.messages.create(
-    model="claude-sonnet-4-20250514",
-    max_tokens=1024,
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-# ^ Also captured automatically
-
-# LangChain? Use the callback handler:
-from agentlensai.integrations.langchain import AgentLensCallbackHandler
-chain.invoke(input, config={"callbacks": [AgentLensCallbackHandler()]})
-
-agentlensai.shutdown()  # flush remaining events
+# Every LLM call is now captured automatically
 ```
 
-**Key guarantees:**
-- ✅ **Deterministic** — every call captured, not dependent on LLM choosing to log
-- ✅ **Fail-safe** — if the server is down, your code works normally
-- ✅ **Non-blocking** — events sent via background thread
-- ✅ **Privacy** — `init(redact=True)` strips content, keeps metadata
+**Key guarantees:** ✅ Deterministic · ✅ Fail-safe · ✅ Non-blocking · ✅ Privacy (`init(redact=True)`)
 
-#### 🔌 MCP Integration
+📖 [Python SDK full docs →](./docs/guide/)
 
-For Claude Desktop, Cursor, or any MCP client — zero code changes:
+### 🔌 MCP Integration
 
-**Claude Desktop** (`claude_desktop_config.json`):
+For Claude Desktop, Cursor, or any MCP client — add to your config:
 
 ```json
 {
@@ -334,128 +176,150 @@ For Claude Desktop, Cursor, or any MCP client — zero code changes:
 }
 ```
 
-**Cursor** (`.cursor/mcp.json`):
+AgentLens ships **12 MCP tools** — 5 core observability, 3 intelligence & analytics, 4 operations. [Full MCP tool reference →](./docs/reference/api.md)
 
-```json
-{
-  "mcpServers": {
-    "agentlens": {
-      "command": "npx",
-      "args": ["@agentlensai/mcp"],
-      "env": {
-        "AGENTLENS_API_URL": "http://localhost:3400",
-        "AGENTLENS_API_KEY": "als_your_key_here"
-      }
-    }
-  }
-}
-```
+📖 [MCP setup guide →](./docs/guide/)
 
-#### 📦 Programmatic SDK
-
-For full control — log events, query analytics, build integrations:
+### 📦 Programmatic SDK
 
 **Python:**
 ```bash
 pip install agentlensai
 ```
-
 ```python
 from agentlensai import AgentLensClient
-
 client = AgentLensClient("http://localhost:3400", api_key="als_your_key")
 sessions = client.get_sessions()
 analytics = client.get_llm_analytics()
-print(f"Total cost: ${analytics.summary.total_cost_usd:.2f}")
-
-# Health scores & optimization (v0.6.0+)
-health = client.get_health("my-agent", window=7)
-overview = client.get_health_overview()
-history = client.get_health_history("my-agent", days=30)
-recs = client.get_optimization_recommendations(period=7)
-
-client.close()
 ```
 
 **TypeScript:**
 ```bash
 npm install @agentlensai/sdk
 ```
-
 ```typescript
 import { AgentLensClient } from '@agentlensai/sdk';
-
-const client = new AgentLensClient({
-  baseUrl: 'http://localhost:3400',
-  apiKey: 'als_your_key',
-});
+const client = new AgentLensClient({ baseUrl: 'http://localhost:3400', apiKey: 'als_your_key' });
 const sessions = await client.getSessions();
-const analytics = await client.getLlmAnalytics();
 ```
 
-### 4. Open the Dashboard
+📖 [SDK reference →](./docs/reference/api.md)
 
-Navigate to **http://localhost:3400** — see sessions, timelines, analytics, and alerts in real time.
+## ✨ Key Features
 
-## 🔌 MCP Tools
+- **🐍 Python Auto-Instrumentation** — `agentlensai.init()` captures every LLM call across 9 providers automatically. Deterministic — no reliance on LLM behavior.
+- **🔌 MCP-Native** — Ships as an MCP server. Works with Claude Desktop, Cursor, and any MCP client.
+- **🧠 LLM Call Tracking** — Full prompt/completion visibility, token usage, cost aggregation, latency measurement, and privacy redaction.
+- **📊 Real-Time Dashboard** — Session timelines, event explorer, LLM analytics, cost tracking, and alerting.
+- **🔒 Tamper-Evident Audit Trail** — Append-only event storage with SHA-256 hash chains per session.
+- **💰 Cost Tracking** — Track token usage and estimated costs per session, per agent, per model. Alert on cost spikes.
+- **🚨 Alerting** — Configurable rules for error rate, cost threshold, latency anomalies, and inactivity.
+- **❤️‍🩹 Health Scores** — 5-dimension health scoring with trend tracking.
+- **💡 Cost Optimization** — Complexity-aware model recommendation engine with projected savings.
+- **📼 Session Replay** — Step-through any past session with full context reconstruction.
+- **⚖️ A/B Benchmarking** — Statistical comparison of agent variants using Welch's t-test and chi-squared analysis.
+- **🛡️ Guardrails** — Automated safety rules with dry-run mode for safe testing.
+- **🔌 Framework Plugins** — LangChain, CrewAI, AutoGen, Semantic Kernel — auto-detection, fail-safe, non-blocking.
+- **🔗 AgentKit Ecosystem** — Integrations with [AgentGate](https://github.com/agentkitai/agentgate), [FormBridge](https://github.com/agentkitai/formbridge), [Lore](https://github.com/agentkitai/lore), and [AgentEval](https://github.com/agentkitai/agenteval).
+- **🔒 Tenant Isolation** — Multi-tenant support with per-tenant data scoping and API key binding.
+- **🏠 Self-Hosted** — SQLite by default, no external dependencies. MIT licensed.
 
-AgentLens ships **12 MCP tools** — 5 core observability tools, 3 for intelligence & analytics, and 4 for operations:
+## 📸 Dashboard
 
-#### Core Observability
+AgentLens ships with a real-time web dashboard for monitoring your agents.
 
-| Tool | Purpose | Description |
-|---|---|---|
-| `agentlens_session_start` | **Start Session** | Begin a new observability session for an agent run. Returns a session ID for correlating subsequent events. |
-| `agentlens_log_event` | **Log Event** | Record a custom event (tool call, error, approval, etc.) into the current session timeline. |
-| `agentlens_log_llm_call` | **Log LLM Call** | Record an LLM call with model, messages, tokens, cost, and latency. Pairs with completions via `callId`. |
-| `agentlens_query_events` | **Query Events** | Search and filter events across sessions by type, severity, agent, time range, and payload content. |
-| `agentlens_session_end` | **End Session** | Close the current session, flush pending events, and finalize the hash chain. |
+<details>
+<summary>📸 Dashboard Screenshots (click to expand)</summary>
 
-#### Intelligence & Analytics
+### Overview — At-a-Glance Metrics
 
-| Tool | Purpose | Description |
-|---|---|---|
-| `agentlens_recall` | **Semantic Search** | Search past events and sessions by meaning. Use before starting tasks to find relevant history. |
-| `agentlens_reflect` | **Pattern Analysis** | Analyze behavioral patterns — recurring errors, cost trends, tool sequences, performance changes. |
-| `agentlens_context` | **Cross-Session Context** | Retrieve topic-focused history with session summaries and key events ranked by relevance. |
+![Dashboard Overview](demo/dashboard-overview.jpg)
 
-#### Operations
+The overview page shows **live metrics** — sessions, events, errors, and active agents — with a 24-hour event timeline chart, recent sessions with status badges, and a recent errors feed.
 
-| Tool | Purpose | Description |
-|---|---|---|
-| `agentlens_health` | **Health Scores** | Check the agent's 5-dimension health score (0–100) with trend tracking. Dimensions: error rate, cost efficiency, tool success, latency, completion rate. |
-| `agentlens_optimize` | **Cost Optimization** | Get model switch recommendations with projected monthly savings. Analyzes call complexity and suggests cheaper alternatives. |
-| `agentlens_replay` | **Session Replay** | Replay a past session as a structured timeline with numbered steps, context annotations, and cost accumulation. |
-| `agentlens_benchmark` | **A/B Benchmarking** | Create, manage, and analyze A/B experiments comparing agent variants with statistical significance testing. |
-| `agentlens_guardrails` | **Guardrails** | Create, list, and manage automated safety rules — conditions, actions, cooldowns, dry-run mode, and trigger history. |
+### Sessions — Track Every Agent Run
 
-These tools are automatically available when using the MCP server. Agents can also access the underlying REST API directly via the SDK:
+![Sessions List](demo/dashboard-sessions.jpg)
 
-```typescript
-// Recall — semantic search over events and sessions
-const results = await client.recall({ query: 'authentication errors', scope: 'events' });
+Every agent session with sortable columns: agent name, status, start time, duration, event count, error count, and total cost.
 
-// Reflect — analyze patterns
-const analysis = await client.reflect({ analysis: 'error_patterns', agentId: 'my-agent' });
+### Session Detail — Timeline & Hash Chain
 
-// Context — cross-session history
-const context = await client.getContext({ topic: 'database migrations', limit: 5 });
+![Session Detail](demo/dashboard-session-detail.jpg)
+
+Full event timeline with tamper-evident hash chain verification. Filter by event type, view cost breakdown.
+
+### Events Explorer — Search & Filter Everything
+
+![Events Explorer](demo/dashboard-events.jpg)
+
+Searchable, filterable view of every event across all sessions.
+
+### 🧠 LLM Analytics — Prompt & Cost Tracking
+
+![LLM Analytics](demo/dashboard-llm-analytics.jpg)
+
+Total LLM calls, cost, latency, and token usage across all agents with model comparison.
+
+### 🧠 Session Timeline — LLM Call Pairing
+
+![LLM Timeline](demo/dashboard-llm-timeline.jpg)
+
+LLM calls in session timeline with model, tokens, cost, and latency.
+
+### 💬 Prompt Detail — Chat Bubble Viewer
+
+![LLM Call Detail](demo/dashboard-llm-detail.jpg)
+
+Full prompt and completion in a chat-bubble style viewer with metadata panel.
+
+### ❤️‍🩹 Health Overview — Agent Reliability
+
+![Health Overview](demo/dashboard-health.jpg)
+
+5-dimension health score for every agent with trend tracking.
+
+### 💡 Cost Optimization — Model Recommendations
+
+![Cost Optimization](demo/dashboard-cost-optimization.jpg)
+
+Analyzes LLM call patterns and recommends cheaper model alternatives with confidence levels.
+
+### 📼 Session Replay — Step-Through Debugger
+
+![Session Replay](demo/dashboard-session-replay.jpg)
+
+Step through any past session event by event with full context reconstruction.
+
+### ⚖️ Benchmarks — A/B Testing for Agents
+
+![Benchmarks](demo/dashboard-benchmarks.jpg)
+
+Create and manage A/B experiments with statistical significance testing.
+
+### 🛡️ Guardrails — Automated Safety Rules
+
+![Guardrails](demo/dashboard-guardrails.jpg)
+
+Create and manage automated safety rules with trigger history and activity feed.
+
+</details>
+
+## ☁️ AgentLens Cloud
+
+Don't want to self-host? **AgentLens Cloud** is a fully managed SaaS — same SDK, zero infrastructure:
+
+```python
+import agentlensai
+agentlensai.init(cloud=True, api_key="als_cloud_your_key_here", agent_id="my-agent")
 ```
 
-### 🔗 Lore Integration (Optional)
+- **Same SDK, one parameter change** — switch `url=` to `cloud=True`
+- **Managed Postgres** — multi-tenant with row-level security
+- **Team features** — organizations, RBAC, audit logs, usage billing
+- **No server to run** — dashboard at [app.agentlens.ai](https://app.agentlens.ai)
 
-AgentLens integrates with [Lore](https://github.com/amitpaz1/lore) for cross-agent memory and lesson sharing. Set `LORE_ENABLED=true` to enable lesson management in the dashboard.
-
-See the [Lore Integration Guide](docs/migration/lore-integration.md) for setup.
-
-### 🎬 v0.10.0 Multi-Provider Demo
-
-<img src="demo/agentlens-v0.10-demo.gif" alt="AgentLens v0.10.0 Multi-Provider Demo" width="720">
-
-> Auto-instrumentation across 9 LLM providers with a single `init()` call. ([View cast file](demo/demo-v0.10.cast))
-
-**Quick links:**
-- [Discovery & Delegation](./docs/discovery-delegation.md) — Register capabilities, discover agents, delegate tasks
+📖 [Cloud Setup Guide](./docs/guide/cloud-setup.md) · [Migration Guide](./docs/guide/cloud-migration.md) · [Troubleshooting](./docs/guide/troubleshooting.md)
 
 ## 📦 Packages
 
@@ -463,7 +327,7 @@ See the [Lore Integration Guide](docs/migration/lore-integration.md) for setup.
 
 | Package | Description | PyPI |
 |---|---|---|
-| [`agentlensai`](./packages/python-sdk) | Python SDK + auto-instrumentation for 9 LLM providers (OpenAI, Anthropic, LiteLLM, Bedrock, Vertex, Gemini, Mistral, Cohere, Ollama) | [![PyPI](https://img.shields.io/pypi/v/agentlensai)](https://pypi.org/project/agentlensai/) |
+| [`agentlensai`](./packages/python-sdk) | Python SDK + auto-instrumentation for 9 LLM providers | [![PyPI](https://img.shields.io/pypi/v/agentlensai)](https://pypi.org/project/agentlensai/) |
 
 ### TypeScript / Node.js (npm)
 
@@ -485,74 +349,35 @@ See the [Lore Integration Guide](docs/migration/lore-integration.md) for setup.
 | `GET /api/sessions` | List sessions |
 | `GET /api/sessions/:id/timeline` | Session timeline with hash chain verification |
 | `GET /api/analytics` | Bucketed metrics over time |
-| `GET /api/analytics/costs` | Cost breakdown by agent |
-| `POST /api/alerts/rules` | Create alert rules |
-| `GET /api/recall` | Semantic search over events and sessions |
-| `GET /api/reflect` | Pattern analysis (errors, costs, tools, performance) |
-| `GET /api/context` | Cross-session context retrieval |
-| `POST /api/events/ingest` | Webhook ingestion (AgentGate/FormBridge) |
-| `GET /api/agents/:id/health` | Agent health score with dimensions |
-| `GET /api/health/overview` | Health overview for all agents |
-| `GET /api/health/history` | Historical health snapshots |
-| `GET /api/optimize/recommendations` | Cost optimization recommendations |
-| `GET /api/sessions/:id/replay` | Session replay with context reconstruction |
-| `POST /api/benchmarks` | Create a benchmark |
-| `GET /api/benchmarks` | List benchmarks |
-| `GET /api/benchmarks/:id` | Get benchmark detail |
-| `PUT /api/benchmarks/:id/status` | Transition benchmark status |
-| `GET /api/benchmarks/:id/results` | Get benchmark comparison results |
-| `DELETE /api/benchmarks/:id` | Delete a benchmark |
-| `POST /api/guardrails` | Create guardrail rule |
-| `GET /api/guardrails` | List guardrail rules |
-| `GET /api/guardrails/:id` | Get guardrail rule |
-| `PUT /api/guardrails/:id` | Update guardrail rule |
-| `DELETE /api/guardrails/:id` | Delete guardrail rule |
-| `GET /api/guardrails/history` | List guardrail trigger history |
-| `GET /api/agents/:id` | Get agent detail (includes pausedAt, modelOverride) |
-| `POST /api/keys` | Create API keys |
 
 [Full API Reference →](./docs/reference/api.md)
 
 ## ⌨️ CLI
 
-The `@agentlensai/cli` package provides command-line access to key features:
-
 ```bash
 npx @agentlensai/cli health                          # Overview of all agents
 npx @agentlensai/cli health --agent my-agent          # Detailed health with dimensions
-npx @agentlensai/cli health --agent my-agent --history # Score trend over time
 npx @agentlensai/cli optimize                          # Cost optimization recommendations
-npx @agentlensai/cli optimize --agent my-agent --period 7
 ```
 
-Both commands support `--format json` for machine-readable output. See `agentlens health --help` and `agentlens optimize --help` for all options.
+Both commands support `--format json` for machine-readable output. See `agentlens health --help` for all options.
 
 ## 🛠️ Development
 
 ```bash
-# Clone and install
-git clone https://github.com/amitpaz1/agentlens.git
+git clone https://github.com/agentkitai/agentlens.git
 cd agentlens
 pnpm install
 
-# Run all checks
-pnpm typecheck
-pnpm test
-pnpm lint
-
-# Start dev server
-pnpm dev
+pnpm typecheck && pnpm test && pnpm lint  # Run all checks
+pnpm dev                                   # Start dev server
 ```
 
-### Requirements
-
-- Node.js ≥ 20.0.0
-- pnpm ≥ 10.0.0
+**Requirements:** Node.js ≥ 20.0.0 · pnpm ≥ 10.0.0
 
 ## 🤝 Contributing
 
 We welcome contributions! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup instructions, coding standards, and the PR process.
-
 
 ## 🧰 AgentKit Ecosystem
 

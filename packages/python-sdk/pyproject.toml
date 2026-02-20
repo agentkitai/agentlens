@@ -77,10 +77,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/amitpaz1/agentlens"
-Documentation = "https://amitpaz1.github.io/agentlens/"
-Repository = "https://github.com/amitpaz1/agentlens"
-Issues = "https://github.com/amitpaz1/agentlens/issues"
+Homepage = "https://github.com/agentkitai/agentlens"
+Documentation = "https://agentkitai.github.io/agentlens/"
+Repository = "https://github.com/agentkitai/agentlens"
+Issues = "https://github.com/agentkitai/agentlens/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentlensai"]
