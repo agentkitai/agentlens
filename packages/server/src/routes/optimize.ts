@@ -12,6 +12,8 @@ import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantStore } from './tenant-helper.js';
 import { OptimizationEngine } from '../lib/optimization/index.js';
+import { CostOptimizer } from '../lib/optimization/cost-optimizer.js';
+import { CostForecaster } from '../lib/optimization/forecast.js';
 
 export function optimizeRoutes(store: IEventStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -24,6 +26,8 @@ export function optimizeRoutes(store: IEventStore) {
     const agentId = c.req.query('agentId') || undefined;
     const periodStr = c.req.query('period');
     const limitStr = c.req.query('limit');
+    const enhanced = c.req.query('enhanced') === 'true';
+    const crossAgent = c.req.query('crossAgent') === 'true';
 
     // period: integer 1-90, default 7
     let period = 7;
@@ -52,6 +56,19 @@ export function optimizeRoutes(store: IEventStore) {
     }
 
     try {
+      if (enhanced) {
+        // Feature 17: Enhanced multi-dimensional recommendations
+        const optimizer = new CostOptimizer(tenantStore);
+        const result = await optimizer.getRecommendations({
+          agentId,
+          period,
+          limit,
+          includeCrossAgent: crossAgent,
+        });
+        return c.json(result);
+      }
+
+      // Legacy format (backward compatible)
       const engine = new OptimizationEngine();
       const result = await engine.getRecommendations(tenantStore, {
         agentId,
@@ -59,6 +76,40 @@ export function optimizeRoutes(store: IEventStore) {
         limit,
       });
 
+      return c.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Internal error';
+      return c.json({ error: message, status: 500 }, 500);
+    }
+  });
+
+  // GET /api/optimize/forecast (Feature 17 — Story 17.6)
+  app.get('/forecast', async (c) => {
+    const tenantStore = getTenantStore(store, c);
+
+    const agentId = c.req.query('agentId') || undefined;
+    const daysStr = c.req.query('days');
+
+    let days = 30;
+    if (daysStr !== undefined && daysStr !== '') {
+      const parsed = parseInt(daysStr, 10);
+      if (isNaN(parsed) || parsed < 1 || parsed > 180) {
+        return c.json(
+          { error: 'Invalid days: must be an integer between 1 and 180', status: 400 },
+          400,
+        );
+      }
+      days = parsed;
+    }
+
+    try {
+      const optimizer = new CostOptimizer(tenantStore);
+      const forecaster = new CostForecaster(optimizer);
+      const result = await forecaster.forecast({
+        agentId,
+        days,
+        store: tenantStore,
+      });
       return c.json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Internal error';

@@ -231,6 +231,10 @@ export interface LlmCallPayload {
   }>;
   /** If true, prompt content was redacted for privacy */
   redacted?: boolean;
+  /** Link to a registered prompt template (Feature 19) */
+  promptTemplateId?: string;
+  /** Link to a specific prompt version (Feature 19) */
+  promptVersionId?: string;
 }
 
 export interface LlmResponsePayload {
@@ -874,6 +878,124 @@ export interface OptimizationResult {
   analyzedCalls: number;
 }
 
+// ─── Enhanced Cost Optimization Types (Feature 17) ─────────────────
+
+export type OptimizationCategory =
+  | 'model_downgrade'
+  | 'prompt_optimization'
+  | 'caching'
+  | 'tool_reduction';
+
+export type ImplementationDifficulty = 'auto' | 'config_change' | 'code_change';
+
+export interface EnhancedRecommendation {
+  id: string;
+  category: OptimizationCategory;
+  estimatedMonthlySavings: number;
+  confidence: ConfidenceLevel;
+  difficulty: ImplementationDifficulty;
+  actionableSteps: string[];
+  agentId: string;
+  evidence: RecommendationEvidence;
+  createdAt: string;
+  modelDowngrade?: ModelDowngradeDetail;
+  promptOptimization?: PromptOptimizationDetail;
+  caching?: CachingDetail;
+  toolReduction?: ToolReductionDetail;
+}
+
+export interface ModelDowngradeDetail {
+  currentModel: string;
+  recommendedModel: string;
+  complexityTier: ComplexityTier;
+  currentCostPerCall: number;
+  recommendedCostPerCall: number;
+  callVolume: number;
+  currentSuccessRate: number;
+  recommendedSuccessRate: number;
+}
+
+export interface PromptOptimizationDetail {
+  targetType: 'system_prompt_size' | 'repeated_context' | 'redundant_instructions';
+  currentTokens: number;
+  estimatedReducibleTokens: number;
+  sampleSessionIds: string[];
+}
+
+export interface CachingDetail {
+  inputHash: string;
+  duplicateCount: number;
+  model: string;
+  avgCostPerCall: number;
+  sampleSessionIds: string[];
+}
+
+export interface ToolReductionDetail {
+  toolName: string;
+  pattern: 'identical_sequential' | 'identical_args_across_sessions';
+  redundantCallCount: number;
+  avgCostPerRedundantCall: number;
+  sampleSessionIds: string[];
+}
+
+export interface RecommendationEvidence {
+  callsAnalyzed: number;
+  period: number;
+  crossAgentSource?: string;
+}
+
+export interface OptimizationPolicy {
+  id: string;
+  tenantId: string;
+  agentId?: string;
+  name: string;
+  enabled: boolean;
+  category: OptimizationCategory;
+  minConfidence: ConfidenceLevel;
+  dryRun: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CostForecast {
+  agentId?: string;
+  days: number;
+  daily: ForecastBucket[];
+  withOptimizations: ForecastSummary;
+  withoutOptimizations: ForecastSummary;
+  budgetBurnRate?: BudgetBurnRate;
+}
+
+export interface ForecastBucket {
+  date: string;
+  projectedCost: number;
+  projectedCostOptimized: number;
+}
+
+export interface ForecastSummary {
+  totalProjectedCost: number;
+  avgDailyCost: number;
+}
+
+export interface BudgetBurnRate {
+  budgetId: string;
+  limitUsd: number;
+  currentSpend: number;
+  dailyBurnRate: number;
+  daysUntilExhaustion: number | null;
+}
+
+export interface EnhancedOptimizationResult {
+  recommendations: EnhancedRecommendation[];
+  totalPotentialSavings: number;
+  period: number;
+  analyzedCalls: number;
+  byCategory: Record<OptimizationCategory, {
+    count: number;
+    totalSavings: number;
+  }>;
+}
+
 /** Model cost configuration (per 1M tokens) */
 export interface ModelCosts {
   [model: string]: { input: number; output: number };
@@ -1234,4 +1356,66 @@ export interface ContentGuardrailResult {
   redactedContent?: string;
   evaluationMs: number;
   rulesEvaluated: number;
+}
+
+// ─── Prompt Management Types (Feature 19) ──────────────────
+
+/** Variable placeholder definition in a prompt template */
+export interface PromptVariable {
+  /** Variable name (without {{ }}) */
+  name: string;
+  description?: string;
+  defaultValue?: string;
+  required?: boolean;
+}
+
+/** A managed prompt template */
+export interface PromptTemplate {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  category: string;
+  currentVersionId?: string;
+  currentVersionNumber?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** An immutable prompt version */
+export interface PromptVersion {
+  id: string;
+  templateId: string;
+  versionNumber: number;
+  content: string;
+  variables: PromptVariable[];
+  contentHash: string;
+  changelog?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+/** Auto-discovered prompt fingerprint */
+export interface PromptFingerprint {
+  contentHash: string;
+  tenantId: string;
+  agentId: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  callCount: number;
+  templateId?: string;
+  sampleContent?: string;
+}
+
+/** Per-version analytics metrics */
+export interface PromptVersionAnalytics {
+  versionId: string;
+  versionNumber: number;
+  callCount: number;
+  totalCostUsd: number;
+  avgCostUsd: number;
+  avgLatencyMs: number;
+  errorRate: number;
+  avgInputTokens: number;
+  avgOutputTokens: number;
 }
