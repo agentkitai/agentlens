@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      reporter: ['text', 'lcov', 'json-summary'],
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
@@ -15,6 +15,12 @@ export default defineConfig({
         '_bmad/**',
         '_bmad-output/**',
       ],
+      thresholds: {
+        lines: 60,
+        branches: 50,
+        functions: 55,
+        statements: 60,
+      },
     },
   },
 });
