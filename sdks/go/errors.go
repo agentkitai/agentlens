@@ -2,36 +2,33 @@ package agentlens
 
 import "fmt"
 
-// Error is the base error type for all AgentLens SDK errors.
-type Error struct {
+// APIError is the base error type for all AgentLens SDK errors.
+type APIError struct {
 	Message string `json:"error"`
 	Status  int    `json:"status"`
 	Code    string `json:"code"`
 	Details any    `json:"details,omitempty"`
 }
 
-func (e *Error) Error() string {
+func (e *APIError) Error() string {
 	if e.Status > 0 {
 		return fmt.Sprintf("agentlens: %s (HTTP %d, code=%s)", e.Message, e.Status, e.Code)
 	}
 	return fmt.Sprintf("agentlens: %s (code=%s)", e.Message, e.Code)
 }
 
-// Unwrap returns nil — base error has no cause.
-func (e *Error) Unwrap() error { return nil }
-
 // AuthenticationError is returned when the server responds with 401.
-type AuthenticationError struct{ *Error }
+type AuthenticationError struct{ *APIError }
 
 // NotFoundError is returned when the server responds with 404.
-type NotFoundError struct{ *Error }
+type NotFoundError struct{ *APIError }
 
 // ValidationError is returned when the server responds with 400.
-type ValidationError struct{ *Error }
+type ValidationError struct{ *APIError }
 
 // ConnectionError is returned on network failures, DNS errors, or timeouts.
 type ConnectionError struct {
-	*Error
+	*APIError
 	Cause error
 }
 
@@ -40,46 +37,38 @@ func (e *ConnectionError) Unwrap() error { return e.Cause }
 
 // RateLimitError is returned when the server responds with 429.
 type RateLimitError struct {
-	*Error
+	*APIError
 	// RetryAfter is the number of seconds to wait before retrying, if provided by the server.
 	RetryAfter *float64
 }
 
 // QuotaExceededError is returned when the server responds with 402.
-type QuotaExceededError struct{ *Error }
+type QuotaExceededError struct{ *APIError }
 
 // BackpressureError is returned when the server responds with 503.
-type BackpressureError struct{ *Error }
+type BackpressureError struct{ *APIError }
 
-// newError creates a base Error.
-func newError(message string, status int, code string, details any) *Error {
-	return &Error{Message: message, Status: status, Code: code, Details: details}
+// newAPIError creates a base APIError.
+func newAPIError(message string, status int, code string, details any) *APIError {
+	return &APIError{Message: message, Status: status, Code: code, Details: details}
 }
 
 // mapHTTPError maps an HTTP status code and error body to the appropriate typed error.
 func mapHTTPError(status int, message string, details any, retryAfterSec *float64) error {
-	base := newError(message, status, "", details)
 	switch status {
 	case 400:
-		base.Code = "VALIDATION_ERROR"
-		return &ValidationError{base}
+		return &ValidationError{newAPIError(message, status, "VALIDATION_ERROR", details)}
 	case 401:
-		base.Code = "AUTHENTICATION_ERROR"
-		return &AuthenticationError{base}
+		return &AuthenticationError{newAPIError(message, status, "AUTHENTICATION_ERROR", details)}
 	case 402:
-		base.Code = "QUOTA_EXCEEDED"
-		return &QuotaExceededError{base}
+		return &QuotaExceededError{newAPIError(message, status, "QUOTA_EXCEEDED", details)}
 	case 404:
-		base.Code = "NOT_FOUND"
-		return &NotFoundError{base}
+		return &NotFoundError{newAPIError(message, status, "NOT_FOUND", details)}
 	case 429:
-		base.Code = "RATE_LIMIT"
-		return &RateLimitError{Error: base, RetryAfter: retryAfterSec}
+		return &RateLimitError{APIError: newAPIError(message, status, "RATE_LIMIT", details), RetryAfter: retryAfterSec}
 	case 503:
-		base.Code = "BACKPRESSURE"
-		return &BackpressureError{base}
+		return &BackpressureError{newAPIError(message, status, "BACKPRESSURE", details)}
 	default:
-		base.Code = "API_ERROR"
-		return base
+		return newAPIError(message, status, "API_ERROR", details)
 	}
 }

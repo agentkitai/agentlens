@@ -91,7 +91,7 @@ func TestBatchOverflow(t *testing.T) {
 func TestBatch402DiskBuffer(t *testing.T) {
 	dir := t.TempDir()
 	bs := NewBatchSender(func(ctx context.Context, events []Event) error {
-		return &QuotaExceededError{newError("quota exceeded", 402, "QUOTA_EXCEEDED", nil)}
+		return &QuotaExceededError{newAPIError("quota exceeded", 402, "QUOTA_EXCEEDED", nil)}
 	}, WithMaxBatchSize(2), WithFlushInterval(time.Hour), WithBufferDir(dir))
 
 	bs.Enqueue(Event{ID: "e1"})

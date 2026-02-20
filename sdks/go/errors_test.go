@@ -17,7 +17,7 @@ func TestErrorMapping(t *testing.T) {
 		{404, func(e error) bool { var v *NotFoundError; return errors.As(e, &v) }, "NotFoundError"},
 		{429, func(e error) bool { var v *RateLimitError; return errors.As(e, &v) }, "RateLimitError"},
 		{503, func(e error) bool { var v *BackpressureError; return errors.As(e, &v) }, "BackpressureError"},
-		{500, func(e error) bool { var v *Error; return errors.As(e, &v) }, "GenericError"},
+		{500, func(e error) bool { var v *APIError; return errors.As(e, &v) }, "GenericError"},
 	}
 
 	for _, tt := range tests {
@@ -45,7 +45,7 @@ func TestRateLimitRetryAfter(t *testing.T) {
 func TestConnectionErrorUnwrap(t *testing.T) {
 	cause := errors.New("dns lookup failed")
 	err := &ConnectionError{
-		Error: newError("connection failed", 0, "CONNECTION_ERROR", nil),
+		APIError: newAPIError("connection failed", 0, "CONNECTION_ERROR", nil),
 		Cause: cause,
 	}
 	if !errors.Is(err, cause) {

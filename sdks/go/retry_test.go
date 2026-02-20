@@ -137,7 +137,7 @@ func TestShouldRetry(t *testing.T) {
 	if !shouldRetry(mapHTTPError(503, "bp", nil, nil)) {
 		t.Error("503 should be retryable")
 	}
-	connErr := &ConnectionError{Error: newError("timeout", 0, "CONNECTION_ERROR", nil)}
+	connErr := &ConnectionError{APIError: newAPIError("timeout", 0, "CONNECTION_ERROR", nil)}
 	if !shouldRetry(connErr) {
 		t.Error("ConnectionError should be retryable")
 	}

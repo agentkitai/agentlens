@@ -71,7 +71,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 			select {
 			case <-ctx.Done():
 				return &ConnectionError{
-					Error: newError(ctx.Err().Error(), 0, "CONNECTION_ERROR", nil),
+					APIError: newAPIError(ctx.Err().Error(), 0, "CONNECTION_ERROR", nil),
 					Cause: ctx.Err(),
 				}
 			case <-time.After(delay):
@@ -103,7 +103,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 		resp, err := c.cfg.httpClient.Do(req)
 		if err != nil {
 			lastErr = &ConnectionError{
-				Error: newError(fmt.Sprintf("request failed: %v", err), 0, "CONNECTION_ERROR", nil),
+				APIError: newAPIError(fmt.Sprintf("request failed: %v", err), 0, "CONNECTION_ERROR", nil),
 				Cause: err,
 			}
 			if ctx.Err() != nil {
@@ -116,7 +116,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, result a
 		resp.Body.Close()
 		if err != nil {
 			lastErr = &ConnectionError{
-				Error: newError(fmt.Sprintf("read response: %v", err), 0, "CONNECTION_ERROR", nil),
+				APIError: newAPIError(fmt.Sprintf("read response: %v", err), 0, "CONNECTION_ERROR", nil),
 				Cause: err,
 			}
 			continue
