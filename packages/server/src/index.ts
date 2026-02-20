@@ -210,6 +210,7 @@ export async function createApp(
     embeddingService?: EmbeddingService | null;
     embeddingWorker?: EmbeddingWorker | null;
     pgSql?: import('postgres').Sql;
+    pgDb?: import('./db/connection.postgres.js').PostgresDb;
   },
 ) {
   const resolvedConfig = { ...getConfig(), ...config };
@@ -431,7 +432,7 @@ export async function createApp(
   app.route('/api/stats', statsRoutes(store));
   if (db) {
     app.route('/api/config', configRoutes(db));
-    app.route('/api/analytics', analyticsRoutes(store, db));
+    app.route('/api/analytics', analyticsRoutes(store, db, config?.pgDb));
   }
   app.route('/api/alerts', alertsRoutes(store));
 
@@ -704,7 +705,7 @@ export async function startServer() {
   const { SqliteApiKeyLookup } = await import('./db/api-key-lookup.js');
   const apiKeyLookup = new SqliteApiKeyLookup(db);
 
-  const app = await createApp(store, { ...config, db, apiKeyLookup, embeddingService, embeddingWorker, pgSql });
+  const app = await createApp(store, { ...config, db, apiKeyLookup, embeddingService, embeddingWorker, pgSql, pgDb });
 
   // Start listening
   log.info(`AgentLens server starting on port ${config.port}`);

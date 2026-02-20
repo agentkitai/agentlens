@@ -9,15 +9,74 @@
 
 import { Hono } from 'hono';
 import { getTenantId } from './tenant-helper.js';
-import { sql, gte, lte, eq, and } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
-import { events, sessions } from '../db/schema.sqlite.js';
+import type { PostgresDb } from '../db/connection.postgres.js';
 import { getTenantStore } from './tenant-helper.js';
 
-export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
+// ─── SQL dialect helpers ─────────────────────────────────
+// These return sql.raw() fragments for structural SQL differences.
+// User values are always passed via parameterized ${value} in the tagged template.
+
+/** JSON field extraction (returns text) */
+function jf(isPg: boolean, field: string): SQL {
+  const path = field.replace(/^\$\./, '');
+  if (!isPg) return sql.raw(`json_extract(payload, '$.${path}')`);
+  const parts = path.split('.');
+  if (parts.length === 1) return sql.raw(`(payload->>'${parts[0]}')`);
+  const inner = parts.slice(0, -1).map(p => `'${p}'`).join('->');
+  return sql.raw(`(payload->${inner}->>'${parts[parts.length - 1]}')`);
+}
+
+/** JSON field extraction with numeric cast */
+function jn(isPg: boolean, field: string): SQL {
+  const path = field.replace(/^\$\./, '');
+  if (!isPg) return sql.raw(`json_extract(payload, '$.${path}')`);
+  const parts = path.split('.');
+  if (parts.length === 1) return sql.raw(`(payload->>'${parts[0]}')::numeric`);
+  const inner = parts.slice(0, -1).map(p => `'${p}'`).join('->');
+  return sql.raw(`(payload->${inner}->>'${parts[parts.length - 1]}')::numeric`);
+}
+
+/** Time bucket expression */
+function tb(isPg: boolean, fmt: string): SQL {
+  if (!isPg) return sql.raw(`strftime('${fmt}', timestamp)`);
+  const pgFmt = fmt
+    .replace('%Y', 'YYYY').replace('%m', 'MM').replace('%d', 'DD')
+    .replace('%H', 'HH24').replace('%W', 'IW');
+  return sql.raw(`to_char(timestamp::timestamptz, '${pgFmt}')`);
+}
+
+/** Duration calc for sessions */
+function durExpr(isPg: boolean): SQL {
+  if (!isPg) return sql.raw(`(julianday(s.ended_at) - julianday(s.started_at)) * 86400000`);
+  return sql.raw(`EXTRACT(EPOCH FROM (s.ended_at::timestamptz - s.started_at::timestamptz)) * 1000`);
+}
+
+// ─── Async query helpers ─────────────────────────────────
+
+async function dbGet<T>(db: SqliteDb | null, pgDb: PostgresDb | null, query: SQL): Promise<T | undefined> {
+  if (pgDb) {
+    const result = await pgDb.execute(query);
+    return (result as unknown as T[])[0];
+  }
+  return db!.get<T>(query);
+}
+
+async function dbAll<T>(db: SqliteDb | null, pgDb: PostgresDb | null, query: SQL): Promise<T[]> {
+  if (pgDb) {
+    const result = await pgDb.execute(query);
+    return result as unknown as T[];
+  }
+  return db!.all<T>(query);
+}
+
+export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: PostgresDb) {
   const app = new Hono<{ Variables: AuthVariables }>();
+  const isPg = !!pgDb;
+  const qdb = pgDb ?? null;
 
   // GET /api/analytics — bucketed metrics over time
   app.get('/', async (c) => {
@@ -64,59 +123,59 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
           ? '%Y-%m-%dT00:00:00Z'
           : '%Y-%W';
 
+    const bucket = tb(isPg, formatStr);
+
     // Cost by agent
-    const byAgent = db
-      .all<{
-        agentId: string;
-        totalCostUsd: number;
-        totalInputTokens: number;
-        totalOutputTokens: number;
-        totalTokens: number;
-        eventCount: number;
-      }>(
-        sql`
-          SELECT
-            agent_id as agentId,
-            COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
-            COALESCE(SUM(COALESCE(json_extract(payload, '$.inputTokens'), json_extract(payload, '$.usage.inputTokens'))), 0) as totalInputTokens,
-            COALESCE(SUM(COALESCE(json_extract(payload, '$.outputTokens'), json_extract(payload, '$.usage.outputTokens'))), 0) as totalOutputTokens,
-            COALESCE(SUM(COALESCE(json_extract(payload, '$.totalTokens'), json_extract(payload, '$.usage.totalTokens'))), 0) as totalTokens,
-            COUNT(*) as eventCount
-          FROM events
-          WHERE event_type IN ('cost_tracked', 'llm_response')
-            AND timestamp >= ${from}
-            AND timestamp <= ${to}
-            AND tenant_id = ${tenantId}
-          GROUP BY agent_id
-          ORDER BY totalCostUsd DESC
-        `,
-      );
+    const byAgent = await dbAll<{
+      agentId: string;
+      totalCostUsd: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalTokens: number;
+      eventCount: number;
+    }>(db, qdb,
+      sql`
+        SELECT
+          agent_id as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+          COALESCE(SUM(COALESCE(${jn(isPg, 'inputTokens')}, ${jn(isPg, 'usage.inputTokens')})), 0) as ${sql.raw(isPg ? '"totalInputTokens"' : 'totalInputTokens')},
+          COALESCE(SUM(COALESCE(${jn(isPg, 'outputTokens')}, ${jn(isPg, 'usage.outputTokens')})), 0) as ${sql.raw(isPg ? '"totalOutputTokens"' : 'totalOutputTokens')},
+          COALESCE(SUM(COALESCE(${jn(isPg, 'totalTokens')}, ${jn(isPg, 'usage.totalTokens')})), 0) as ${sql.raw(isPg ? '"totalTokens"' : 'totalTokens')},
+          COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')}
+        FROM events
+        WHERE event_type IN ('cost_tracked', 'llm_response')
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
+        GROUP BY agent_id
+        ORDER BY ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')} DESC
+      `,
+    );
 
     // Cost over time — broken down by agent for stacked chart
-    const overTimeByAgent = db
-      .all<{
-        bucket: string;
-        agentId: string;
-        totalCostUsd: number;
-        eventCount: number;
-      }>(
-        sql`
-          SELECT
-            strftime(${formatStr}, timestamp) as bucket,
-            agent_id as agentId,
-            COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
-            COUNT(*) as eventCount
-          FROM events
-          WHERE event_type IN ('cost_tracked', 'llm_response')
-            AND timestamp >= ${from}
-            AND timestamp <= ${to}
-            AND tenant_id = ${tenantId}
-          GROUP BY bucket, agent_id
-          ORDER BY bucket ASC
-        `,
-      );
+    const overTimeByAgent = await dbAll<{
+      bucket: string;
+      agentId: string;
+      totalCostUsd: number;
+      eventCount: number;
+    }>(db, qdb,
+      sql`
+        SELECT
+          ${bucket} as bucket,
+          agent_id as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+          COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')}
+        FROM events
+        WHERE event_type IN ('cost_tracked', 'llm_response')
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
+        GROUP BY bucket, agent_id
+        ORDER BY bucket ASC
+      `,
+    );
 
-    // Pivot: group by bucket, with per-agent cost fields
+    // Pivot: group by bucket
     const bucketMap = new Map<string, { bucket: string; totalCostUsd: number; eventCount: number; byAgent: Record<string, number> }>();
     for (const row of overTimeByAgent) {
       const existing = bucketMap.get(row.bucket) ?? {
@@ -133,18 +192,18 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
     const overTime = Array.from(bucketMap.values());
 
     // Total cost
-    const total = db.get<{
+    const total = await dbGet<{
       totalCostUsd: number;
       totalInputTokens: number;
       totalOutputTokens: number;
       totalTokens: number;
-    }>(
+    }>(db, qdb,
       sql`
         SELECT
-          COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
-          COALESCE(SUM(COALESCE(json_extract(payload, '$.inputTokens'), json_extract(payload, '$.usage.inputTokens'))), 0) as totalInputTokens,
-          COALESCE(SUM(COALESCE(json_extract(payload, '$.outputTokens'), json_extract(payload, '$.usage.outputTokens'))), 0) as totalOutputTokens,
-          COALESCE(SUM(COALESCE(json_extract(payload, '$.totalTokens'), json_extract(payload, '$.usage.totalTokens'))), 0) as totalTokens
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+          COALESCE(SUM(COALESCE(${jn(isPg, 'inputTokens')}, ${jn(isPg, 'usage.inputTokens')})), 0) as ${sql.raw(isPg ? '"totalInputTokens"' : 'totalInputTokens')},
+          COALESCE(SUM(COALESCE(${jn(isPg, 'outputTokens')}, ${jn(isPg, 'usage.outputTokens')})), 0) as ${sql.raw(isPg ? '"totalOutputTokens"' : 'totalOutputTokens')},
+          COALESCE(SUM(COALESCE(${jn(isPg, 'totalTokens')}, ${jn(isPg, 'usage.totalTokens')})), 0) as ${sql.raw(isPg ? '"totalTokens"' : 'totalTokens')}
         FROM events
         WHERE event_type IN ('cost_tracked', 'llm_response')
           AND timestamp >= ${from}
@@ -183,34 +242,34 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
 
-    const rows = db.all<{
+    const rows = await dbAll<{
       agentId: string;
       sessionCount: number;
       totalEvents: number;
       totalErrors: number;
       totalCostUsd: number;
       avgDurationMs: number;
-    }>(
+    }>(db, qdb,
       sql`
         SELECT
-          s.agent_id as agentId,
-          COUNT(DISTINCT s.id) as sessionCount,
-          COALESCE(SUM(s.event_count), 0) as totalEvents,
-          COALESCE(SUM(s.error_count), 0) as totalErrors,
-          COALESCE(SUM(s.total_cost_usd), 0) as totalCostUsd,
+          s.agent_id as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
+          COUNT(DISTINCT s.id) as ${sql.raw(isPg ? '"sessionCount"' : 'sessionCount')},
+          COALESCE(SUM(s.event_count), 0) as ${sql.raw(isPg ? '"totalEvents"' : 'totalEvents')},
+          COALESCE(SUM(s.error_count), 0) as ${sql.raw(isPg ? '"totalErrors"' : 'totalErrors')},
+          COALESCE(SUM(s.total_cost_usd), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
           COALESCE(AVG(
             CASE
               WHEN s.ended_at IS NOT NULL
-              THEN (julianday(s.ended_at) - julianday(s.started_at)) * 86400000
+              THEN ${durExpr(isPg)}
               ELSE NULL
             END
-          ), 0) as avgDurationMs
+          ), 0) as ${sql.raw(isPg ? '"avgDurationMs"' : 'avgDurationMs')}
         FROM sessions s
         WHERE s.started_at >= ${from}
           AND s.started_at <= ${to}
           AND s.tenant_id = ${tenantId}
         GROUP BY s.agent_id
-        ORDER BY sessionCount DESC
+        ORDER BY ${sql.raw(isPg ? '"sessionCount"' : 'sessionCount')} DESC
       `,
     );
 
@@ -251,29 +310,34 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
           ? '%Y-%m-%dT00:00:00Z'
           : '%Y-%W';
 
+    const bucket = tb(isPg, formatStr);
+    const agentFilter = agentId ? sql`AND agent_id = ${agentId}` : sql``;
+    const modelFilter = model ? sql`AND ${jf(isPg, 'model')} = ${model}` : sql``;
+    const providerFilter = provider ? sql`AND ${jf(isPg, 'provider')} = ${provider}` : sql``;
+
     // Summary totals
-    const summary = db.get<{
+    const summary = await dbGet<{
       totalCalls: number;
       totalCostUsd: number;
       totalInputTokens: number;
       totalOutputTokens: number;
       avgLatencyMs: number;
-    }>(
+    }>(db, qdb,
       sql`
         SELECT
-          COUNT(*) as totalCalls,
-          COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as totalCostUsd,
-          COALESCE(SUM(json_extract(payload, '$.usage.inputTokens')), 0) as totalInputTokens,
-          COALESCE(SUM(json_extract(payload, '$.usage.outputTokens')), 0) as totalOutputTokens,
-          COALESCE(AVG(json_extract(payload, '$.latencyMs')), 0) as avgLatencyMs
+          COUNT(*) as ${sql.raw(isPg ? '"totalCalls"' : 'totalCalls')},
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+          COALESCE(SUM(${jn(isPg, 'usage.inputTokens')}), 0) as ${sql.raw(isPg ? '"totalInputTokens"' : 'totalInputTokens')},
+          COALESCE(SUM(${jn(isPg, 'usage.outputTokens')}), 0) as ${sql.raw(isPg ? '"totalOutputTokens"' : 'totalOutputTokens')},
+          COALESCE(AVG(${jn(isPg, 'latencyMs')}), 0) as ${sql.raw(isPg ? '"avgLatencyMs"' : 'avgLatencyMs')}
         FROM events
         WHERE event_type = 'llm_response'
           AND timestamp >= ${from}
           AND timestamp <= ${to}
           AND tenant_id = ${tenantId}
-          ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
-          ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
-          ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
+          ${agentFilter}
+          ${modelFilter}
+          ${providerFilter}
       `,
     );
 
@@ -281,7 +345,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
     const totalCostUsd = Number(summary?.totalCostUsd ?? 0);
 
     // By model breakdown
-    const byModel = db.all<{
+    const byModel = await dbAll<{
       provider: string;
       model: string;
       calls: number;
@@ -289,54 +353,54 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
       inputTokens: number;
       outputTokens: number;
       avgLatencyMs: number;
-    }>(
+    }>(db, qdb,
       sql`
         SELECT
-          json_extract(payload, '$.provider') as provider,
-          json_extract(payload, '$.model') as model,
+          ${jf(isPg, 'provider')} as provider,
+          ${jf(isPg, 'model')} as model,
           COUNT(*) as calls,
-          COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as costUsd,
-          COALESCE(SUM(json_extract(payload, '$.usage.inputTokens')), 0) as inputTokens,
-          COALESCE(SUM(json_extract(payload, '$.usage.outputTokens')), 0) as outputTokens,
-          COALESCE(AVG(json_extract(payload, '$.latencyMs')), 0) as avgLatencyMs
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"costUsd"' : 'costUsd')},
+          COALESCE(SUM(${jn(isPg, 'usage.inputTokens')}), 0) as ${sql.raw(isPg ? '"inputTokens"' : 'inputTokens')},
+          COALESCE(SUM(${jn(isPg, 'usage.outputTokens')}), 0) as ${sql.raw(isPg ? '"outputTokens"' : 'outputTokens')},
+          COALESCE(AVG(${jn(isPg, 'latencyMs')}), 0) as ${sql.raw(isPg ? '"avgLatencyMs"' : 'avgLatencyMs')}
         FROM events
         WHERE event_type = 'llm_response'
           AND timestamp >= ${from}
           AND timestamp <= ${to}
           AND tenant_id = ${tenantId}
-          ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
-          ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
-          ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
+          ${agentFilter}
+          ${modelFilter}
+          ${providerFilter}
         GROUP BY provider, model
-        ORDER BY costUsd DESC
+        ORDER BY ${sql.raw(isPg ? '"costUsd"' : 'costUsd')} DESC
       `,
     );
 
     // By time bucket
-    const byTime = db.all<{
+    const byTime = await dbAll<{
       bucket: string;
       calls: number;
       costUsd: number;
       inputTokens: number;
       outputTokens: number;
       avgLatencyMs: number;
-    }>(
+    }>(db, qdb,
       sql`
         SELECT
-          strftime(${formatStr}, timestamp) as bucket,
+          ${bucket} as bucket,
           COUNT(*) as calls,
-          COALESCE(SUM(json_extract(payload, '$.costUsd')), 0) as costUsd,
-          COALESCE(SUM(json_extract(payload, '$.usage.inputTokens')), 0) as inputTokens,
-          COALESCE(SUM(json_extract(payload, '$.usage.outputTokens')), 0) as outputTokens,
-          COALESCE(AVG(json_extract(payload, '$.latencyMs')), 0) as avgLatencyMs
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"costUsd"' : 'costUsd')},
+          COALESCE(SUM(${jn(isPg, 'usage.inputTokens')}), 0) as ${sql.raw(isPg ? '"inputTokens"' : 'inputTokens')},
+          COALESCE(SUM(${jn(isPg, 'usage.outputTokens')}), 0) as ${sql.raw(isPg ? '"outputTokens"' : 'outputTokens')},
+          COALESCE(AVG(${jn(isPg, 'latencyMs')}), 0) as ${sql.raw(isPg ? '"avgLatencyMs"' : 'avgLatencyMs')}
         FROM events
         WHERE event_type = 'llm_response'
           AND timestamp >= ${from}
           AND timestamp <= ${to}
           AND tenant_id = ${tenantId}
-          ${agentId ? sql`AND agent_id = ${agentId}` : sql``}
-          ${model ? sql`AND json_extract(payload, '$.model') = ${model}` : sql``}
-          ${provider ? sql`AND json_extract(payload, '$.provider') = ${provider}` : sql``}
+          ${agentFilter}
+          ${modelFilter}
+          ${providerFilter}
         GROUP BY bucket
         ORDER BY bucket ASC
       `,
@@ -377,30 +441,30 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
 
-    const rows = db.all<{
+    const rows = await dbAll<{
       toolName: string;
       callCount: number;
       errorCount: number;
       avgDurationMs: number;
-    }>(
+    }>(db, qdb,
       sql`
         SELECT
-          json_extract(payload, '$.toolName') as toolName,
-          COUNT(*) as callCount,
-          SUM(CASE WHEN event_type = 'tool_error' THEN 1 ELSE 0 END) as errorCount,
+          ${jf(isPg, 'toolName')} as ${sql.raw(isPg ? '"toolName"' : 'toolName')},
+          COUNT(*) as ${sql.raw(isPg ? '"callCount"' : 'callCount')},
+          SUM(CASE WHEN event_type = 'tool_error' THEN 1 ELSE 0 END) as ${sql.raw(isPg ? '"errorCount"' : 'errorCount')},
           COALESCE(AVG(
             CASE WHEN event_type IN ('tool_response', 'tool_error')
-            THEN json_extract(payload, '$.durationMs')
+            THEN ${jn(isPg, 'durationMs')}
             ELSE NULL END
-          ), 0) as avgDurationMs
+          ), 0) as ${sql.raw(isPg ? '"avgDurationMs"' : 'avgDurationMs')}
         FROM events
         WHERE event_type IN ('tool_call', 'tool_response', 'tool_error')
           AND timestamp >= ${from}
           AND timestamp <= ${to}
           AND tenant_id = ${tenantId}
-          AND json_extract(payload, '$.toolName') IS NOT NULL
-        GROUP BY toolName
-        ORDER by callCount DESC
+          AND ${jf(isPg, 'toolName')} IS NOT NULL
+        GROUP BY ${sql.raw(isPg ? '"toolName"' : 'toolName')}
+        ORDER by ${sql.raw(isPg ? '"callCount"' : 'callCount')} DESC
       `,
     );
 
