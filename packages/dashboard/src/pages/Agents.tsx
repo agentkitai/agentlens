@@ -433,9 +433,7 @@ export function Agents(): React.ReactElement {
 
   // Always fetch local (telemetry) agents
   const telemetryQuery = useApi(() => getAgents(), []);
-  // Filter out the generic 'main' agent — it's the default telemetry ID for the
-  // orchestrator session and duplicates the named agent (e.g. openclaw-brad).
-  const telemetryAgents = (telemetryQuery.data ?? []).filter((a) => a.name !== 'main');
+  const telemetryAgents = telemetryQuery.data ?? [];
 
   // Only fetch mesh agents when mesh is enabled
   const meshQuery = useApi(() => (meshEnabled ? getMeshAgents() : Promise.resolve([])), [meshEnabled]);
