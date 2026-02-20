@@ -30,6 +30,9 @@ import { agentsRoutes } from './routes/agents.js';
 import { statsRoutes } from './routes/stats.js';
 import { configRoutes } from './routes/config.js';
 import { alertsRoutes } from './routes/alerts.js';
+import { notificationRoutes } from './routes/notifications.js';
+import { NotificationChannelRepository } from './db/repositories/notification-channel-repository.js';
+import { NotificationRouter } from './lib/notifications/router.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { streamRoutes } from './routes/stream.js';
@@ -65,7 +68,7 @@ import { auditMiddleware } from './middleware/audit.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
 import { GuardrailStore } from './db/guardrail-store.js';
 import { ContentGuardrailEngine } from './lib/guardrails/content-engine.js';
-import { setAgentStore } from './lib/guardrails/actions.js';
+import { setAgentStore, setNotificationRouter } from './lib/guardrails/actions.js';
 import { BudgetEngine } from './lib/budget-engine.js';
 import { CostAnomalyDetector } from './lib/cost-anomaly-detector.js';
 import { costBudgetRoutes } from './routes/cost-budgets.js';
@@ -409,6 +412,14 @@ export async function createApp(
     app.route('/api/analytics', analyticsRoutes(store, db));
   }
   app.route('/api/alerts', alertsRoutes(store));
+
+  // Feature 12: Notification channels
+  const notifRepo = db ? new NotificationChannelRepository(db) : null;
+  const notifRouter = notifRepo ? new NotificationRouter(notifRepo) : null;
+  if (notifRepo && notifRouter) {
+    app.route('/api/notifications', notificationRoutes(notifRepo, notifRouter));
+  }
+
   let loreAdapter: import('./lib/lore-client.js').LoreAdapter | null = null;
   if (resolvedConfig.loreEnabled) {
     try {
@@ -655,13 +666,16 @@ export async function startServer() {
     }
   }
 
-  // Start alert evaluation engine
-  const alertEngine = new AlertEngine(store);
+  // Start alert evaluation engine — wire notification router if db is available
+  const notifRepoForEngine = db ? new NotificationChannelRepository(db) : null;
+  const notifRouterForEngine = notifRepoForEngine ? new NotificationRouter(notifRepoForEngine) : null;
+  const alertEngine = new AlertEngine(store, { notificationRouter: notifRouterForEngine ?? undefined });
   alertEngine.start();
 
   // Start guardrail evaluation engine (v0.8.0)
   // Wire the agent store so pause_agent/downgrade_model actions can UPDATE the agents table (B1)
   setAgentStore(store as any);
+  if (notifRouterForEngine) setNotificationRouter(notifRouterForEngine);
   const guardrailEngine = new GuardrailEngine(store, db);
   guardrailEngine.start();
   log.info('Guardrails: enabled');

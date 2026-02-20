@@ -484,3 +484,44 @@ export const auditLog = pgTable(
     index('idx_audit_log_action').on(table.action),
   ],
 );
+
+// ─── Notification Channels (Feature 12) ──────────────────
+export const notificationChannels = pgTable(
+  'notification_channels',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull().default('default'),
+    type: text('type').notNull(),
+    name: text('name').notNull(),
+    config: text('config').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    index('idx_pg_notification_channels_tenant').on(table.tenantId),
+    index('idx_pg_notification_channels_type').on(table.tenantId, table.type),
+  ],
+);
+
+// ─── Notification Log (Feature 12) ──────────────────────
+export const notificationLog = pgTable(
+  'notification_log',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull().default('default'),
+    channelId: text('channel_id').notNull(),
+    ruleId: text('rule_id'),
+    ruleType: text('rule_type'),
+    status: text('status').notNull(),
+    attempt: integer('attempt').notNull().default(1),
+    errorMessage: text('error_message'),
+    payloadSummary: text('payload_summary'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_pg_notification_log_tenant').on(table.tenantId),
+    index('idx_pg_notification_log_channel').on(table.channelId),
+    index('idx_pg_notification_log_created').on(table.tenantId, table.createdAt),
+  ],
+);

@@ -33,5 +33,9 @@ export * from './discovery-types.js';
 export * from './cost-budget-types.js';
 export * from './cost-budget-schemas.js';
 
+// Re-export notification types and schemas (Feature 12)
+export * from './notification-types.js';
+export * from './notification-schemas.js';
+
 // Re-export error utilities (Phase 7 — Story S-4.2)
 export { getErrorMessage } from './errors.js';

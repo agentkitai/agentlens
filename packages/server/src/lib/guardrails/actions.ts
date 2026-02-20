@@ -211,6 +211,45 @@ export async function executeAgentgatePolicy(
   }
 }
 
+/** Module-level notification router — set via `setNotificationRouter()` (Feature 12) */
+let notificationRouter: {
+  dispatch(channelEntries: string[], payload: import('@agentlensai/core').NotificationPayload, tenantId?: string): Promise<unknown>;
+} | null = null;
+
+export function setNotificationRouter(router: typeof notificationRouter): void {
+  notificationRouter = router;
+}
+
+async function executeNotifyChannel(
+  rule: GuardrailRule,
+  conditionResult: GuardrailConditionResult,
+  agentId: string,
+): Promise<ActionResult> {
+  try {
+    const config = rule.actionConfig as { channelIds?: string[] };
+    if (!config.channelIds?.length) return { success: false, result: 'failed: no channel IDs configured' };
+
+    if (!notificationRouter) return { success: false, result: 'failed: notification router not available' };
+
+    const payload: import('@agentlensai/core').NotificationPayload = {
+      source: 'guardrail',
+      severity: 'critical',
+      title: `Guardrail: ${rule.name}`,
+      message: conditionResult.message,
+      metadata: { conditionType: rule.conditionType, currentValue: conditionResult.currentValue, threshold: conditionResult.threshold },
+      triggeredAt: new Date().toISOString(),
+      ruleId: rule.id,
+      ruleName: rule.name,
+      agentId,
+    };
+
+    await notificationRouter.dispatch(config.channelIds, payload, rule.tenantId);
+    return { success: true, result: 'success' };
+  } catch (err) {
+    return { success: false, result: `failed: ${err instanceof Error ? err.message : 'Unknown'}` };
+  }
+}
+
 export async function executeAction(
   rule: GuardrailRule,
   conditionResult: GuardrailConditionResult,
@@ -219,6 +258,7 @@ export async function executeAction(
   switch (rule.actionType) {
     case 'pause_agent': return executePauseAgent(rule, conditionResult, agentId);
     case 'notify_webhook': return executeNotifyWebhook(rule, conditionResult, agentId);
+    case 'notify_channel': return executeNotifyChannel(rule, conditionResult, agentId);
     case 'downgrade_model': return executeDowngradeModel(rule, conditionResult, agentId);
     case 'agentgate_policy': return executeAgentgatePolicy(rule, conditionResult, agentId);
     default: return { success: false, result: `unknown action type: ${rule.actionType}` };

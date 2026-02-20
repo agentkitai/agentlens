@@ -1144,6 +1144,7 @@ export type GuardrailConditionType =
 export type GuardrailActionType =
   | 'pause_agent'
   | 'notify_webhook'
+  | 'notify_channel'
   | 'downgrade_model'
   | 'agentgate_policy'
   // Inline enforcement actions (Feature 8):

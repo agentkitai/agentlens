@@ -441,6 +441,47 @@ export const delegationLog = sqliteTable(
   ],
 );
 
+// ─── Notification Channels (Feature 12) ──────────────────
+export const notificationChannels = sqliteTable(
+  'notification_channels',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull().default('default'),
+    type: text('type').notNull(), // 'webhook' | 'slack' | 'pagerduty' | 'email'
+    name: text('name').notNull(),
+    config: text('config').notNull(), // encrypted JSON
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    index('idx_notification_channels_tenant').on(table.tenantId),
+    index('idx_notification_channels_type').on(table.tenantId, table.type),
+  ],
+);
+
+// ─── Notification Log (Feature 12) ──────────────────────
+export const notificationLog = sqliteTable(
+  'notification_log',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull().default('default'),
+    channelId: text('channel_id').notNull(),
+    ruleId: text('rule_id'),
+    ruleType: text('rule_type'), // 'alert_rule' | 'guardrail'
+    status: text('status').notNull(), // 'success' | 'failed' | 'retrying'
+    attempt: integer('attempt').notNull().default(1),
+    errorMessage: text('error_message'),
+    payloadSummary: text('payload_summary'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('idx_notification_log_tenant').on(table.tenantId),
+    index('idx_notification_log_channel').on(table.channelId),
+    index('idx_notification_log_created').on(table.tenantId, table.createdAt),
+  ],
+);
+
 // ─── Audit Log Table (SH-2) ──────────────────────────────
 export const auditLog = sqliteTable(
   'audit_log',

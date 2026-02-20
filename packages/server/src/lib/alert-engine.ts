@@ -11,12 +11,13 @@
 
 import { ulid } from 'ulid';
 import type { IEventStore } from '@agentlensai/core';
-import type { AlertRule, AlertHistory, AlertCondition } from '@agentlensai/core';
+import type { AlertRule, AlertHistory, AlertCondition, NotificationPayload } from '@agentlensai/core';
 import { SqliteEventStore } from '../db/sqlite-store.js';
 import { PostgresEventStore } from '../db/postgres-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { eventBus } from './event-bus.js';
 import { createLogger } from './logger.js';
+import type { NotificationRouter } from './notifications/router.js';
 
 const log = createLogger('AlertEngine');
 
@@ -81,12 +82,15 @@ export function isWebhookUrlAllowed(url: string): boolean {
 export interface AlertEngineOptions {
   /** Evaluation interval in milliseconds */
   checkIntervalMs?: number;
+  /** Optional notification router for Feature 12 */
+  notificationRouter?: NotificationRouter;
 }
 
 export class AlertEngine {
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
   private readonly checkIntervalMs: number;
+  private notificationRouter: NotificationRouter | null = null;
 
   constructor(
     private store: IEventStore,
@@ -96,6 +100,12 @@ export class AlertEngine {
       options?.checkIntervalMs ??
       (parseInt(process.env['ALERT_CHECK_INTERVAL_MS'] ?? '', 10) ||
       DEFAULT_CHECK_INTERVAL_MS);
+    this.notificationRouter = options?.notificationRouter ?? null;
+  }
+
+  /** Set the notification router (can be set after construction) */
+  setNotificationRouter(router: NotificationRouter): void {
+    this.notificationRouter = router;
   }
 
   /**
@@ -325,8 +335,25 @@ export class AlertEngine {
       timestamp: now,
     });
 
-    // 4. Webhook delivery (Story 12.3) — fire and forget
-    await this.deliverWebhooks(rule, entry);
+    // 4. Notification delivery (Feature 12) — via router if available, else legacy webhooks
+    if (this.notificationRouter && rule.notifyChannels.length > 0) {
+      const payload: NotificationPayload = {
+        source: 'alert_rule',
+        severity: this.mapSeverity(rule.condition),
+        title: rule.name,
+        message,
+        metadata: { condition: rule.condition, currentValue, threshold: rule.threshold, windowMinutes: rule.windowMinutes, scope: rule.scope },
+        triggeredAt: now,
+        ruleId: rule.id,
+        ruleName: rule.name,
+        agentId: rule.scope.agentId,
+      };
+      await this.notificationRouter.dispatch(rule.notifyChannels, payload, rule.tenantId).catch((err) => {
+        log.error(`Notification dispatch failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    } else {
+      await this.deliverWebhooks(rule, entry);
+    }
 
     return entry;
   }
@@ -370,6 +397,18 @@ export class AlertEngine {
       } catch (err) {
         log.warn(`Webhook delivery to ${url} error: ${err instanceof Error ? err.message : String(err)}`);
       }
+    }
+  }
+
+  /**
+   * Map alert condition to notification severity.
+   */
+  private mapSeverity(condition: AlertCondition): 'info' | 'warning' | 'critical' {
+    switch (condition) {
+      case 'error_rate_exceeds': return 'critical';
+      case 'cost_exceeds': return 'warning';
+      case 'no_events_for': return 'warning';
+      default: return 'info';
     }
   }
 
