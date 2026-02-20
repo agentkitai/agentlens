@@ -31,7 +31,7 @@ const MODEL_COSTS: Record<string, { input: number; output: number; cacheRead: nu
   "claude-3-5-sonnet-20241022": { input: 3,    output: 15,  cacheRead: 0.3,  cacheWrite: 3.75 },
 };
 
-function estimateCost(model: string, inputTokens: number, outputTokens: number, cacheRead: number, cacheWrite: number): number {
+export function estimateCost(model: string, inputTokens: number, outputTokens: number, cacheRead: number, cacheWrite: number): number {
   const key = Object.keys(MODEL_COSTS).find(k => model.includes(k));
   if (!key) return 0;
   const c = MODEL_COSTS[key];
@@ -142,7 +142,7 @@ function deriveAgentInfo(ctx: PluginHookAgentContext): { agentId: string; sessio
   return { agentId, sessionId, label };
 }
 
-function extractPromptPreview(messages: unknown[]): string {
+export function extractPromptPreview(messages: unknown[]): string {
   if (!Array.isArray(messages)) return "";
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i] as any;
@@ -162,7 +162,7 @@ function extractPromptPreview(messages: unknown[]): string {
  * Extract cumulative usage from the messages array.
  * Assistant messages from Anthropic SDK include a `usage` property.
  */
-function extractUsageFromMessages(messages: unknown[]): {
+export function extractUsageFromMessages(messages: unknown[]): {
   model: string;
   inputTokens: number;
   outputTokens: number;
