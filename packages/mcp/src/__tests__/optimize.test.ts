@@ -70,7 +70,7 @@ describe('agentlens_optimize', () => {
     const { client } = await createTestSetup();
 
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(15);
+    expect(result.tools).toHaveLength(23);
 
     const toolNames = result.tools.map((t) => t.name);
     expect(toolNames).toContain('agentlens_optimize');

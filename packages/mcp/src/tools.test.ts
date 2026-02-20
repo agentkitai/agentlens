@@ -58,19 +58,24 @@ async function createTestSetup() {
 }
 
 describe('Tool Registration (Story 5.1)', () => {
-  it('registers all 15 tools', async () => {
+  it('registers all 23 tools', async () => {
     const { client } = await createTestSetup();
 
     const result = await client.listTools();
     const toolNames = result.tools.map((t) => t.name).sort();
 
     expect(toolNames).toEqual([
+      'agentlens_agents',
+      'agentlens_alerts',
+      'agentlens_analytics',
       'agentlens_benchmark',
       'agentlens_context',
+      'agentlens_cost_budgets',
       'agentlens_delegate',
       'agentlens_discover',
       'agentlens_guardrails',
       'agentlens_health',
+      'agentlens_lessons',
       'agentlens_log_event',
       'agentlens_log_llm_call',
       'agentlens_optimize',
@@ -80,6 +85,9 @@ describe('Tool Registration (Story 5.1)', () => {
       'agentlens_replay',
       'agentlens_session_end',
       'agentlens_session_start',
+      'agentlens_sessions',
+      'agentlens_stats',
+      'agentlens_trust',
     ]);
   });
 

@@ -88,7 +88,7 @@ describe('agentlens_health', () => {
   it('total tool count is 14', async () => {
     const { client } = await createTestSetup();
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(15);
+    expect(result.tools).toHaveLength(23);
   });
 
   it('returns formatted output with score, trend, and dimensions', async () => {

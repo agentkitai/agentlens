@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { createServer } from './index.js';
+import { createServerSync as createServer } from './index.js';
 
 // Mock global fetch for the transport layer
 const mockFetch = vi.fn();
@@ -40,16 +40,21 @@ describe('MCP Server Entrypoint (Story 5.1)', () => {
     await client.connect(clientTransport);
 
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(15);
+    expect(result.tools).toHaveLength(23);
 
     const names = result.tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'agentlens_agents',
+      'agentlens_alerts',
+      'agentlens_analytics',
       'agentlens_benchmark',
       'agentlens_context',
+      'agentlens_cost_budgets',
       'agentlens_delegate',
       'agentlens_discover',
       'agentlens_guardrails',
       'agentlens_health',
+      'agentlens_lessons',
       'agentlens_log_event',
       'agentlens_log_llm_call',
       'agentlens_optimize',
@@ -59,6 +64,9 @@ describe('MCP Server Entrypoint (Story 5.1)', () => {
       'agentlens_replay',
       'agentlens_session_end',
       'agentlens_session_start',
+      'agentlens_sessions',
+      'agentlens_stats',
+      'agentlens_trust',
     ]);
   });
 
