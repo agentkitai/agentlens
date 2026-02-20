@@ -8,6 +8,7 @@
  */
 
 import { Hono } from 'hono';
+import { getTenantId } from './tenant-helper.js';
 import { sql, gte, lte, eq, and } from 'drizzle-orm';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
@@ -51,7 +52,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
 
   // GET /api/analytics/costs — cost breakdown by agent and time
   app.get('/costs', async (c) => {
-    const tenantId = c.get('apiKey')?.tenantId ?? 'default';
+    const tenantId = getTenantId(c);
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
     const granularity = (c.req.query('granularity') ?? 'day') as 'hour' | 'day' | 'week';
@@ -178,7 +179,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
 
   // GET /api/analytics/agents — per-agent metrics
   app.get('/agents', async (c) => {
-    const tenantId = c.get('apiKey')?.tenantId ?? 'default';
+    const tenantId = getTenantId(c);
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
 
@@ -231,7 +232,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
 
   // GET /api/analytics/llm — LLM call analytics
   app.get('/llm', async (c) => {
-    const tenantId = c.get('apiKey')?.tenantId ?? 'default';
+    const tenantId = getTenantId(c);
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
     const granularity = (c.req.query('granularity') ?? 'hour') as 'hour' | 'day' | 'week';
@@ -372,7 +373,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb) {
 
   // GET /api/analytics/tools — tool usage statistics
   app.get('/tools', async (c) => {
-    const tenantId = c.get('apiKey')?.tenantId ?? 'default';
+    const tenantId = getTenantId(c);
     const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
     const to = c.req.query('to') ?? new Date().toISOString();
 

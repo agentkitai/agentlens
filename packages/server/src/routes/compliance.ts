@@ -6,6 +6,7 @@
  */
 
 import { Hono } from 'hono';
+import { getTenantId } from './tenant-helper.js';
 import { stream } from 'hono/streaming';
 import type { UnifiedAuthVariables } from '../middleware/unified-auth.js';
 import type { SqliteDb } from '../db/index.js';
@@ -68,7 +69,7 @@ export function complianceRoutes(
 
   app.get('/report', async (c) => {
     const auth = c.var.auth;
-    const tenantId = auth?.orgId ?? 'default';
+    const tenantId = getTenantId(c);
 
     const validation = validateDateRange(c.req.query('from'), c.req.query('to'));
     if (validation.error) {
@@ -113,7 +114,7 @@ export function complianceRoutes(
 
   app.get('/export/events', async (c) => {
     const auth = c.var.auth;
-    const tenantId = auth?.orgId ?? 'default';
+    const tenantId = getTenantId(c);
 
     const validation = validateDateRange(c.req.query('from'), c.req.query('to'));
     if (validation.error) {

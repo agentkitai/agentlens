@@ -5,6 +5,7 @@
  */
 
 import { Hono } from 'hono';
+import { getTenantId } from './tenant-helper.js';
 import { eq } from 'drizzle-orm';
 import type { SqliteDb } from '../db/index.js';
 import { apiKeys } from '../db/schema.sqlite.js';
@@ -19,7 +20,7 @@ export function auditVerifyRoutes(db: SqliteDb, signingKey?: string) {
   app.get('/', async (c) => {
     // Role check: require admin or auditor
     const keyInfo = c.get('apiKey');
-    const tenantId = keyInfo?.tenantId ?? 'default';
+    const tenantId = getTenantId(c);
 
     let role = 'viewer';
     if (keyInfo?.id === 'dev') {

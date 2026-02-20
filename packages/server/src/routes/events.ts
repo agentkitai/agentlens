@@ -21,7 +21,7 @@ import type { AgentLensEvent, EventQuery, EventType, EventSeverity } from '@agen
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { eventBus } from '../lib/event-bus.js';
-import { getTenantStore } from './tenant-helper.js';
+import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { summarizeEvent, summarizeSession } from '../lib/embeddings/summarizer.js';
 import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
 import type { SessionSummaryStore } from '../db/session-summary-store.js';
@@ -114,7 +114,7 @@ export function eventsRoutes(
           metadata,
           prevHash,
           hash,
-          tenantId: 'default',
+          tenantId: getTenantId(c),
         };
 
         allProcessed.push(event);

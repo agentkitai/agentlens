@@ -7,6 +7,7 @@
  */
 
 import { Hono } from 'hono';
+import { getTenantId } from './tenant-helper.js';
 import { randomBytes } from 'node:crypto';
 import { ulid } from 'ulid';
 import type { SqliteDb } from '../db/index.js';
@@ -33,7 +34,7 @@ export function apiKeysRoutes(db: SqliteDb) {
 
     // Enforce tenant isolation: non-dev callers can only create keys for their own tenant
     const callerKey = c.get('apiKey');
-    const callerTenantId = callerKey?.tenantId ?? 'default';
+    const callerTenantId = getTenantId(c);
     const isDevMode = callerKey?.id === 'dev';
 
     // In dev mode, allow specifying tenantId; otherwise force caller's tenant
@@ -70,7 +71,7 @@ export function apiKeysRoutes(db: SqliteDb) {
   // GET /api/keys — list keys for caller's tenant only
   app.get('/', (c) => {
     const callerKey = c.get('apiKey');
-    const callerTenantId = callerKey?.tenantId ?? 'default';
+    const callerTenantId = getTenantId(c);
 
     const rows = db
       .select()
@@ -96,7 +97,7 @@ export function apiKeysRoutes(db: SqliteDb) {
   // POST /api/keys/:id/rotate — rotate a key (admin only, SH-6)
   app.post('/:id/rotate', async (c) => {
     const callerKey = c.get('apiKey');
-    const callerTenantId = callerKey?.tenantId ?? 'default';
+    const callerTenantId = getTenantId(c);
 
     // Require admin role (dev mode counts as admin)
     const isDevMode = callerKey?.id === 'dev';
@@ -170,7 +171,7 @@ export function apiKeysRoutes(db: SqliteDb) {
     const id = c.req.param('id');
     const now = Math.floor(Date.now() / 1000);
     const callerKey = c.get('apiKey');
-    const callerTenantId = callerKey?.tenantId ?? 'default';
+    const callerTenantId = getTenantId(c);
 
     // Look up key scoped to caller's tenant
     const existing = db

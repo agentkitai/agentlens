@@ -6,6 +6,7 @@
  */
 
 import { Hono } from 'hono';
+import { getTenantId } from './tenant-helper.js';
 import { desc, eq, and, gte, lte, sql } from 'drizzle-orm';
 import type { SqliteDb } from '../db/index.js';
 import { auditLog } from '../db/schema.sqlite.js';
@@ -19,7 +20,7 @@ export function auditRoutes(db: SqliteDb) {
     // Role check now handled by RBAC middleware (requireCategory('manage'))
     // Keep reading tenantId from legacy apiKey context for backward compat
     const keyInfo = c.get('apiKey');
-    const tenantId = keyInfo?.tenantId ?? 'default';
+    const tenantId = getTenantId(c);
 
     // Parse query params
     const action = c.req.query('action');

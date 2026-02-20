@@ -10,6 +10,7 @@
  */
 
 import { Hono } from 'hono';
+import { getTenantId } from './tenant-helper.js';
 import { ulid } from 'ulid';
 import { createAlertRuleSchema, updateAlertRuleSchema } from '@agentlensai/core';
 import type { AlertRule } from '@agentlensai/core';
@@ -58,7 +59,7 @@ export function alertsRoutes(store: IEventStore) {
       notifyChannels: input.notifyChannels,
       createdAt: now,
       updatedAt: now,
-      tenantId: 'default',
+      tenantId: getTenantId(c),
     };
 
     await tenantStore.createAlertRule(rule);

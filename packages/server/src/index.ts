@@ -57,6 +57,7 @@ import { authRoutes } from './routes/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rate-limit.js';
 import { apiBodyLimit } from './middleware/body-limit.js';
 import { auditRoutes } from './routes/audit.js';
+import { cloudOrgRoutes } from './cloud/routes/index.js';
 import { auditVerifyRoutes } from './routes/audit-verify.js';
 import { complianceRoutes } from './routes/compliance.js';
 import { createAuditLogger, cleanupAuditLogs } from './lib/audit.js';
@@ -477,6 +478,17 @@ export async function createApp(
     app.route('/api/compliance', complianceRoutes(db, resolvedConfig.auditSigningKey, {
       retentionDays: resolvedConfig.retentionDays,
     }));
+  }
+
+  // ─── Cloud org routes with org access validation [F6-fix] ──
+  if (config?.pgSql) {
+    const cloudDb = {
+      async query(sql: string, params?: unknown[]) {
+        const result = await config.pgSql!.unsafe(sql, params as any[]);
+        return { rows: Array.from(result) };
+      },
+    };
+    app.route('/api/cloud/orgs', cloudOrgRoutes({ db: cloudDb }));
   }
 
   // ─── Community Sharing (Stories 4.1–4.3) ────────────────

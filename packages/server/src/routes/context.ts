@@ -8,6 +8,7 @@
  */
 
 import { Hono } from 'hono';
+import { getTenantId } from './tenant-helper.js';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { EmbeddingService } from '../lib/embeddings/index.js';
@@ -38,7 +39,7 @@ export function contextRoutes(store: IEventStore, deps: ContextRouteDeps) {
     }
 
     const apiKeyInfo = c.get('apiKey');
-    const tenantId = apiKeyInfo?.tenantId ?? 'default';
+    const tenantId = getTenantId(c);
     const tenantStore = getTenantStore(store, c);
 
     const userId = c.req.query('userId') || undefined;

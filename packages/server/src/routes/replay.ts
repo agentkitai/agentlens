@@ -7,6 +7,7 @@
  */
 
 import { Hono } from 'hono';
+import { getTenantId } from './tenant-helper.js';
 import type { IEventStore, EventType, ReplayState } from '@agentlensai/core';
 import { EVENT_TYPES } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
@@ -173,7 +174,7 @@ export function registerReplayRoutes(
 
       // Cache the state (LLM history has been capped for memory efficiency)
       const apiKeyInfo = c.get('apiKey');
-      const tenantId = apiKeyInfo?.tenantId ?? 'default';
+      const tenantId = getTenantId(c);
       putCache(tenantId, sessionId, state);
 
       return c.json(state);
