@@ -9,7 +9,7 @@ const ALL_FEATURES = [
   'sessions', 'agents', 'alerts', 'analytics', 'stats',
   'recall', 'reflect', 'optimize', 'context', 'health',
   'replay', 'benchmarks', 'guardrails', 'discovery', 'delegation',
-  'cost-budgets', 'trust', 'lessons',
+  'cost-budgets', 'trust', 'lessons', 'prompts',
 ];
 
 function opts(overrides: Partial<ToolRegistrationOptions> = {}): ToolRegistrationOptions {
@@ -22,8 +22,8 @@ function opts(overrides: Partial<ToolRegistrationOptions> = {}): ToolRegistratio
 }
 
 describe('TOOL_FEATURE_MAP', () => {
-  it('covers 23 tools (15 existing + 8 new)', () => {
-    expect(Object.keys(TOOL_FEATURE_MAP)).toHaveLength(23);
+  it('covers 25 tools (15 existing + 10 new)', () => {
+    expect(Object.keys(TOOL_FEATURE_MAP)).toHaveLength(24);
   });
 
   it('core ingest tools have empty feature requirements', () => {

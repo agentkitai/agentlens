@@ -838,4 +838,38 @@ export class AgentLensClient {
     // All retries exhausted
     throw lastError!;
   }
+
+  // ─── Prompt Management (Feature 19) ──────────────────────
+
+  /**
+   * Resolve a prompt template: fetch current version, interpolate variables.
+   * Returns the resolved content along with template/version IDs for event linking.
+   */
+  async resolvePrompt(
+    templateId: string,
+    variables?: Record<string, string>,
+  ): Promise<{ content: string; templateId: string; versionId: string }> {
+    const data = await this.request<{
+      template: { id: string; currentVersionId?: string };
+      versions: Array<{ id: string; versionNumber: number; content: string }>;
+    }>(`/api/prompts/${encodeURIComponent(templateId)}`);
+
+    const currentVersion = data.versions?.[0]; // versions are ordered DESC
+    if (!currentVersion) {
+      throw new NotFoundError(`No versions found for template ${templateId}`);
+    }
+
+    let content = currentVersion.content;
+    if (variables) {
+      for (const [key, value] of Object.entries(variables)) {
+        content = content.replaceAll(`{{${key}}}`, value);
+      }
+    }
+
+    return {
+      content,
+      templateId: data.template.id,
+      versionId: currentVersion.id,
+    };
+  }
 }

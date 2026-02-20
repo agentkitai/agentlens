@@ -485,6 +485,69 @@ export const auditLog = pgTable(
   ],
 );
 
+// ─── Prompt Management Tables (Feature 19) ──────────────────
+
+export const promptTemplates = pgTable(
+  'prompt_templates',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    category: text('category').notNull().default('general'),
+    currentVersionId: text('current_version_id'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    deletedAt: text('deleted_at'),
+  },
+  (table) => [
+    index('idx_pg_prompt_templates_tenant').on(table.tenantId),
+    index('idx_pg_prompt_templates_tenant_cat').on(table.tenantId, table.category),
+    index('idx_pg_prompt_templates_tenant_name').on(table.tenantId, table.name),
+  ],
+);
+
+export const promptVersions = pgTable(
+  'prompt_versions',
+  {
+    id: text('id').primaryKey(),
+    templateId: text('template_id').notNull(),
+    tenantId: text('tenant_id').notNull(),
+    versionNumber: integer('version_number').notNull(),
+    content: text('content').notNull(),
+    variables: text('variables'),
+    contentHash: text('content_hash').notNull(),
+    changelog: text('changelog'),
+    createdBy: text('created_by'),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_pg_prompt_versions_tpl_ver').on(table.templateId, table.versionNumber),
+    index('idx_pg_prompt_versions_tenant').on(table.tenantId),
+    index('idx_pg_prompt_versions_hash').on(table.contentHash),
+  ],
+);
+
+export const promptFingerprints = pgTable(
+  'prompt_fingerprints',
+  {
+    contentHash: text('content_hash').notNull(),
+    tenantId: text('tenant_id').notNull(),
+    agentId: text('agent_id').notNull(),
+    firstSeenAt: text('first_seen_at').notNull(),
+    lastSeenAt: text('last_seen_at').notNull(),
+    callCount: integer('call_count').notNull().default(0),
+    templateId: text('template_id'),
+    sampleContent: text('sample_content'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.contentHash, table.tenantId, table.agentId] }),
+    index('idx_pg_prompt_fp_tenant').on(table.tenantId),
+    index('idx_pg_prompt_fp_agent').on(table.tenantId, table.agentId),
+    index('idx_pg_prompt_fp_template').on(table.templateId),
+  ],
+);
+
 // ─── Notification Channels (Feature 12) ──────────────────
 export const notificationChannels = pgTable(
   'notification_channels',

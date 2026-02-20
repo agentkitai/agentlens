@@ -888,6 +888,44 @@ export class AgentLensTransport {
     return fetch(url, { method: 'GET', headers: this.buildHeaders() });
   }
 
+    // ─── Prompts API (Feature 19) ──────────────────────────────
+
+  async listPrompts(params?: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params ?? {});
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/prompts${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getPrompt(templateId: string): Promise<Response> {
+    const url = `${this.baseUrl}/api/prompts/${encodeURIComponent(templateId)}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async createPrompt(body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/prompts`;
+    return fetch(url, { method: 'POST', headers: this.buildHeaders(), body: JSON.stringify(body) });
+  }
+
+  async createPromptVersion(templateId: string, body: Record<string, unknown>): Promise<Response> {
+    const url = `${this.baseUrl}/api/prompts/${encodeURIComponent(templateId)}/versions`;
+    return fetch(url, { method: 'POST', headers: this.buildHeaders(), body: JSON.stringify(body) });
+  }
+
+  async getPromptAnalytics(templateId: string, params?: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params ?? {});
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/prompts/${encodeURIComponent(templateId)}/analytics${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async getPromptFingerprints(params?: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params ?? {});
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/prompts/fingerprints${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

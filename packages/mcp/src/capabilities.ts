@@ -49,6 +49,8 @@ export const TOOL_FEATURE_MAP: Record<string, string[]> = {
   agentlens_lessons: ['lessons'],
   agentlens_stats: ['stats'],
   agentlens_trust: ['trust'],
+  // Feature 19: Prompt Management
+  agentlens_prompts: ['prompts'],
 };
 
 /**

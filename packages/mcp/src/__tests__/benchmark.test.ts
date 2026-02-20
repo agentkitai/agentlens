@@ -174,7 +174,7 @@ describe('agentlens_benchmark', () => {
   it('total tool count is 14', async () => {
     const { client } = await createTestSetup();
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(23);
+    expect(result.tools).toHaveLength(24);
   });
 
   // ─── Create ───────────────────────────────────────────────

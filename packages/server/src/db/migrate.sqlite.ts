@@ -924,6 +924,60 @@ export function runMigrations(db: SqliteDb): void {
     )
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_results_run ON eval_results(run_id)`);
+
+  // ─── Prompt Management tables (Feature 19) ──────────────────
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS prompt_templates (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT 'general',
+      current_version_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_templates_tenant ON prompt_templates(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_templates_tenant_cat ON prompt_templates(tenant_id, category)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_templates_tenant_name ON prompt_templates(tenant_id, name)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS prompt_versions (
+      id TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      version_number INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      variables TEXT,
+      content_hash TEXT NOT NULL,
+      changelog TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(template_id, version_number)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_versions_tenant ON prompt_versions(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_versions_hash ON prompt_versions(content_hash)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS prompt_fingerprints (
+      content_hash TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      first_seen_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      call_count INTEGER NOT NULL DEFAULT 0,
+      template_id TEXT,
+      sample_content TEXT,
+      PRIMARY KEY (content_hash, tenant_id, agent_id)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_fp_tenant ON prompt_fingerprints(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_fp_agent ON prompt_fingerprints(tenant_id, agent_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_fp_template ON prompt_fingerprints(template_id)`);
 }
 
 /**
