@@ -462,6 +462,22 @@ paths:
           in: query
           schema:
             type: integer
+        - name: severity
+          in: query
+          description: Filter by severity (comma-separated for multiple)
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: Full-text search across event payloads
+          schema:
+            type: string
+        - name: order
+          in: query
+          description: Sort order by timestamp
+          schema:
+            type: string
+            enum: [asc, desc]
       responses:
         '200':
           description: Events matching query
@@ -564,6 +580,11 @@ paths:
           in: query
           schema:
             type: integer
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated)
+          schema:
+            type: string
       responses:
         '200':
           description: Sessions matching query
