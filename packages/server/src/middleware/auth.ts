@@ -5,6 +5,8 @@
  * with SHA-256 and looking it up in the apiKeys table.
  *
  * When AUTH_DISABLED=true, authentication is skipped (dev mode).
+ *
+ * Supports both SQLite (sync) and PostgreSQL (async) backends via IApiKeyLookup.
  */
 
 import { createHash } from 'node:crypto';
@@ -12,6 +14,7 @@ import { createMiddleware } from 'hono/factory';
 import type { SqliteDb } from '../db/index.js';
 import { apiKeys } from '../db/schema.sqlite.js';
 import { eq, and, isNull } from 'drizzle-orm';
+import type { IApiKeyLookup } from '../db/api-key-lookup.js';
 
 /**
  * API key info attached to the Hono context.
@@ -40,10 +43,10 @@ export function hashApiKey(raw: string): string {
 /**
  * Create the auth middleware.
  *
- * @param db - Drizzle SQLite database instance
+ * @param dbOrLookup - Drizzle SQLite database instance OR IApiKeyLookup
  * @param authDisabled - If true, skip authentication (dev mode)
  */
-export function authMiddleware(db: SqliteDb, authDisabled: boolean) {
+export function authMiddleware(dbOrLookup: SqliteDb | IApiKeyLookup, authDisabled: boolean) {
   return createMiddleware<{ Variables: AuthVariables }>(async (c, next) => {
     // Dev mode: skip auth
     if (authDisabled) {
@@ -64,7 +67,37 @@ export function authMiddleware(db: SqliteDb, authDisabled: boolean) {
     const rawKey = match[1]!;
     const keyHash = hashApiKey(rawKey);
 
-    // Look up the key by hash (not revoked)
+    // Determine if we have an IApiKeyLookup or a raw SQLite db
+    if ('findByHash' in dbOrLookup) {
+      // IApiKeyLookup path (works for both SQLite and PostgreSQL)
+      const lookup = dbOrLookup as IApiKeyLookup;
+      const row = await lookup.findByHash(keyHash);
+
+      if (!row) {
+        return c.json({ error: 'Invalid or revoked API key', status: 401 }, 401);
+      }
+
+      if (row.expiresAt) {
+        const now = Math.floor(Date.now() / 1000);
+        if (now > row.expiresAt) {
+          return c.json({ error: 'This API key has been rotated and is no longer valid. Please use the new key.', status: 401 }, 401);
+        }
+      }
+
+      // Fire-and-forget lastUsedAt update
+      void lookup.updateLastUsed(row.id);
+
+      const scopes: string[] = (() => {
+        if (Array.isArray(row.scopes)) return row.scopes;
+        try { return JSON.parse(row.scopes as string) as string[]; } catch { return []; }
+      })();
+
+      c.set('apiKey', { id: row.id, name: row.name, scopes, tenantId: row.tenantId });
+      return next();
+    }
+
+    // Legacy SQLite db path (backward compatible)
+    const db = dbOrLookup as SqliteDb;
     const row = db
       .select()
       .from(apiKeys)
@@ -75,7 +108,6 @@ export function authMiddleware(db: SqliteDb, authDisabled: boolean) {
       return c.json({ error: 'Invalid or revoked API key', status: 401 }, 401);
     }
 
-    // Check if this is a rotated key past its grace period
     if (row.expiresAt) {
       const now = Math.floor(Date.now() / 1000);
       if (now > row.expiresAt) {
@@ -83,32 +115,16 @@ export function authMiddleware(db: SqliteDb, authDisabled: boolean) {
       }
     }
 
-    // Fire-and-forget lastUsedAt update
     const now = Math.floor(Date.now() / 1000);
     try {
-      db.update(apiKeys)
-        .set({ lastUsedAt: now })
-        .where(eq(apiKeys.id, row.id))
-        .run();
-    } catch {
-      // Non-critical — don't fail the request
-    }
+      db.update(apiKeys).set({ lastUsedAt: now }).where(eq(apiKeys.id, row.id)).run();
+    } catch { /* non-critical */ }
 
     const scopes: string[] = (() => {
-      try {
-        return JSON.parse(row.scopes) as string[];
-      } catch {
-        return [];
-      }
+      try { return JSON.parse(row.scopes) as string[]; } catch { return []; }
     })();
 
-    c.set('apiKey', {
-      id: row.id,
-      name: row.name,
-      scopes,
-      tenantId: row.tenantId,
-    });
-
+    c.set('apiKey', { id: row.id, name: row.name, scopes, tenantId: row.tenantId });
     return next();
   });
 }

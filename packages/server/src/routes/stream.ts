@@ -16,23 +16,21 @@
  */
 
 import { Hono } from 'hono';
-import type { SqliteDb } from '../db/index.js';
-import { apiKeys } from '../db/schema.sqlite.js';
-import { eq, and, isNull } from 'drizzle-orm';
+import type { IApiKeyLookup } from '../db/api-key-lookup.js';
 import { hashApiKey, type AuthVariables, type ApiKeyInfo } from '../middleware/auth.js';
 import { createSSEStream, type SSEFilters } from '../lib/sse.js';
 
-export function streamRoutes(db?: SqliteDb, authDisabled?: boolean) {
+export function streamRoutes(apiKeyLookup?: IApiKeyLookup, authDisabled?: boolean) {
   const app = new Hono<{ Variables: AuthVariables }>();
 
-  app.get('/', (c) => {
+  app.get('/', async (c) => {
     // ─── Authenticate ────────────────────────────────────
     let apiKeyInfo: ApiKeyInfo | undefined;
 
     if (authDisabled) {
       // Dev mode: allow unauthenticated access with default tenant
       apiKeyInfo = { id: 'dev', name: 'dev-mode', scopes: ['*'], tenantId: 'default' };
-    } else if (db) {
+    } else if (apiKeyLookup) {
       // Try Authorization header first
       const authHeader = c.req.header('Authorization');
       const headerMatch = authHeader?.match(/^Bearer\s+(als_\w+)$/);
@@ -43,18 +41,15 @@ export function streamRoutes(db?: SqliteDb, authDisabled?: boolean) {
       }
 
       const keyHash = hashApiKey(rawKey);
-      const row = db
-        .select()
-        .from(apiKeys)
-        .where(and(eq(apiKeys.keyHash, keyHash), isNull(apiKeys.revokedAt)))
-        .get();
+      const row = await apiKeyLookup.findByHash(keyHash);
 
       if (!row) {
         return c.json({ error: 'Invalid or revoked API key', status: 401 }, 401);
       }
 
       const scopes: string[] = (() => {
-        try { return JSON.parse(row.scopes) as string[]; } catch { return []; }
+        if (Array.isArray(row.scopes)) return row.scopes;
+        try { return JSON.parse(row.scopes as string) as string[]; } catch { return []; }
       })();
 
       apiKeyInfo = {
@@ -64,7 +59,7 @@ export function streamRoutes(db?: SqliteDb, authDisabled?: boolean) {
         tenantId: row.tenantId,
       };
     } else {
-      // No db and not dev mode — cannot authenticate
+      // No lookup and not dev mode — cannot authenticate
       return c.json({ error: 'Authentication not available', status: 500 }, 500);
     }
 

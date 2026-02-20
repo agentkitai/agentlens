@@ -15,6 +15,13 @@
       "when": 1739654400000,
       "tag": "0001_indexes",
       "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1740048000000,
+      "tag": "0002_pgvector",
+      "breakpoints": false
     }
   ]
 }

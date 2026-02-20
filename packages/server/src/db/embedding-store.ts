@@ -12,6 +12,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import type { SqliteDb } from './index.js';
 import { embeddings } from './schema.sqlite.js';
 import { cosineSimilarity } from '../lib/embeddings/math.js';
+import type { IEmbeddingStore } from './embedding-store.interface.js';
 import { createLogger } from '../lib/logger.js';
 
 const log = createLogger('EmbeddingStore');
@@ -76,7 +77,7 @@ export interface StoredEmbedding {
   createdAt: string;
 }
 
-export class EmbeddingStore {
+export class EmbeddingStore implements IEmbeddingStore {
   constructor(private readonly db: SqliteDb) {}
 
   /**

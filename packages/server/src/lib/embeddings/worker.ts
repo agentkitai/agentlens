@@ -6,7 +6,7 @@
  */
 
 import type { EmbeddingService } from './index.js';
-import type { EmbeddingStore } from '../../db/embedding-store.js';
+import type { IEmbeddingStore } from '../../db/embedding-store.interface.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('EmbeddingWorker');
@@ -36,7 +36,7 @@ export class EmbeddingWorker {
 
   constructor(
     private readonly embeddingService: EmbeddingService | null,
-    private readonly embeddingStore: EmbeddingStore | null,
+    private readonly embeddingStore: IEmbeddingStore | null,
     opts?: { maxQueueSize?: number },
   ) {
     this.maxQueueSize = opts?.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE;

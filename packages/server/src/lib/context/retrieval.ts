@@ -8,7 +8,8 @@
  */
 
 import type { ContextQuery, ContextResult, ContextSession, ContextLesson, ContextKeyEvent } from '@agentlensai/core';
-import type { EmbeddingStore, SimilarityResult } from '../../db/embedding-store.js';
+import type { IEmbeddingStore } from '../../db/embedding-store.interface.js';
+import type { SimilarityResult } from '../../db/embedding-store.js';
 import type { EmbeddingService } from '../embeddings/index.js';
 import type { SessionSummaryStore, SessionSummaryRecord } from '../../db/session-summary-store.js';
 import type { IEventStore } from '@agentlensai/core';
@@ -22,7 +23,7 @@ const MAX_KEY_EVENTS = 5;
 
 export class ContextRetriever {
   constructor(
-    private readonly embeddingStore: EmbeddingStore | null,
+    private readonly embeddingStore: IEmbeddingStore | null,
     private readonly embeddingService: EmbeddingService | null,
     private readonly sessionSummaryStore: SessionSummaryStore,
     private readonly lessonStore: { get(tenantId: string, id: string): any; list(tenantId: string, opts: any): any[] } | null | undefined,
@@ -74,7 +75,7 @@ export class ContextRetriever {
     if (this.embeddingService && this.embeddingStore) {
       try {
         const queryVector = await this.embeddingService.embed(query.topic);
-        const results = this.embeddingStore.similaritySearch(tenantId, queryVector, {
+        const results = await this.embeddingStore.similaritySearch(tenantId, queryVector, {
           sourceType: 'session',
           from: query.from,
           to: query.to,
@@ -176,7 +177,7 @@ export class ContextRetriever {
     if (this.embeddingService && this.embeddingStore) {
       try {
         const queryVector = await this.embeddingService.embed(query.topic);
-        const results = this.embeddingStore.similaritySearch(tenantId, queryVector, {
+        const results = await this.embeddingStore.similaritySearch(tenantId, queryVector, {
           sourceType: 'lesson',
           limit,
           minScore: 0.3,

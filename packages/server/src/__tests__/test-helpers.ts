@@ -41,9 +41,13 @@ export async function createTestApp(opts?: { authDisabled?: boolean; tenantId?: 
     })
     .run();
 
+  const { SqliteApiKeyLookup } = await import('../db/api-key-lookup.js');
+  const apiKeyLookup = new SqliteApiKeyLookup(db);
+
   const app = await createApp(store, {
     authDisabled: opts?.authDisabled ?? false,
     db,
+    apiKeyLookup,
     corsOrigin: '*',
   });
 
