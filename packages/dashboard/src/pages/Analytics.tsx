@@ -441,9 +441,10 @@ function AnalyticsOverview(): React.ReactElement {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Agent</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Cost</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Input Tokens</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Output Tokens</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Total Tokens</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Input</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Output</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Cache Read</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Cache Write</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Events</th>
                 </tr>
               </thead>
@@ -454,7 +455,8 @@ function AnalyticsOverview(): React.ReactElement {
                     <td className="px-4 py-3 text-sm text-right text-gray-900 font-mono">{formatCost(agent.totalCostUsd)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-600">{formatNumber(agent.totalInputTokens)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-600">{formatNumber(agent.totalOutputTokens)}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{formatNumber(agent.totalTokens)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{formatNumber(agent.cacheReadTokens ?? 0)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600">{formatNumber(agent.cacheWriteTokens ?? 0)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-600">{agent.eventCount}</td>
                   </tr>
                 ))}

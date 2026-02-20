@@ -132,6 +132,8 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
       totalInputTokens: number;
       totalOutputTokens: number;
       totalTokens: number;
+      cacheReadTokens: number;
+      cacheWriteTokens: number;
       eventCount: number;
     }>(db, qdb,
       sql`
@@ -141,6 +143,8 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
           COALESCE(SUM(COALESCE(${jn(isPg, 'inputTokens')}, ${jn(isPg, 'usage.inputTokens')})), 0) as ${sql.raw(isPg ? '"totalInputTokens"' : 'totalInputTokens')},
           COALESCE(SUM(COALESCE(${jn(isPg, 'outputTokens')}, ${jn(isPg, 'usage.outputTokens')})), 0) as ${sql.raw(isPg ? '"totalOutputTokens"' : 'totalOutputTokens')},
           COALESCE(SUM(COALESCE(${jn(isPg, 'totalTokens')}, ${jn(isPg, 'usage.totalTokens')})), 0) as ${sql.raw(isPg ? '"totalTokens"' : 'totalTokens')},
+          COALESCE(SUM(${jn(isPg, 'usage.cacheReadTokens')}), 0) as ${sql.raw(isPg ? '"cacheReadTokens"' : 'cacheReadTokens')},
+          COALESCE(SUM(${jn(isPg, 'usage.cacheWriteTokens')}), 0) as ${sql.raw(isPg ? '"cacheWriteTokens"' : 'cacheWriteTokens')},
           COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')}
         FROM events
         WHERE event_type IN ('cost_tracked', 'llm_response')
@@ -219,6 +223,8 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
         totalInputTokens: Number(r.totalInputTokens),
         totalOutputTokens: Number(r.totalOutputTokens),
         totalTokens: Number(r.totalTokens),
+        cacheReadTokens: Number(r.cacheReadTokens ?? 0),
+        cacheWriteTokens: Number(r.cacheWriteTokens ?? 0),
         eventCount: Number(r.eventCount),
       })),
       overTime: overTime.map((r) => ({

@@ -50,6 +50,8 @@ export interface CostByAgent {
   totalInputTokens: number;
   totalOutputTokens: number;
   totalTokens: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   eventCount: number;
 }
 
