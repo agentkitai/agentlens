@@ -106,6 +106,17 @@ vi.mock('../../api/client', () => {
     generateComplianceReport: noop,
     getExportEventsUrl: () => '/api/compliance/export/events',
     ApiError: class ApiError extends Error { status: number; constructor(s: number, m: string) { super(m); this.status = s; this.name = 'ApiError'; } },
+    diagnoseAgent: noop,
+    diagnoseSession: noop,
+    getPrompts: () => Promise.resolve({ templates: [], total: 0 }),
+    getPrompt: noop,
+    createPrompt: noop,
+    getPromptFingerprints: noopArr,
+    getPromptAnalytics: noopArr,
+    getPromptDiff: noop,
+    createPromptVersion: noop,
+    deletePrompt: noop,
+    linkFingerprintToTemplate: noop,
   };
 });
 

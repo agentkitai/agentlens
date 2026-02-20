@@ -9,10 +9,13 @@
  *  - Color coding: green (≥75), yellow (50-74), red (<50)
  *  - Click card → expands to show dimension breakdown
  */
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useApi } from '../hooks/useApi';
 import { getHealthOverview, getAgents } from '../api/client';
 import type { HealthOverviewData, AgentHealth } from '../api/client';
+import { diagnoseAgent } from '../api/diagnose';
+import type { DiagnosticReport } from '../api/diagnose';
+import { DiagnosticPanel } from '../components/DiagnosticPanel';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -126,9 +129,31 @@ function DimensionBreakdown({ dimensions }: { dimensions: Record<string, number>
 
 // ─── Health Card ────────────────────────────────────────────────────
 
-function HealthCard({ agent }: { agent: AgentHealth }): React.ReactElement {
+function HealthCard({ agent, windowDays }: { agent: AgentHealth; windowDays: number }): React.ReactElement {
   const [expanded, setExpanded] = useState(false);
+  const [diagReport, setDiagReport] = useState<DiagnosticReport | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
+  const [showDiag, setShowDiag] = useState(false);
   const trend = trendArrow(agent.trend);
+
+  const handleDiagnose = useCallback(
+    async (e: React.MouseEvent, refresh = false) => {
+      e.stopPropagation();
+      setShowDiag(true);
+      setDiagLoading(true);
+      setDiagError(null);
+      try {
+        const report = await diagnoseAgent(agent.agentId, windowDays, refresh);
+        setDiagReport(report);
+      } catch (err: any) {
+        setDiagError(err?.message || 'Diagnosis failed');
+      } finally {
+        setDiagLoading(false);
+      }
+    },
+    [agent.agentId, windowDays],
+  );
 
   return (
     <div
@@ -148,6 +173,29 @@ function HealthCard({ agent }: { agent: AgentHealth }): React.ReactElement {
         </div>
         <CircularGauge score={agent.overallScore} />
       </div>
+
+      {/* Diagnose button for agents with score < 75 */}
+      {agent.overallScore < 75 && !showDiag && (
+        <button
+          type="button"
+          onClick={(e) => handleDiagnose(e)}
+          className="mt-2 w-full text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg px-3 py-1.5 transition-colors"
+        >
+          🧠 Diagnose with AI
+        </button>
+      )}
+
+      {/* Diagnostic panel */}
+      {showDiag && (
+        <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+          <DiagnosticPanel
+            report={diagReport}
+            loading={diagLoading}
+            error={diagError}
+            onRefresh={() => handleDiagnose({ stopPropagation: () => {} } as React.MouseEvent, true)}
+          />
+        </div>
+      )}
 
       {/* Expand indicator */}
       <div className="mt-2 text-xs text-gray-400 text-center">
@@ -271,7 +319,7 @@ export function HealthOverview(): React.ReactElement {
           {agents
             .sort((a, b) => a.overallScore - b.overallScore) // Worst first
             .map((agent) => (
-              <HealthCard key={agent.agentId} agent={agent} />
+              <HealthCard key={agent.agentId} agent={agent} windowDays={Number(window)} />
             ))}
         </div>
       )}
