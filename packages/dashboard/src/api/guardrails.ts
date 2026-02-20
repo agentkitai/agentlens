@@ -1,5 +1,7 @@
 import { request, toQueryString } from './core';
 
+export type GuardrailDirection = 'input' | 'output' | 'both';
+
 export interface GuardrailRuleData {
   id: string;
   tenantId: string;
@@ -13,6 +15,9 @@ export interface GuardrailRuleData {
   agentId?: string;
   cooldownMinutes: number;
   dryRun: boolean;
+  direction?: GuardrailDirection;
+  toolNames?: string[];
+  priority?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,6 +33,9 @@ export interface CreateGuardrailData {
   agentId?: string;
   cooldownMinutes?: number;
   dryRun?: boolean;
+  direction?: GuardrailDirection;
+  toolNames?: string[];
+  priority?: number;
 }
 
 export interface GuardrailTriggerData {

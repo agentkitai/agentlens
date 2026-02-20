@@ -12,10 +12,15 @@ import {
 // ─── Constants ──────────────────────────────────────────────────
 
 const CONDITION_TYPES = [
-  { value: 'error_rate_threshold', label: 'Error Rate Threshold' },
-  { value: 'cost_limit', label: 'Cost Limit' },
-  { value: 'health_score_threshold', label: 'Health Score Threshold' },
-  { value: 'custom_metric', label: 'Custom Metric' },
+  { value: 'error_rate_threshold', label: 'Error Rate Threshold', category: 'operational' },
+  { value: 'cost_limit', label: 'Cost Limit', category: 'operational' },
+  { value: 'health_score_threshold', label: 'Health Score Threshold', category: 'operational' },
+  { value: 'custom_metric', label: 'Custom Metric', category: 'operational' },
+  { value: 'pii_detection', label: '🔒 PII Detection', category: 'content' },
+  { value: 'secrets_detection', label: '🔑 Secrets Detection', category: 'content' },
+  { value: 'content_regex', label: '📝 Content Regex', category: 'content' },
+  { value: 'toxicity', label: '⚠️ Toxicity', category: 'content' },
+  { value: 'prompt_injection', label: '🛡️ Prompt Injection', category: 'content' },
 ] as const;
 
 const ACTION_TYPES = [
@@ -23,7 +28,21 @@ const ACTION_TYPES = [
   { value: 'notify_webhook', label: 'Notify Webhook' },
   { value: 'downgrade_model', label: 'Downgrade Model' },
   { value: 'agentgate_policy', label: 'AgentGate Policy' },
+  { value: 'block', label: '🚫 Block' },
+  { value: 'redact', label: '██ Redact' },
+  { value: 'log_and_continue', label: '📋 Log & Continue' },
+  { value: 'alert', label: '🔔 Alert' },
 ] as const;
+
+const DIRECTION_OPTIONS = [
+  { value: 'both', label: 'Both (Input & Output)' },
+  { value: 'input', label: 'Input Only' },
+  { value: 'output', label: 'Output Only' },
+] as const;
+
+function isContentCondition(type: string): boolean {
+  return ['pii_detection', 'secrets_detection', 'content_regex', 'toxicity', 'prompt_injection'].includes(type);
+}
 
 const OPERATORS = ['gt', 'gte', 'lt', 'lte', 'eq'] as const;
 
@@ -93,6 +112,71 @@ function ConditionConfigFields({ type, config, onChange }: {
           <label>Value<br />
             <input type="number" value={config.value as number ?? 0}
               onChange={e => set('value', Number(e.target.value))} style={inputStyle} />
+          </label>
+        </div>
+      );
+    case 'pii_detection':
+      return (
+        <div style={fieldGroupStyle}>
+          <label>Sensitivity<br />
+            <select value={config.sensitivity as string ?? 'medium'}
+              onChange={e => set('sensitivity', e.target.value)} style={inputStyle}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+          <label>Entity Types (comma-separated)<br />
+            <input type="text" value={config.entityTypes as string ?? ''}
+              onChange={e => set('entityTypes', e.target.value)} style={inputStyle}
+              placeholder="e.g. email, phone, ssn" />
+          </label>
+        </div>
+      );
+    case 'secrets_detection':
+      return (
+        <div style={fieldGroupStyle}>
+          <label>Patterns (comma-separated)<br />
+            <input type="text" value={config.patterns as string ?? ''}
+              onChange={e => set('patterns', e.target.value)} style={inputStyle}
+              placeholder="e.g. aws_key, github_token" />
+          </label>
+        </div>
+      );
+    case 'content_regex':
+      return (
+        <div style={fieldGroupStyle}>
+          <label>Pattern (regex)<br />
+            <input type="text" value={config.pattern as string ?? ''}
+              onChange={e => set('pattern', e.target.value)} style={inputStyle}
+              placeholder="e.g. \\b\\d{3}-\\d{2}-\\d{4}\\b" />
+          </label>
+          <label>Flags<br />
+            <input type="text" value={config.flags as string ?? 'gi'}
+              onChange={e => set('flags', e.target.value)} style={inputStyle}
+              placeholder="gi" />
+          </label>
+        </div>
+      );
+    case 'toxicity':
+      return (
+        <div style={fieldGroupStyle}>
+          <label>Threshold (0-1)<br />
+            <input type="number" min={0} max={1} step={0.05} value={config.threshold as number ?? 0.7}
+              onChange={e => set('threshold', Number(e.target.value))} style={inputStyle} />
+          </label>
+        </div>
+      );
+    case 'prompt_injection':
+      return (
+        <div style={fieldGroupStyle}>
+          <label>Sensitivity<br />
+            <select value={config.sensitivity as string ?? 'medium'}
+              onChange={e => set('sensitivity', e.target.value)} style={inputStyle}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
           </label>
         </div>
       );
@@ -173,6 +257,9 @@ export default function GuardrailForm() {
   const [actionType, setActionType] = useState('pause_agent');
   const [actionConfig, setActionConfig] = useState<Record<string, unknown>>({});
   const [cooldownMinutes, setCooldownMinutes] = useState(15);
+  const [direction, setDirection] = useState<'input' | 'output' | 'both'>('both');
+  const [toolNamesStr, setToolNamesStr] = useState('');
+  const [priority, setPriority] = useState(0);
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -195,6 +282,9 @@ export default function GuardrailForm() {
       setActionType(rule.actionType);
       setActionConfig(rule.actionConfig);
       setCooldownMinutes(rule.cooldownMinutes);
+      setDirection(rule.direction ?? 'both');
+      setToolNamesStr((rule.toolNames ?? []).join(', '));
+      setPriority(rule.priority ?? 0);
     }).catch(err => setError(`Failed to load rule: ${err}`));
   }, [id]);
 
@@ -210,6 +300,9 @@ export default function GuardrailForm() {
       return;
     }
 
+    const isContent = isContentCondition(conditionType);
+    const toolNames = toolNamesStr.split(',').map(s => s.trim()).filter(Boolean);
+
     const data: CreateGuardrailData = {
       name: trimmedName,
       conditionType,
@@ -220,6 +313,9 @@ export default function GuardrailForm() {
       enabled,
       dryRun,
       ...(agentId ? { agentId } : {}),
+      ...(isContent ? { direction } : {}),
+      ...(isContent && toolNames.length > 0 ? { toolNames } : {}),
+      ...(isContent ? { priority } : {}),
     };
 
     try {
@@ -234,7 +330,7 @@ export default function GuardrailForm() {
     } finally {
       setSaving(false);
     }
-  }, [name, agentId, enabled, dryRun, conditionType, conditionConfig, actionType, actionConfig, cooldownMinutes, isEdit, id, navigate]);
+  }, [name, agentId, enabled, dryRun, conditionType, conditionConfig, actionType, actionConfig, cooldownMinutes, direction, toolNamesStr, priority, isEdit, id, navigate]);
 
   return (
     <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
@@ -287,16 +383,54 @@ export default function GuardrailForm() {
                 cost_limit: { maxCostUsd: 100, periodMs: 3600000 },
                 health_score_threshold: { minScore: 50, dimension: '' },
                 custom_metric: { metricKey: '', operator: 'gt', value: 0 },
+                pii_detection: { sensitivity: 'medium', entityTypes: '' },
+                secrets_detection: { patterns: '' },
+                content_regex: { pattern: '', flags: 'gi' },
+                toxicity: { threshold: 0.7 },
+                prompt_injection: { sensitivity: 'medium' },
               };
               setConditionConfig(defaults[newType] ?? {});
+              // Default to block for content rules
+              if (isContentCondition(newType)) {
+                setActionType('block');
+              }
             }} style={inputStyle}>
-              {CONDITION_TYPES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              <optgroup label="Operational">
+                {CONDITION_TYPES.filter(o => o.category === 'operational').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </optgroup>
+              <optgroup label="Content">
+                {CONDITION_TYPES.filter(o => o.category === 'content').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </optgroup>
             </select>
           </label>
           <div style={{ marginTop: '12px' }}>
             <ConditionConfigFields type={conditionType} config={conditionConfig} onChange={setConditionConfig} />
           </div>
         </div>
+
+        {/* Content Rule Options — only shown for content condition types */}
+        {isContentCondition(conditionType) && (
+          <div style={sectionStyle}>
+            <h3 style={sectionTitleStyle}>Content Rule Options</h3>
+            <div style={fieldGroupStyle}>
+              <label>Direction<br />
+                <select value={direction} onChange={e => setDirection(e.target.value as 'input' | 'output' | 'both')} style={inputStyle}>
+                  {DIRECTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              <label>Priority<br />
+                <input type="number" value={priority} onChange={e => setPriority(Number(e.target.value))}
+                  style={inputStyle} title="Higher priority rules are evaluated first" />
+              </label>
+            </div>
+            <div style={{ marginTop: '12px' }}>
+              <label>Tool Name Scope (comma-separated, leave empty for all)<br />
+                <input type="text" value={toolNamesStr} onChange={e => setToolNamesStr(e.target.value)}
+                  style={inputStyle} placeholder="e.g. web_search, file_read" />
+              </label>
+            </div>
+          </div>
+        )}
 
         {/* Action */}
         <div style={sectionStyle}>

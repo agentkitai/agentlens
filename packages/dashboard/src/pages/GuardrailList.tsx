@@ -19,6 +19,14 @@ function formatTimestamp(ts: string): string {
   try { return new Date(ts).toLocaleString(); } catch { return ts; }
 }
 
+const CONTENT_CONDITION_TYPES = new Set([
+  'pii_detection', 'secrets_detection', 'content_regex', 'toxicity', 'prompt_injection',
+]);
+
+function isContentRule(rule: GuardrailRuleData): boolean {
+  return CONTENT_CONDITION_TYPES.has(rule.conditionType);
+}
+
 function summarizeConditions(rule: GuardrailRuleData): string {
   const { conditionType, conditionConfig } = rule;
   switch (conditionType) {
@@ -30,6 +38,16 @@ function summarizeConditions(rule: GuardrailRuleData): string {
       return `Health < ${conditionConfig.minScore ?? '?'}`;
     case 'custom_metric':
       return `${conditionConfig.metricKey ?? '?'} ${conditionConfig.operator ?? '?'} ${conditionConfig.value ?? '?'}`;
+    case 'pii_detection':
+      return `PII Detection (${conditionConfig.sensitivity ?? 'medium'})`;
+    case 'secrets_detection':
+      return 'Secrets Detection';
+    case 'content_regex':
+      return `Regex: ${conditionConfig.pattern ?? '?'}`;
+    case 'toxicity':
+      return `Toxicity > ${conditionConfig.threshold ?? '?'}`;
+    case 'prompt_injection':
+      return `Prompt Injection (${conditionConfig.sensitivity ?? 'medium'})`;
     default:
       return conditionType;
   }
@@ -42,6 +60,10 @@ function summarizeActions(rule: GuardrailRuleData): string {
     case 'notify_webhook': return `🔔 Webhook: ${actionConfig.url ?? '?'}`;
     case 'downgrade_model': return `⬇ Downgrade → ${actionConfig.targetModel ?? '?'}`;
     case 'agentgate_policy': return `🚪 Policy: ${actionConfig.policyId ?? '?'}`;
+    case 'block': return '🚫 Block';
+    case 'redact': return '██ Redact';
+    case 'log_and_continue': return '📋 Log & Continue';
+    case 'alert': return '🔔 Alert';
     default: return actionType;
   }
 }
@@ -127,6 +149,15 @@ function GuardrailRules() {
                     {rule.name}
                   </Link>
                   {rule.dryRun && <span style={{ color: '#f59e0b', marginLeft: '6px', fontSize: '11px' }}>[DRY RUN]</span>}
+                  {isContentRule(rule)
+                    ? <span style={{ background: '#dbeafe', color: '#1d4ed8', marginLeft: '6px', fontSize: '10px', padding: '1px 6px', borderRadius: '8px' }}>CONTENT</span>
+                    : <span style={{ background: '#f1f5f9', color: '#64748b', marginLeft: '6px', fontSize: '10px', padding: '1px 6px', borderRadius: '8px' }}>OPERATIONAL</span>}
+                  {rule.direction && rule.direction !== 'both' && (
+                    <span style={{ color: '#7c3aed', marginLeft: '4px', fontSize: '10px' }}>↕{rule.direction}</span>
+                  )}
+                  {typeof rule.priority === 'number' && rule.priority !== 0 && (
+                    <span style={{ color: '#6b7280', marginLeft: '4px', fontSize: '10px' }}>P{rule.priority}</span>
+                  )}
                 </td>
                 <td style={tdStyle}>{rule.agentId ?? <span style={{ color: '#aaa' }}>All</span>}</td>
                 <td style={tdStyle}>{summarizeConditions(rule)}</td>

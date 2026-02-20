@@ -27,9 +27,11 @@ import { useApi } from '../hooks/useApi';
 import { getLlmAnalytics, getAgents } from '../api/client';
 import type { LlmAnalyticsResult } from '../api/client';
 import type { Agent } from '@agentlensai/core';
+import { OptimizationPanel } from '../components/optimization/OptimizationPanel';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+type ActiveTab = 'analytics' | 'optimization';
 type TimeRange = '24h' | '7d' | '30d';
 
 interface TimeRangeConfig {
@@ -130,6 +132,7 @@ type SortDir = 'asc' | 'desc';
 // ─── Component ──────────────────────────────────────────────────────
 
 export function LlmAnalytics(): React.ReactElement {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('analytics');
   const [range, setRange] = useState<TimeRange>('24h');
   const [agentId, setAgentId] = useState('');
   const [modelFilter, setModelFilter] = useState('');
@@ -231,7 +234,7 @@ export function LlmAnalytics(): React.ReactElement {
 
   return (
     <div className="space-y-6">
-      {/* Header + Time Range */}
+      {/* Header + Tabs */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">LLM Analytics</h1>
@@ -239,6 +242,32 @@ export function LlmAnalytics(): React.ReactElement {
             Usage, cost, and performance metrics for LLM calls.
           </p>
         </div>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          {([
+            { key: 'analytics' as ActiveTab, label: 'Analytics' },
+            { key: 'optimization' as ActiveTab, label: 'Optimization' },
+          ]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                activeTab === key
+                  ? 'bg-white shadow-sm font-medium text-gray-900'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === 'optimization' ? (
+        <OptimizationPanel agentId={agentId || undefined} />
+      ) : (<>
+
+      {/* Time Range */}
+      <div className="flex justify-end">
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           {(Object.keys(TIME_RANGES) as TimeRange[]).map((key) => (
             <button
@@ -556,6 +585,8 @@ export function LlmAnalytics(): React.ReactElement {
           </p>
         </div>
       )}
+
+      </>)}
     </div>
   );
 }

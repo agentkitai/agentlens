@@ -102,6 +102,9 @@ vi.mock('../../api/client', () => {
     getCapabilities: () => Promise.resolve({ capabilities: [] }),
     getDelegations: () => Promise.resolve({ delegations: [], total: 0 }),
     communitySearch: () => Promise.resolve({ lessons: [], total: 0 }),
+    verifyAuditChain: () => Promise.resolve({ verified: true, sessionsChecked: 0, brokenChains: [] }),
+    generateComplianceReport: noop,
+    getExportEventsUrl: () => '/api/compliance/export/events',
     ApiError: class ApiError extends Error { status: number; constructor(s: number, m: string) { super(m); this.status = s; this.name = 'ApiError'; } },
   };
 });
@@ -132,6 +135,11 @@ describe('Page smoke tests', () => {
   it('GuardrailList renders without crashing', async () => {
     const { default: GuardrailList } = await import('../GuardrailList');
     expect(() => render(<GuardrailList />)).not.toThrow();
+  });
+
+  it('Compliance renders without crashing', async () => {
+    const { default: Compliance } = await import('../Compliance');
+    expect(() => render(<Compliance />)).not.toThrow();
   });
 
   it('Sessions renders without crashing', async () => {
