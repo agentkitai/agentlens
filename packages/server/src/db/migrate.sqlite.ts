@@ -799,6 +799,40 @@ export function runMigrations(db: SqliteDb): void {
     )
   `);
 
+  // ─── Notification Channels (Feature 12) ──────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS notification_channels (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      config TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_notification_channels_tenant ON notification_channels(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_notification_channels_type ON notification_channels(tenant_id, type)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS notification_log (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
+      channel_id TEXT NOT NULL,
+      rule_id TEXT,
+      rule_type TEXT,
+      status TEXT NOT NULL,
+      attempt INTEGER NOT NULL DEFAULT 1,
+      error_message TEXT,
+      payload_summary TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_notification_log_tenant ON notification_log(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_notification_log_channel ON notification_log(channel_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_notification_log_created ON notification_log(tenant_id, created_at)`);
+
   db.run(sql`
     CREATE TABLE IF NOT EXISTS cost_anomaly_config (
       tenant_id TEXT PRIMARY KEY,
