@@ -40,33 +40,6 @@ export class CostBudgetStore {
   }
 
   listBudgets(tenantId: string, opts?: { agentId?: string; scope?: string; enabled?: boolean }): CostBudget[] {
-    // Build dynamic query with optional filters
-    let query = `SELECT * FROM cost_budgets WHERE tenant_id = ?`;
-    const params: unknown[] = [tenantId];
-
-    if (opts?.agentId) {
-      query += ` AND agent_id = ?`;
-      params.push(opts.agentId);
-    }
-    if (opts?.scope) {
-      query += ` AND scope = ?`;
-      params.push(opts.scope);
-    }
-    if (opts?.enabled !== undefined) {
-      query += ` AND enabled = ?`;
-      params.push(opts.enabled ? 1 : 0);
-    }
-
-    query += ` ORDER BY created_at DESC`;
-
-    // Use raw SQL with parameters
-    const rows = this.db.all<Record<string, unknown>>(sql.raw(query));
-    // Unfortunately drizzle sql.raw doesn't support params, so use the sql template approach
-    // We need to do this differently — build with sql tagged template
-    return this._listBudgetsInternal(tenantId, opts);
-  }
-
-  private _listBudgetsInternal(tenantId: string, opts?: { agentId?: string; scope?: string; enabled?: boolean }): CostBudget[] {
     if (opts?.agentId && opts?.scope && opts?.enabled !== undefined) {
       return this.db.all<Record<string, unknown>>(sql`
         SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId}

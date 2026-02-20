@@ -434,11 +434,10 @@ export async function createApp(
   }
 
   // ─── Cost Budgets (Feature 5) ─────────────────────────
-  let budgetEngine: BudgetEngine | undefined;
   if (db) {
-    budgetEngine = new BudgetEngine(store, db);
-    const budgetStore = budgetEngine.getStore();
-    app.route('/api/cost-budgets', costBudgetRoutes(budgetStore, store, budgetEngine));
+    const cBudgetEngine = new BudgetEngine(store, db);
+    const budgetStore = cBudgetEngine.getStore();
+    app.route('/api/cost-budgets', costBudgetRoutes(budgetStore, store, cBudgetEngine));
   }
 
   // ─── Recall / Semantic Search ─────────────────────────
@@ -636,12 +635,11 @@ export async function startServer() {
   log.info('Guardrails: enabled');
 
   // Start budget engine and anomaly detector (Feature 5)
-  if (budgetEngine) {
-    budgetEngine.start();
-    const anomalyDetector = new CostAnomalyDetector(store, budgetEngine.getStore());
-    anomalyDetector.start();
-    log.info('Cost budgets & anomaly detection: enabled');
-  }
+  const budgetEngine = new BudgetEngine(store, db);
+  budgetEngine.start();
+  const anomalyDetector = new CostAnomalyDetector(store, budgetEngine.getStore());
+  anomalyDetector.start();
+  log.info('Cost budgets & anomaly detection: enabled');
 
   // M-11 FIX: Graceful shutdown for engines, workers, HTTP server, and PG pool
   let httpServer: ReturnType<typeof serve> | undefined;
