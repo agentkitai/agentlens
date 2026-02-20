@@ -43,5 +43,10 @@
   },
   "dependencies": {
     "postgres": "^3.4.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "vitest": "$vitest"
+    }
   }
 }

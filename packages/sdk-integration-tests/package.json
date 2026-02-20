@@ -12,7 +12,6 @@
     "@agentlensai/sdk": "workspace:*",
     "@agentlensai/core": "workspace:*",
     "@hono/node-server": "^1.14.1",
-    "drizzle-orm": "^0.44.2",
-    "vitest": "^4.0.18"
+    "drizzle-orm": "^0.44.2"
   }
 }

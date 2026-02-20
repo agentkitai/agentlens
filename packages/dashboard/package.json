@@ -40,7 +40,6 @@
     "react-router-dom": "^7.13.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.7.2",
-    "vite": "^7.3.1",
-    "vitest": "^2.1.8"
+    "vite": "^7.3.1"
   }
 }

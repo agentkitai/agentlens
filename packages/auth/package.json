@@ -38,7 +38,6 @@
   },
   "devDependencies": {
     "hono": "^4.11.9",
-    "tsup": "^8.5.0",
-    "vitest": "^3.2.3"
+    "tsup": "^8.5.0"
   }
 }
