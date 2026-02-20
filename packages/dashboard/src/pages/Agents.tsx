@@ -433,7 +433,9 @@ export function Agents(): React.ReactElement {
 
   // Always fetch local (telemetry) agents
   const telemetryQuery = useApi(() => getAgents(), []);
-  const telemetryAgents = telemetryQuery.data ?? [];
+  // Hide 'openclaw-brad' — it's a duplicate of 'main' from the OTel service name.
+  // Events are being merged server-side but the agent keeps getting recreated.
+  const telemetryAgents = (telemetryQuery.data ?? []).filter((a) => a.name !== 'openclaw-brad');
 
   // Only fetch mesh agents when mesh is enabled
   const meshQuery = useApi(() => (meshEnabled ? getMeshAgents() : Promise.resolve([])), [meshEnabled]);

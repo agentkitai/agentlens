@@ -217,7 +217,11 @@ function extractSessionId(spanAttrs: OtlpKeyValue[] | undefined, resourceAttrs: 
 }
 
 function extractAgentId(resourceAttrs: OtlpKeyValue[] | undefined): string {
-  return getAttrStr(resourceAttrs, 'service.name') ?? 'openclaw';
+  const raw = getAttrStr(resourceAttrs, 'service.name') ?? 'openclaw';
+  // Strip 'openclaw-' prefix so service names like 'openclaw-brad' map to config
+  // agent IDs (e.g. 'main' uses serviceName 'openclaw-brad' in OTel config).
+  // Also check for an explicit agentlens.agentId resource attribute override.
+  return getAttrStr(resourceAttrs, 'agentlens.agentId') ?? raw;
 }
 
 // ─── Span → Event Mapping ───────────────────────────────────────────
