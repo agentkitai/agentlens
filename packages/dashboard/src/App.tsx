@@ -39,6 +39,8 @@ const SharingActivity = React.lazy(() => import('./pages/SharingActivity'));
 const AgentNetwork = React.lazy(() => import('./pages/AgentNetwork'));
 const CapabilityRegistry = React.lazy(() => import('./pages/CapabilityRegistry'));
 const DelegationLog = React.lazy(() => import('./pages/DelegationLog'));
+const Prompts = React.lazy(() => import('./pages/Prompts').then(m => ({ default: m.Prompts })));
+const PromptDetail = React.lazy(() => import('./pages/PromptDetail').then(m => ({ default: m.PromptDetail })));
 const EvalDatasets = React.lazy(() => import('./pages/eval/datasets').then(m => ({ default: m.EvalDatasets })));
 const EvalDatasetDetail = React.lazy(() => import('./pages/eval/dataset-detail').then(m => ({ default: m.EvalDatasetDetail })));
 const Compliance = React.lazy(() => import('./pages/Compliance'));
@@ -113,6 +115,8 @@ function AppRoutes(): React.ReactElement {
         <Route path="compliance" element={<Suspense fallback={<PageSkeleton />}><Compliance /></Suspense>} />
         <Route path="eval/datasets" element={<Suspense fallback={<PageSkeleton />}><EvalDatasets /></Suspense>} />
         <Route path="eval/datasets/:id" element={<Suspense fallback={<PageSkeleton />}><EvalDatasetDetail /></Suspense>} />
+        <Route path="prompts" element={<Suspense fallback={<PageSkeleton />}><Prompts /></Suspense>} />
+        <Route path="prompts/:id" element={<Suspense fallback={<PageSkeleton />}><PromptDetail /></Suspense>} />
         <Route path="delegations" element={<Suspense fallback={<PageSkeleton />}><DelegationLog /></Suspense>} />
         <Route path="team" element={<Suspense fallback={<PageSkeleton />}><TeamManagement /></Suspense>} />
         <Route path="api-keys" element={<Suspense fallback={<PageSkeleton />}><ApiKeyManagement /></Suspense>} />
