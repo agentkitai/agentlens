@@ -183,6 +183,88 @@ describe('Audit Verification Engine', () => {
       expect(report.lastHash).toBe(chain[9].hash);
     });
 
+    it('single-record chain validates successfully', async () => {
+      const chain = buildChain(1, 'sess_single');
+      const repo = createMockRepo({ sess_single: chain });
+      const report = await runVerification(repo, {
+        tenantId: 'default',
+        sessionId: 'sess_single',
+      });
+      expect(report.verified).toBe(true);
+      expect(report.totalEvents).toBe(1);
+      expect(report.firstHash).toBe(chain[0].hash);
+      expect(report.lastHash).toBe(chain[0].hash);
+    });
+
+    it('detects inserted record in middle of chain', async () => {
+      const chain = buildChain(20, 'sess_insert');
+      // Insert a foreign record at index 10
+      const foreign: ChainEvent = {
+        id: 'evt_foreign_0000',
+        timestamp: '2026-01-15T10:00:10Z',
+        sessionId: 'sess_insert',
+        agentId: 'agent_1',
+        eventType: 'custom',
+        severity: 'info',
+        payload: { injected: true },
+        metadata: {},
+        prevHash: chain[9].hash,
+        hash: 'fake-hash-value',
+      };
+      chain.splice(10, 0, foreign);
+      const repo = createMockRepo({ sess_insert: chain });
+      const report = await runVerification(repo, {
+        tenantId: 'default',
+        sessionId: 'sess_insert',
+      });
+      expect(report.verified).toBe(false);
+      expect(report.brokenChains).toHaveLength(1);
+      expect(report.brokenChains[0].failedAtIndex).toBe(10);
+    });
+
+    it('detects deleted record from chain', async () => {
+      const chain = buildChain(20, 'sess_delete');
+      // Remove record at index 10 — causes prevHash mismatch at index 11 (now 10)
+      chain.splice(10, 1);
+      const repo = createMockRepo({ sess_delete: chain });
+      const report = await runVerification(repo, {
+        tenantId: 'default',
+        sessionId: 'sess_delete',
+      });
+      expect(report.verified).toBe(false);
+      expect(report.brokenChains).toHaveLength(1);
+      // The break is detected at the record that follows the gap
+      expect(report.brokenChains[0].failedAtIndex).toBe(10);
+    });
+
+    it('detects modified hash field', async () => {
+      const chain = buildChain(10, 'sess_hash');
+      // Corrupt the hash of record 5 (but keep data intact)
+      chain[5] = { ...chain[5], hash: 'corrupted-hash-value' };
+      const repo = createMockRepo({ sess_hash: chain });
+      const report = await runVerification(repo, {
+        tenantId: 'default',
+        sessionId: 'sess_hash',
+      });
+      expect(report.verified).toBe(false);
+      expect(report.brokenChains).toHaveLength(1);
+      expect(report.brokenChains[0].failedAtIndex).toBe(5);
+    });
+
+    it('detects broken prevHash link', async () => {
+      const chain = buildChain(10, 'sess_prev');
+      // Corrupt the prevHash of record 7
+      chain[7] = { ...chain[7], prevHash: 'wrong-prev-hash' };
+      const repo = createMockRepo({ sess_prev: chain });
+      const report = await runVerification(repo, {
+        tenantId: 'default',
+        sessionId: 'sess_prev',
+      });
+      expect(report.verified).toBe(false);
+      expect(report.brokenChains).toHaveLength(1);
+      expect(report.brokenChains[0].failedAtIndex).toBe(7);
+    });
+
     it('AC 3.8 — batched streaming (processes in chunks)', async () => {
       // 20,000 events — the mock repo will be called multiple times with batches
       const chain = buildChain(200, 'sess_big'); // use 200 for test speed
