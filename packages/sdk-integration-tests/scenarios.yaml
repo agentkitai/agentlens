@@ -1,0 +1,221 @@
+# Cross-SDK Integration Test Scenarios
+# Run against a live AgentLens server to validate API parity across SDKs.
+
+- name: health_check
+  description: Server health (no auth required)
+  method: health
+  args: {}
+  expect:
+    status: 200
+    body:
+      status: ok
+
+- name: query_events_empty
+  description: Query events with no data returns empty list
+  method: queryEvents
+  args: {}
+  expect:
+    status: 200
+    body:
+      events: []
+      total: 0
+      hasMore: false
+
+- name: get_event_not_found
+  description: Getting a nonexistent event returns 404
+  method: getEvent
+  args:
+    id: nonexistent-event-id
+  expect:
+    status: 404
+    error: true
+
+- name: query_events_with_filter
+  description: Query events filtered by sessionId
+  method: queryEvents
+  args:
+    sessionId: integration-test-session
+  expect:
+    status: 200
+    body:
+      hasMore: false
+
+- name: get_sessions_empty
+  description: Query sessions returns list
+  method: getSessions
+  args: {}
+  expect:
+    status: 200
+    body:
+      hasMore: false
+
+- name: get_session_not_found
+  description: Getting a nonexistent session returns 404
+  method: getSession
+  args:
+    id: nonexistent-session-id
+  expect:
+    status: 404
+    error: true
+
+- name: get_agent_not_found
+  description: Getting a nonexistent agent returns 404
+  method: getAgent
+  args:
+    id: nonexistent-agent-id
+  expect:
+    status: 404
+    error: true
+
+- name: log_llm_call
+  description: Log an LLM call and verify it roundtrips
+  method: logLlmCall
+  args:
+    sessionId: integ-test-s1
+    agentId: integ-test-a1
+    params:
+      provider: openai
+      model: gpt-4
+      messages:
+        - role: user
+          content: Hello, world
+      completion: Hi there!
+      finishReason: stop
+      usage:
+        inputTokens: 10
+        outputTokens: 5
+        totalTokens: 15
+      costUsd: 0.001
+      latencyMs: 200
+  expect:
+    status: 200
+    body:
+      callId: "non-empty-string"
+
+- name: query_events_after_log
+  description: After logging, events should be queryable
+  dependsOn: log_llm_call
+  method: queryEvents
+  args:
+    sessionId: integ-test-s1
+  expect:
+    status: 200
+    body:
+      events:
+        minLength: 2
+
+- name: get_llm_analytics
+  description: LLM analytics returns summary
+  method: getLlmAnalytics
+  args: {}
+  expect:
+    status: 200
+    body:
+      summary: non-null
+
+- name: recall_search
+  description: Recall semantic search
+  method: recall
+  args:
+    query: test query
+  expect:
+    status: 200
+
+- name: reflect_analysis
+  description: Reflect pattern analysis
+  method: reflect
+  args:
+    analysis: error_patterns
+  expect:
+    status: 200
+
+- name: get_context
+  description: Cross-session context
+  method: getContext
+  args:
+    topic: test
+  expect:
+    status: 200
+
+- name: health_overview
+  description: Health overview returns list
+  method: getHealthOverview
+  args: {}
+  expect:
+    status: 200
+
+- name: list_guardrails
+  description: List guardrail rules
+  method: listGuardrails
+  args: {}
+  expect:
+    status: 200
+    body:
+      rules: array
+
+- name: guardrail_crud
+  description: Create, get, update, and delete a guardrail rule
+  steps:
+    - method: createGuardrail
+      args:
+        name: integ-test-rule
+        conditionType: error_rate
+        conditionConfig:
+          threshold: 0.5
+        actionType: alert
+        actionConfig:
+          message: Test alert
+        enabled: true
+      expect:
+        status: 200
+        body:
+          name: integ-test-rule
+          enabled: true
+      saveAs: createdRule
+
+    - method: getGuardrail
+      args:
+        id: "{{createdRule.id}}"
+      expect:
+        status: 200
+        body:
+          name: integ-test-rule
+
+    - method: disableGuardrail
+      args:
+        id: "{{createdRule.id}}"
+      expect:
+        status: 200
+        body:
+          enabled: false
+
+    - method: deleteGuardrail
+      args:
+        id: "{{createdRule.id}}"
+      expect:
+        status: 200
+
+- name: verify_audit
+  description: Verify audit trail integrity
+  method: verifyAudit
+  args: {}
+  expect:
+    status: 200
+    body:
+      verified: true
+
+- name: auth_required
+  description: Request without auth returns 401
+  method: queryEvents
+  args: {}
+  noAuth: true
+  expect:
+    status: 401
+    error: true
+
+- name: optimization_recommendations
+  description: Get optimization recommendations
+  method: getOptimizationRecommendations
+  args: {}
+  expect:
+    status: 200

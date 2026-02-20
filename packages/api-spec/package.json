@@ -1,0 +1,10 @@
+{
+  "name": "@agentlensai/api-spec",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenAPI 3.0 specification for the AgentLens REST API",
+  "scripts": {
+    "validate": "npx @redocly/cli lint openapi.yaml",
+    "preview": "npx @redocly/cli preview-docs openapi.yaml"
+  }
+}
