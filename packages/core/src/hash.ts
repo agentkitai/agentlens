@@ -117,6 +117,83 @@ export interface ChainVerificationResult {
  * @param events - Ordered array of full events to verify
  * @returns ChainVerificationResult with details on any failure
  */
+/**
+ * Input for raw hash computation — uses pre-serialized JSON strings
+ * for payload and metadata to avoid parse+stringify overhead.
+ */
+export interface RawHashableEvent {
+  id: string;
+  timestamp: string;
+  sessionId: string;
+  agentId: string;
+  eventType: string;
+  severity: string;
+  payloadRaw: string;
+  metadataRaw: string;
+  prevHash: string | null;
+}
+
+/**
+ * Compute event hash from pre-serialized payload/metadata strings.
+ * Produces identical output to computeEventHash() when the raw strings
+ * match JSON.stringify(payload) and JSON.stringify(metadata).
+ *
+ * This avoids the parse+stringify overhead for verification workloads
+ * where data is read from the database as JSON strings.
+ */
+export function computeEventHashRaw(event: RawHashableEvent): string {
+  const canonical = `{"v":${HASH_VERSION},"id":${JSON.stringify(event.id)},"timestamp":${JSON.stringify(event.timestamp)},"sessionId":${JSON.stringify(event.sessionId)},"agentId":${JSON.stringify(event.agentId)},"eventType":${JSON.stringify(event.eventType)},"severity":${JSON.stringify(event.severity)},"payload":${event.payloadRaw},"metadata":${event.metadataRaw},"prevHash":${event.prevHash === null ? 'null' : JSON.stringify(event.prevHash)}}`;
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
+/**
+ * Verify a batch of events against an expected previous hash.
+ * Generalizes verifyChain() to support batched/streaming verification.
+ *
+ * @param events - Ordered array of events in this batch
+ * @param expectedPrevHash - The hash the first event's prevHash should match (null for genesis)
+ * @returns ChainVerificationResult
+ */
+export function verifyChainBatch(
+  events: ChainEvent[],
+  expectedPrevHash: string | null,
+): ChainVerificationResult {
+  if (events.length === 0) {
+    return { valid: true, failedAtIndex: -1, reason: null };
+  }
+
+  // Check linkage to previous batch / genesis
+  if (events[0].prevHash !== expectedPrevHash) {
+    return {
+      valid: false,
+      failedAtIndex: 0,
+      reason: expectedPrevHash === null
+        ? 'First event must have prevHash = null'
+        : `Batch linkage broken: expected prevHash=${expectedPrevHash}, got ${events[0].prevHash}`,
+    };
+  }
+
+  for (let i = 0; i < events.length; i++) {
+    const recomputed = computeEventHash(events[i]);
+    if (recomputed !== events[i].hash) {
+      return {
+        valid: false,
+        failedAtIndex: i,
+        reason: `Event ${i} hash mismatch: expected ${recomputed}, got ${events[i].hash}`,
+      };
+    }
+    if (i > 0 && events[i].prevHash !== events[i - 1].hash) {
+      return {
+        valid: false,
+        failedAtIndex: i,
+        reason: `Event ${i} prevHash does not match previous event's hash`,
+      };
+    }
+  }
+
+  return { valid: true, failedAtIndex: -1, reason: null };
+}
+
 export function verifyChain(events: ChainEvent[]): ChainVerificationResult {
   if (events.length === 0) {
     return { valid: true, failedAtIndex: -1, reason: null };

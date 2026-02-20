@@ -84,6 +84,26 @@ export interface HealthResult {
   version: string;
 }
 
+export interface BrokenChainDetail {
+  sessionId: string;
+  failedAtIndex: number;
+  failedEventId: string;
+  reason: string;
+}
+
+export interface VerificationReport {
+  verified: boolean;
+  verifiedAt: string;
+  range: { from: string; to: string } | null;
+  sessionId?: string;
+  sessionsVerified: number;
+  totalEvents: number;
+  firstHash: string | null;
+  lastHash: string | null;
+  brokenChains: BrokenChainDetail[];
+  signature: string | null;
+}
+
 export interface LogLlmCallParams {
   provider: string;
   model: string;
@@ -648,6 +668,23 @@ export class AgentLensClient {
    */
   async health(): Promise<HealthResult> {
     return this.request<HealthResult>('/api/health', { skipAuth: true });
+  }
+
+  // ─── Audit Verification (Feature 3) ─────────────────────
+
+  /**
+   * Verify audit trail hash chain integrity.
+   */
+  async verifyAudit(params: {
+    from?: string;
+    to?: string;
+    sessionId?: string;
+  }): Promise<VerificationReport> {
+    const query = new URLSearchParams();
+    if (params.from) query.set('from', params.from);
+    if (params.to) query.set('to', params.to);
+    if (params.sessionId) query.set('sessionId', params.sessionId);
+    return this.request<VerificationReport>(`/api/audit/verify?${query.toString()}`);
   }
 
   // ─── Internal ────────────────────────────────────────────

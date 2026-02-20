@@ -21,6 +21,8 @@ export type {
   GuardrailTriggerHistoryResult,
   CreateGuardrailRuleParams,
   UpdateGuardrailRuleParams,
+  VerificationReport,
+  BrokenChainDetail,
 } from './client.js';
 
 // Batch Sender

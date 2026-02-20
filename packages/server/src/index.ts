@@ -54,6 +54,7 @@ import { authRoutes } from './routes/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rate-limit.js';
 import { apiBodyLimit } from './middleware/body-limit.js';
 import { auditRoutes } from './routes/audit.js';
+import { auditVerifyRoutes } from './routes/audit-verify.js';
 import { createAuditLogger, cleanupAuditLogs } from './lib/audit.js';
 import { auditMiddleware } from './middleware/audit.js';
 import { GuardrailEngine } from './lib/guardrails/engine.js';
@@ -67,6 +68,7 @@ import { eventBus } from './lib/event-bus.js';
 import { EmbeddingWorker } from './lib/embeddings/worker.js';
 import type { EmbeddingService } from './lib/embeddings/index.js';
 import { EmbeddingStore } from './db/embedding-store.js';
+import type { IEmbeddingStore } from './db/embedding-store.interface.js';
 import { SessionSummaryStore } from './db/session-summary-store.js';
 import { createLogger } from './lib/logger.js';
 
@@ -182,6 +184,7 @@ export async function createApp(
   store: IEventStore,
   config?: Partial<ServerConfig> & {
     db?: SqliteDb;
+    apiKeyLookup?: import('./db/api-key-lookup.js').IApiKeyLookup;
     embeddingService?: EmbeddingService | null;
     embeddingWorker?: EmbeddingWorker | null;
     pgSql?: import('postgres').Sql;
@@ -270,7 +273,7 @@ export async function createApp(
 
   // ─── SSE stream (authenticates via Bearer header or ?token= query param) ──
   // Mounted before auth middleware — handles its own auth internally for EventSource compat.
-  app.route('/api/stream', streamRoutes(config?.db, resolvedConfig.authDisabled));
+  app.route('/api/stream', streamRoutes(config?.apiKeyLookup, resolvedConfig.authDisabled));
 
   // ─── Webhook ingest (no API key auth — uses HMAC signature verification) ──
   app.route('/api/events/ingest', ingestRoutes(store, {
@@ -456,6 +459,7 @@ export async function createApp(
   // ─── Audit Log (SH-2) ──────────────────────────────────
   if (db) {
     app.route('/api/audit', auditRoutes(db));
+    app.route('/api/audit/verify', auditVerifyRoutes(db, resolvedConfig.auditSigningKey));
   }
 
   // ─── Community Sharing (Stories 4.1–4.3) ────────────────
@@ -512,21 +516,34 @@ export async function startServer() {
   // Create and initialize database
   // For Postgres, we need the raw sql client for shutdown & health checks
   let pgSql: import('postgres').Sql | undefined;
-  const dialect = (process.env['DB_DIALECT'] as string | undefined) ?? 'sqlite';
+  let store: IEventStore;
   let db: SqliteDb;
-  if (dialect === 'postgresql') {
+
+  // SQLite is always created for auxiliary features (api_keys, audit, guardrails, etc.)
+  // Even when PG is the primary event/embedding store
+  db = createDb({ databasePath: config.dbPath });
+  runMigrations(db);
+
+  if (config.storageBackend === 'postgres') {
     const { createPostgresConnection, verifyPostgresConnection } = await import('./db/connection.postgres.js');
     const conn = createPostgresConnection();
     await verifyPostgresConnection(conn.sql); // fail fast if unreachable
     pgSql = conn.sql;
-    // For now, startServer still uses SQLite as the main store; Postgres path is for future use
-    // Create SQLite db alongside for the store
-    db = createDb({ databasePath: config.dbPath });
+
+    const { runPostgresMigrations } = await import('./db/migrate.postgres.js');
+    await runPostgresMigrations(conn.db);
+
+    const { PostgresEventStore } = await import('./db/postgres-store.js');
+    store = new PostgresEventStore(conn.db);
+
+    // Warn about silent SQLite → PG switch for existing Docker Compose users
+    log.warn('STORAGE_BACKEND=postgres is now active. Previous SQLite data at ' +
+      `${config.dbPath} is not automatically migrated.`);
+    log.info('Database: PostgreSQL');
   } else {
-    db = createDb({ databasePath: config.dbPath });
+    store = new SqliteEventStore(db);
+    log.info(`Database: SQLite (${config.dbPath})`);
   }
-  runMigrations(db);
-  const store = new SqliteEventStore(db);
 
   // Create embedding service & worker (optional — fail-safe)
   let embeddingService: EmbeddingService | null = null;
@@ -537,7 +554,19 @@ export async function startServer() {
     try {
       const { createEmbeddingService } = await import('./lib/embeddings/index.js');
       embeddingService = createEmbeddingService();
-      const embeddingStore = new EmbeddingStore(db);
+
+      let embeddingStore: IEmbeddingStore;
+      if (config.storageBackend === 'postgres' && pgSql) {
+        const { createPostgresConnection } = await import('./db/connection.postgres.js');
+        const conn = createPostgresConnection();
+        const { PostgresEmbeddingStore } = await import('./db/postgres-embedding-store.js');
+        const pgEmbeddingStore = new PostgresEmbeddingStore(conn.db);
+        await pgEmbeddingStore.initialize();
+        embeddingStore = pgEmbeddingStore;
+      } else {
+        embeddingStore = new EmbeddingStore(db);
+      }
+
       embeddingWorker = new EmbeddingWorker(embeddingService, embeddingStore);
       embeddingWorker.start();
       log.info(`Embeddings: enabled (${embeddingService.modelName})`);
@@ -547,13 +576,16 @@ export async function startServer() {
   }
 
   // Create app with db reference for auth
-  const app = await createApp(store, { ...config, db, embeddingService, embeddingWorker, pgSql });
+  // Create API key lookup for auth (uses SQLite for auxiliary features in both modes)
+  const { SqliteApiKeyLookup } = await import('./db/api-key-lookup.js');
+  const apiKeyLookup = new SqliteApiKeyLookup(db);
+
+  const app = await createApp(store, { ...config, db, apiKeyLookup, embeddingService, embeddingWorker, pgSql });
 
   // Start listening
   log.info(`AgentLens server starting on port ${config.port}`);
   log.info(`Auth: ${config.authDisabled ? 'DISABLED (dev mode)' : 'enabled'}`);
   log.info(`CORS origin: ${config.corsOrigin}`);
-  log.info(`Database: ${config.dbPath}`);
 
   // Audit log retention cleanup (SH-2)
   {
@@ -576,7 +608,7 @@ export async function startServer() {
 
   // Start guardrail evaluation engine (v0.8.0)
   // Wire the agent store so pause_agent/downgrade_model actions can UPDATE the agents table (B1)
-  setAgentStore(store);
+  setAgentStore(store as any);
   const guardrailEngine = new GuardrailEngine(store, db);
   guardrailEngine.start();
   log.info('Guardrails: enabled');

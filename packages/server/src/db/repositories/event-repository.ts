@@ -5,11 +5,11 @@
 
 import { eq, and, gte, lte, desc, asc, sql, count as drizzleCount } from 'drizzle-orm';
 import { computeEventHash } from '@agentlensai/core';
-import type { AgentLensEvent, EventQuery, EventQueryResult } from '@agentlensai/core';
+import type { AgentLensEvent, EventQuery, EventQueryResult, ChainEvent } from '@agentlensai/core';
 import type { SqliteDb } from '../index.js';
 import { events, sessions, agents } from '../schema.sqlite.js';
 import { HashChainError } from '../errors.js';
-import { buildEventConditions, mapEventRow } from '../shared/query-helpers.js';
+import { buildEventConditions, mapEventRow, safeJsonParse } from '../shared/query-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('EventRepository');
@@ -196,6 +196,63 @@ export class EventRepository {
       .get();
 
     return result?.count ?? 0;
+  }
+
+  /**
+   * Get events for a session in batches, ordered by (timestamp ASC, id ASC).
+   * Returns ChainEvent objects suitable for hash chain verification.
+   */
+  getSessionEventsBatch(
+    sessionId: string,
+    tenantId: string,
+    offset: number,
+    limit: number,
+  ): ChainEvent[] {
+    const rows = this.db
+      .select()
+      .from(events)
+      .where(and(
+        eq(events.tenantId, tenantId),
+        eq(events.sessionId, sessionId),
+      ))
+      .orderBy(asc(events.timestamp), asc(events.id))
+      .limit(limit)
+      .offset(offset)
+      .all();
+
+    return rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      sessionId: row.sessionId,
+      agentId: row.agentId,
+      eventType: row.eventType,
+      severity: row.severity,
+      payload: safeJsonParse(row.payload, {}),
+      metadata: safeJsonParse(row.metadata, {}),
+      prevHash: row.prevHash,
+      hash: row.hash,
+    }));
+  }
+
+  /**
+   * Get distinct session IDs that have at least one event in [from, to].
+   */
+  getSessionIdsInRange(
+    tenantId: string,
+    from: string,
+    to: string,
+  ): string[] {
+    const rows = this.db
+      .selectDistinct({ sessionId: events.sessionId })
+      .from(events)
+      .where(and(
+        eq(events.tenantId, tenantId),
+        gte(events.timestamp, from),
+        lte(events.timestamp, to),
+      ))
+      .all();
+
+    return rows.map(r => r.sessionId);
   }
 
   async countEventsBatch(

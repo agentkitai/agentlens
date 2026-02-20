@@ -17,6 +17,8 @@ export interface ServerConfig {
   authDisabled: boolean;
   /** SQLite database path (default: './agentlens.db') */
   dbPath: string;
+  /** Storage backend: 'sqlite' (default) or 'postgres' */
+  storageBackend: 'sqlite' | 'postgres';
   /** Retention days (0 = keep forever, default: 90) */
   retentionDays: number;
   /** Optional bearer token for OTLP ingestion auth */
@@ -41,6 +43,9 @@ export interface ServerConfig {
   loreApiKey?: string;
   /** Lore SQLite database path (optional, lore-sdk has defaults) */
   loreDbPath?: string;
+
+  /** HMAC-SHA256 key for signing audit verification reports (optional) */
+  auditSigningKey?: string;
 }
 
 /**
@@ -54,6 +59,19 @@ export function getConfig(): ServerConfig {
     corsOrigins: process.env['CORS_ORIGINS'] || undefined,
     authDisabled: process.env['AUTH_DISABLED'] === 'true',
     dbPath: process.env['DB_PATH'] ?? process.env['DATABASE_PATH'] ?? './agentlens.db',
+    storageBackend: (() => {
+      const raw = process.env['STORAGE_BACKEND'] ?? process.env['DB_DIALECT'];
+      if (!raw) return 'sqlite' as const;
+      // Log deprecation if DB_DIALECT used without STORAGE_BACKEND
+      if (!process.env['STORAGE_BACKEND'] && process.env['DB_DIALECT']) {
+        log.warn('⚠️  DB_DIALECT is deprecated. Use STORAGE_BACKEND instead.');
+      }
+      const normalized = raw === 'postgresql' ? 'postgres' : raw;
+      if (normalized !== 'postgres' && normalized !== 'sqlite') {
+        throw new Error(`Invalid STORAGE_BACKEND: '${raw}'. Expected 'postgres', 'postgresql', or 'sqlite'.`);
+      }
+      return normalized;
+    })(),
     retentionDays: (() => {
       const parsed = parseInt(process.env['RETENTION_DAYS'] ?? '90', 10);
       return isNaN(parsed) ? 90 : parsed;
@@ -74,6 +92,9 @@ export function getConfig(): ServerConfig {
     loreApiUrl: process.env['LORE_API_URL'] || undefined,
     loreApiKey: process.env['LORE_API_KEY'] || undefined,
     loreDbPath: process.env['LORE_DB_PATH'] || undefined,
+
+    // Audit verification signing
+    auditSigningKey: process.env['AGENTLENS_AUDIT_SIGNING_KEY'] || undefined,
   };
 }
 

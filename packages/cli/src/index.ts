@@ -5,6 +5,7 @@
  * Uses node:util parseArgs for lightweight argument parsing.
  */
 
+import { runAuditCommand } from './commands/audit.js';
 import { runConfigCommand } from './commands/config.js';
 import { runContextCommand } from './commands/context.js';
 import { runEventsCommand } from './commands/events.js';
@@ -24,6 +25,7 @@ const HELP = `AgentLens CLI — Observability for AI agents
 Usage: agentlens <command> [options]
 
 Commands:
+  audit               Verify audit trail integrity
   config              Get or set configuration (url, api-key)
   context             Retrieve cross-session context for a topic
   events              Query events
@@ -52,6 +54,10 @@ async function main(): Promise<void> {
   const rest = args.slice(1);
 
   switch (command) {
+    case 'audit':
+      await runAuditCommand(rest);
+      break;
+
     case 'config':
       runConfigCommand(rest);
       break;

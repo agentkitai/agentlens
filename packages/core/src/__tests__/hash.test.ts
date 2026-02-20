@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeEventHash, verifyChain, HASH_VERSION } from '../hash.js';
-import type { HashableEvent, ChainEvent } from '../hash.js';
+import { computeEventHash, computeEventHashRaw, verifyChain, verifyChainBatch, HASH_VERSION } from '../hash.js';
+import type { HashableEvent, ChainEvent, RawHashableEvent } from '../hash.js';
 
 describe('Story 2.4: Hash Chain Utilities', () => {
   const baseEvent: HashableEvent = {
@@ -357,6 +357,154 @@ describe('Story 2.4: Hash Chain Utilities', () => {
       expect(result.failedAtIndex).toBe(1);
       expect(result.reason).toContain('Event 1');
       expect(result.reason).toContain('hash mismatch');
+    });
+  });
+
+  describe('computeEventHashRaw()', () => {
+    it('AC 7.1 — produces identical hash to computeEventHash() for varied events', () => {
+      const events: HashableEvent[] = [];
+      let prevHash: string | null = null;
+      for (let i = 0; i < 100; i++) {
+        const event: HashableEvent = {
+          id: `evt_${i}`,
+          timestamp: `2026-02-07T10:00:${String(i % 60).padStart(2, '0')}Z`,
+          sessionId: 'sess_1',
+          agentId: 'agent_1',
+          eventType: i % 2 === 0 ? 'tool_call' : 'custom',
+          severity: i % 3 === 0 ? 'error' : 'info',
+          payload: { index: i, nested: { key: `value_${i}` }, list: [1, 2, 3] },
+          metadata: i % 2 === 0 ? {} : { source: 'test', count: i },
+          prevHash,
+        };
+        events.push(event);
+        prevHash = computeEventHash(event);
+      }
+
+      for (const event of events) {
+        const rawEvent: RawHashableEvent = {
+          id: event.id,
+          timestamp: event.timestamp,
+          sessionId: event.sessionId,
+          agentId: event.agentId,
+          eventType: event.eventType,
+          severity: event.severity,
+          payloadRaw: JSON.stringify(event.payload),
+          metadataRaw: JSON.stringify(event.metadata),
+          prevHash: event.prevHash,
+        };
+        expect(computeEventHashRaw(rawEvent)).toBe(computeEventHash(event));
+      }
+    });
+
+    it('handles null prevHash correctly', () => {
+      const raw: RawHashableEvent = {
+        id: 'evt_0',
+        timestamp: '2026-02-07T10:00:00Z',
+        sessionId: 'sess_1',
+        agentId: 'agent_1',
+        eventType: 'custom',
+        severity: 'info',
+        payloadRaw: '{}',
+        metadataRaw: '{}',
+        prevHash: null,
+      };
+      const normal: HashableEvent = {
+        ...raw,
+        payload: {},
+        metadata: {},
+      };
+      expect(computeEventHashRaw(raw)).toBe(computeEventHash(normal));
+    });
+  });
+
+  describe('verifyChainBatch()', () => {
+    /** Helper to build a valid chain of N events */
+    function buildChain(n: number, sessionId = 'sess_1'): ChainEvent[] {
+      const chain: ChainEvent[] = [];
+      let prevHash: string | null = null;
+      for (let i = 0; i < n; i++) {
+        const event: HashableEvent = {
+          id: `evt_${sessionId}_${String(i).padStart(4, '0')}`,
+          timestamp: `2026-02-07T10:00:${String(i).padStart(2, '0')}Z`,
+          sessionId,
+          agentId: 'agent_1',
+          eventType: 'custom',
+          severity: 'info',
+          payload: { index: i },
+          metadata: {},
+          prevHash,
+        };
+        const hash = computeEventHash(event);
+        chain.push({ ...event, hash });
+        prevHash = hash;
+      }
+      return chain;
+    }
+
+    it('AC 1.1 — valid chain continuation', () => {
+      const chain = buildChain(10);
+      // Simulate batch 2: events 5-9 continuing from event 4
+      const batch = chain.slice(5);
+      const result = verifyChainBatch(batch, chain[4].hash);
+      expect(result.valid).toBe(true);
+      expect(result.failedAtIndex).toBe(-1);
+      expect(result.reason).toBeNull();
+    });
+
+    it('AC 1.2 — genesis batch (null prevHash)', () => {
+      const chain = buildChain(5);
+      const result = verifyChainBatch(chain, null);
+      expect(result.valid).toBe(true);
+    });
+
+    it('AC 1.3 — broken linkage between batches', () => {
+      const chain = buildChain(10);
+      const batch = chain.slice(5);
+      const result = verifyChainBatch(batch, 'wrong_prev_hash');
+      expect(result.valid).toBe(false);
+      expect(result.failedAtIndex).toBe(0);
+      expect(result.reason).toContain('Batch linkage broken');
+    });
+
+    it('AC 1.4 — tampered event hash', () => {
+      const chain = buildChain(10);
+      // Tamper event at index 7
+      chain[7] = { ...chain[7], payload: { index: 999 } };
+      const batch = chain.slice(5);
+      const result = verifyChainBatch(batch, chain[4].hash);
+      expect(result.valid).toBe(false);
+      expect(result.failedAtIndex).toBe(2); // index 7 in chain = index 2 in batch
+      expect(result.reason).toContain('hash mismatch');
+    });
+
+    it('AC 1.5 — empty batch', () => {
+      const result = verifyChainBatch([], null);
+      expect(result.valid).toBe(true);
+      expect(result.failedAtIndex).toBe(-1);
+      expect(result.reason).toBeNull();
+    });
+
+    it('AC 1.6 — backward compatibility with verifyChain()', () => {
+      const chain = buildChain(20);
+      const resultOld = verifyChain(chain);
+      const resultNew = verifyChainBatch(chain, null);
+      expect(resultOld).toEqual(resultNew);
+
+      // Also test with invalid chain
+      chain[10] = { ...chain[10], payload: { index: 999 } };
+      const resultOldBad = verifyChain(chain);
+      const resultNewBad = verifyChainBatch(chain, null);
+      expect(resultOldBad).toEqual(resultNewBad);
+    });
+
+    it('should detect first event with non-null prevHash when expectedPrevHash is null', () => {
+      const chain = buildChain(5);
+      // Take batch starting from index 3 (prevHash != null) but pass null
+      const batch = chain.slice(3);
+      const result = verifyChainBatch(batch, null);
+      expect(result.valid).toBe(false);
+      expect(result.failedAtIndex).toBe(0);
+      expect(result.reason).toContain('First event must have prevHash = null');
     });
   });
 });
