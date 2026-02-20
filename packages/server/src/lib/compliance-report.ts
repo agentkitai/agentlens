@@ -146,6 +146,12 @@ export class ComplianceReportBuilder {
     }
 
     // 4. Cost/usage analytics
+    const totalLlmCalls = await this.eventRepo.countEvents({
+      tenantId,
+      from,
+      to,
+      eventType: 'llm_call',
+    });
     const analytics = await this.analyticsRepo.getAnalytics({
       from,
       to,
@@ -196,7 +202,7 @@ export class ComplianceReportBuilder {
       costUsage: {
         totalSessions: analytics.totals.uniqueSessions,
         uniqueAgents: analytics.totals.uniqueAgents,
-        totalLlmCalls: analytics.totals.toolCallCount, // approximation
+        totalLlmCalls,
         totalToolCalls: analytics.totals.toolCallCount,
         totalCostUsd: analytics.totals.totalCostUsd,
         costByAgent,
