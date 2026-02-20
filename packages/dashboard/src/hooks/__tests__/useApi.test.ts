@@ -100,7 +100,7 @@ describe('useApi', () => {
 
     shouldFail = false;
     act(() => { result.current.refetch(); });
-    await waitFor(() => expect(result.current.error).toBeNull());
-    expect(result.current.data).toBe('ok');
+    await waitFor(() => expect(result.current.data).toBe('ok'));
+    expect(result.current.error).toBeNull();
   });
 });
