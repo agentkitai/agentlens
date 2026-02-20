@@ -340,6 +340,7 @@ export function SessionReplay(): React.ReactElement | null {
           events={events}
           currentStep={clampedStep}
           sessionStartTime={session.startedAt}
+          onStepChange={handleStepChange}
         />
       </div>
     </div>
