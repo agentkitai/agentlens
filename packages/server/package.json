@@ -54,7 +54,7 @@
     "@opentelemetry/otlp-transformer": "^0.211.0",
     "@scalar/hono-api-reference": "^0.9.44",
     "agentkit-auth": "workspace:*",
-    "better-sqlite3": "^11.9.1",
+    "better-sqlite3": "^12.6.2",
     "drizzle-orm": "^0.44.2",
     "hono": "^4.11.9",
     "hono-rate-limiter": "^0.5.3",
