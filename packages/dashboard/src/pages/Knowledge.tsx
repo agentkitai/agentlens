@@ -99,8 +99,8 @@ export function Knowledge(): React.ReactElement {
                       <span className="text-xs text-gray-400">from {memory.source}</span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-900">{memory.content}</p>
-                  {memory.metadata?._resolution && (
+                  <p className="text-sm text-gray-900">{String(memory.content)}</p>
+                  {memory.metadata?._resolution != null && (
                     <p className="text-sm text-gray-500 mt-1 italic">
                       Resolution: {String(memory.metadata._resolution)}
                     </p>

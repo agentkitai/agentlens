@@ -64,8 +64,8 @@ jobs:
       - name: Verify build
         working-directory: packages/python-sdk
         run: |
-          pip install hatch
-          hatch build
+          pip install build
+          python -m build
           rm -rf dist/
 
   test-postgres:
