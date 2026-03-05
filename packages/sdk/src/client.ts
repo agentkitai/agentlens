@@ -439,33 +439,6 @@ export class AgentLensClient {
     return this.request<RecallResult>(`/api/recall?${params.toString()}`);
   }
 
-  // ─── Lessons (Deprecated — use lore-sdk) ──────────────────
-
-  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
-  async createLesson(): Promise<never> {
-    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
-  }
-
-  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
-  async getLessons(): Promise<never> {
-    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
-  }
-
-  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
-  async getLesson(): Promise<never> {
-    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
-  }
-
-  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
-  async updateLesson(): Promise<never> {
-    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
-  }
-
-  /** @deprecated Use lore-sdk directly. See https://github.com/amitpaz1/lore */
-  async deleteLesson(): Promise<never> {
-    throw new Error('Lesson methods removed from AgentLens SDK. Use lore-sdk: https://github.com/amitpaz1/lore');
-  }
-
   // ─── Reflect (Pattern Analysis) ──────────────────────────
 
   /**

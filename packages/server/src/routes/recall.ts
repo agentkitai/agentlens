@@ -42,8 +42,14 @@ export function recallRoutes(deps: RecallRouteDeps) {
       return c.json({ error: 'query parameter is required', status: 400 }, 400);
     }
 
-    const scope = c.req.query('scope'); // 'events' | 'sessions' | 'lessons' | 'all'
+    const scope = c.req.query('scope'); // 'events' | 'sessions' | 'all'
     const agentId = c.req.query('agentId');
+
+    // Deprecated: lessons scope removed — return empty with deprecation header
+    if (scope === 'lessons') {
+      c.header('X-Deprecated', 'lessons scope removed - use Lore MCP server for lesson recall');
+      return c.json({ results: [], query, totalResults: 0 });
+    }
     const limitStr = c.req.query('limit');
     const minScoreStr = c.req.query('minScore');
     const from = c.req.query('from');
@@ -62,7 +68,7 @@ export function recallRoutes(deps: RecallRouteDeps) {
       // Map scope to sourceType for the store
       let sourceType: string | undefined;
       if (scope && scope !== 'all') {
-        // Normalize: 'events' -> 'event', 'sessions' -> 'session', 'lessons' -> 'lesson'
+        // Normalize: 'events' -> 'event', 'sessions' -> 'session'
         sourceType = scope.replace(/s$/, '');
       }
 
@@ -94,7 +100,6 @@ export function recallRoutes(deps: RecallRouteDeps) {
               filtered.push(r);
             }
           } else {
-            // Lessons and other types don't have agentId — include them
             filtered.push(r);
           }
         }

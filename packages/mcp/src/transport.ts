@@ -235,95 +235,7 @@ export class AgentLensTransport {
     return undefined;
   }
 
-  // ─── Lesson API methods (Story 3.3) ─────────────────────────
-
-  /**
-   * Create a new lesson.
-   */
-  async createLesson(body: Record<string, unknown>): Promise<Response> {
-    const url = `${this.baseUrl}/api/lessons`;
-    return fetch(url, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(body),
-    });
-  }
-
-  /**
-   * List lessons with optional query parameters.
-   */
-  async getLessons(params: Record<string, string>): Promise<Response> {
-    const searchParams = new URLSearchParams(params);
-    const url = `${this.baseUrl}/api/lessons?${searchParams.toString()}`;
-    return fetch(url, {
-      method: 'GET',
-      headers: this.buildHeaders(),
-    });
-  }
-
-  /**
-   * Get a single lesson by ID.
-   */
-  async getLesson(id: string): Promise<Response> {
-    const url = `${this.baseUrl}/api/lessons/${encodeURIComponent(id)}`;
-    return fetch(url, {
-      method: 'GET',
-      headers: this.buildHeaders(),
-    });
-  }
-
-  /**
-   * Update an existing lesson.
-   */
-  async updateLesson(id: string, body: Record<string, unknown>): Promise<Response> {
-    const url = `${this.baseUrl}/api/lessons/${encodeURIComponent(id)}`;
-    return fetch(url, {
-      method: 'PUT',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(body),
-    });
-  }
-
-  // ─── Recall API methods (Story 2.5) ──────────────────────
-
-  /**
-   * Perform a semantic recall search.
-   */
-  async recall(params: {
-    query: string;
-    scope?: string;
-    agentId?: string;
-    from?: string;
-    to?: string;
-    limit?: number;
-    minScore?: number;
-  }): Promise<Response> {
-    const searchParams = new URLSearchParams();
-    searchParams.set('query', params.query);
-    if (params.scope) searchParams.set('scope', params.scope);
-    if (params.agentId) searchParams.set('agentId', params.agentId);
-    if (params.from) searchParams.set('from', params.from);
-    if (params.to) searchParams.set('to', params.to);
-    if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
-    if (params.minScore !== undefined) searchParams.set('minScore', String(params.minScore));
-
-    const url = `${this.baseUrl}/api/recall?${searchParams.toString()}`;
-    return fetch(url, {
-      method: 'GET',
-      headers: this.buildHeaders(),
-    });
-  }
-
-  /**
-   * Delete (archive) a lesson.
-   */
-  async deleteLesson(id: string): Promise<Response> {
-    const url = `${this.baseUrl}/api/lessons/${encodeURIComponent(id)}`;
-    return fetch(url, {
-      method: 'DELETE',
-      headers: this.buildHeaders(),
-    });
-  }
+  // Lesson and recall methods removed — use Lore MCP server for memory operations
 
   // ─── Context API method (Story 5.3) ──────────────────────────
 
@@ -645,34 +557,7 @@ export class AgentLensTransport {
     return response.json();
   }
 
-  // ─── Community API methods (Story 7.1) ──────────────────────
-
-  async communityShare(body: Record<string, unknown>): Promise<Response> {
-    const url = `${this.baseUrl}/api/community/share`;
-    return fetch(url, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(body),
-    });
-  }
-
-  async communitySearch(params: Record<string, string>): Promise<Response> {
-    const searchParams = new URLSearchParams(params);
-    const url = `${this.baseUrl}/api/community/search?${searchParams.toString()}`;
-    return fetch(url, {
-      method: 'GET',
-      headers: this.buildHeaders(),
-    });
-  }
-
-  async communityRate(body: { lessonId: string; delta: number }): Promise<Response> {
-    const url = `${this.baseUrl}/api/community/rate`;
-    return fetch(url, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify(body),
-    });
-  }
+  // Community methods removed — Lore handles community features via its own MCP server
 
   // ─── Discovery API methods (Story 7.1) ─────────────────────
 

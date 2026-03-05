@@ -39,7 +39,7 @@ describe('AgentLensClient.recall', () => {
 
     await client.recall({
       query: 'test',
-      scope: 'lesson',
+      scope: 'event',
       agentId: 'agent-1',
       limit: 5,
       minScore: 0.7,
@@ -48,7 +48,7 @@ describe('AgentLensClient.recall', () => {
     });
 
     const url = (fn as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string;
-    expect(url).toContain('scope=lesson');
+    expect(url).toContain('scope=event');
     expect(url).toContain('agentId=agent-1');
     expect(url).toContain('limit=5');
     expect(url).toContain('minScore=0.7');

@@ -1,5 +1,5 @@
 /**
- * Tests for Batch 1: Lore Feature Flag + Config
+ * Tests for Lore Feature Flag + Config (v0.5.0 integration)
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -10,7 +10,7 @@ import { createTestApp } from './test-helpers.js';
 
 describe('Lore config parsing', () => {
   const savedEnv: Record<string, string | undefined> = {};
-  const loreEnvVars = ['LORE_ENABLED', 'LORE_MODE', 'LORE_API_URL', 'LORE_API_KEY', 'LORE_DB_PATH'];
+  const loreEnvVars = ['LORE_ENABLED', 'LORE_API_URL', 'LORE_API_KEY'];
 
   beforeEach(() => {
     for (const key of loreEnvVars) {
@@ -31,39 +31,19 @@ describe('Lore config parsing', () => {
     expect(config.loreEnabled).toBe(false);
   });
 
-  it('defaults loreMode to remote', () => {
-    const config = getConfig();
-    expect(config.loreMode).toBe('remote');
-  });
-
   it('parses LORE_ENABLED=true', () => {
     process.env['LORE_ENABLED'] = 'true';
     const config = getConfig();
     expect(config.loreEnabled).toBe(true);
   });
 
-  it('parses LORE_MODE=local', () => {
-    process.env['LORE_MODE'] = 'local';
-    const config = getConfig();
-    expect(config.loreMode).toBe('local');
-  });
-
   it('parses all lore env vars', () => {
     process.env['LORE_ENABLED'] = 'true';
-    process.env['LORE_MODE'] = 'remote';
     process.env['LORE_API_URL'] = 'https://lore.example.com';
     process.env['LORE_API_KEY'] = 'sk-test-key';
-    process.env['LORE_DB_PATH'] = '/tmp/lore.db';
     const config = getConfig();
     expect(config.loreApiUrl).toBe('https://lore.example.com');
     expect(config.loreApiKey).toBe('sk-test-key');
-    expect(config.loreDbPath).toBe('/tmp/lore.db');
-  });
-
-  it('treats invalid LORE_MODE as remote', () => {
-    process.env['LORE_MODE'] = 'banana';
-    const config = getConfig();
-    expect(config.loreMode).toBe('remote');
   });
 });
 
@@ -79,7 +59,6 @@ describe('Lore config validation', () => {
       retentionDays: 90,
       otlpRateLimit: 1000,
       loreEnabled: false,
-      loreMode: 'remote' as const,
     };
   }
 
@@ -87,43 +66,35 @@ describe('Lore config validation', () => {
     expect(() => validateConfig(baseConfig())).not.toThrow();
   });
 
-  it('passes when lore is enabled + local mode (no extra config needed)', () => {
-    expect(() => validateConfig({ ...baseConfig(), loreEnabled: true, loreMode: 'local' })).not.toThrow();
-  });
-
-  it('passes when lore is enabled + remote mode with url and key', () => {
+  it('passes when lore is enabled with url and key', () => {
     expect(() => validateConfig({
       ...baseConfig(),
       loreEnabled: true,
-      loreMode: 'remote',
       loreApiUrl: 'https://lore.example.com',
       loreApiKey: 'sk-key',
     })).not.toThrow();
   });
 
-  it('throws when lore remote enabled but missing LORE_API_URL', () => {
+  it('throws when lore enabled but missing LORE_API_URL', () => {
     expect(() => validateConfig({
       ...baseConfig(),
       loreEnabled: true,
-      loreMode: 'remote',
       loreApiKey: 'sk-key',
     })).toThrow(/LORE_API_URL/);
   });
 
-  it('throws when lore remote enabled but missing LORE_API_KEY', () => {
+  it('throws when lore enabled but missing LORE_API_KEY', () => {
     expect(() => validateConfig({
       ...baseConfig(),
       loreEnabled: true,
-      loreMode: 'remote',
       loreApiUrl: 'https://lore.example.com',
     })).toThrow(/LORE_API_KEY/);
   });
 
-  it('throws when lore remote enabled but missing both URL and key (first error: URL)', () => {
+  it('throws when lore enabled but missing both URL and key (first error: URL)', () => {
     expect(() => validateConfig({
       ...baseConfig(),
       loreEnabled: true,
-      loreMode: 'remote',
     })).toThrow(/LORE_API_URL/);
   });
 });
@@ -137,11 +108,10 @@ describe('GET /api/config/features', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toMatchObject({ lore: false });
+    expect(body.loreUrl).toBeUndefined();
   });
 
-  it('returns { lore: true } when loreEnabled', async () => {
-    const { app } = await createTestApp({ authDisabled: true });
-    // We need to create an app with loreEnabled — use createApp directly
+  it('returns { lore: true, loreUrl } when loreEnabled', async () => {
     const { createApp } = await import('../index.js');
     const { createTestDb } = await import('../db/index.js');
     const { runMigrations } = await import('../db/migrate.js');
@@ -149,17 +119,22 @@ describe('GET /api/config/features', () => {
     const db = createTestDb();
     runMigrations(db);
     const store = new SqliteEventStore(db);
-    const loreApp = await createApp(store, { authDisabled: true, db, loreEnabled: true, loreMode: 'local' });
+    const loreApp = await createApp(store, {
+      authDisabled: true,
+      db,
+      loreEnabled: true,
+      loreApiUrl: 'http://localhost:8765',
+      loreApiKey: 'test-key',
+    });
     const res = await loreApp.request('/api/config/features');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toMatchObject({ lore: true });
+    expect(body).toMatchObject({ lore: true, loreUrl: 'http://localhost:8765' });
   });
 
   it('is accessible without authentication', async () => {
-    const { app } = await createTestApp(); // auth enabled
+    const { app } = await createTestApp();
     const res = await app.request('/api/config/features');
-    // Should NOT be 401 — this endpoint is before auth middleware
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toMatchObject({ lore: false });

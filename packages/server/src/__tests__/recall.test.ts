@@ -100,7 +100,7 @@ describe('GET /api/recall (Story 2.6)', () => {
     expect(body.results[0]).toHaveProperty('metadata');
   });
 
-  it('respects scope parameter', async () => {
+  it('returns deprecation response for lessons scope', async () => {
     const { db } = await createTestApp();
     const { createApp } = await import('../index.js');
     const { SqliteEventStore } = await import('../db/sqlite-store.js');
@@ -114,26 +114,20 @@ describe('GET /api/recall (Story 2.6)', () => {
       'default', 'event', 'ev-1', 'event text',
       new Float32Array([0.1, 0.2, 0.3]), 'test-model', 3,
     );
-    await embeddingStore.store(
-      'default', 'lesson', 'les-1', 'lesson text',
-      new Float32Array([0.1, 0.2, 0.3]), 'test-model', 3,
-    );
-
     const appWithEmbeddings = await createApp(store, {
       authDisabled: true,
       db,
       embeddingService: mockService,
     });
 
-    // Search only lessons
+    // lessons scope is deprecated — returns empty results with deprecation header
     const res = await appWithEmbeddings.request('/api/recall?query=test&scope=lessons');
     expect(res.status).toBe(200);
 
     const body = await res.json() as { results: Array<{ sourceType: string }>; totalResults: number };
-    // All results should be lessons
-    for (const r of body.results) {
-      expect(r.sourceType).toBe('lesson');
-    }
+    expect(body.results).toHaveLength(0);
+    expect(body.totalResults).toBe(0);
+    expect(res.headers.get('X-Deprecated')).toContain('lessons scope removed');
   });
 
   it('respects limit parameter', async () => {

@@ -23,7 +23,7 @@ function opts(overrides: Partial<ToolRegistrationOptions> = {}): ToolRegistratio
 
 describe('TOOL_FEATURE_MAP', () => {
   it('covers 25 tools (15 existing + 10 new)', () => {
-    expect(Object.keys(TOOL_FEATURE_MAP)).toHaveLength(24);
+    expect(Object.keys(TOOL_FEATURE_MAP)).toHaveLength(22);
   });
 
   it('core ingest tools have empty feature requirements', () => {
@@ -78,15 +78,15 @@ describe('shouldRegisterTool', () => {
   });
 
   it('allows tools in allowlist by full name', () => {
-    const result = shouldRegisterTool('agentlens_recall', opts({
-      allowlist: ['agentlens_recall'],
+    const result = shouldRegisterTool('agentlens_reflect', opts({
+      allowlist: ['agentlens_reflect'],
     }));
     expect(result.register).toBe(true);
   });
 
   it('allows tools in allowlist by short name', () => {
-    const result = shouldRegisterTool('agentlens_recall', opts({
-      allowlist: ['recall'],
+    const result = shouldRegisterTool('agentlens_reflect', opts({
+      allowlist: ['reflect'],
     }));
     expect(result.register).toBe(true);
   });
@@ -109,7 +109,7 @@ describe('shouldRegisterTool', () => {
   });
 
   it('allows tools not in denylist', () => {
-    const result = shouldRegisterTool('agentlens_recall', opts({
+    const result = shouldRegisterTool('agentlens_reflect', opts({
       denylist: ['benchmark'],
     }));
     expect(result.register).toBe(true);
@@ -118,9 +118,9 @@ describe('shouldRegisterTool', () => {
   // Allowlist + denylist combo
   it('allowlist takes priority over denylist', () => {
     // Tool in allowlist but also in denylist
-    const result = shouldRegisterTool('agentlens_recall', opts({
-      allowlist: ['recall'],
-      denylist: ['recall'],
+    const result = shouldRegisterTool('agentlens_reflect', opts({
+      allowlist: ['reflect'],
+      denylist: ['reflect'],
     }));
     // Allowlist check passes, then denylist blocks it
     expect(result.register).toBe(false);
@@ -129,7 +129,7 @@ describe('shouldRegisterTool', () => {
 
   it('tool not in allowlist is blocked even if not in denylist', () => {
     const result = shouldRegisterTool('agentlens_analytics', opts({
-      allowlist: ['recall'],
+      allowlist: ['reflect'],
       denylist: ['benchmark'],
     }));
     expect(result.register).toBe(false);

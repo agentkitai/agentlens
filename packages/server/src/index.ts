@@ -57,7 +57,7 @@ import { delegationRoutes } from './routes/delegation.js';
 import { delegationTopRoutes } from './routes/delegations-top.js';
 import { trustRoutes } from './routes/trust.js';
 import { LocalPoolTransport } from './services/delegation-service.js';
-import { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
+import { loreProxyRoutes } from './routes/lore-proxy.js';
 import { createLoreAdapter } from './lib/lore-client.js';
 import { meshProxyRoutes } from './routes/mesh-proxy.js';
 import { RemoteMeshAdapter } from './lib/mesh-client.js';
@@ -132,9 +132,9 @@ export type { AuditLogger, AuditEntry, ActorType } from './lib/audit.js';
 export { auditMiddleware } from './middleware/audit.js';
 export { healthRoutes, registerHealthRoutes } from './routes/health.js';
 export { ContextRetriever } from './lib/context/retrieval.js';
-export { loreProxyRoutes, loreCommunityProxyRoutes } from './routes/lore-proxy.js';
-export { createLoreAdapter, RemoteLoreAdapter, LocalLoreAdapter, LoreError } from './lib/lore-client.js';
-export type { LoreAdapter } from './lib/lore-client.js';
+export { loreProxyRoutes } from './routes/lore-proxy.js';
+export { createLoreAdapter, LoreReadAdapter, LoreError } from './lib/lore-client.js';
+export type { LoreMemory, LoreStats, LoreListResponse } from './lib/lore-client.js';
 export { meshProxyRoutes } from './routes/mesh-proxy.js';
 export { RemoteMeshAdapter, MeshError } from './lib/mesh-client.js';
 export type { MeshAdapter } from './lib/mesh-client.js';
@@ -307,7 +307,11 @@ export async function createApp(
 
   // ─── Feature flags (no auth — dashboard needs before login) ──
   app.get('/api/config/features', (c) => {
-    return c.json({ lore: resolvedConfig.loreEnabled, mesh: resolvedConfig.meshEnabled });
+    return c.json({
+      lore: resolvedConfig.loreEnabled,
+      ...(resolvedConfig.loreEnabled && resolvedConfig.loreApiUrl ? { loreUrl: resolvedConfig.loreApiUrl } : {}),
+      mesh: resolvedConfig.meshEnabled,
+    });
   });
 
   // ─── SSE stream (authenticates via Bearer header or ?token= query param) ──
@@ -443,7 +447,7 @@ export async function createApp(
     app.route('/api/notifications', notificationRoutes(notifRepo, notifRouter));
   }
 
-  let loreAdapter: import('./lib/lore-client.js').LoreAdapter | null = null;
+  let loreAdapter: import('./lib/lore-client.js').LoreReadAdapter | null = null;
   if (resolvedConfig.loreEnabled) {
     try {
       loreAdapter = createLoreAdapter(resolvedConfig);
@@ -452,7 +456,11 @@ export async function createApp(
     }
   }
   if (loreAdapter) {
-    app.route('/api/lessons', loreProxyRoutes(loreAdapter));
+    app.route('/api/lore', loreProxyRoutes(loreAdapter));
+    // Fire health check on startup (non-blocking)
+    loreAdapter.checkHealth().then((ok) => {
+      if (!ok) log.warn('Lore server unreachable at startup. Memory features may be unavailable.');
+    });
   }
 
   // ─── AI Diagnostics (Feature 18) ───────────────────────
@@ -530,11 +538,7 @@ export async function createApp(
     app.route('/api/cloud/orgs', cloudOrgRoutes({ db: cloudDb }));
   }
 
-  // ─── Community Sharing (Stories 4.1–4.3) ────────────────
-  // Auth is handled by the unified catch-all above.
-  if (loreAdapter) {
-    app.route('/api/community', loreCommunityProxyRoutes(loreAdapter));
-  }
+  // Community sharing routes removed — Lore v0.5.0 handles this via its own MCP server
 
   // ─── Mesh Proxy (agentkit-mesh) ─────────────────────────
   // Auth is handled by the unified catch-all above.
@@ -575,7 +579,7 @@ export async function createApp(
       'sessions', 'agents', 'alerts', 'analytics', 'stats',
       'recall', 'reflect', 'optimize', 'context', 'health',
       'replay', 'benchmarks', 'guardrails', 'discovery', 'delegation',
-      'cost-budgets', 'trust', 'lessons',
+      'cost-budgets', 'trust', 'lore',
     ];
     const { serverInfoRoutes } = await import('./routes/server-info.js');
     app.route('/api/server-info', serverInfoRoutes(features));

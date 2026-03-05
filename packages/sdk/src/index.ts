@@ -57,14 +57,6 @@ export type {
   LlmResponsePayload,
   RecallQuery,
   RecallResult,
-  /** @deprecated Use lore-sdk. See https://github.com/amitpaz1/lore */
-  Lesson,
-  /** @deprecated Use lore-sdk. See https://github.com/amitpaz1/lore */
-  LessonQuery,
-  /** @deprecated Use lore-sdk. See https://github.com/amitpaz1/lore */
-  LessonImportance,
-  /** @deprecated Use lore-sdk. See https://github.com/amitpaz1/lore */
-  CreateLessonInput,
   ReflectQuery,
   ReflectResult,
   ReflectAnalysis,

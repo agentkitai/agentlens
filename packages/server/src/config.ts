@@ -37,14 +37,10 @@ export interface ServerConfig {
   // ─── Lore Integration ──────────────────────────────────
   /** Enable Lore memory integration (default: false) */
   loreEnabled: boolean;
-  /** Lore mode: 'local' uses lore-sdk directly, 'remote' proxies to Lore server (default: 'remote') */
-  loreMode: 'local' | 'remote';
-  /** Lore API URL (required when loreMode === 'remote' && loreEnabled) */
+  /** Lore API URL (required when loreEnabled) */
   loreApiUrl?: string;
-  /** Lore API key (required when loreMode === 'remote' && loreEnabled) */
+  /** Lore API key (required when loreEnabled) */
   loreApiKey?: string;
-  /** Lore SQLite database path (optional, lore-sdk has defaults) */
-  loreDbPath?: string;
 
   /** HMAC-SHA256 key for signing audit verification reports (optional) */
   auditSigningKey?: string;
@@ -92,12 +88,10 @@ export function getConfig(): ServerConfig {
     meshEnabled: process.env['MESH_ENABLED'] === 'true',
     meshUrl: process.env['MESH_URL'] ?? '',
 
-    // Lore integration
+    // Lore integration (v0.5.0+ — always remote, no local mode)
     loreEnabled: process.env['LORE_ENABLED'] === 'true',
-    loreMode: (process.env['LORE_MODE'] === 'local' ? 'local' : 'remote') as 'local' | 'remote',
     loreApiUrl: process.env['LORE_API_URL'] || undefined,
     loreApiKey: process.env['LORE_API_KEY'] || undefined,
-    loreDbPath: process.env['LORE_DB_PATH'] || undefined,
 
     // Audit verification signing
     auditSigningKey: process.env['AGENTLENS_AUDIT_SIGNING_KEY'] || undefined,
@@ -139,16 +133,14 @@ export function validateConfig(config: ServerConfig): void {
 function validateLoreConfig(config: ServerConfig): void {
   if (!config.loreEnabled) return;
 
-  if (config.loreMode === 'remote') {
-    if (!config.loreApiUrl) {
-      throw new Error(
-        'FATAL: LORE_ENABLED=true with LORE_MODE=remote requires LORE_API_URL to be set.',
-      );
-    }
-    if (!config.loreApiKey) {
-      throw new Error(
-        'FATAL: LORE_ENABLED=true with LORE_MODE=remote requires LORE_API_KEY to be set.',
-      );
-    }
+  if (!config.loreApiUrl) {
+    throw new Error(
+      'FATAL: LORE_ENABLED=true requires LORE_API_URL to be set.',
+    );
+  }
+  if (!config.loreApiKey) {
+    throw new Error(
+      'FATAL: LORE_ENABLED=true requires LORE_API_KEY to be set.',
+    );
   }
 }

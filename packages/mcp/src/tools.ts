@@ -11,7 +11,6 @@ import type { AgentLensTransport } from './transport.js';
 import { shouldRegisterTool, type ToolRegistrationOptions } from './capabilities.js';
 import { registerContextTool } from './tools/context.js';
 import { registerOptimizeTool } from './tools/optimize.js';
-import { registerRecallTool } from './tools/recall.js';
 import { registerReflectTool } from './tools/reflect.js';
 import { registerHealthTool } from './tools/health.js';
 import { registerReplayTool } from './tools/replay.js';
@@ -24,7 +23,6 @@ import { registerAgentsTool } from './tools/agents.js';
 import { registerAlertsTool } from './tools/alerts.js';
 import { registerAnalyticsTool } from './tools/analytics.js';
 import { registerCostBudgetsTool } from './tools/cost-budgets.js';
-import { registerLessonsTool } from './tools/lessons.js';
 import { registerStatsTool } from './tools/stats.js';
 import { registerTrustTool } from './tools/trust.js';
 import { registerPromptsTool } from './tools/prompts.js';
@@ -43,7 +41,6 @@ export const ALL_TOOLS: ToolEntry[] = [
   { name: 'agentlens_session_end', register: registerSessionEnd },
   { name: 'agentlens_query_events', register: registerQueryEvents },
   { name: 'agentlens_log_llm_call', register: registerLogLlmCall },
-  { name: 'agentlens_recall', register: registerRecallTool },
   { name: 'agentlens_reflect', register: registerReflectTool },
   { name: 'agentlens_optimize', register: registerOptimizeTool },
   { name: 'agentlens_context', register: registerContextTool },
@@ -59,7 +56,6 @@ export const ALL_TOOLS: ToolEntry[] = [
   { name: 'agentlens_alerts', register: registerAlertsTool },
   { name: 'agentlens_analytics', register: registerAnalyticsTool },
   { name: 'agentlens_cost_budgets', register: registerCostBudgetsTool },
-  { name: 'agentlens_lessons', register: registerLessonsTool },
   { name: 'agentlens_stats', register: registerStatsTool },
   { name: 'agentlens_trust', register: registerTrustTool },
   // Feature 19: Prompt Management

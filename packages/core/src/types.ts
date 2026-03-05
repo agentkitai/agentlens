@@ -486,7 +486,7 @@ export interface AlertHistory {
 export interface RecallQuery {
   /** Natural language query to search for */
   query: string;
-  /** Scope filter: 'event' | 'session' | 'lesson' */
+  /** Scope filter: 'event' | 'session' | 'all' */
   scope?: string;
   /** Filter by agent ID */
   agentId?: string;
@@ -518,46 +518,12 @@ export interface RecallResult {
   totalResults: number;
 }
 
-// ─── Lesson Types (Epic 3) ──────────────────────────────────────────
+// ─── Importance Levels (used by ContextLesson) ──────────────────────
 
 /**
- * Importance levels for lessons
+ * Importance levels for context lessons
  */
 export type LessonImportance = 'low' | 'normal' | 'high' | 'critical';
-
-/**
- * A distilled lesson / insight from agent experience
- */
-export interface Lesson {
-  id: string;
-  tenantId: string;
-  agentId?: string;
-  category: string;
-  title: string;
-  content: string;
-  context: Record<string, unknown>;
-  importance: LessonImportance;
-  sourceSessionId?: string;
-  sourceEventId?: string;
-  accessCount: number;
-  lastAccessedAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  archivedAt?: string;
-}
-
-/**
- * Query filters for listing lessons
- */
-export interface LessonQuery {
-  agentId?: string;
-  category?: string;
-  importance?: LessonImportance;
-  search?: string;
-  limit?: number;
-  offset?: number;
-  includeArchived?: boolean;
-}
 
 // ─── Reflect / Pattern Analysis Types (Epic 4) ─────────────────────
 
@@ -717,22 +683,6 @@ export interface PerformanceTrendsResult {
     eventsAnalyzed: number;
     timeRange: { from: string; to: string };
   };
-}
-
-// ─── Create Lesson Input (Epic 6) ──────────────────────────────
-
-/**
- * Input for creating a new lesson
- */
-export interface CreateLessonInput {
-  title: string;
-  content: string;
-  category?: string;
-  importance?: LessonImportance;
-  agentId?: string;
-  context?: Record<string, unknown>;
-  sourceSessionId?: string;
-  sourceEventId?: string;
 }
 
 // ─── Context Types (Epic 5) ────────────────────────────────────

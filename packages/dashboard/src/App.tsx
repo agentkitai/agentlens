@@ -33,9 +33,6 @@ const GuardrailList = React.lazy(() => import('./pages/GuardrailList'));
 const GuardrailForm = React.lazy(() => import('./pages/GuardrailForm'));
 const GuardrailDetail = React.lazy(() => import('./pages/GuardrailDetail'));
 const GuardrailActivity = React.lazy(() => import('./pages/GuardrailActivity'));
-const SharingControls = React.lazy(() => import('./pages/SharingControls'));
-// CommunityBrowser merged into Knowledge page
-const SharingActivity = React.lazy(() => import('./pages/SharingActivity'));
 const AgentNetwork = React.lazy(() => import('./pages/AgentNetwork'));
 const CapabilityRegistry = React.lazy(() => import('./pages/CapabilityRegistry'));
 const DelegationLog = React.lazy(() => import('./pages/DelegationLog'));
@@ -97,7 +94,10 @@ function AppRoutes(): React.ReactElement {
         <Route path="benchmarks" element={<Suspense fallback={<PageSkeleton />}><Benchmarks /></Suspense>} />
         <Route path="benchmarks/new" element={<Suspense fallback={<PageSkeleton />}><BenchmarkNew /></Suspense>} />
         <Route path="benchmarks/:id" element={<Suspense fallback={<PageSkeleton />}><BenchmarkDetail /></Suspense>} />
-        {lore && <Route path="knowledge" element={<Suspense fallback={<PageSkeleton />}><Knowledge /></Suspense>} />}
+        {lore && <Route path="memories" element={<Suspense fallback={<PageSkeleton />}><Knowledge /></Suspense>} />}
+        <Route path="knowledge" element={<Navigate to={lore ? '/memories' : '/'} replace />} />
+        <Route path="lessons" element={<Navigate to={lore ? '/memories' : '/'} replace />} />
+        <Route path="community/*" element={<Navigate to="/" replace />} />
         <Route path="search" element={<Suspense fallback={<PageSkeleton />}><Search /></Suspense>} />
         <Route path="insights" element={<Suspense fallback={<PageSkeleton />}><Insights /></Suspense>} />
         <Route path="alerts" element={<Suspense fallback={<PageSkeleton />}><Alerts /></Suspense>} />
@@ -106,9 +106,7 @@ function AppRoutes(): React.ReactElement {
         <Route path="guardrails/new" element={<Suspense fallback={<PageSkeleton />}><GuardrailForm /></Suspense>} />
         <Route path="guardrails/:id" element={<Suspense fallback={<PageSkeleton />}><GuardrailDetail /></Suspense>} />
         <Route path="guardrails/:id/edit" element={<Suspense fallback={<PageSkeleton />}><GuardrailForm /></Suspense>} />
-        {lore && <Route path="sharing" element={<Suspense fallback={<PageSkeleton />}><SharingControls /></Suspense>} />}
-        {lore && <Route path="sharing/activity" element={<Suspense fallback={<PageSkeleton />}><SharingActivity /></Suspense>} />}
-        {/* community route redirects handled by Knowledge page */}
+        <Route path="sharing/*" element={<Navigate to="/" replace />} />
         <Route path="network" element={<Navigate to="/agents" replace />} />
         <Route path="capabilities" element={<Navigate to="/agents" replace />} />
         <Route path="budgets" element={<Suspense fallback={<PageSkeleton />}><BudgetConfig /></Suspense>} />

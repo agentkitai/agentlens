@@ -30,7 +30,6 @@ export const TOOL_FEATURE_MAP: Record<string, string[]> = {
   agentlens_query_events: [],
   agentlens_log_llm_call: [],
   // Existing feature tools
-  agentlens_recall: ['recall'],
   agentlens_reflect: ['reflect'],
   agentlens_optimize: ['optimize'],
   agentlens_context: ['context'],
@@ -46,7 +45,6 @@ export const TOOL_FEATURE_MAP: Record<string, string[]> = {
   agentlens_alerts: ['alerts'],
   agentlens_analytics: ['analytics'],
   agentlens_cost_budgets: ['cost-budgets'],
-  agentlens_lessons: ['lessons'],
   agentlens_stats: ['stats'],
   agentlens_trust: ['trust'],
   // Feature 19: Prompt Management

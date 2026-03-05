@@ -48,8 +48,8 @@ const navSections: NavSection[] = [
         ),
       },
       {
-        to: '/knowledge',
-        label: 'Knowledge',
+        to: '/memories',
+        label: 'Memories',
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">🧠</span>,
       },
       {
@@ -101,11 +101,6 @@ const navSections: NavSection[] = [
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">💰</span>,
       },
       {
-        to: '/sharing',
-        label: 'Sharing',
-        icon: <span className="w-5 h-5 flex items-center justify-center text-base">🔗</span>,
-      },
-      {
         to: '/compliance',
         label: 'Compliance',
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">📋</span>,
@@ -141,7 +136,7 @@ function linkClass({ isActive }: { isActive: boolean }): string {
     : `${base} text-gray-600 hover:bg-gray-100 hover:text-gray-900`;
 }
 
-const LORE_NAV_PATHS = new Set(['/knowledge', '/sharing']);
+const LORE_NAV_PATHS = new Set(['/memories']);
 const MESH_NAV_PATHS = new Set(['/delegations']);
 
 export function Layout(): React.ReactElement {

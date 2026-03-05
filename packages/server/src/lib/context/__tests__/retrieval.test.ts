@@ -11,7 +11,19 @@ import type { EmbeddingStore, SimilarityResult } from '../../../db/embedding-sto
 import type { EmbeddingService } from '../../embeddings/index.js';
 import type { SessionSummaryStore, SessionSummaryRecord } from '../../../db/session-summary-store.js';
 import type { IEventStore } from '@agentlensai/core';
-import type { Lesson } from '@agentlensai/core';
+/** Inline type for test mocks (Lesson type removed from core) */
+interface MockLesson {
+  id: string;
+  tenantId: string;
+  title: string;
+  content: string;
+  category: string;
+  importance: string;
+  accessCount: number;
+  createdAt: string;
+  updatedAt: string;
+  context: Record<string, unknown>;
+}
 
 // ─── Mock factories ────────────────────────────────────────
 
@@ -51,7 +63,7 @@ function createMockSessionSummaryStore(summaries: Map<string, SessionSummaryReco
   } as unknown as SessionSummaryStore;
 }
 
-function createMockLessonStore(lessons: Lesson[] = []) {
+function createMockLessonStore(lessons: MockLesson[] = []) {
   return {
     get: vi.fn((tenantId: string, id: string) => lessons.find((l) => l.id === id) ?? null),
     list: vi.fn((_tenantId: string, query?: { search?: string }) => {
@@ -131,7 +143,7 @@ describe('ContextRetriever', () => {
         }],
       ]);
 
-      const lessons: Lesson[] = [{
+      const lessons: MockLesson[] = [{
         id: 'les-1',
         tenantId: 'tenant-a',
         title: 'Always verify deploy',
@@ -258,7 +270,7 @@ describe('ContextRetriever', () => {
         }],
       ]);
 
-      const lessons: Lesson[] = [{
+      const lessons: MockLesson[] = [{
         id: 'les-1', tenantId: 'tenant-a',
         title: 'Database migration tips',
         content: 'Always backup before migrating',

@@ -81,7 +81,7 @@ describe('agentlens_log_llm_call registration', () => {
     const { client } = await createTestSetup();
 
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(24);
+    expect(result.tools).toHaveLength(22);
   });
 
   it('has a description', async () => {
