@@ -3,7 +3,7 @@ import { useApi } from '../hooks/useApi';
 import { getMemories, type LoreMemory } from '../api/lore';
 
 const TYPE_BADGE: Record<string, string> = {
-  lesson: 'bg-blue-100 text-blue-700',
+  memory: 'bg-blue-100 text-blue-700',
   code: 'bg-purple-100 text-purple-700',
   general: 'bg-gray-100 text-gray-700',
 };
@@ -32,7 +32,7 @@ export function Knowledge(): React.ReactElement {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Memories</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Read-only view of lessons stored in Lore. Manage memories via the Lore MCP server.
+          Read-only view of memories stored in Lore. Manage memories via the Lore MCP server.
         </p>
       </div>
 

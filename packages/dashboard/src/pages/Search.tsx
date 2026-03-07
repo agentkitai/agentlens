@@ -5,7 +5,7 @@ const SCOPE_OPTIONS = [
   { value: '', label: 'All' },
   { value: 'event', label: 'Events' },
   { value: 'session', label: 'Sessions' },
-  { value: 'lesson', label: 'Lessons' },
+  { value: 'memory', label: 'Memories' },
 ];
 
 function formatTimestamp(ts?: string): string {
@@ -23,7 +23,7 @@ function sourceTypeBadge(type: string): string {
       return 'bg-blue-100 text-blue-700';
     case 'session':
       return 'bg-green-100 text-green-700';
-    case 'lesson':
+    case 'memory':
       return 'bg-purple-100 text-purple-700';
     default:
       return 'bg-gray-100 text-gray-700';
@@ -79,7 +79,7 @@ export function Search(): React.ReactElement {
         <div className="flex gap-3">
           <input
             type="text"
-            placeholder="Search across events, sessions, and lessons..."
+            placeholder="Search across events, sessions, and memories..."
             className="flex-1 rounded-md border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
