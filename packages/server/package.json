@@ -56,7 +56,7 @@
     "agentkit-auth": "workspace:*",
     "better-sqlite3": "^11.9.1",
     "drizzle-orm": "^0.44.2",
-    "hono": "^4.11.9",
+    "hono": "^4.12.1",
     "hono-rate-limiter": "^0.5.3",
     "postgres": "^3.4.8",
     "ulid": "^3.0.2",
