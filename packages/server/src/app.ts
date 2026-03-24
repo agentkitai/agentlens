@@ -162,6 +162,11 @@ export async function createApp(
   // ─── Rate limiting: auth endpoints ─────────────────────
   app.use('/auth/*', authRateLimit);
 
+  // ─── Auth posture check (Feature-1: secure-by-default) ──
+  if (resolvedConfig.authDisabled && process.env['NODE_ENV'] === 'production') {
+    log.error('CRITICAL: Running with AUTH_DISABLED=true in production. All API endpoints are unprotected!');
+  }
+
   // ─── Auth middleware on protected routes [F2-S3] ───────
   const db = config?.db;
   if (!db && !resolvedConfig.authDisabled) {

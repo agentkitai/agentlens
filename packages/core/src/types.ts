@@ -1226,7 +1226,9 @@ export type GuardrailActionType =
   | 'block'
   | 'redact'
   | 'log_and_continue'
-  | 'alert';
+  | 'alert'
+  // Phase 2 — proactive guardrails v2 (Feature 5):
+  | 'rate_limit';
 
 /**
  * A guardrail rule — configurable condition + action with cooldown

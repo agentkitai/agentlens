@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentlens.fullname" . }}
+  labels:
+    {{- include "agentlens.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "agentlens.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agentlens.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "agentlens.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "agentlens.fullname" . }}
+            {{- if .Values.secrets.create }}
+            - secretRef:
+                name: {{ include "agentlens.fullname" . }}
+            {{- else if .Values.secrets.existingSecret }}
+            - secretRef:
+                name: {{ .Values.secrets.existingSecret }}
+            {{- end }}
+          {{- with .Values.probes.liveness }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.probes.readiness }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

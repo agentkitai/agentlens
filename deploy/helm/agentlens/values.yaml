@@ -1,0 +1,79 @@
+# -- Number of AgentLens replicas
+replicaCount: 1
+
+image:
+  repository: ghcr.io/agentkitai/agentlens
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# ─── Application Config ──────────────────────────────
+config:
+  storageBackend: postgres
+  port: 3000
+  authDisabled: false
+  retentionDays: 90
+  databaseUrl: ""
+  redisUrl: ""
+  extraEnv: {}
+
+# ─── Secrets ──────────────────────────────────────────
+secrets:
+  create: true
+  existingSecret: ""
+  jwtSecret: ""
+  adminApiKey: ""
+
+# ─── Service ─────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+# ─── Resources ───────────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# ─── Probes ──────────────────────────────────────────
+probes:
+  liveness:
+    httpGet:
+      path: /api/stats
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readiness:
+    httpGet:
+      path: /api/stats
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# ─── Security Context ────────────────────────────────
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: [ALL]
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

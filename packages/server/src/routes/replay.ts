@@ -88,6 +88,69 @@ export function registerReplayRoutes(
   app: Hono<{ Variables: AuthVariables }>,
   store: IEventStore,
 ): void {
+  // ─── Debug Replay: chronological events with timing metadata (Feature-2) ──
+  app.get('/api/sessions/:id/debug-replay', async (c) => {
+    const tenantStore = getTenantStore(store, c);
+    const sessionId = c.req.param('id');
+
+    // Validate speed param
+    const speedStr = c.req.query('speed') ?? '1';
+    const speed = parseFloat(speedStr);
+    const allowedSpeeds = [0.5, 1, 2, 5];
+    if (!allowedSpeeds.includes(speed)) {
+      return c.json(
+        { error: `Invalid speed: must be one of ${allowedSpeeds.join(', ')}`, status: 400 },
+        400,
+      );
+    }
+
+    const session = await tenantStore.getSession(sessionId);
+    if (!session) {
+      return c.json({ error: 'Session not found', status: 404 }, 404);
+    }
+
+    const timeline = await tenantStore.getSessionTimeline(sessionId);
+    if (timeline.length === 0) {
+      return c.json({
+        sessionId,
+        speed,
+        totalEvents: 0,
+        totalDurationMs: 0,
+        events: [],
+      });
+    }
+
+    const sessionStartMs = new Date(timeline[0].timestamp).getTime();
+    let prevMs = sessionStartMs;
+
+    const events = timeline.map((event) => {
+      const eventMs = new Date(event.timestamp).getTime();
+      const absoluteMs = eventMs - sessionStartMs;
+      const rawDeltaMs = eventMs - prevMs;
+      const deltaMs = Math.round(rawDeltaMs / speed);
+      prevMs = eventMs;
+
+      return {
+        id: event.id,
+        type: event.eventType,
+        deltaMs,
+        absoluteMs,
+        timestamp: event.timestamp,
+        data: event.payload,
+      };
+    });
+
+    const totalDurationMs = new Date(timeline[timeline.length - 1].timestamp).getTime() - sessionStartMs;
+
+    return c.json({
+      sessionId,
+      speed,
+      totalEvents: events.length,
+      totalDurationMs: Math.round(totalDurationMs / speed),
+      events,
+    });
+  });
+
   app.get('/api/sessions/:id/replay', async (c) => {
     const tenantStore = getTenantStore(store, c);
     const sessionId = c.req.param('id');

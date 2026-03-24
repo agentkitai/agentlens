@@ -82,12 +82,18 @@ export { RemoteMeshAdapter, MeshError } from './lib/mesh-client.js';
 export type { MeshAdapter } from './lib/mesh-client.js';
 export { otlpRoutes } from './routes/otlp.js';
 export { guardrailRoutes } from './routes/guardrails.js';
+export { mcpPolicyRoutes } from './routes/mcp-policies.js';
 export { GuardrailEngine } from './lib/guardrails/engine.js';
 export { GuardrailStore } from './db/guardrail-store.js';
 export { BudgetEngine } from './lib/budget-engine.js';
 export { CostAnomalyDetector } from './lib/cost-anomaly-detector.js';
 export { CostBudgetStore } from './db/cost-budget-store.js';
 export { costBudgetRoutes } from './routes/cost-budgets.js';
+export { apiVersionMiddleware, CURRENT_API_VERSION, SUPPORTED_API_VERSIONS } from './lib/api-version.js';
+export { apiVersionRoutes } from './routes/api-version.js';
+export { optimizationAdvisorRoutes } from './routes/optimization-advisor.js';
+export { getOptimizationSuggestions, getOptimizationSummary } from './services/optimization-advisor.js';
+export type { OptimizationSuggestion, AdvisorResult, SuggestionType } from './services/optimization-advisor.js';
 
 // ─── startServer ─────────────────────────────────────────────
 

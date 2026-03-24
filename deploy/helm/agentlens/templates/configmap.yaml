@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agentlens.fullname" . }}
+  labels:
+    {{- include "agentlens.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.config.port | quote }}
+  STORAGE_BACKEND: {{ .Values.config.storageBackend | quote }}
+  AUTH_DISABLED: {{ .Values.config.authDisabled | quote }}
+  RETENTION_DAYS: {{ .Values.config.retentionDays | quote }}
+  NODE_ENV: "production"
+  {{- if .Values.config.databaseUrl }}
+  DATABASE_URL: {{ .Values.config.databaseUrl | quote }}
+  {{- end }}
+  {{- if .Values.config.redisUrl }}
+  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  {{- end }}
+  {{- range $key, $value := .Values.config.extraEnv }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

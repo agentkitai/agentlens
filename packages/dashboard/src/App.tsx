@@ -42,6 +42,7 @@ const EvalDatasets = React.lazy(() => import('./pages/eval/datasets').then(m => 
 const EvalDatasetDetail = React.lazy(() => import('./pages/eval/dataset-detail').then(m => ({ default: m.EvalDatasetDetail })));
 const Compliance = React.lazy(() => import('./pages/Compliance'));
 const BudgetConfig = React.lazy(() => import('./pages/BudgetConfig'));
+const AgentInsights = React.lazy(() => import('./pages/AgentInsights'));
 
 // Lazy-loaded cloud components (named exports)
 const TeamManagement = React.lazy(() => import('./cloud/TeamManagement').then(m => ({ default: m.TeamManagement })));
@@ -87,6 +88,7 @@ function AppRoutes(): React.ReactElement {
         <Route path="replay/:sessionId" element={<Suspense fallback={<PageSkeleton />}><SessionReplay /></Suspense>} />
         <Route path="events" element={<Suspense fallback={<PageSkeleton />}><EventsExplorer /></Suspense>} />
         <Route path="agents" element={<Suspense fallback={<PageSkeleton />}><Agents /></Suspense>} />
+        <Route path="agents/insights" element={<Suspense fallback={<PageSkeleton />}><AgentInsights /></Suspense>} />
         <Route path="analytics" element={<Suspense fallback={<PageSkeleton />}><Analytics /></Suspense>} />
         <Route path="llm" element={<Suspense fallback={<PageSkeleton />}><LlmAnalytics /></Suspense>} />
         <Route path="health" element={<Suspense fallback={<PageSkeleton />}><HealthOverview /></Suspense>} />

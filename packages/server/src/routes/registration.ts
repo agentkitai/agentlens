@@ -58,12 +58,16 @@ import { costBudgetRoutes } from './cost-budgets.js';
 import { GuardrailStore } from '../db/guardrail-store.js';
 import { ContentGuardrailEngine } from '../lib/guardrails/content-engine.js';
 import { BudgetEngine } from '../lib/budget-engine.js';
+import { mcpPolicyRoutes } from './mcp-policies.js';
 import { EmbeddingStore } from '../db/embedding-store.js';
 import { SessionSummaryStore } from '../db/session-summary-store.js';
 import { otlpAuthRequired as otlpAuthRequiredError, otlpInvalidToken } from '../middleware/auth-errors.js';
 import { unifiedAuthMiddleware } from '../middleware/unified-auth.js';
 import { createLogger } from '../lib/logger.js';
 import { apiReference } from '@scalar/hono-api-reference';
+import { apiVersionMiddleware } from '../lib/api-version.js';
+import { apiVersionRoutes } from './api-version.js';
+import { optimizationAdvisorRoutes } from './optimization-advisor.js';
 
 const log = createLogger('Routes');
 
@@ -86,6 +90,12 @@ export async function registerRoutes(
   config?: RouteRegistrationConfig,
 ) {
   const db = config?.db;
+
+  // ─── API Version Header (Feature 9) ─────────────────────
+  app.use('/api/*', apiVersionMiddleware);
+
+  // ─── API Version Endpoint (Feature 9 — no auth) ────────
+  app.route('/api/version', apiVersionRoutes());
 
   // ─── Feature flags (no auth — dashboard needs before login) ──
   app.get('/api/config/features', (c) => {
@@ -202,6 +212,9 @@ export async function registerRoutes(
   // ─── Optimize / Cost Recommendations ──────────────────
   app.route('/api/optimize', optimizeRoutes(store));
 
+  // ─── Optimization Advisor (Feature 10) ─────────────────
+  app.route('/api', optimizationAdvisorRoutes(store));
+
   // ─── Benchmarks / A/B Testing ─────────────────────────
   if (db) {
     app.route('/api/benchmarks', benchmarkRoutes(store, db));
@@ -214,6 +227,11 @@ export async function registerRoutes(
     const gStore = new GuardrailStore(db);
     const contentEngine = new ContentGuardrailEngine(gStore);
     app.route('/api/guardrails', guardrailRoutes(gStore, contentEngine));
+  }
+
+  // ─── MCP Policy Enforcement (Phase 2 — Feature 6) ─────
+  if (db) {
+    app.route('/api/mcp', mcpPolicyRoutes(db));
   }
 
   // ─── Cost Budgets (Feature 5) ─────────────────────────

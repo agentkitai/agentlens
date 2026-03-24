@@ -1,0 +1,16 @@
+apiVersion: v2
+name: agentlens
+description: AgentLens — production-grade observability platform for AI agents
+type: application
+version: 0.2.0
+appVersion: "0.9.0"
+keywords:
+  - ai
+  - agents
+  - observability
+  - llm
+home: https://github.com/agentkitai/agentlens
+sources:
+  - https://github.com/agentkitai/agentlens
+maintainers:
+  - name: AgentKit Team

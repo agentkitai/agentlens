@@ -1,0 +1,122 @@
+# Hardened Docker Compose for production deployments
+# Usage: docker compose -f deploy/docker/docker-compose.hardened.yml up -d
+#
+# Requires .env file with: JWT_SECRET, ADMIN_API_KEY, POSTGRES_PASSWORD
+
+version: "3.9"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    user: "999:999"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    environment:
+      POSTGRES_USER: agentlens
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: agentlens
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentlens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    user: "999:999"
+    read_only: true
+    tmpfs:
+      - /tmp
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 64M
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+
+  agentlens:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    ports:
+      - "${AGENTLENS_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://agentlens:${POSTGRES_PASSWORD}@postgres:5432/agentlens
+      DATABASE_PATH: /app/data/agentlens.db
+      REDIS_URL: redis://redis:6379
+      STORAGE_BACKEND: postgres
+      AUTH_DISABLED: "false"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in .env}
+      PORT: "3000"
+      NODE_ENV: production
+    volumes:
+      - agentlens-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/stats').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+  agentlens-data:
+
+networks:
+  backend:
+    driver: bridge

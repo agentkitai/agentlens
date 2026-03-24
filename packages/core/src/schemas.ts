@@ -403,6 +403,8 @@ export const GuardrailActionTypeSchema = z.enum([
   'redact',
   'log_and_continue',
   'alert',
+  // Phase 2 — proactive guardrails v2 (Feature 5):
+  'rate_limit',
 ]);
 
 export const GuardrailDirectionSchema = z.enum(['input', 'output', 'both']);

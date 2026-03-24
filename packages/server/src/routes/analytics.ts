@@ -219,6 +219,72 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
       `,
     );
 
+    // Cost by model (Feature-3: unified cost attribution)
+    const byModel = await dbAll<{
+      model: string;
+      totalCostUsd: number;
+      eventCount: number;
+    }>(db, qdb,
+      sql`
+        SELECT
+          ${jf(isPg, 'model')} as model,
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+          COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')}
+        FROM events
+        WHERE event_type IN ('cost_tracked', 'llm_response')
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
+          AND ${jf(isPg, 'model')} IS NOT NULL
+        GROUP BY model
+        ORDER BY ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')} DESC
+      `,
+    );
+
+    // Cost by session (Feature-3)
+    const bySession = await dbAll<{
+      sessionId: string;
+      totalCostUsd: number;
+      eventCount: number;
+    }>(db, qdb,
+      sql`
+        SELECT
+          session_id as ${sql.raw(isPg ? '"sessionId"' : 'sessionId')},
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+          COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')}
+        FROM events
+        WHERE event_type IN ('cost_tracked', 'llm_response')
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
+        GROUP BY session_id
+        ORDER BY ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')} DESC
+        LIMIT 100
+      `,
+    );
+
+    // Cost by tool (Feature-3)
+    const byTool = await dbAll<{
+      toolName: string;
+      totalCostUsd: number;
+      eventCount: number;
+    }>(db, qdb,
+      sql`
+        SELECT
+          ${jf(isPg, 'toolName')} as ${sql.raw(isPg ? '"toolName"' : 'toolName')},
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+          COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')}
+        FROM events
+        WHERE event_type IN ('tool_call', 'tool_response', 'tool_error', 'cost_tracked')
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
+          AND ${jf(isPg, 'toolName')} IS NOT NULL
+        GROUP BY ${sql.raw(isPg ? '"toolName"' : 'toolName')}
+        ORDER BY ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')} DESC
+      `,
+    );
+
     return c.json({
       byAgent: byAgent.map((r) => ({
         agentId: r.agentId,
@@ -228,6 +294,21 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
         totalTokens: Number(r.totalTokens),
         cacheReadTokens: Number(r.cacheReadTokens ?? 0),
         cacheWriteTokens: Number(r.cacheWriteTokens ?? 0),
+        eventCount: Number(r.eventCount),
+      })),
+      byModel: byModel.map((r) => ({
+        model: r.model,
+        totalCostUsd: Number(r.totalCostUsd),
+        eventCount: Number(r.eventCount),
+      })),
+      bySession: bySession.map((r) => ({
+        sessionId: r.sessionId,
+        totalCostUsd: Number(r.totalCostUsd),
+        eventCount: Number(r.eventCount),
+      })),
+      byTool: byTool.map((r) => ({
+        toolName: r.toolName,
+        totalCostUsd: Number(r.totalCostUsd),
         eventCount: Number(r.eventCount),
       })),
       overTime: overTime.map((r) => ({
@@ -242,6 +323,51 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
         totalOutputTokens: Number(total?.totalOutputTokens ?? 0),
         totalTokens: Number(total?.totalTokens ?? 0),
       },
+    });
+  });
+
+  // GET /api/analytics/costs/trends — daily cost trend (Feature-3)
+  app.get('/costs/trends', async (c) => {
+    const tenantId = getTenantId(c);
+    const from = c.req.query('from') ?? new Date(Date.now() - 30 * 86400_000).toISOString();
+    const to = c.req.query('to') ?? new Date().toISOString();
+
+    const dailyBucket = tb(isPg, '%Y-%m-%dT00:00:00Z');
+
+    const rows = await dbAll<{
+      date: string;
+      totalCostUsd: number;
+      eventCount: number;
+      models: number;
+      agents: number;
+    }>(db, qdb,
+      sql`
+        SELECT
+          ${dailyBucket} as date,
+          COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+          COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')},
+          COUNT(DISTINCT ${jf(isPg, 'model')}) as models,
+          COUNT(DISTINCT agent_id) as agents
+        FROM events
+        WHERE event_type IN ('cost_tracked', 'llm_response')
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
+        GROUP BY date
+        ORDER BY date ASC
+      `,
+    );
+
+    return c.json({
+      from,
+      to,
+      trends: rows.map((r) => ({
+        date: r.date,
+        totalCostUsd: Number(r.totalCostUsd),
+        eventCount: Number(r.eventCount),
+        uniqueModels: Number(r.models),
+        uniqueAgents: Number(r.agents),
+      })),
     });
   });
 

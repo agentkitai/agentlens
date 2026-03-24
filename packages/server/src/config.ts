@@ -106,6 +106,12 @@ export function getConfig(): ServerConfig {
  */
 export function validateConfig(config: ServerConfig): void {
   if (config.authDisabled) {
+    const nodeEnv = process.env['NODE_ENV'] ?? 'development';
+    if (nodeEnv === 'production') {
+      log.error('CRITICAL: AUTH_DISABLED=true in production environment! This is a severe security risk. Set AUTH_DISABLED=false or remove it.');
+    } else if (nodeEnv !== 'development') {
+      log.warn('WARNING: AUTH_DISABLED=true in non-development environment (NODE_ENV=' + nodeEnv + '). This is not recommended.');
+    }
     log.warn('⚠️  Authentication is DISABLED. Do not use in production!');
   }
 

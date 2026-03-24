@@ -104,10 +104,87 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
    * @summary Evaluate content against guardrail rules (Feature 8)
    */
   app.post('/evaluate', async (c) => {
+    const tenantId = getTenantId(c);
+    const body = await c.req.json().catch(() => null);
+
+    // Feature 5 (v2): evaluate a request against all active guardrails, return actions
+    if (body?.request) {
+      const agentId = body.request.agentId;
+      const model = body.request.model;
+      if (!agentId) {
+        return c.json({ error: 'Missing request.agentId', status: 400 }, 400);
+      }
+      const rules = guardrailStore.listEnabledRules(tenantId, agentId);
+      const actions: Array<{
+        ruleId: string;
+        ruleName: string;
+        actionType: string;
+        actionConfig: Record<string, unknown>;
+        message: string;
+      }> = [];
+
+      for (const rule of rules) {
+        if (rule.actionType === 'rate_limit') {
+          const rpm = (rule.actionConfig.requests_per_minute as number) ?? 60;
+          actions.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            actionType: 'rate_limit',
+            actionConfig: { requests_per_minute: rpm, window: rule.actionConfig.window ?? 60 },
+            message: `Rate limited to ${rpm} requests/min`,
+          });
+        } else if (rule.actionType === 'block') {
+          actions.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            actionType: 'block',
+            actionConfig: rule.actionConfig,
+            message: (rule.actionConfig.message as string) ?? 'Request blocked by guardrail',
+          });
+        } else if (rule.actionType === 'downgrade_model') {
+          const target = (rule.actionConfig.target_model as string) ?? 'gpt-3.5-turbo';
+          actions.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            actionType: 'downgrade_model',
+            actionConfig: { target_model: target, original_model: model },
+            message: `Model downgraded from ${model ?? 'unknown'} to ${target}`,
+          });
+        } else if (rule.actionType === 'alert') {
+          actions.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            actionType: 'alert',
+            actionConfig: rule.actionConfig,
+            message: 'Alert triggered',
+          });
+        }
+      }
+
+      // Record actions as trigger history
+      const now = new Date().toISOString();
+      for (const action of actions) {
+        guardrailStore.insertTrigger({
+          id: ulid(),
+          ruleId: action.ruleId,
+          tenantId,
+          triggeredAt: now,
+          conditionValue: 0,
+          conditionThreshold: 0,
+          actionExecuted: true,
+          actionResult: action.actionType,
+          metadata: { agentId, model, message: action.message },
+        });
+      }
+
+      const blocked = actions.some((a) => a.actionType === 'block');
+      return c.json({ allowed: !blocked, actions });
+    }
+
+    // Feature 8 (content engine): existing content evaluation
     if (!contentEngine) {
       return c.json({ error: 'Content engine not available', status: 501 }, 501);
     }
-    const body = await c.req.json().catch(() => null);
     if (!body?.content || !body?.context?.tenantId || !body?.context?.agentId) {
       return c.json({ error: 'Missing content or context (tenantId, agentId required)', status: 400 }, 400);
     }
@@ -124,6 +201,43 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     );
 
     return c.json(result);
+  });
+
+  /**
+   * @summary List triggered actions for a guardrail rule (Feature 5 — Phase 2)
+   * @param {string} id — Rule ID (path)
+   * @param {number} [limit] — max results 1-200, default 50 (query param)
+   * @param {number} [offset] — pagination offset, default 0 (query param)
+   * @returns {200} `{ actions: TriggerRecord[], total: number }`
+   * @throws {404} Rule not found
+   */
+  app.get('/:id/actions', async (c) => {
+    const tenantId = getTenantId(c);
+    const ruleId = c.req.param('id');
+    const rule = guardrailStore.getRule(tenantId, ruleId);
+    if (!rule) {
+      return notFound(c, 'Guardrail rule');
+    }
+
+    const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') ?? '50', 10)), 200);
+    const offset = Math.max(0, parseInt(c.req.query('offset') ?? '0', 10));
+
+    const { triggers, total } = guardrailStore.listTriggerHistory(tenantId, {
+      ruleId,
+      limit,
+      offset,
+    });
+
+    // Map triggers to action records
+    const actions = triggers.map((t) => ({
+      id: t.id,
+      ruleId: t.ruleId,
+      actionType: t.actionResult ?? 'unknown',
+      triggeredAt: t.triggeredAt,
+      metadata: t.metadata,
+    }));
+
+    return c.json({ actions, total });
   });
 
   /**
