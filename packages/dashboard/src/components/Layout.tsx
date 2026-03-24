@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import React, { useMemo, useState, useCallback } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from './ErrorBoundary';
 import { OrgSwitcher } from '../cloud/OrgSwitcher';
 import { useFeatures } from '../hooks/useFeatures';
@@ -139,10 +139,63 @@ function linkClass({ isActive }: { isActive: boolean }): string {
 const LORE_NAV_PATHS = new Set(['/memories']);
 const MESH_NAV_PATHS = new Set(['/delegations']);
 
-export function Layout(): React.ReactElement {
+const STORAGE_KEY = 'agentlens:sidebar-collapsed';
+
+function loadCollapsedState(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCollapsedState(state: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+const ROUTE_TITLES: Record<string, string> = {
+  '/': 'Overview',
+  '/sessions': 'Sessions',
+  '/agents': 'Agents',
+  '/memories': 'Memories',
+  '/delegations': 'Delegations',
+  '/analytics': 'Analytics',
+  '/benchmarks': 'Benchmarks',
+  '/prompts': 'Prompts',
+  '/guardrails': 'Guardrails',
+  '/budgets': 'Budgets',
+  '/compliance': 'Compliance',
+  '/alerts': 'Alerts',
+  '/settings': 'Settings',
+};
+
+export const Layout = React.memo(function Layout(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(loadCollapsedState);
   const { lore, mesh } = useFeatures();
   const { user, logout, authMode } = useAuth();
+  const location = useLocation();
+
+  const toggleGroup = useCallback((header: string) => {
+    setCollapsedGroups((prev) => {
+      const next = { ...prev, [header]: !prev[header] };
+      saveCollapsedState(next);
+      return next;
+    });
+  }, []);
+
+  const pageTitle = useMemo(() => {
+    const path = location.pathname;
+    if (ROUTE_TITLES[path]) return ROUTE_TITLES[path];
+    // Match first segment for sub-routes like /sessions/:id
+    const base = '/' + path.split('/').filter(Boolean)[0];
+    return ROUTE_TITLES[base] ?? 'Dashboard';
+  }, [location.pathname]);
 
   const visibleSections = useMemo(
     () => navSections.map((section) => ({
@@ -185,13 +238,27 @@ export function Layout(): React.ReactElement {
           <OrgSwitcher />
         </div>
 
-        <nav className="flex flex-col gap-1 p-4">
+        <nav className="flex flex-col gap-1 p-4 overflow-y-auto max-h-[calc(100vh-7rem)]">
           {visibleSections.map((section, idx) => (
             <div key={section.header} className={idx > 0 ? 'mt-4' : ''}>
-              <div className="px-3 py-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+              <button
+                type="button"
+                className="flex items-center justify-between w-full px-3 py-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase hover:text-gray-600 transition-colors"
+                onClick={() => toggleGroup(section.header)}
+                aria-expanded={!collapsedGroups[section.header]}
+              >
                 {section.header}
-              </div>
-              {section.items.map((item) => (
+                <svg
+                  className={`w-3 h-3 transition-transform ${collapsedGroups[section.header] ? '-rotate-90' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+              {!collapsedGroups[section.header] && section.items.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -222,7 +289,7 @@ export function Layout(): React.ReactElement {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </button>
-          <h1 className="ml-2 text-lg font-semibold text-gray-900 md:ml-0">Dashboard</h1>
+          <h1 className="ml-2 text-lg font-semibold text-gray-900 md:ml-0">{pageTitle}</h1>
           <div className="ml-auto flex items-center gap-3">
             {user && authMode === 'dual' && (
               <>
@@ -246,4 +313,4 @@ export function Layout(): React.ReactElement {
       </div>
     </div>
   );
-}
+});

@@ -61,6 +61,25 @@ export function exportSessionCSV(
   return new Blob([csv], { type: 'text/csv' });
 }
 
+export function exportSessionNDJSON(
+  session: Session,
+  events: AgentLensEvent[],
+  chainValid: boolean,
+): Blob {
+  const meta = {
+    _type: 'meta',
+    exportedAt: new Date().toISOString(),
+    agentlensVersion: VERSION,
+    sessionId: session.id,
+    chainValid,
+  };
+  const lines = [
+    JSON.stringify(meta),
+    ...events.map((ev) => JSON.stringify(ev)),
+  ];
+  return new Blob([lines.join('\n') + '\n'], { type: 'application/x-ndjson' });
+}
+
 export function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -72,7 +91,7 @@ export function triggerDownload(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function getExportFilename(sessionId: string, ext: 'json' | 'csv'): string {
+export function getExportFilename(sessionId: string, ext: 'json' | 'csv' | 'ndjson'): string {
   const date = new Date().toISOString().slice(0, 10);
   return `session-${sessionId}-${date}.${ext}`;
 }

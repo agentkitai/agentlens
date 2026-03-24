@@ -127,12 +127,12 @@ graph TB
 If you're running [OpenClaw](https://github.com/openclaw/openclaw), the AgentLens plugin captures every Anthropic API call automatically — prompts, completions, token usage, costs, latency, and tool calls.
 
 ```bash
-cp -r packages/openclaw-plugin /usr/lib/node_modules/openclaw/extensions/agentlens-relay
+cp -r packages/relay-plugin /usr/lib/node_modules/openclaw/extensions/agentlens-relay
 openclaw config patch '{"plugins":{"entries":{"agentlens-relay":{"enabled":true}}}}'
 openclaw gateway restart
 ```
 
-Set `AGENTLENS_URL` if your AgentLens instance isn't on `localhost:3000`. See the [plugin README](./packages/openclaw-plugin/README.md) for details.
+Set `AGENTLENS_URL` if your AgentLens instance isn't on `localhost:3000`. See the [plugin README](./packages/relay-plugin/README.md) for details.
 
 ### 🐍 Python Auto-Instrumentation
 

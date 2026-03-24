@@ -18,6 +18,7 @@ import type { GuardrailStore } from '../db/guardrail-store.js';
 import type { ContentGuardrailEngine } from '../lib/guardrails/content-engine.js';
 import { invalidateScanner } from '../lib/guardrails/scanners/scanner-registry.js';
 import { getTenantId } from './tenant-helper.js';
+import { parseBody, notFound, created } from './helpers.js';
 
 /**
  * Validate that conditionConfig contains required fields for the given condition type.
@@ -69,29 +70,18 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
    */
   app.post('/', async (c) => {
     const tenantId = getTenantId(c);
-    const rawBody = await c.req.json().catch(() => null);
-    if (!rawBody) {
-      return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
-    }
-
-    const result = CreateGuardrailRuleSchema.safeParse(rawBody);
-    if (!result.success) {
-      return c.json({
-        error: 'Validation failed',
-        status: 400,
-        details: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
-      }, 400);
-    }
+    const parsed = await parseBody(c, CreateGuardrailRuleSchema);
+    if (!parsed.success) return parsed.response;
 
     // H4: Validate that conditionConfig has required fields for the condition type
-    const configError = validateConditionConfig(result.data.conditionType, result.data.conditionConfig);
+    const configError = validateConditionConfig(parsed.data.conditionType, parsed.data.conditionConfig);
     if (configError) {
       return c.json({ error: 'Validation failed', status: 400, details: [{ path: 'conditionConfig', message: configError }] }, 400);
     }
 
     // H2: Validate webhook URL if action is notify_webhook
-    if (result.data.actionType === 'notify_webhook') {
-      const url = result.data.actionConfig?.url;
+    if (parsed.data.actionType === 'notify_webhook') {
+      const url = parsed.data.actionConfig?.url;
       if (typeof url === 'string' && !/^https?:\/\//.test(url)) {
         return c.json({ error: 'Validation failed', status: 400, details: [{ path: 'actionConfig.url', message: 'Webhook URL must start with http:// or https://' }] }, 400);
       }
@@ -101,13 +91,13 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     const rule = {
       id: ulid(),
       tenantId,
-      ...result.data,
+      ...parsed.data,
       createdAt: now,
       updatedAt: now,
     };
 
     guardrailStore.createRule(rule);
-    return c.json(rule, 201);
+    return created(c, rule);
   });
 
   /**
@@ -192,7 +182,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     const ruleId = c.req.param('id');
     const rule = guardrailStore.getRule(tenantId, ruleId);
     if (!rule) {
-      return c.json({ error: 'Guardrail rule not found', status: 404 }, 404);
+      return notFound(c, 'Guardrail rule');
     }
     return c.json(rule);
   });
@@ -210,37 +200,26 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
   app.put('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
-    const rawBody = await c.req.json().catch(() => null);
-    if (!rawBody) {
-      return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
-    }
-
-    const result = UpdateGuardrailRuleSchema.safeParse(rawBody);
-    if (!result.success) {
-      return c.json({
-        error: 'Validation failed',
-        status: 400,
-        details: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
-      }, 400);
-    }
+    const parsed = await parseBody(c, UpdateGuardrailRuleSchema);
+    if (!parsed.success) return parsed.response;
 
     // H2: Validate webhook URL if action is notify_webhook
-    if (result.data.actionType === 'notify_webhook') {
-      const url = result.data.actionConfig?.url;
+    if (parsed.data.actionType === 'notify_webhook') {
+      const url = parsed.data.actionConfig?.url;
       if (typeof url === 'string' && !/^https?:\/\//.test(url)) {
         return c.json({ error: 'Validation failed', status: 400, details: [{ path: 'actionConfig.url', message: 'Webhook URL must start with http:// or https://' }] }, 400);
       }
     }
 
     // Handle null agentId (clearing scope)
-    const updates: Record<string, unknown> = { ...result.data };
+    const updates: Record<string, unknown> = { ...parsed.data };
     if (updates.agentId === null) {
       updates.agentId = undefined;
     }
 
     const updated = guardrailStore.updateRule(tenantId, ruleId, updates);
     if (!updated) {
-      return c.json({ error: 'Guardrail rule not found', status: 404 }, 404);
+      return notFound(c, 'Guardrail rule');
     }
 
     invalidateScanner(ruleId);
@@ -261,7 +240,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     const ruleId = c.req.param('id');
     const deleted = guardrailStore.deleteRule(tenantId, ruleId);
     if (!deleted) {
-      return c.json({ error: 'Guardrail rule not found', status: 404 }, 404);
+      return notFound(c, 'Guardrail rule');
     }
     invalidateScanner(ruleId);
     return c.json({ ok: true });
@@ -279,7 +258,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     const ruleId = c.req.param('id');
     const rule = guardrailStore.getRule(tenantId, ruleId);
     if (!rule) {
-      return c.json({ error: 'Guardrail rule not found', status: 404 }, 404);
+      return notFound(c, 'Guardrail rule');
     }
 
     const state = guardrailStore.getState(tenantId, ruleId);

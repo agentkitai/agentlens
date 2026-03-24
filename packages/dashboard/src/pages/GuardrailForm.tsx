@@ -58,69 +58,69 @@ function ConditionConfigFields({ type, config, onChange }: {
   switch (type) {
     case 'error_rate_threshold':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Threshold (%)<br />
             <input type="number" min={0} max={100} value={config.threshold as number ?? 30}
-              onChange={e => set('threshold', Number(e.target.value))} style={inputStyle} />
+              onChange={e => set('threshold', Number(e.target.value))} className={inputClass} />
           </label>
           <label>Window (ms)<br />
             <input type="number" min={1000} value={config.windowMs as number ?? 300000}
-              onChange={e => set('windowMs', Number(e.target.value))} style={inputStyle} />
+              onChange={e => set('windowMs', Number(e.target.value))} className={inputClass} />
           </label>
         </div>
       );
     case 'cost_limit':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Max Cost ($)<br />
             <input type="number" min={0} step={0.01} value={config.maxCostUsd as number ?? 10}
-              onChange={e => set('maxCostUsd', Number(e.target.value))} style={inputStyle} />
+              onChange={e => set('maxCostUsd', Number(e.target.value))} className={inputClass} />
           </label>
           <label>Period (ms)<br />
             <input type="number" min={1000} value={config.periodMs as number ?? 86400000}
-              onChange={e => set('periodMs', Number(e.target.value))} style={inputStyle} />
+              onChange={e => set('periodMs', Number(e.target.value))} className={inputClass} />
           </label>
         </div>
       );
     case 'health_score_threshold':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Min Score<br />
             <input type="number" min={0} max={100} value={config.minScore as number ?? 50}
-              onChange={e => set('minScore', Number(e.target.value))} style={inputStyle} />
+              onChange={e => set('minScore', Number(e.target.value))} className={inputClass} />
           </label>
           <label>Dimension<br />
             <input type="text" value={config.dimension as string ?? ''}
-              onChange={e => set('dimension', e.target.value)} style={inputStyle}
+              onChange={e => set('dimension', e.target.value)} className={inputClass}
               placeholder="e.g. reliability" />
           </label>
         </div>
       );
     case 'custom_metric':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Metric Key<br />
             <input type="text" value={config.metricKey as string ?? ''}
-              onChange={e => set('metricKey', e.target.value)} style={inputStyle} />
+              onChange={e => set('metricKey', e.target.value)} className={inputClass} />
           </label>
           <label>Operator<br />
             <select value={config.operator as string ?? 'gt'}
-              onChange={e => set('operator', e.target.value)} style={inputStyle}>
+              onChange={e => set('operator', e.target.value)} className={inputClass}>
               {OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}
             </select>
           </label>
           <label>Value<br />
             <input type="number" value={config.value as number ?? 0}
-              onChange={e => set('value', Number(e.target.value))} style={inputStyle} />
+              onChange={e => set('value', Number(e.target.value))} className={inputClass} />
           </label>
         </div>
       );
     case 'pii_detection':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Sensitivity<br />
             <select value={config.sensitivity as string ?? 'medium'}
-              onChange={e => set('sensitivity', e.target.value)} style={inputStyle}>
+              onChange={e => set('sensitivity', e.target.value)} className={inputClass}>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
@@ -128,51 +128,51 @@ function ConditionConfigFields({ type, config, onChange }: {
           </label>
           <label>Entity Types (comma-separated)<br />
             <input type="text" value={config.entityTypes as string ?? ''}
-              onChange={e => set('entityTypes', e.target.value)} style={inputStyle}
+              onChange={e => set('entityTypes', e.target.value)} className={inputClass}
               placeholder="e.g. email, phone, ssn" />
           </label>
         </div>
       );
     case 'secrets_detection':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Patterns (comma-separated)<br />
             <input type="text" value={config.patterns as string ?? ''}
-              onChange={e => set('patterns', e.target.value)} style={inputStyle}
+              onChange={e => set('patterns', e.target.value)} className={inputClass}
               placeholder="e.g. aws_key, github_token" />
           </label>
         </div>
       );
     case 'content_regex':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Pattern (regex)<br />
             <input type="text" value={config.pattern as string ?? ''}
-              onChange={e => set('pattern', e.target.value)} style={inputStyle}
+              onChange={e => set('pattern', e.target.value)} className={inputClass}
               placeholder="e.g. \\b\\d{3}-\\d{2}-\\d{4}\\b" />
           </label>
           <label>Flags<br />
             <input type="text" value={config.flags as string ?? 'gi'}
-              onChange={e => set('flags', e.target.value)} style={inputStyle}
+              onChange={e => set('flags', e.target.value)} className={inputClass}
               placeholder="gi" />
           </label>
         </div>
       );
     case 'toxicity':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Threshold (0-1)<br />
             <input type="number" min={0} max={1} step={0.05} value={config.threshold as number ?? 0.7}
-              onChange={e => set('threshold', Number(e.target.value))} style={inputStyle} />
+              onChange={e => set('threshold', Number(e.target.value))} className={inputClass} />
           </label>
         </div>
       );
     case 'prompt_injection':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Sensitivity<br />
             <select value={config.sensitivity as string ?? 'medium'}
-              onChange={e => set('sensitivity', e.target.value)} style={inputStyle}>
+              onChange={e => set('sensitivity', e.target.value)} className={inputClass}>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
@@ -197,20 +197,20 @@ function ActionConfigFields({ type, config, onChange }: {
   switch (type) {
     case 'pause_agent':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Reason<br />
             <input type="text" value={config.reason as string ?? ''}
-              onChange={e => set('reason', e.target.value)} style={inputStyle}
+              onChange={e => set('reason', e.target.value)} className={inputClass}
               placeholder="Reason for pausing" />
           </label>
         </div>
       );
     case 'notify_webhook':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Webhook URL<br />
             <input type="url" value={config.url as string ?? ''}
-              onChange={e => set('url', e.target.value)} style={inputStyle}
+              onChange={e => set('url', e.target.value)} className={inputClass}
               pattern="https?://.*"
               title="Must be an http:// or https:// URL"
               placeholder="https://..." required />
@@ -219,20 +219,20 @@ function ActionConfigFields({ type, config, onChange }: {
       );
     case 'downgrade_model':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Target Model<br />
             <input type="text" value={config.targetModel as string ?? ''}
-              onChange={e => set('targetModel', e.target.value)} style={inputStyle}
+              onChange={e => set('targetModel', e.target.value)} className={inputClass}
               placeholder="e.g. gpt-3.5-turbo" />
           </label>
         </div>
       );
     case 'agentgate_policy':
       return (
-        <div style={fieldGroupStyle}>
+        <div className={fieldGroupClass}>
           <label>Policy ID<br />
             <input type="text" value={config.policyId as string ?? ''}
-              onChange={e => set('policyId', e.target.value)} style={inputStyle} />
+              onChange={e => set('policyId', e.target.value)} className={inputClass} />
           </label>
         </div>
       );
@@ -333,47 +333,47 @@ export default function GuardrailForm() {
   }, [name, agentId, enabled, dryRun, conditionType, conditionConfig, actionType, actionConfig, cooldownMinutes, direction, toolNamesStr, priority, isEdit, id, navigate]);
 
   return (
-    <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1 style={{ fontSize: '24px', marginBottom: '24px' }}>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl mb-6">
         {isEdit ? '✏️ Edit Guardrail Rule' : '🛡️ Create Guardrail Rule'}
       </h1>
 
-      {error && <div style={{ color: '#ef4444', marginBottom: '16px', padding: '8px', background: '#fef2f2', borderRadius: '4px' }}>{error}</div>}
+      {error && <div className="text-red-500 mb-4 p-2 bg-red-50 rounded">{error}</div>}
 
       <form onSubmit={handleSubmit}>
         {/* Basic fields */}
-        <div style={sectionStyle}>
-          <h3 style={sectionTitleStyle}>Basic</h3>
-          <div style={fieldGroupStyle}>
+        <div className={sectionClass}>
+          <h3 className={sectionTitleClass}>Basic</h3>
+          <div className={fieldGroupClass}>
             <label>Name *<br />
               <input type="text" value={name} onChange={e => setName(e.target.value)}
-                required minLength={1} style={inputStyle} placeholder="My Guardrail Rule" />
+                required minLength={1} className={inputClass} placeholder="My Guardrail Rule" />
             </label>
             <label>Agent<br />
-              <select value={agentId} onChange={e => setAgentId(e.target.value)} style={inputStyle}>
+              <select value={agentId} onChange={e => setAgentId(e.target.value)} className={inputClass}>
                 <option value="">All Agents</option>
                 {agents.map(a => <option key={a.id} value={a.id}>{a.name || a.id}</option>)}
               </select>
             </label>
           </div>
-          <div style={{ display: 'flex', gap: '24px', marginTop: '12px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div className="flex gap-6 mt-3">
+            <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} /> Enabled
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={dryRun} onChange={e => setDryRun(e.target.checked)} /> Dry Run
             </label>
             <label>Cooldown (min):{' '}
               <input type="number" min={0} value={cooldownMinutes}
                 onChange={e => setCooldownMinutes(Number(e.target.value))}
-                style={{ ...inputStyle, width: '80px' }} />
+                className={`${inputClass} !w-20`} />
             </label>
           </div>
         </div>
 
         {/* Condition */}
-        <div style={sectionStyle}>
-          <h3 style={sectionTitleStyle}>Condition</h3>
+        <div className={sectionClass}>
+          <h3 className={sectionTitleClass}>Condition</h3>
           <label>Type<br />
             <select value={conditionType} onChange={e => {
               const newType = e.target.value;
@@ -394,7 +394,7 @@ export default function GuardrailForm() {
               if (isContentCondition(newType)) {
                 setActionType('block');
               }
-            }} style={inputStyle}>
+            }} className={inputClass}>
               <optgroup label="Operational">
                 {CONDITION_TYPES.filter(o => o.category === 'operational').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </optgroup>
@@ -403,54 +403,54 @@ export default function GuardrailForm() {
               </optgroup>
             </select>
           </label>
-          <div style={{ marginTop: '12px' }}>
+          <div className="mt-3">
             <ConditionConfigFields type={conditionType} config={conditionConfig} onChange={setConditionConfig} />
           </div>
         </div>
 
         {/* Content Rule Options — only shown for content condition types */}
         {isContentCondition(conditionType) && (
-          <div style={sectionStyle}>
-            <h3 style={sectionTitleStyle}>Content Rule Options</h3>
-            <div style={fieldGroupStyle}>
+          <div className={sectionClass}>
+            <h3 className={sectionTitleClass}>Content Rule Options</h3>
+            <div className={fieldGroupClass}>
               <label>Direction<br />
-                <select value={direction} onChange={e => setDirection(e.target.value as 'input' | 'output' | 'both')} style={inputStyle}>
+                <select value={direction} onChange={e => setDirection(e.target.value as 'input' | 'output' | 'both')} className={inputClass}>
                   {DIRECTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
               <label>Priority<br />
                 <input type="number" value={priority} onChange={e => setPriority(Number(e.target.value))}
-                  style={inputStyle} title="Higher priority rules are evaluated first" />
+                  className={inputClass} title="Higher priority rules are evaluated first" />
               </label>
             </div>
-            <div style={{ marginTop: '12px' }}>
+            <div className="mt-3">
               <label>Tool Name Scope (comma-separated, leave empty for all)<br />
                 <input type="text" value={toolNamesStr} onChange={e => setToolNamesStr(e.target.value)}
-                  style={inputStyle} placeholder="e.g. web_search, file_read" />
+                  className={inputClass} placeholder="e.g. web_search, file_read" />
               </label>
             </div>
           </div>
         )}
 
         {/* Action */}
-        <div style={sectionStyle}>
-          <h3 style={sectionTitleStyle}>Action</h3>
+        <div className={sectionClass}>
+          <h3 className={sectionTitleClass}>Action</h3>
           <label>Type<br />
-            <select value={actionType} onChange={e => { setActionType(e.target.value); setActionConfig({}); }} style={inputStyle}>
+            <select value={actionType} onChange={e => { setActionType(e.target.value); setActionConfig({}); }} className={inputClass}>
               {ACTION_TYPES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>
-          <div style={{ marginTop: '12px' }}>
+          <div className="mt-3">
             <ActionConfigFields type={actionType} config={actionConfig} onChange={setActionConfig} />
           </div>
         </div>
 
         {/* Submit */}
-        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-          <button type="submit" disabled={saving} style={btnStyle}>
+        <div className="flex gap-3 mt-6">
+          <button type="submit" disabled={saving} className={btnClass}>
             {saving ? 'Saving...' : isEdit ? 'Update Rule' : 'Create Rule'}
           </button>
-          <button type="button" onClick={() => navigate('/guardrails')} style={cancelBtnStyle}>
+          <button type="button" onClick={() => navigate('/guardrails')} className={cancelBtnClass}>
             Cancel
           </button>
         </div>
@@ -459,31 +459,18 @@ export default function GuardrailForm() {
   );
 }
 
-// ─── Styles ─────────────────────────────────────────────────────
+// ─── Tailwind class constants ────────────────────────────────────
 
-const sectionStyle: React.CSSProperties = {
-  padding: '16px', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '16px',
-};
+const sectionClass = 'p-4 border border-slate-200 rounded-lg mb-4';
 
-const sectionTitleStyle: React.CSSProperties = { margin: '0 0 12px', fontSize: '16px', color: '#334155' };
+const sectionTitleClass = 'mb-3 text-base text-slate-700 font-medium';
 
-const fieldGroupStyle: React.CSSProperties = {
-  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px',
-};
+const fieldGroupClass = 'grid grid-cols-2 gap-3';
 
-const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: '4px',
-  fontSize: '14px', marginTop: '4px',
-};
+const inputClass = 'w-full px-2.5 py-1.5 border border-gray-300 rounded text-sm mt-1';
 
-const btnStyle: React.CSSProperties = {
-  padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none',
-  borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 600,
-};
+const btnClass = 'px-5 py-2.5 bg-blue-500 text-white border-none rounded-md cursor-pointer text-sm font-semibold hover:bg-blue-600 transition-colors';
 
-const cancelBtnStyle: React.CSSProperties = {
-  padding: '10px 20px', background: 'transparent', border: '1px solid #d1d5db',
-  borderRadius: '6px', cursor: 'pointer', fontSize: '14px',
-};
+const cancelBtnClass = 'px-5 py-2.5 bg-transparent border border-gray-300 rounded-md cursor-pointer text-sm hover:bg-gray-50 transition-colors';
 
 export { GuardrailForm };

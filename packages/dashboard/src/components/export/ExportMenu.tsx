@@ -6,6 +6,7 @@ import type { AgentLensEvent, Session } from '@agentlensai/core';
 import {
   exportSessionJSON,
   exportSessionCSV,
+  exportSessionNDJSON,
   triggerDownload,
   getExportFilename,
 } from '../../utils/export-utils';
@@ -27,7 +28,7 @@ export function ExportMenu({
   const [exporting, setExporting] = useState(false);
 
   const handleExport = useCallback(
-    async (format: 'json' | 'csv') => {
+    async (format: 'json' | 'csv' | 'ndjson') => {
       setExporting(true);
       setOpen(false);
       try {
@@ -37,7 +38,9 @@ export function ExportMenu({
         const blob =
           format === 'json'
             ? exportSessionJSON(session, events, chainValid)
-            : exportSessionCSV(session, events);
+            : format === 'ndjson'
+              ? exportSessionNDJSON(session, events, chainValid)
+              : exportSessionCSV(session, events);
         triggerDownload(blob, getExportFilename(sessionId, format));
       } finally {
         setExporting(false);
@@ -82,6 +85,12 @@ export function ExportMenu({
               className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
             >
               📊 CSV
+            </button>
+            <button
+              onClick={() => handleExport('ndjson')}
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            >
+              📋 NDJSON
             </button>
           </div>
         </>

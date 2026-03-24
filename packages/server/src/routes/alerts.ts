@@ -18,6 +18,7 @@ import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { NotFoundError } from '../db/errors.js';
 import { getTenantStore } from './tenant-helper.js';
+import { parseBody, notFound, created } from './helpers.js';
 
 export function alertsRoutes(store: IEventStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -25,27 +26,10 @@ export function alertsRoutes(store: IEventStore) {
   // POST /api/alerts/rules — create alert rule
   app.post('/rules', async (c) => {
     const tenantStore = getTenantStore(store, c);
-    const rawBody = await c.req.json().catch(() => null);
-    if (!rawBody) {
-      return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
-    }
+    const parsed = await parseBody(c, createAlertRuleSchema);
+    if (!parsed.success) return parsed.response;
 
-    const parseResult = createAlertRuleSchema.safeParse(rawBody);
-    if (!parseResult.success) {
-      return c.json(
-        {
-          error: 'Validation failed',
-          status: 400,
-          details: parseResult.error.issues.map((issue) => ({
-            path: issue.path.map(String).join('.'),
-            message: issue.message,
-          })),
-        },
-        400,
-      );
-    }
-
-    const input = parseResult.data;
+    const input = parsed.data;
     const now = new Date().toISOString();
 
     const rule: AlertRule = {
@@ -64,7 +48,7 @@ export function alertsRoutes(store: IEventStore) {
 
     await tenantStore.createAlertRule(rule);
 
-    return c.json(rule, 201);
+    return created(c, rule);
   });
 
   // GET /api/alerts/rules — list all alert rules
@@ -81,7 +65,7 @@ export function alertsRoutes(store: IEventStore) {
     const rule = await tenantStore.getAlertRule(id);
 
     if (!rule) {
-      return c.json({ error: 'Alert rule not found', status: 404 }, 404);
+      return notFound(c, 'Alert rule');
     }
 
     return c.json(rule);
@@ -91,27 +75,10 @@ export function alertsRoutes(store: IEventStore) {
   app.put('/rules/:id', async (c) => {
     const tenantStore = getTenantStore(store, c);
     const id = c.req.param('id');
-    const rawBody = await c.req.json().catch(() => null);
-    if (!rawBody) {
-      return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
-    }
+    const parsed = await parseBody(c, updateAlertRuleSchema);
+    if (!parsed.success) return parsed.response;
 
-    const parseResult = updateAlertRuleSchema.safeParse(rawBody);
-    if (!parseResult.success) {
-      return c.json(
-        {
-          error: 'Validation failed',
-          status: 400,
-          details: parseResult.error.issues.map((issue) => ({
-            path: issue.path.map(String).join('.'),
-            message: issue.message,
-          })),
-        },
-        400,
-      );
-    }
-
-    const updates = parseResult.data;
+    const updates = parsed.data;
 
     try {
       await tenantStore.updateAlertRule(id, {
@@ -120,7 +87,7 @@ export function alertsRoutes(store: IEventStore) {
       });
     } catch (err) {
       if (err instanceof NotFoundError) {
-        return c.json({ error: 'Alert rule not found', status: 404 }, 404);
+        return notFound(c, 'Alert rule');
       }
       throw err;
     }
@@ -138,7 +105,7 @@ export function alertsRoutes(store: IEventStore) {
       await tenantStore.deleteAlertRule(id);
     } catch (err) {
       if (err instanceof NotFoundError) {
-        return c.json({ error: 'Alert rule not found', status: 404 }, 404);
+        return notFound(c, 'Alert rule');
       }
       throw err;
     }

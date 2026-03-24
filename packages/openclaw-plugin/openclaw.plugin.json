@@ -1,8 +1,0 @@
-{
-  "id": "agentlens-relay",
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {}
-  }
-}

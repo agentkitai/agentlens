@@ -22,6 +22,7 @@ import type { AuthVariables } from '../middleware/auth.js';
 import type { CostBudgetStore } from '../db/cost-budget-store.js';
 import type { BudgetEngine } from '../lib/budget-engine.js';
 import { getTenantId } from './tenant-helper.js';
+import { parseBody, notFound, created } from './helpers.js';
 
 export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore, budgetEngine: BudgetEngine) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -30,37 +31,26 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
 
   app.post('/', async (c) => {
     const tenantId = getTenantId(c);
-    const rawBody = await c.req.json().catch(() => null);
-    if (!rawBody) {
-      return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
-    }
-
-    const result = createCostBudgetSchema.safeParse(rawBody);
-    if (!result.success) {
-      return c.json({
-        error: 'Validation failed',
-        status: 400,
-        details: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
-      }, 400);
-    }
+    const parsed = await parseBody(c, createCostBudgetSchema);
+    if (!parsed.success) return parsed.response;
 
     const now = new Date().toISOString();
     const budget: CostBudget = {
       id: ulid(),
       tenantId,
-      scope: result.data.scope,
-      agentId: result.data.agentId,
-      period: result.data.period,
-      limitUsd: result.data.limitUsd,
-      onBreach: result.data.onBreach,
-      downgradeTargetModel: result.data.downgradeTargetModel,
-      enabled: result.data.enabled,
+      scope: parsed.data.scope,
+      agentId: parsed.data.agentId,
+      period: parsed.data.period,
+      limitUsd: parsed.data.limitUsd,
+      onBreach: parsed.data.onBreach,
+      downgradeTargetModel: parsed.data.downgradeTargetModel,
+      enabled: parsed.data.enabled,
       createdAt: now,
       updatedAt: now,
     };
 
     store.createBudget(budget);
-    return c.json(budget, 201);
+    return created(c, budget);
   });
 
   app.get('/', async (c) => {
@@ -127,7 +117,7 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
     const budgetId = c.req.param('id');
     const budget = store.getBudget(tenantId, budgetId);
     if (!budget) {
-      return c.json({ error: 'Budget not found', status: 404 }, 404);
+      return notFound(c, 'Budget');
     }
 
     // Compute current spend
@@ -190,23 +180,12 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
   app.put('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const budgetId = c.req.param('id');
-    const rawBody = await c.req.json().catch(() => null);
-    if (!rawBody) {
-      return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
-    }
+    const parsed = await parseBody(c, updateCostBudgetSchema);
+    if (!parsed.success) return parsed.response;
 
-    const result = updateCostBudgetSchema.safeParse(rawBody);
-    if (!result.success) {
-      return c.json({
-        error: 'Validation failed',
-        status: 400,
-        details: result.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
-      }, 400);
-    }
-
-    const updated = store.updateBudget(tenantId, budgetId, result.data as Partial<CostBudget>);
+    const updated = store.updateBudget(tenantId, budgetId, parsed.data as Partial<CostBudget>);
     if (!updated) {
-      return c.json({ error: 'Budget not found', status: 404 }, 404);
+      return notFound(c, 'Budget');
     }
 
     const budget = store.getBudget(tenantId, budgetId);
@@ -218,7 +197,7 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
     const budgetId = c.req.param('id');
     const deleted = store.deleteBudget(tenantId, budgetId);
     if (!deleted) {
-      return c.json({ error: 'Budget not found', status: 404 }, 404);
+      return notFound(c, 'Budget');
     }
     return c.json({ id: budgetId, deleted: true });
   });

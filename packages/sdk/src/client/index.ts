@@ -1,9 +1,8 @@
 /**
- * Re-export from client/ package for backwards compatibility.
- * The actual implementation lives in client/ (cq-003).
+ * Client package — re-exports AgentLensClient and all types (cq-003)
  */
 
-export { AgentLensClient } from './client/index.js';
+export { AgentLensClient } from './AgentLensClient.js';
 export type {
   RetryConfig,
   AgentLensClientOptions,
@@ -23,4 +22,4 @@ export type {
   GuardrailTriggerHistoryResult,
   CreateGuardrailRuleParams,
   UpdateGuardrailRuleParams,
-} from './client/index.js';
+} from './types.js';

@@ -197,6 +197,7 @@ export function Overview(): React.ReactElement {
       value: overview.data?.errorsTodayCount ?? 0,
       currentValue: overview.data?.errorsTodayCount ?? 0,
       previousValue: overview.data?.errorsYesterdayCount ?? 0,
+      lowerIsBetter: true,
     },
     {
       label: 'Active Agents',

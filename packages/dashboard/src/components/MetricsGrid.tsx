@@ -6,17 +6,22 @@ export interface MetricCard {
   /** previous period value for trend calculation */
   previousValue?: number;
   currentValue?: number;
+  /** When true, a decrease is good (green) and an increase is bad (red). Use for error counts, latency, etc. */
+  lowerIsBetter?: boolean;
 }
 
-function TrendBadge({ current, previous }: { current: number; previous: number }): React.ReactElement {
+function TrendBadge({ current, previous, lowerIsBetter = false }: { current: number; previous: number; lowerIsBetter?: boolean }): React.ReactElement {
   if (previous === 0 && current === 0) {
     return <span className="text-xs text-gray-400 font-medium">—</span>;
   }
 
+  const upColor = lowerIsBetter ? 'text-red-600' : 'text-green-600';
+  const downColor = lowerIsBetter ? 'text-green-600' : 'text-red-600';
+
   if (current > previous) {
     const pct = previous > 0 ? Math.round(((current - previous) / previous) * 100) : 100;
     return (
-      <span className="inline-flex items-center text-xs font-medium text-green-600">
+      <span className={`inline-flex items-center text-xs font-medium ${upColor}`}>
         ↑ {pct}%
       </span>
     );
@@ -25,7 +30,7 @@ function TrendBadge({ current, previous }: { current: number; previous: number }
   if (current < previous) {
     const pct = previous > 0 ? Math.round(((previous - current) / previous) * 100) : 100;
     return (
-      <span className="inline-flex items-center text-xs font-medium text-red-600">
+      <span className={`inline-flex items-center text-xs font-medium ${downColor}`}>
         ↓ {pct}%
       </span>
     );
@@ -71,7 +76,7 @@ export function MetricsGrid({ cards, loading }: MetricsGridProps): React.ReactEl
           <p className="mt-1 text-3xl font-bold text-gray-900">{card.value}</p>
           {card.currentValue !== undefined && card.previousValue !== undefined && (
             <div className="mt-2">
-              <TrendBadge current={card.currentValue} previous={card.previousValue} />
+              <TrendBadge current={card.currentValue} previous={card.previousValue} lowerIsBetter={card.lowerIsBetter} />
               <span className="ml-1 text-xs text-gray-400">vs prev 24h</span>
             </div>
           )}

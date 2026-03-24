@@ -1,0 +1,403 @@
+/**
+ * API Keys management tab — extracted from Settings.tsx (cq-002)
+ */
+
+import React, { useState } from 'react';
+import {
+  getKeys,
+  createKey,
+  revokeKey,
+  type ApiKeyInfo,
+  type ApiKeyCreated,
+} from '../../api/client';
+import { useApi } from '../../hooks/useApi';
+
+// ─── API Key Scopes ─────────────────────────────────────────
+
+const AVAILABLE_SCOPES = [
+  '*',
+  'events:write',
+  'events:read',
+  'sessions:read',
+  'agents:read',
+  'stats:read',
+] as const;
+type Scope = (typeof AVAILABLE_SCOPES)[number];
+
+// ─── Create Key Form ────────────────────────────────────────
+
+interface CreateKeyFormProps {
+  onCreated: (response: ApiKeyCreated) => void;
+  onCancel: () => void;
+}
+
+function CreateKeyForm({ onCreated, onCancel }: CreateKeyFormProps): React.ReactElement {
+  const [name, setName] = useState('');
+  const [scopes, setScopes] = useState<Scope[]>(['*']);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggleScope = (scope: Scope) => {
+    if (scope === '*') {
+      setScopes(['*']);
+      return;
+    }
+    const without = scopes.filter((s) => s !== '*' && s !== scope);
+    if (scopes.includes(scope)) {
+      setScopes(without.length === 0 ? ['*'] : without);
+    } else {
+      setScopes([...without, scope]);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const resp = await createKey(name.trim(), scopes);
+      onCreated(resp);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+      <h3 className="font-semibold text-gray-900">Create API Key</h3>
+
+      <div>
+        <label htmlFor="key-name" className="block text-sm font-medium text-gray-700">
+          Key Name
+        </label>
+        <input
+          id="key-name"
+          type="text"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. production-agent"
+          className="mt-1 w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div>
+        <span className="block text-sm font-medium text-gray-700">Scopes</span>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {AVAILABLE_SCOPES.map((scope) => (
+            <label
+              key={scope}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
+                scopes.includes(scope)
+                  ? 'border-indigo-300 bg-indigo-100 text-indigo-700'
+                  : 'border-gray-200 bg-white text-gray-600'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={scopes.includes(scope)}
+                onChange={() => toggleScope(scope)}
+                className="sr-only"
+              />
+              {scope}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-600">{error}</p>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={submitting || !name.trim()}
+          className="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {submitting ? 'Creating…' : 'Create Key'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── New Key Display ────────────────────────────────────────
+
+function NewKeyDisplay({
+  response,
+  onDismiss,
+}: {
+  response: ApiKeyCreated;
+  onDismiss: () => void;
+}): React.ReactElement {
+  const [copied, setCopied] = useState(false);
+
+  const copyKey = async () => {
+    await navigator.clipboard.writeText(response.key);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+      <div className="flex items-start gap-2">
+        <span className="text-lg">⚠️</span>
+        <div className="flex-1">
+          <h3 className="font-semibold text-amber-900">Save your API key</h3>
+          <p className="mt-1 text-sm text-amber-800">
+            This is the only time you will see this key. Copy it now and store it securely.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <code className="flex-1 rounded bg-white px-3 py-2 font-mono text-sm text-gray-900 shadow-inner">
+              {response.key}
+            </code>
+            <button
+              type="button"
+              onClick={copyKey}
+              className="rounded border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
+            >
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+            <span>Name: {response.name}</span>
+            <span>·</span>
+            <span>Scopes: {response.scopes.join(', ')}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="mt-3 text-sm text-amber-700 underline hover:text-amber-900"
+          >
+            I&apos;ve saved the key
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Revoke Confirmation Dialog ─────────────────────────────
+
+function RevokeDialog({
+  keyInfo,
+  onConfirm,
+  onCancel,
+}: {
+  keyInfo: ApiKeyInfo;
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+}): React.ReactElement {
+  const [revoking, setRevoking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRevoke = async () => {
+    setRevoking(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setRevoking(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <h3 className="text-lg font-semibold text-gray-900">Revoke API Key</h3>
+        <p className="mt-2 text-sm text-gray-600">
+          Are you sure you want to revoke <strong>{keyInfo.name}</strong>? This action cannot be
+          undone. Any agents using this key will lose access immediately.
+        </p>
+        {error && (
+          <p className="mt-2 text-sm text-red-600">
+            Failed to revoke key: {error}
+          </p>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={revoking}
+            className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleRevoke}
+            disabled={revoking}
+            className="rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {revoking ? 'Revoking…' : 'Revoke Key'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── API Keys Tab ───────────────────────────────────────────
+
+export function ApiKeysTab(): React.ReactElement {
+  const { data: keys, loading, error, refetch } = useApi(() => getKeys(), []);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newKey, setNewKey] = useState<ApiKeyCreated | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKeyInfo | null>(null);
+
+  const handleCreated = (resp: ApiKeyCreated) => {
+    setNewKey(resp);
+    setShowCreate(false);
+    refetch();
+  };
+
+  const handleRevoke = async () => {
+    if (!revokeTarget) return;
+    await revokeKey(revokeTarget.id);
+    setRevokeTarget(null);
+    refetch();
+  };
+
+  const activeKeys = (keys ?? []).filter((k) => !k.revokedAt);
+  const revokedKeys = (keys ?? []).filter((k) => k.revokedAt);
+
+  return (
+    <div className="space-y-4">
+      {newKey && <NewKeyDisplay response={newKey} onDismiss={() => setNewKey(null)} />}
+
+      {showCreate ? (
+        <CreateKeyForm onCreated={handleCreated} onCancel={() => setShowCreate(false)} />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowCreate(true)}
+          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        >
+          + Create API Key
+        </button>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {loading && !keys && (
+        <p className="py-8 text-center text-sm text-gray-500">Loading API keys…</p>
+      )}
+
+      {activeKeys.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Name
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Scopes
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Created
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Last Used
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {activeKeys.map((key) => (
+                <tr key={key.id}>
+                  <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                    {key.name}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {key.scopes.map((s) => (
+                        <span
+                          key={s}
+                          className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                    {new Date(key.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
+                    {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : 'Never'}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setRevokeTarget(key)}
+                      className="text-sm text-red-600 hover:text-red-800"
+                    >
+                      Revoke
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {keys && activeKeys.length === 0 && !showCreate && !newKey && (
+        <div className="rounded-lg border border-gray-200 bg-white py-8 text-center">
+          <p className="text-gray-500">No API keys</p>
+          <p className="mt-1 text-sm text-gray-400">
+            Create an API key to authenticate agents
+          </p>
+        </div>
+      )}
+
+      {revokedKeys.length > 0 && (
+        <details className="rounded-lg border border-gray-200">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50">
+            Revoked Keys ({revokedKeys.length})
+          </summary>
+          <div className="divide-y divide-gray-100">
+            {revokedKeys.map((key) => (
+              <div
+                key={key.id}
+                className="flex items-center justify-between px-4 py-2 text-sm text-gray-400"
+              >
+                <span className="line-through">{key.name}</span>
+                <span>
+                  Revoked {key.revokedAt ? new Date(key.revokedAt).toLocaleDateString() : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {revokeTarget && (
+        <RevokeDialog
+          keyInfo={revokeTarget}
+          onConfirm={handleRevoke}
+          onCancel={() => setRevokeTarget(null)}
+        />
+      )}
+    </div>
+  );
+}

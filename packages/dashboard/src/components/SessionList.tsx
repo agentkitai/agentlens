@@ -4,7 +4,8 @@
  * Renders a sortable table with status badges, pagination,
  * and delegated filter controls.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Link } from 'react-router-dom';
 import type { Session, SessionStatus } from '@agentlensai/core';
 
@@ -106,10 +107,20 @@ function Th({
 
 // ─── Component ──────────────────────────────────────────────────────
 
+const ESTIMATED_ROW_HEIGHT = 48;
+
 export function SessionList({
   sessions, sortField, sortDir, onSort, page, pageSize, total, onPageChange,
 }: SessionListProps) {
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: sessions.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 10,
+  });
 
   if (sessions.length === 0) {
     return (
@@ -139,53 +150,78 @@ export function SessionList({
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {sessions.map((s) => (
-              <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <Link
-                    to={`/sessions/${s.id}`}
-                    className="text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    {s.agentName ?? s.agentId}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <StatusBadge status={s.status} />
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                  {formatTimestamp(s.startedAt)}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                  {formatDuration(s.startedAt, s.endedAt)}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                  {s.eventCount}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm">
-                  <span className={s.errorCount > 0 ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                    {s.errorCount}
-                  </span>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-mono">
-                  {s.totalCostUsd > 0 ? `$${s.totalCostUsd.toFixed(4)}` : '—'}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="flex flex-wrap gap-1">
-                    {s.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
         </table>
+        <div
+          ref={parentRef}
+          className="max-h-[calc(100vh-20rem)] overflow-auto"
+        >
+          <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+            <table className="min-w-full">
+              <tbody className="bg-white divide-y divide-gray-200">
+                {virtualizer.getVirtualItems().map((virtualRow) => {
+                  const s = sessions[virtualRow.index];
+                  if (!s) return null;
+                  return (
+                    <tr
+                      key={virtualRow.key}
+                      data-index={virtualRow.index}
+                      ref={virtualizer.measureElement}
+                      className="hover:bg-gray-50 transition-colors"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Link
+                          to={`/sessions/${s.id}`}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          {s.agentName ?? s.agentId}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <StatusBadge status={s.status} />
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {formatTimestamp(s.startedAt)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {formatDuration(s.startedAt, s.endedAt)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {s.eventCount}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm">
+                        <span className={s.errorCount > 0 ? 'text-red-600 font-medium' : 'text-gray-600'}>
+                          {s.errorCount}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-mono">
+                        {s.totalCostUsd > 0 ? `$${s.totalCostUsd.toFixed(4)}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex flex-wrap gap-1">
+                          {s.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* Pagination */}

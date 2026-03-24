@@ -48,7 +48,7 @@ const TeamManagement = React.lazy(() => import('./cloud/TeamManagement').then(m 
 const ApiKeyManagement = React.lazy(() => import('./cloud/ApiKeyManagement').then(m => ({ default: m.ApiKeyManagement })));
 const UsageDashboard = React.lazy(() => import('./cloud/UsageDashboard').then(m => ({ default: m.UsageDashboard })));
 
-function RequireAuth({ children }: { children: React.ReactElement }): React.ReactElement {
+const RequireAuth = React.memo(function RequireAuth({ children }: { children: React.ReactElement }): React.ReactElement {
   const { user, loading, authMode } = useAuth();
 
   if (loading) {
@@ -64,7 +64,7 @@ function RequireAuth({ children }: { children: React.ReactElement }): React.Reac
 
   if (!user) return <Navigate to="/login" replace />;
   return children;
-}
+});
 
 export function App(): React.ReactElement {
   return (
@@ -125,7 +125,7 @@ function AppRoutes(): React.ReactElement {
   );
 }
 
-function LoginGuard(): React.ReactElement {
+const LoginGuard = React.memo(function LoginGuard(): React.ReactElement {
   const { user, loading, authMode } = useAuth();
 
   if (loading) {
@@ -140,4 +140,4 @@ function LoginGuard(): React.ReactElement {
   if (user || authMode === 'api-key-only') return <Navigate to="/" replace />;
 
   return <Login />;
-}
+});
