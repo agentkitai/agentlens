@@ -45,6 +45,15 @@ describe('TrustService — Story 6.3 (Trust Scoring)', () => {
     }).run();
   }
 
+  // Health component averages over the last 30 days (relative to "now"),
+  // so test snapshots must use dates within that rolling window. `daysAgo`
+  // produces a distinct recent date offset from today.
+  function recentDate(daysAgo: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    return d.toISOString().slice(0, 10);
+  }
+
   function insertHealthSnapshot(agentId: string, date: string, score: number) {
     healthStore.save('tenant-1', {
       agentId,
@@ -78,8 +87,8 @@ describe('TrustService — Story 6.3 (Trust Scoring)', () => {
     });
 
     it('should use health scores when available', () => {
-      insertHealthSnapshot('agent-1', '2026-02-08', 80);
-      insertHealthSnapshot('agent-1', '2026-02-07', 60);
+      insertHealthSnapshot('agent-1', recentDate(0), 80);
+      insertHealthSnapshot('agent-1', recentDate(1), 60);
       const score = trustService.computeRawTrustScore('tenant-1', 'agent-1');
       // health = (80+60)/2 = 70, delegation = 50 (default)
       // 0.6 * 70 + 0.4 * 50 = 42 + 20 = 62
@@ -97,7 +106,7 @@ describe('TrustService — Story 6.3 (Trust Scoring)', () => {
     });
 
     it('should combine health and delegation components', () => {
-      insertHealthSnapshot('agent-1', '2026-02-08', 90);
+      insertHealthSnapshot('agent-1', recentDate(0), 90);
       for (let i = 0; i < 10; i++) insertDelegationLog('agent-1', 'completed');
       const score = trustService.computeRawTrustScore('tenant-1', 'agent-1');
       // health = 90, delegation = 100
@@ -114,7 +123,7 @@ describe('TrustService — Story 6.3 (Trust Scoring)', () => {
     });
 
     it('should handle perfect health and delegation scores', () => {
-      insertHealthSnapshot('agent-1', '2026-02-08', 100);
+      insertHealthSnapshot('agent-1', recentDate(0), 100);
       for (let i = 0; i < 10; i++) insertDelegationLog('agent-1', 'completed');
       const score = trustService.computeRawTrustScore('tenant-1', 'agent-1');
       expect(score).toBe(100);
@@ -145,15 +154,15 @@ describe('TrustService — Story 6.3 (Trust Scoring)', () => {
     });
 
     it('should average health scores over last 30 days', () => {
-      insertHealthSnapshot('agent-1', '2026-02-08', 80);
-      insertHealthSnapshot('agent-1', '2026-02-07', 60);
-      insertHealthSnapshot('agent-1', '2026-02-06', 70);
+      insertHealthSnapshot('agent-1', recentDate(0), 80);
+      insertHealthSnapshot('agent-1', recentDate(1), 60);
+      insertHealthSnapshot('agent-1', recentDate(2), 70);
       const component = trustService.computeHealthComponent('tenant-1', 'agent-1');
       expect(component).toBe(70);
     });
 
     it('should handle single health snapshot', () => {
-      insertHealthSnapshot('agent-1', '2026-02-08', 85);
+      insertHealthSnapshot('agent-1', recentDate(0), 85);
       const component = trustService.computeHealthComponent('tenant-1', 'agent-1');
       expect(component).toBe(85);
     });
@@ -263,7 +272,7 @@ describe('TrustService — Story 6.3 (Trust Scoring)', () => {
     });
 
     it('should round raw score to 2 decimal places', () => {
-      insertHealthSnapshot('agent-1', '2026-02-08', 73);
+      insertHealthSnapshot('agent-1', recentDate(0), 73);
       for (let i = 0; i < 3; i++) insertDelegationLog('agent-1', 'completed');
       insertDelegationLog('agent-1', 'error');
       const score = trustService.getTrustScore('tenant-1', 'agent-1');
@@ -307,9 +316,9 @@ describe('TrustService — Story 6.3 (Trust Scoring)', () => {
       capStore.create('tenant-1', 'agent-2', baseCap as any);
       capStore.create('tenant-1', 'agent-3', baseCap as any);
 
-      insertHealthSnapshot('agent-1', '2026-02-08', 90);
-      insertHealthSnapshot('agent-2', '2026-02-08', 50);
-      insertHealthSnapshot('agent-3', '2026-02-08', 20);
+      insertHealthSnapshot('agent-1', recentDate(0), 90);
+      insertHealthSnapshot('agent-2', recentDate(0), 50);
+      insertHealthSnapshot('agent-3', recentDate(0), 20);
 
       const p1 = trustService.computePercentile('tenant-1', 'agent-1');
       const p3 = trustService.computePercentile('tenant-1', 'agent-3');

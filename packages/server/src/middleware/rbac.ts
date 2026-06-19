@@ -9,6 +9,7 @@ import { createMiddleware } from 'hono/factory';
 import { isRoleAllowed, PERMISSION_MATRIX, type ActionCategory, type Role } from '../cloud/auth/rbac.js';
 import { authRequired, insufficientPermissions } from './auth-errors.js';
 import type { UnifiedAuthVariables } from './unified-auth.js';
+import { isPublicPath } from './public-paths.js';
 
 /**
  * Get the minimum role required for a given action category.
@@ -29,6 +30,9 @@ function minRoleForCategory(category: ActionCategory): string {
  */
 export function requireCategory(category: ActionCategory) {
   return createMiddleware<{ Variables: UnifiedAuthVariables }>(async (c, next) => {
+    if (isPublicPath(new URL(c.req.url).pathname)) {
+      return next();
+    }
     const auth = c.var.auth;
     if (!auth) {
       return authRequired(c);
@@ -52,6 +56,9 @@ export function requireCategory(category: ActionCategory) {
  */
 export function requireMethodCategory() {
   return createMiddleware<{ Variables: UnifiedAuthVariables }>(async (c, next) => {
+    if (isPublicPath(new URL(c.req.url).pathname)) {
+      return next();
+    }
     const auth = c.var.auth;
     if (!auth) {
       return authRequired(c);
@@ -79,6 +86,9 @@ export function requireMethodCategory() {
  */
 export function requireCategoryByMethod(mapping: Partial<Record<string, ActionCategory>>) {
   return createMiddleware<{ Variables: UnifiedAuthVariables }>(async (c, next) => {
+    if (isPublicPath(new URL(c.req.url).pathname)) {
+      return next();
+    }
     const auth = c.var.auth;
     if (!auth) {
       return authRequired(c);

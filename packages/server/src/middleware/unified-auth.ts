@@ -14,6 +14,7 @@ import { createMiddleware } from 'hono/factory';
 import type { IApiKeyLookup } from '../db/api-key-lookup.js';
 import type { SqliteDb } from '../db/index.js';
 import { hashApiKey, type ApiKeyInfo } from './auth.js';
+import { isPublicPath } from './public-paths.js';
 import {
   missingCredentials,
   invalidApiKey,
@@ -125,6 +126,14 @@ export function unifiedAuthMiddleware(
       };
       c.set('auth', devAuth);
       c.set('apiKey', { id: 'dev', name: 'dev-mode', scopes: ['*'], tenantId: 'default' });
+      return next();
+    }
+
+    // ── 1b. Public-route allowlist ───────────────────────
+    // Intentionally-public routes and routes that authenticate themselves
+    // (SSE ?token= query, webhook HMAC) bypass the credential check here.
+    // The downstream RBAC guards apply the same allowlist.
+    if (isPublicPath(new URL(c.req.url).pathname)) {
       return next();
     }
 
