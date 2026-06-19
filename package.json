@@ -31,7 +31,7 @@
     "@changesets/cli": "^2.29.8",
     "@eslint/js": "^9.39.3",
     "@types/node": "^25.3.0",
-    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/coverage-v8": "^4.1.0",
     "eslint": "^9.39.2",
     "globals": "^17.3.0",
     "prettier": "^3.8.1",
@@ -39,14 +39,30 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.0",
     "vitepress": "^1.6.4",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.0"
   },
   "dependencies": {
     "postgres": "^3.4.8"
   },
   "pnpm": {
     "overrides": {
-      "vitest": "$vitest"
+      "vitest": "$vitest",
+      "protobufjs": ">=7.5.5",
+      "minimatch@<3.1.4": ">=3.1.4 <4",
+      "minimatch@>=9.0.0 <9.0.7": ">=9.0.7 <10",
+      "rollup": ">=4.59.0",
+      "flatted": ">=3.4.0",
+      "undici": ">=7.24.0 <8",
+      "express-rate-limit": ">=8.2.2",
+      "axios": ">=1.16.0",
+      "fast-uri": ">=3.1.2 <4",
+      "form-data": ">=4.0.6",
+      "lodash": ">=4.18.0",
+      "path-to-regexp@>=8.0.0 <8.4.0": ">=8.4.0 <9",
+      "picomatch@<2.3.2": ">=2.3.2 <3",
+      "picomatch@>=4.0.0 <4.0.4": ">=4.0.4 <5",
+      "react-router": ">=7.15.0 <8",
+      "vite@<=6.4.2": "6.4.3"
     }
   }
 }

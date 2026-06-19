@@ -286,7 +286,7 @@ class TestVertexInstrumentation:
                 with patch("agentlensai._sender.get_sender") as mock_sender:
                     mock_send = MagicMock()
                     mock_sender.return_value.send = mock_send
-                    result = asyncio.get_event_loop().run_until_complete(
+                    result = asyncio.run(
                         model.generate_content_async(contents="Hello async")
                     )
                     assert "async" in result.candidates[0].content.parts[0].text
@@ -397,7 +397,7 @@ class TestGeminiInstrumentation:
                 with patch("agentlensai._sender.get_sender") as mock_sender:
                     mock_send = MagicMock()
                     mock_sender.return_value.send = mock_send
-                    asyncio.get_event_loop().run_until_complete(
+                    asyncio.run(
                         model.generate_content_async(contents="Hello")
                     )
                     assert mock_send.called

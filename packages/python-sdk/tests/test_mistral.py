@@ -291,7 +291,7 @@ class TestMistralInstrumentation:
                     chat_instance, model="mistral-large", messages=[]
                 )
 
-        result = asyncio.get_event_loop().run_until_complete(run())
+        result = asyncio.run(run())
         assert result == response
         assert mock_sender.send.called
         call_data = mock_sender.send.call_args[0][1]
