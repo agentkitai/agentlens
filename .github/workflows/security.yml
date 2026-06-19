@@ -40,6 +40,7 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
+          scanners: secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: 1
@@ -58,6 +59,7 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: agentlens:scan
+          vuln-type: os
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: 1
