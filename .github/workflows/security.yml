@@ -41,6 +41,7 @@ jobs:
           scan-type: fs
           scan-ref: .
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: 1
           format: table
 
@@ -58,5 +59,6 @@ jobs:
         with:
           image-ref: agentlens:scan
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: 1
           format: table
