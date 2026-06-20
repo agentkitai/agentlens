@@ -38,6 +38,27 @@
 
 AgentLens is a **flight recorder for AI agents**. It captures every LLM call, tool invocation, approval decision, and error — then presents it through a queryable API and real-time web dashboard.
 
+## 🔒 Tamper-evident by design
+
+What sets AgentLens apart from other observability tools: every event is **SHA-256 hash-chained** to the one before it, the same way git commits and blockchains are linked. The audit log is **append-only and cryptographically verifiable** — alter, delete, or reorder a single record after the fact and verification fails, pointing at the exact event that broke. Purpose-built for the record-keeping obligations of **EU AI Act Article 12** and the emerging **IETF Agent Audit Trail** work.
+
+**See it for yourself in 30 seconds** (needs Docker):
+
+```bash
+git clone https://github.com/agentkitai/agentlens && cd agentlens
+./demo/aha.sh
+```
+
+```text
+1/5  Starting AgentLens (SQLite, zero-config)…   ✓ up at http://localhost:3400
+2/5  Ingesting a 5-event agent trace…            ✓ 5 events ingested
+3/5  Verifying the hash chain…                    ✓ CHAIN VALID — no tampering detected
+4/5  Tampering with one event in the database…   ✓ altered llm_call (changed the logged model)
+5/5  Re-verifying the hash chain…                 ✗ CHAIN BROKEN — tampering detected ✅
+```
+
+The demo ingests a real trace, verifies the chain (passes), edits one record directly in the database behind the audit log's back, then re-verifies (fails). Auditors get a signed, verifiable JSON snapshot from `GET /api/audit/verify/export`.
+
 **Four ways to integrate — pick what fits your stack:**
 
 | Integration | Language | Effort | Capture |
@@ -49,26 +70,30 @@ AgentLens is a **flight recorder for AI agents**. It captures every LLM call, to
 
 ## 🚀 Quick Start
 
-### Docker (recommended)
+**One command** — server + dashboard on SQLite, zero config:
 
 ```bash
-git clone https://github.com/agentkitai/agentlens
-cd agentlens
-cp .env.example .env
-docker compose up
+docker run -p 3400:3400 -e AUTH_DISABLED=true ghcr.io/agentkitai/agentlens
 # Open http://localhost:3400
 ```
 
-For production (auth enabled, Stripe, TLS):
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up
-```
-
-### Without Docker
+Or without Docker:
 
 ```bash
 npx @agentlensai/server
-# Opens on http://localhost:3400 with SQLite — zero config
+# http://localhost:3400 with SQLite — zero config
+```
+
+> `AUTH_DISABLED=true` is for a quick local trial. For anything shared, leave auth on and create an API key (below).
+
+**Full stack** (Postgres + Redis, auth, TLS) — runs from source:
+
+```bash
+git clone https://github.com/agentkitai/agentlens && cd agentlens
+cp .env.example .env
+docker compose up
+# production overlay (auth, restart policies):
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up
 ```
 
 ### Create an API Key
