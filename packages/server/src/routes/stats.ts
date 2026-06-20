@@ -36,10 +36,22 @@ export function statsRoutes(store: IEventStore) {
     const rangeFrom = qFrom || todayStart.toISOString();
     const rangeTo = qTo || now.toISOString();
 
-    // Calculate "previous" period of same duration for comparison
-    const rangeMs = new Date(rangeTo).getTime() - new Date(rangeFrom).getTime();
-    const prevFrom = new Date(new Date(rangeFrom).getTime() - rangeMs).toISOString();
-    const prevTo = rangeFrom;
+    // Calculate the "previous" comparison bucket.
+    let prevFrom: string;
+    let prevTo: string;
+    if (qFrom || qTo) {
+      // Custom range: previous period of equal length immediately preceding it.
+      const rangeMs = new Date(rangeTo).getTime() - new Date(rangeFrom).getTime();
+      prevFrom = new Date(new Date(rangeFrom).getTime() - rangeMs).toISOString();
+      prevTo = rangeFrom;
+    } else {
+      // Default (today-vs-yesterday): use the FULL prior calendar day so that
+      // eventsYesterdayCount means "yesterday" regardless of the time of day.
+      const prevStart = new Date(todayStart);
+      prevStart.setDate(prevStart.getDate() - 1);
+      prevFrom = prevStart.toISOString();
+      prevTo = todayStart.toISOString();
+    }
 
     // Run all queries in parallel
     const [

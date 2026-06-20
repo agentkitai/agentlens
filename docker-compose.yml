@@ -30,7 +30,7 @@ services:
   agentlens:
     build: .
     ports:
-      - "3000:3000"
+      - "3400:3400"
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,7 +44,7 @@ services:
       AUTH_DISABLED: "true"
       JWT_SECRET: dev-secret-agentlens-local
       ADMIN_API_KEY: dev-admin-key
-      PORT: "3000"
+      PORT: "3400"
     volumes:
       - agentlens-data:/app/data
 

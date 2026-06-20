@@ -18,11 +18,14 @@ async function ingestEvents(app: Hono, apiKey: string, events: object[]) {
 }
 
 function todayAt(hour: number, min = 0): string {
-  // Use hour=0..3 to ensure timestamps are always in the past today (UTC-safe)
+  // Pin to early-today UTC, but never emit a timestamp in the future:
+  // if the requested hour:min has not yet occurred (e.g. test runs at 00:30
+  // UTC), clamp to "now" so the event still lands within today's window.
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0); // midnight UTC today
   d.setUTCHours(hour, min, 0, 0);
-  return d.toISOString();
+  const now = new Date();
+  return (d.getTime() > now.getTime() ? now : d).toISOString();
 }
 
 function yesterdayAt(hour: number, min = 0): string {

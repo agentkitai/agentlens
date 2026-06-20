@@ -218,7 +218,7 @@ const { callId } = await client.logLlmCall('session-1', 'my-agent', {
 
 ## Lessons API (Deprecated)
 
-Lesson methods have been removed. Use [lore-sdk](https://github.com/amitpaz1/lore) directly.
+Lesson methods have been removed. Use [lore-sdk](https://github.com/agentkitai/lore) directly.
 
 ```ts
 // ❌ Old

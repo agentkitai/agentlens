@@ -4,7 +4,7 @@
 
 ### ⚠️ Breaking Changes
 
-- **Lesson CRUD removed from server** — `POST/GET/PUT/DELETE /api/lessons` no longer available. Use [Lore](https://github.com/amitpaz1/lore) instead.
+- **Lesson CRUD removed from server** — `POST/GET/PUT/DELETE /api/lessons` no longer available. Use [Lore](https://github.com/agentkitai/lore) instead.
 - **Community sharing removed from server** — `/api/community/*` endpoints removed.
 - **Redaction pipeline removed from server** — 6-layer redaction pipeline deleted.
 - **`pool-server` package removed** — Entire package deleted from monorepo.

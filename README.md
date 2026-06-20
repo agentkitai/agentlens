@@ -9,8 +9,7 @@
     <a href="https://www.npmjs.com/package/@agentlensai/mcp"><img src="https://img.shields.io/npm/v/@agentlensai/mcp?label=mcp" alt="npm mcp"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
     <a href="https://github.com/agentkitai/agentlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/agentkitai/agentlens/ci.yml?branch=main" alt="Build Status"></a>
-    <!-- TODO: Add Docker badge when image is published to GHCR/Docker Hub -->
-    <!-- <a href="https://ghcr.io/agentkitai/agentlens"><img src="https://img.shields.io/docker/v/agentkitai/agentlens?label=docker" alt="Docker"></a> -->
+    <a href="https://hub.docker.com/r/pazgaz/agentlens"><img src="https://img.shields.io/docker/v/pazgaz/agentlens?label=docker" alt="Docker"></a>
   </p>
   <p align="center">
     <a href="./docs/">📖 Documentation</a> · <a href="#-quick-start">Quick Start</a> · <a href="#-dashboard">Dashboard</a> · <a href="https://app.agentlens.ai">☁️ Cloud</a>
@@ -57,7 +56,7 @@ git clone https://github.com/agentkitai/agentlens
 cd agentlens
 cp .env.example .env
 docker compose up
-# Open http://localhost:3000
+# Open http://localhost:3400
 ```
 
 For production (auth enabled, Stripe, TLS):
@@ -132,7 +131,7 @@ openclaw config patch '{"plugins":{"entries":{"agentlens-relay":{"enabled":true}
 openclaw gateway restart
 ```
 
-Set `AGENTLENS_URL` if your AgentLens instance isn't on `localhost:3000`. See the [plugin README](./packages/relay-plugin/README.md) for details.
+Set `AGENTLENS_URL` if your AgentLens instance isn't on `localhost:3400`. See the [plugin README](./packages/relay-plugin/README.md) for details.
 
 ### 🐍 Python Auto-Instrumentation
 
@@ -176,7 +175,7 @@ For Claude Desktop, Cursor, or any MCP client — add to your config:
 }
 ```
 
-AgentLens ships **12 MCP tools** — 5 core observability, 3 intelligence & analytics, 4 operations. [Full MCP tool reference →](./docs/reference/api.md)
+AgentLens ships **22 MCP tools** — covering core observability, intelligence & analytics, and operations. [Full MCP tool reference →](./docs/reference/api.md)
 
 📖 [MCP setup guide →](./docs/guide/)
 
@@ -316,7 +315,7 @@ agentlensai.init(cloud=True, api_key="als_cloud_your_key_here", agent_id="my-age
 
 - **Same SDK, one parameter change** — switch `url=` to `cloud=True`
 - **Managed Postgres** — multi-tenant with row-level security
-- **Team features** — organizations, RBAC, audit logs, usage billing
+- **Team features** — organizations, RBAC, audit logs
 - **No server to run** — dashboard at [app.agentlens.ai](https://app.agentlens.ai)
 
 📖 [Cloud Setup Guide](./docs/guide/cloud-setup.md) · [Migration Guide](./docs/guide/cloud-migration.md) · [Troubleshooting](./docs/guide/troubleshooting.md)

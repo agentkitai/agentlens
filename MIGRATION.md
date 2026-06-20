@@ -6,7 +6,7 @@
 
 All lesson methods (`createLesson`, `getLessons`, `getLesson`, `updateLesson`, `deleteLesson`) now throw an error in the TypeScript SDK and emit deprecation warnings in the Python SDK.
 
-Migrate to [lore-sdk](https://github.com/amitpaz1/lore):
+Migrate to [lore-sdk](https://github.com/agentkitai/lore):
 
 ### TypeScript
 
