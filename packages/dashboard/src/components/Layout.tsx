@@ -306,8 +306,12 @@ export const Layout = React.memo(function Layout(): React.ReactElement {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        {/* Page content. overflow-x-hidden (not the default visible→auto that
+            overflow-y-auto forces) so wide tables scroll only in their own
+            overflow-x-auto wrapper — otherwise main and the wrapper both show a
+            horizontal scrollbar. min-w-0 lets this flex child shrink below its
+            content so the inner wrapper, not main, takes the scroll. */}
+        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-6">
           <ErrorBoundary><Outlet /></ErrorBoundary>
         </main>
       </div>
