@@ -59,10 +59,11 @@ git clone https://github.com/agentkitai/agentlens && cd agentlens
 
 The demo ingests a real trace, verifies the chain (passes), edits one record directly in the database behind the audit log's back, then re-verifies (fails). Auditors get a signed, verifiable JSON snapshot from `GET /api/audit/verify/export`.
 
-**Four ways to integrate — pick what fits your stack:**
+**Five ways to integrate — pick what fits your stack:**
 
 | Integration | Language | Effort | Capture |
 |---|---|---|---|
+| 🔭 **[OpenTelemetry](#-opentelemetry-any-genai-agent--no-sdk)** | Any | **Point your OTLP exporter** | Any `gen_ai.*`-instrumented agent — **no AgentLens SDK** |
 | 🤖 **[OpenClaw Plugin](#-openclaw-plugin)** | [OpenClaw](https://github.com/openclaw/openclaw) | **Copy & enable** | Every Anthropic call — prompts, tokens, cost, tools — zero code |
 | 🐍 **[Python Auto-Instrumentation](#-python-auto-instrumentation)** | Python | **1 line** | Every OpenAI / Anthropic / LangChain call — deterministic |
 | 🔌 **[MCP Server](#-mcp-integration)** | Any (MCP) | Config block | Tool calls, sessions, events from Claude Desktop / Cursor |
@@ -145,6 +146,27 @@ graph TB
 ```
 
 ## 🔧 Integration Guides
+
+### 🔭 OpenTelemetry (any GenAI agent — no SDK)
+
+If your agent is already instrumented with the **[OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)** — via OpenLLMetry, OpenInference, or the official OTel instrumentations — just point its OTLP exporter at AgentLens. **No AgentLens SDK required.**
+
+```bash
+# Send standard OTLP/HTTP to AgentLens (JSON or protobuf, /v1/traces)
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:3400
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:3400/v1/traces
+```
+
+AgentLens maps `gen_ai.*` spans into its model and into the tamper-evident audit log:
+
+| OTel GenAI span (`gen_ai.operation.name`) | Becomes |
+|---|---|
+| `chat` / `text_completion` / `generate_content` | a paired `llm_call` + `llm_response` (model, provider, messages, `usage.input_tokens`/`output_tokens`, finish reason, latency) |
+| `execute_tool` | `tool_call` (`gen_ai.tool.name`, `gen_ai.tool.call.id`, arguments) |
+| `embeddings` | embedding event with token usage |
+| `invoke_agent` / `create_agent` | agent-invocation event |
+
+Each OTel **trace** maps to a session (or `gen_ai.conversation.id` if present), and every event is hash-chained like any other — so traces from any GenAI framework get the same verifiable audit trail. Set `OTLP_AUTH_TOKEN` to require a bearer token on the OTLP endpoints in production.
 
 ### 🤖 OpenClaw Plugin
 
@@ -233,6 +255,7 @@ const sessions = await client.getSessions();
 
 - **🐍 Python Auto-Instrumentation** — `agentlensai.init()` captures every LLM call across 9 providers automatically. Deterministic — no reliance on LLM behavior.
 - **🔌 MCP-Native** — Ships as an MCP server. Works with Claude Desktop, Cursor, and any MCP client.
+- **🔭 OpenTelemetry GenAI** — Ingests `gen_ai.*` OTLP traces from any OTel-instrumented agent (OpenLLMetry, OpenInference, official OTel) — no AgentLens SDK required.
 - **🧠 LLM Call Tracking** — Full prompt/completion visibility, token usage, cost aggregation, latency measurement, and privacy redaction.
 - **📊 Real-Time Dashboard** — Session timelines, event explorer, LLM analytics, cost tracking, and alerting.
 - **🔒 Tamper-Evident Audit Trail** — Append-only event storage with SHA-256 hash chains per session.
