@@ -151,9 +151,14 @@ export function SessionList({
             </tr>
           </thead>
         </table>
+        {/* Body scroll container: vertical only. `overflow-auto` here scrolled
+            horizontally too, on top of the outer `overflow-x-auto` wrapper —
+            two horizontal scrollbars. Size it to content (w-max) so the body
+            fits and the single horizontal scrollbar belongs to the outer
+            wrapper (which scrolls header + body together). */}
         <div
           ref={parentRef}
-          className="max-h-[calc(100vh-20rem)] overflow-auto"
+          className="max-h-[calc(100vh-20rem)] overflow-y-auto overflow-x-clip w-max min-w-full"
         >
           <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
             <table className="min-w-full">
