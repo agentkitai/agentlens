@@ -82,7 +82,7 @@ esac
 # 4. Tamper: edit one event's payload directly in the DB, behind the audit log's back.
 #    Uses the container's own better-sqlite3 — nothing to install on the host.
 echo "4/5  Tampering with one event directly in the database…"
-TAMPERED_ID="$(docker exec -w /app "$NAME" node -e '
+TAMPERED_ID="$(docker exec -w /app/packages/server "$NAME" node -e '
   const Database = require("better-sqlite3");
   const db = new Database(process.env.DATABASE_PATH);
   const row = db.prepare("SELECT id FROM events WHERE event_type=? LIMIT 1").get("llm_call");
