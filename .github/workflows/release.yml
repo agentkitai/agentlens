@@ -24,24 +24,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # npm provenance
+      id-token: write   # OIDC trusted publishing — no NPM_TOKEN needed
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 10.18.2
+      # No registry-url here on purpose: setup-node would write an .npmrc with a
+      # `${NODE_AUTH_TOKEN}` placeholder that breaks OIDC auth (404). Default
+      # registry (registry.npmjs.org) is what trusted publishing targets anyway.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm CLI >= 11.5.1. pnpm 10 delegates the actual
+      # publish to the npm CLI on PATH, so upgrade it before publishing.
+      - run: npm install -g npm@latest
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm test
-      - name: Publish public packages
-        run: pnpm publish -r --filter "@agentlensai/*" --filter agentkit-auth --access public --no-git-checks --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish public packages (OIDC trusted publishing)
+        # No token: npm auto-detects the GitHub OIDC environment and authenticates.
+        # Provenance is generated automatically under trusted publishing.
+        run: pnpm publish -r --filter "@agentlensai/*" --filter agentkit-auth --access public --no-git-checks
 
   docker:
     # Builds and pushes the public image to ghcr.io/agentkitai/agentlens using the
