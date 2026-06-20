@@ -8,7 +8,7 @@
 
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { ulid } from 'ulid';
+import { nextEventId } from '../lib/event-id.js';
 import { z } from 'zod';
 import {
   ingestEventSchema,
@@ -84,9 +84,17 @@ export function eventsRoutes(
       // Get the last event hash for this session to chain from (optimized)
       let prevHash: string | null = await tenantStore.getLastEventHash(sessionId);
 
-      for (const input of sessionEvents) {
-        const id = ulid();
-        const timestamp = input.timestamp ?? new Date().toISOString();
+      // Resolve timestamps, then chain in chronological order. Verification reads
+      // events ordered by (timestamp, id), so building the chain in that same order
+      // — with monotonic ids breaking same-millisecond ties — keeps a batch
+      // verifiable no matter what order the events arrived in. (Array.sort is
+      // stable, so events sharing a timestamp keep their arrival order.)
+      const ordered = sessionEvents
+        .map((input) => ({ input, timestamp: input.timestamp ?? new Date().toISOString() }))
+        .sort((a, b) => (a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0));
+
+      for (const { input, timestamp } of ordered) {
+        const id = nextEventId();
         const severity = input.severity ?? 'info';
         const metadata = input.metadata ?? {};
         const payload = truncatePayload(input.payload as AgentLensEvent['payload']);
