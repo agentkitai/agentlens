@@ -433,14 +433,11 @@ We welcome contributions! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup i
 
 | Project | Description | |
 |---------|-------------|-|
-| **AgentLens** | Observability & audit trail for AI agents | ⬅️ you are here |
+| **AgentLens** | Observability & tamper-evident audit trail for AI agents | ⬅️ you are here |
+| [AgentGate](https://github.com/agentkitai/agentgate) | Human-in-the-loop approval gateway + reactive guardrails | |
 | [Lore](https://github.com/agentkitai/lore) | Cross-agent memory and lesson sharing | |
-| [AgentGate](https://github.com/agentkitai/agentgate) | Human-in-the-loop approval gateway | |
-| [FormBridge](https://github.com/agentkitai/formbridge) | Agent-human mixed-mode forms | |
 | [AgentEval](https://github.com/agentkitai/agenteval) | Testing & evaluation framework | |
-| [agentkit-mesh](https://github.com/agentkitai/agentkit-mesh) | Agent discovery & delegation | |
-| [agentkit-cli](https://github.com/agentkitai/agentkit-cli) | Unified CLI orchestrator | |
-| [agentkit-guardrails](https://github.com/agentkitai/agentkit-guardrails) | Reactive policy guardrails | |
+| [FormBridge](https://github.com/agentkitai/formbridge) | Agent-human mixed-mode forms | |
 
 ## 📄 License
 
