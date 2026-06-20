@@ -9,7 +9,7 @@
     <a href="https://www.npmjs.com/package/@agentlensai/mcp"><img src="https://img.shields.io/npm/v/@agentlensai/mcp?label=mcp" alt="npm mcp"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
     <a href="https://github.com/agentkitai/agentlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/agentkitai/agentlens/ci.yml?branch=main" alt="Build Status"></a>
-    <a href="https://hub.docker.com/r/pazgaz/agentlens"><img src="https://img.shields.io/docker/v/pazgaz/agentlens?label=docker" alt="Docker"></a>
+    <a href="https://github.com/agentkitai/agentlens/pkgs/container/agentlens"><img src="https://img.shields.io/badge/ghcr.io-agentkitai%2Fagentlens-2496ED?logo=docker&logoColor=white" alt="Container: ghcr.io/agentkitai/agentlens"></a>
   </p>
   <p align="center">
     <a href="./docs/">📖 Documentation</a> · <a href="#-quick-start">Quick Start</a> · <a href="#-dashboard">Dashboard</a> · <a href="https://app.agentlens.ai">☁️ Cloud</a>

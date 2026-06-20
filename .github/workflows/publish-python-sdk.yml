@@ -5,18 +5,16 @@ on:
     tags:
       - 'python-sdk-v*'
 
-permissions:
-  contents: read
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # PyPI Trusted Publishing (OIDC) — no PYPI_TOKEN secret needed
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install hatch twine
       - name: Run tests before publish
         working-directory: packages/python-sdk
         run: |
@@ -24,13 +22,12 @@ jobs:
           pytest
       - name: Build
         working-directory: packages/python-sdk
-        run: hatch build
-      - name: Verify package
-        working-directory: packages/python-sdk
-        run: twine check dist/*
-      - name: Publish to PyPI
-        working-directory: packages/python-sdk
-        run: twine upload dist/*
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          pip install build
+          python -m build
+      - name: Publish to PyPI (Trusted Publishing / OIDC)
+        # Requires a Trusted Publisher configured on PyPI for repo agentkitai/agentlens
+        # with workflow name `publish-python-sdk.yml`. No token secret required.
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/python-sdk/dist
