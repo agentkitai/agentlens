@@ -73,7 +73,7 @@ The demo ingests a real trace, verifies the chain (passes), edits one record dir
 **One command** — server + dashboard on SQLite, zero config:
 
 ```bash
-docker run -p 3400:3400 -e AUTH_DISABLED=true ghcr.io/agentkitai/agentlens
+docker run -p 3400:3400 -e AUTH_DISABLED=true -e JWT_SECRET=dev-secret ghcr.io/agentkitai/agentlens
 # Open http://localhost:3400
 ```
 
@@ -84,7 +84,7 @@ npx @agentlensai/server
 # http://localhost:3400 with SQLite — zero config
 ```
 
-> `AUTH_DISABLED=true` is for a quick local trial. For anything shared, leave auth on and create an API key (below).
+> `AUTH_DISABLED=true` is for a quick local trial (`JWT_SECRET` is still required by the hardened image). For anything shared, drop `AUTH_DISABLED`, set a real `JWT_SECRET`, and create an API key (below).
 
 **Full stack** (Postgres + Redis, auth, TLS) — runs from source:
 

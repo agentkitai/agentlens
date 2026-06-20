@@ -30,6 +30,7 @@ echo "1/5  Starting AgentLens (SQLite, zero-config)…"
 cleanup
 docker run -d --name "$NAME" -p "${PORT}:3400" \
   -e AUTH_DISABLED=true \
+  -e JWT_SECRET=demo-insecure-secret \
   -e DATABASE_PATH="$DB_PATH" \
   "$IMAGE" >/dev/null
 
