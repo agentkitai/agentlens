@@ -99,3 +99,15 @@ jobs:
         env:
           DB_DIALECT: postgresql
           DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test
+
+  # Smoke-tests the README headline: ingest a trace, verify the hash chain,
+  # tamper a record, confirm verification fails. demo/aha.sh exits non-zero
+  # if the audit log ever stops catching tampering.
+  aha-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t agentlens:demo .
+      - name: Run the tamper-evident audit-log demo
+        run: AGENTLENS_IMAGE=agentlens:demo ./demo/aha.sh
