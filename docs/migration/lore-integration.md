@@ -1,6 +1,6 @@
 # Lore Integration Migration Guide
 
-AgentLens v0.12.0 removes built-in lesson management, community sharing, and redaction in favor of [Lore](https://github.com/amitpaz1/lore) — a dedicated cross-agent memory system.
+AgentLens v0.12.0 removes built-in lesson management, community sharing, and redaction in favor of [Lore](https://github.com/agentkitai/lore) — a dedicated cross-agent memory system.
 
 ## What Was Removed
 

@@ -3,7 +3,7 @@
 #
 # TLS/HTTPS: Put a reverse proxy (nginx, Caddy, Traefik) in front of the
 # agentlens service. Caddy example:
-#   caddy reverse-proxy --from yourdomain.com --to localhost:3000
+#   caddy reverse-proxy --from yourdomain.com --to localhost:3400
 
 version: "3.9"
 

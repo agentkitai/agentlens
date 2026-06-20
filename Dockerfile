@@ -28,12 +28,12 @@ RUN rm -rf packages/core/src packages/auth/src packages/server/src packages/dash
     packages/*/tsconfig.json packages/*/__tests__ packages/*/vitest.config.*
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3400
 
-EXPOSE 3000
+EXPOSE 3400
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://localhost:3000/api/stats').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://localhost:3400/api/stats').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
 
 # Ensure data dir is writable
 RUN mkdir -p /app/data && chown node:node /app/data

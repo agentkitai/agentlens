@@ -213,4 +213,4 @@ except AgentLensConnectionError:
 
 ## Lessons API (Deprecated)
 
-Lesson methods are deprecated. Use [lore-sdk](https://github.com/amitpaz1/lore) instead.
+Lesson methods are deprecated. Use [lore-sdk](https://github.com/agentkitai/lore) instead.
