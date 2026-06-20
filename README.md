@@ -1,7 +1,9 @@
 <p align="center">
   <h1 align="center">🔍 AgentLens</h1>
   <p align="center">
-    <strong>Open-source observability & audit trail for AI agents</strong>
+    <strong>Open-source observability for AI agents — with a tamper-evident audit trail</strong>
+    <br/>
+    <sub>Every event SHA-256 hash-chained &amp; cryptographically verifiable — built for EU AI Act Article 12 record-keeping</sub>
   </p>
   <p align="center">
     <a href="https://pypi.org/project/agentlensai/"><img src="https://img.shields.io/pypi/v/agentlensai?label=pypi" alt="PyPI"></a>
@@ -20,6 +22,7 @@
 
 ## 📑 Table of Contents
 
+- [Tamper-Evident by Design](#-tamper-evident-by-design)
 - [Quick Start](#-quick-start)
 - [Architecture](#-architecture)
 - [Integration Guides](#-integration-guides)
