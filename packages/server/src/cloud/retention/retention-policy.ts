@@ -4,7 +4,8 @@
  * Per-tier retention windows. Orgs can override with custom settings (Enterprise).
  */
 
-import type { TierName } from '../billing/stripe-client.js';
+/** Org subscription/plan tiers. */
+export type TierName = 'free' | 'pro' | 'team' | 'enterprise';
 
 export interface RetentionPolicy {
   eventRetentionDays: number;

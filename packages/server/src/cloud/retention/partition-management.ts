@@ -8,7 +8,7 @@
  */
 
 import type { Pool } from '../tenant-pool.js';
-import type { TierName } from '../billing/stripe-client.js';
+import type { TierName } from './retention-policy.js';
 import { TIER_RETENTION } from './retention-policy.js';
 import {
   createMonthlyPartition,

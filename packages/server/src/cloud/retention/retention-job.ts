@@ -9,8 +9,8 @@
  */
 
 import type { Pool } from '../tenant-pool.js';
-import type { TierName } from '../billing/stripe-client.js';
 import {
+  type TierName,
   type OrgRetentionInfo,
   type RetentionPolicy,
   getEffectiveRetention,

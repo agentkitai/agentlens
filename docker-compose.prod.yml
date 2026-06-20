@@ -12,8 +12,6 @@ services:
     environment:
       AUTH_DISABLED: "false"
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
     restart: unless-stopped
 
   postgres:

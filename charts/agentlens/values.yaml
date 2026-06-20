@@ -60,10 +60,6 @@ secrets:
   adminApiKey: ""
   # -- OTLP auth token
   otlpAuthToken: ""
-  # -- Stripe secret key
-  stripeSecretKey: ""
-  # -- Stripe webhook secret
-  stripeWebhookSecret: ""
   # -- Lore API key
   loreApiKey: ""
   # -- Audit signing key
