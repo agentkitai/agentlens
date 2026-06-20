@@ -11,8 +11,8 @@
 
 import { Hono } from 'hono';
 import { timingSafeEqual, createHash } from 'node:crypto';
-import { ulid } from 'ulid';
 import { computeEventHash, truncatePayload } from '@agentlensai/core';
+import { nextEventId } from '../lib/event-id.js';
 import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentlensai/core';
 import type { IEventStore } from '@agentlensai/core';
 import { eventBus } from '../lib/event-bus.js';
@@ -333,6 +333,208 @@ interface MappedEvent {
   metadata: Record<string, unknown>;
 }
 
+// ─── OpenTelemetry GenAI Semantic Convention Mapping ────────────────
+// Maps OTel GenAI spans (gen_ai.* attributes) into AgentLens events, so any
+// OTel GenAI-instrumented agent works with no AgentLens SDK. Handles the two
+// dominant content styles: OpenLLMetry indexed attrs (gen_ai.prompt.{i}.role/
+// content) and the structured gen_ai.input/output.messages JSON attrs.
+
+type LlmRole = 'system' | 'user' | 'assistant' | 'tool';
+const GENAI_LLM_OPS = new Set(['chat', 'text_completion', 'generate_content']);
+const OTEL_STATUS_ERROR = 2; // STATUS_CODE_ERROR
+
+function normRole(r: string | undefined): LlmRole {
+  if (r === 'system' || r === 'user' || r === 'assistant' || r === 'tool') return r;
+  if (r === 'model' || r === 'ai') return 'assistant';
+  if (r === 'human') return 'user';
+  return 'user';
+}
+
+function isGenAiSpan(attrs: OtlpKeyValue[] | undefined): boolean {
+  return getAttrStr(attrs, 'gen_ai.operation.name') !== undefined
+    || getAttrStr(attrs, 'gen_ai.system') !== undefined
+    || getAttrStr(attrs, 'gen_ai.request.model') !== undefined;
+}
+
+function genAiProvider(attrs: OtlpKeyValue[] | undefined): string {
+  return getAttrStr(attrs, 'gen_ai.system')
+    ?? getAttrStr(attrs, 'gen_ai.provider.name')
+    ?? 'unknown';
+}
+
+function genAiSessionId(
+  spanAttrs: OtlpKeyValue[] | undefined,
+  resourceAttrs: OtlpKeyValue[] | undefined,
+  traceId: string | undefined,
+): string {
+  // A trace = one agent run, so traceId is a sensible session fallback.
+  return getAttrStr(spanAttrs, 'gen_ai.conversation.id')
+    ?? getAttrStr(resourceAttrs, 'gen_ai.conversation.id')
+    ?? getAttrStr(spanAttrs, 'session.id')
+    ?? (traceId ? `trace-${traceId}` : 'otlp-genai');
+}
+
+function genAiAgentId(
+  spanAttrs: OtlpKeyValue[] | undefined,
+  resourceAttrs: OtlpKeyValue[] | undefined,
+): string {
+  return getAttrStr(spanAttrs, 'gen_ai.agent.name')
+    ?? getAttrStr(resourceAttrs, 'gen_ai.agent.name')
+    ?? getAttrStr(resourceAttrs, 'service.name')
+    ?? 'otel-agent';
+}
+
+/** Collect role/content pairs from indexed attrs (OpenLLMetry) or a structured
+ *  JSON messages attribute (newer semconv). */
+function genAiMessages(
+  attrs: OtlpKeyValue[] | undefined,
+  indexedPrefix: string,
+  structuredKey: string,
+): Array<{ role: LlmRole; content: string }> {
+  const out: Array<{ role: LlmRole; content: string }> = [];
+  // Indexed: gen_ai.prompt.0.role / gen_ai.prompt.0.content
+  for (let i = 0; i < 128; i++) {
+    const content = getAttrStr(attrs, `${indexedPrefix}.${i}.content`);
+    const role = getAttrStr(attrs, `${indexedPrefix}.${i}.role`);
+    if (content === undefined && role === undefined) break;
+    out.push({ role: normRole(role), content: content ?? '' });
+  }
+  if (out.length > 0) return out;
+  // Structured JSON: gen_ai.input.messages = '[{"role":"user","content":"..."}]'
+  const raw = getAttrStr(attrs, structuredKey);
+  if (raw) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const m of parsed as Array<Record<string, unknown>>) {
+          let content = '';
+          if (typeof m.content === 'string') content = m.content;
+          else if (Array.isArray(m.content)) content = (m.content as Array<Record<string, unknown>>).map((p) => String(p.text ?? p.content ?? '')).join('');
+          else if (Array.isArray(m.parts)) content = (m.parts as Array<Record<string, unknown>>).map((p) => String(p.text ?? p.content ?? '')).join('');
+          out.push({ role: normRole(typeof m.role === 'string' ? m.role : undefined), content });
+        }
+      }
+    } catch { /* malformed messages attribute — skip content */ }
+  }
+  return out;
+}
+
+function genAiFinishReason(attrs: OtlpKeyValue[] | undefined): string {
+  const kv = attrs?.find((a) => a.key === 'gen_ai.response.finish_reasons');
+  const first = kv?.value.arrayValue?.values?.[0]?.stringValue;
+  return first ?? getAttrStr(attrs, 'gen_ai.response.finish_reason') ?? 'stop';
+}
+
+/** Map a GenAI span to AgentLens events, or null if it isn't a GenAI span. */
+function mapGenAiSpan(
+  span: OtlpSpan,
+  resourceAttrs: OtlpKeyValue[] | undefined,
+): MappedEvent[] | null {
+  const attrs = span.attributes;
+  if (!isGenAiSpan(attrs)) return null;
+
+  const op = getAttrStr(attrs, 'gen_ai.operation.name') ?? 'chat';
+  const sessionId = genAiSessionId(attrs, resourceAttrs, span.traceId);
+  const agentId = genAiAgentId(attrs, resourceAttrs);
+  const startTs = nanoToIso(span.startTimeUnixNano);
+  const endTs = nanoToIso(span.endTimeUnixNano);
+  const latencyMs = spanDurationMs(span);
+  const meta = { source: 'otlp_genai', operation: op, traceId: span.traceId, spanId: span.spanId };
+  const errored = span.status?.code === OTEL_STATUS_ERROR;
+
+  if (GENAI_LLM_OPS.has(op)) {
+    const provider = genAiProvider(attrs);
+    const model = getAttrStr(attrs, 'gen_ai.request.model') ?? getAttrStr(attrs, 'gen_ai.response.model') ?? 'unknown';
+    const responseModel = getAttrStr(attrs, 'gen_ai.response.model') ?? model;
+    const inputMsgs = genAiMessages(attrs, 'gen_ai.prompt', 'gen_ai.input.messages');
+    const outputMsgs = genAiMessages(attrs, 'gen_ai.completion', 'gen_ai.output.messages');
+    const temperature = getAttr(attrs, 'gen_ai.request.temperature');
+    const maxTokens = getAttr(attrs, 'gen_ai.request.max_tokens');
+    const inputTokens = getAttrNum(attrs, 'gen_ai.usage.input_tokens');
+    const outputTokens = getAttrNum(attrs, 'gen_ai.usage.output_tokens');
+
+    // One LLM span → a paired llm_call (request, at span start) and llm_response
+    // (response + token usage, at span end). The dashboard pairs them by callId.
+    return [
+      {
+        eventType: 'llm_call', severity: 'info', sessionId, agentId,
+        timestamp: startTs, metadata: meta,
+        payload: {
+          callId: span.spanId, provider, model,
+          messages: inputMsgs.length
+            ? inputMsgs
+            : [{ role: 'user', content: '(prompt content not captured by instrumentation)' }],
+          parameters: {
+            ...(typeof temperature === 'number' ? { temperature } : {}),
+            ...(typeof maxTokens === 'number' ? { maxTokens } : {}),
+          },
+        },
+      },
+      {
+        eventType: 'llm_response', severity: errored ? 'error' : 'info', sessionId, agentId,
+        timestamp: endTs, metadata: meta,
+        payload: {
+          callId: span.spanId, provider, model: responseModel,
+          completion: outputMsgs.map((m) => m.content).filter(Boolean).join('\n') || null,
+          finishReason: genAiFinishReason(attrs),
+          usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+          costUsd: 0,
+          latencyMs,
+        },
+      },
+    ];
+  }
+
+  if (op === 'execute_tool') {
+    const toolName = getAttrStr(attrs, 'gen_ai.tool.name') ?? span.name ?? 'tool';
+    const callId = getAttrStr(attrs, 'gen_ai.tool.call.id') ?? span.spanId;
+    let args: Record<string, unknown> = {};
+    const rawArgs = getAttrStr(attrs, 'gen_ai.tool.call.arguments');
+    if (rawArgs) {
+      try { const p: unknown = JSON.parse(rawArgs); if (p && typeof p === 'object') args = p as Record<string, unknown>; }
+      catch { args = { raw: rawArgs }; }
+    }
+    return [{
+      eventType: 'tool_call', severity: errored ? 'error' : 'info', sessionId, agentId,
+      timestamp: startTs, metadata: meta,
+      payload: { callId, toolName, arguments: args },
+    }];
+  }
+
+  if (op === 'embeddings') {
+    return [{
+      eventType: 'custom', severity: 'info', sessionId, agentId,
+      timestamp: startTs, metadata: meta,
+      payload: { type: 'embeddings', data: {
+        provider: genAiProvider(attrs),
+        model: getAttrStr(attrs, 'gen_ai.request.model') ?? 'unknown',
+        inputTokens: getAttrNum(attrs, 'gen_ai.usage.input_tokens'),
+        latencyMs,
+      } },
+    }];
+  }
+
+  if (op === 'invoke_agent' || op === 'create_agent') {
+    return [{
+      eventType: 'custom', severity: errored ? 'error' : 'info', sessionId, agentId,
+      timestamp: startTs, metadata: meta,
+      payload: { type: op, data: {
+        agentName: getAttrStr(attrs, 'gen_ai.agent.name'),
+        agentId: getAttrStr(attrs, 'gen_ai.agent.id'),
+        description: getAttrStr(attrs, 'gen_ai.agent.description'),
+        latencyMs,
+      } },
+    }];
+  }
+
+  // Unknown gen_ai operation → custom, preserving the raw attributes.
+  return [{
+    eventType: 'custom', severity: errored ? 'error' : 'info', sessionId, agentId,
+    timestamp: startTs, metadata: meta,
+    payload: { type: `gen_ai.${op}`, data: { ...attrsToRecord(attrs), latencyMs } },
+  }];
+}
+
 async function buildAndInsertEvents(
   tenantStore: IEventStore,
   mappedEvents: MappedEvent[],
@@ -354,8 +556,14 @@ async function buildAndInsertEvents(
     let prevHash: string | null = await tenantStore.getLastEventHash(sessionId);
     const sessionEvents: AgentLensEvent[] = [];
 
-    for (const input of sessionMapped) {
-      const id = ulid();
+    // Chain in chronological order (stable) with monotonic ids, so the stored
+    // chain order matches how verification reads events — OTLP batches routinely
+    // share timestamps. See lib/event-id.ts.
+    const ordered = [...sessionMapped].sort((a, b) =>
+      a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0);
+
+    for (const input of ordered) {
+      const id = nextEventId();
       const payload = truncatePayload(input.payload);
       const hash = computeEventHash({
         id,
@@ -540,6 +748,13 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
       const resourceAttrs = rs.resource?.attributes;
       for (const ss of rs.scopeSpans ?? []) {
         for (const span of ss.spans ?? []) {
+          // OTel GenAI spans (gen_ai.*) → real llm_call/llm_response/tool_call
+          // events; everything else keeps the existing OpenClaw/default mapping.
+          const genai = mapGenAiSpan(span, resourceAttrs);
+          if (genai) {
+            mapped.push(...genai);
+            continue;
+          }
           const result = mapSpanToEvent(span, resourceAttrs);
           mapped.push({
             ...result,

@@ -1,12 +1,14 @@
 /**
  * Tests for OTLP HTTP Receiver endpoints
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
 import { otlpRoutes } from '../routes/otlp.js';
 import { createTestDb } from '../db/index.js';
 import { runMigrations } from '../db/migrate.js';
 import { SqliteEventStore } from '../db/sqlite-store.js';
+import { verifyChain } from '@agentlensai/core';
+import type { ChainEvent } from '@agentlensai/core';
 
 function makeApp() {
   const db = createTestDb();
@@ -354,5 +356,107 @@ describe('OTLP Logs Endpoint', () => {
     expect(res.status).toBe(200);
     const events = (await store.queryEvents({ sessionId: 'otlp-default' })).events;
     expect(events[0]!.severity).toBe('error');
+  });
+});
+
+describe('OTLP GenAI semantic conventions', () => {
+  // A realistic OTel GenAI trace: an OpenLLMetry-style chat span (gen_ai.prompt/
+  // completion attrs + token usage) followed by a tool-execution span. Note the
+  // chat span ends at the same nano the tool span starts — so the mapped
+  // llm_response and tool_call share a timestamp, exercising same-ms ordering.
+  const genaiPayload = {
+    resourceSpans: [{
+      resource: { attributes: [{ key: 'service.name', value: { stringValue: 'my-agent' } }] },
+      scopeSpans: [{
+        spans: [
+          {
+            name: 'chat gpt-4o', traceId: 'genai1', spanId: 'spanA',
+            startTimeUnixNano: '1700000000000000000',
+            endTimeUnixNano: '1700000002000000000',
+            status: { code: 1 },
+            attributes: [
+              { key: 'gen_ai.system', value: { stringValue: 'openai' } },
+              { key: 'gen_ai.operation.name', value: { stringValue: 'chat' } },
+              { key: 'gen_ai.request.model', value: { stringValue: 'gpt-4o' } },
+              { key: 'gen_ai.response.model', value: { stringValue: 'gpt-4o-2024-08-06' } },
+              { key: 'gen_ai.request.temperature', value: { doubleValue: 0.7 } },
+              { key: 'gen_ai.usage.input_tokens', value: { intValue: 42 } },
+              { key: 'gen_ai.usage.output_tokens', value: { intValue: 17 } },
+              { key: 'gen_ai.response.finish_reasons', value: { arrayValue: { values: [{ stringValue: 'stop' }] } } },
+              { key: 'gen_ai.prompt.0.role', value: { stringValue: 'user' } },
+              { key: 'gen_ai.prompt.0.content', value: { stringValue: 'What is the capital of France?' } },
+              { key: 'gen_ai.completion.0.role', value: { stringValue: 'assistant' } },
+              { key: 'gen_ai.completion.0.content', value: { stringValue: 'Paris.' } },
+            ],
+          },
+          {
+            name: 'execute_tool web_search', traceId: 'genai1', spanId: 'spanB',
+            startTimeUnixNano: '1700000002000000000',
+            endTimeUnixNano: '1700000002500000000',
+            attributes: [
+              { key: 'gen_ai.operation.name', value: { stringValue: 'execute_tool' } },
+              { key: 'gen_ai.tool.name', value: { stringValue: 'web_search' } },
+              { key: 'gen_ai.tool.call.id', value: { stringValue: 'call_xyz' } },
+              { key: 'gen_ai.tool.call.arguments', value: { stringValue: '{"q":"capital of France"}' } },
+            ],
+          },
+        ],
+      }],
+    }],
+  };
+
+  async function ingestGenai() {
+    const { app, store } = makeApp();
+    const res = await app.request('/v1/traces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(genaiPayload),
+    });
+    expect(res.status).toBe(200);
+    // A trace maps to a session: trace-<traceId>
+    const events = (await store.queryEvents({ sessionId: 'trace-genai1' })).events;
+    return events;
+  }
+
+  it('maps a gen_ai chat span to paired llm_call + llm_response with token usage and content', async () => {
+    const events = await ingestGenai();
+    expect(events.length).toBe(3); // llm_call + llm_response + tool_call
+
+    const call = events.find((e) => e.eventType === 'llm_call')!;
+    const resp = events.find((e) => e.eventType === 'llm_response')!;
+    expect(call).toBeTruthy();
+    expect(resp).toBeTruthy();
+
+    const cp = call.payload as { provider: string; model: string; messages: Array<{ role: string; content: string }> };
+    expect(cp.provider).toBe('openai');
+    expect(cp.model).toBe('gpt-4o');
+    expect(cp.messages[0]!.content).toContain('capital of France');
+
+    const rp = resp.payload as { completion: string; finishReason: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } };
+    expect(rp.usage.inputTokens).toBe(42);
+    expect(rp.usage.outputTokens).toBe(17);
+    expect(rp.usage.totalTokens).toBe(59);
+    expect(rp.completion).toBe('Paris.');
+    expect(rp.finishReason).toBe('stop');
+  });
+
+  it('maps a gen_ai execute_tool span to a tool_call event', async () => {
+    const events = await ingestGenai();
+    const tool = events.find((e) => e.eventType === 'tool_call')!;
+    expect(tool).toBeTruthy();
+    const tp = tool.payload as { toolName: string; callId: string; arguments: { q?: string } };
+    expect(tp.toolName).toBe('web_search');
+    expect(tp.callId).toBe('call_xyz');
+    expect(tp.arguments.q).toBe('capital of France');
+  });
+
+  it('produces a valid, tamper-evident hash chain for the GenAI-ingested session', async () => {
+    const events = await ingestGenai();
+    // Chain order = (timestamp, id) ascending, matching how verification reads.
+    const chain = [...events].sort((a, b) =>
+      a.timestamp < b.timestamp ? -1
+        : a.timestamp > b.timestamp ? 1
+        : a.id < b.id ? -1 : a.id > b.id ? 1 : 0) as unknown as ChainEvent[];
+    expect(verifyChain(chain).valid).toBe(true);
   });
 });
