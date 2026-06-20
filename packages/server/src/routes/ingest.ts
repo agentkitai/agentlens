@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ulid } from 'ulid';
 import { computeEventHash, truncatePayload } from '@agentlensai/core';
+import { nextEventId } from '../lib/event-id.js';
 import type {
   AgentLensEvent,
   EventType,
@@ -320,7 +321,7 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
     const { sessionId, agentId } = extractCorrelation(body.context);
 
     // Build the AgentLens event
-    const id = ulid();
+    const id = nextEventId();
     const timestamp = body.timestamp ?? new Date().toISOString();
     const metadata: Record<string, unknown> = {
       source,

@@ -149,6 +149,78 @@ describe('GET /api/audit/verify', () => {
     expect(body.sessionsVerified).toBe(0);
   });
 
+  async function ingest(sessionId: string, timestamps: string[]) {
+    const body = {
+      events: timestamps.map((timestamp, i) => ({
+        sessionId,
+        agentId: 'agent_1',
+        eventType: 'custom',
+        timestamp,
+        payload: { type: 'step', data: { index: i } },
+      })),
+    };
+    return ctx.app.request('/api/events', {
+      method: 'POST',
+      headers: { ...authHeaders(ctx.apiKey), 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('regression: a same-millisecond batch ingested via the API verifies as valid', async () => {
+    // All 8 events share one timestamp — plain ULIDs would sort ambiguously and
+    // the chain would false-positive as broken. Monotonic ids + chronological
+    // chaining at ingest keep it verifiable.
+    const ts = '2026-01-15T10:00:00.000Z';
+    const ingestRes = await ingest('sess_same_ms', Array(8).fill(ts));
+    expect(ingestRes.status).toBeLessThan(300);
+
+    const res = await ctx.app.request('/api/audit/verify?sessionId=sess_same_ms', {
+      headers: authHeaders(ctx.apiKey),
+    });
+    const body = await res.json();
+    expect(body.verified).toBe(true);
+    expect(body.totalEvents).toBe(8);
+    expect(body.brokenChains).toEqual([]);
+  });
+
+  it('regression: an out-of-order-timestamp batch verifies (chained chronologically at ingest)', async () => {
+    const times = ['10:00:03', '10:00:01', '10:00:04', '10:00:02', '10:00:00']
+      .map((t) => `2026-01-15T${t}.000Z`);
+    const ingestRes = await ingest('sess_ooo', times);
+    expect(ingestRes.status).toBeLessThan(300);
+
+    const res = await ctx.app.request('/api/audit/verify?sessionId=sess_ooo', {
+      headers: authHeaders(ctx.apiKey),
+    });
+    const body = await res.json();
+    expect(body.verified).toBe(true);
+    expect(body.totalEvents).toBe(5);
+  });
+
+  it('still catches tampering in an API-ingested same-ms batch', async () => {
+    const ts = '2026-01-15T11:00:00.000Z';
+    await ingest('sess_ms_tamper', Array(5).fill(ts));
+    // Tamper the second event (by chain order = monotonic id order).
+    const ids = ctx.db
+      .select({ id: events.id })
+      .from(events)
+      .where(eq(events.sessionId, 'sess_ms_tamper'))
+      .orderBy(events.id)
+      .all();
+    ctx.db.update(events)
+      .set({ payload: JSON.stringify({ type: 'step', data: { tampered: true } }) })
+      .where(eq(events.id, ids[1].id))
+      .run();
+
+    const res = await ctx.app.request('/api/audit/verify?sessionId=sess_ms_tamper', {
+      headers: authHeaders(ctx.apiKey),
+    });
+    const body = await res.json();
+    expect(body.verified).toBe(false);
+    expect(body.brokenChains[0].failedAtIndex).toBe(1);
+    expect(body.brokenChains[0].reason).toContain('hash mismatch');
+  });
+
   it('detects broken chain', async () => {
     buildAndInsertChain(ctx.db, 20, 'sess_broken');
     // Tamper event at index 10
