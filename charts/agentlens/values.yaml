@@ -1,3 +1,9 @@
+# Allow the intentional non-bitnami pgvector image past the postgresql sub-chart's
+# image-verification guard (Helm propagates `global` to all sub-charts).
+global:
+  security:
+    allowInsecureImages: true
+
 # -- Number of AgentLens replicas
 replicaCount: 1
 
