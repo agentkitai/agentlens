@@ -99,8 +99,6 @@ This enables: 3 replicas, HPA, PDB, Ingress with cert-manager, topology spread c
 | `secrets.jwtSecret` | JWT secret | `""` |
 | `secrets.adminApiKey` | Admin API key | `""` |
 | `secrets.otlpAuthToken` | OTLP auth token | `""` |
-| `secrets.stripeSecretKey` | Stripe secret key | `""` |
-| `secrets.stripeWebhookSecret` | Stripe webhook secret | `""` |
 | `secrets.loreApiKey` | Lore API key | `""` |
 | `secrets.auditSigningKey` | Audit signing key | `""` |
 

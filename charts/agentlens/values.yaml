@@ -1,3 +1,9 @@
+# Allow the intentional non-bitnami pgvector image past the postgresql sub-chart's
+# image-verification guard (Helm propagates `global` to all sub-charts).
+global:
+  security:
+    allowInsecureImages: true
+
 # -- Number of AgentLens replicas
 replicaCount: 1
 
@@ -60,10 +66,6 @@ secrets:
   adminApiKey: ""
   # -- OTLP auth token
   otlpAuthToken: ""
-  # -- Stripe secret key
-  stripeSecretKey: ""
-  # -- Stripe webhook secret
-  stripeWebhookSecret: ""
   # -- Lore API key
   loreApiKey: ""
   # -- Audit signing key

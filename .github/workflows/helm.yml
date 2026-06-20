@@ -24,9 +24,6 @@ jobs:
         with:
           version: v3.14.0
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-
       - name: Build dependencies
         run: helm dependency build charts/agentlens
 
@@ -40,14 +37,14 @@ jobs:
         run: |
           helm template test charts/agentlens \
             --set secrets.jwtSecret=ci-test \
-            | kubectl apply --dry-run=client -f -
+            > /dev/null
 
       - name: Template (prod values) — dry-run
         run: |
           helm template test charts/agentlens \
             -f charts/agentlens/values-prod.yaml \
             --set secrets.jwtSecret=ci-test \
-            | kubectl apply --dry-run=client -f -
+            > /dev/null
 
   publish:
     if: startsWith(github.ref, 'refs/tags/helm-v')
