@@ -11,12 +11,22 @@
 
 import { Hono } from 'hono';
 import { timingSafeEqual, createHash } from 'node:crypto';
-import { computeEventHash, truncatePayload } from '@agentlensai/core';
+import { computeEventHash, truncatePayload, lookupModelCost } from '@agentlensai/core';
 import { nextEventId } from '../lib/event-id.js';
 import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentlensai/core';
 import type { IEventStore } from '@agentlensai/core';
 import { eventBus } from '../lib/event-bus.js';
 import type { ServerConfig } from '../config.js';
+
+// ─── Cost attribution for OTel-ingested GenAI spans ─────────────────
+// OTel instrumentation usually reports tokens but not cost. Reconstruct it
+// from the model's per-1M-token rates so OTel-instrumented agents get cost
+// analytics with no SDK and no per-call cost attribute. Unknown models → 0.
+export function otelCostUsd(model: string, inputTokens: number, outputTokens: number): number {
+  const rate = lookupModelCost(model);
+  if (!rate) return 0;
+  return (inputTokens / 1_000_000) * rate.input + (outputTokens / 1_000_000) * rate.output;
+}
 
 // ─── Protobuf Decoders (lazy-loaded) ────────────────────────────────
 
@@ -478,7 +488,7 @@ function mapGenAiSpan(
           completion: outputMsgs.map((m) => m.content).filter(Boolean).join('\n') || null,
           finishReason: genAiFinishReason(attrs),
           usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
-          costUsd: 0,
+          costUsd: otelCostUsd(responseModel, inputTokens, outputTokens),
           latencyMs,
         },
       },
