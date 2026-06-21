@@ -164,12 +164,14 @@ AgentLens maps `gen_ai.*` spans into its model and into the tamper-evident audit
 
 | OTel GenAI span (`gen_ai.operation.name`) | Becomes |
 |---|---|
-| `chat` / `text_completion` / `generate_content` | a paired `llm_call` + `llm_response` (model, provider, messages, `usage.input_tokens`/`output_tokens`, finish reason, latency) |
+| `chat` / `text_completion` / `generate_content` | a paired `llm_call` + `llm_response` (model, provider, messages, `usage.input_tokens`/`output_tokens`, finish reason, latency, **cost**) |
 | `execute_tool` | `tool_call` (`gen_ai.tool.name`, `gen_ai.tool.call.id`, arguments) |
 | `embeddings` | embedding event with token usage |
 | `invoke_agent` / `create_agent` | agent-invocation event |
 
 Each OTel **trace** maps to a session (or `gen_ai.conversation.id` if present), and every event is hash-chained like any other — so traces from any GenAI framework get the same verifiable audit trail. Set `OTLP_AUTH_TOKEN` to require a bearer token on the OTLP endpoints in production.
+
+> **Cost with no SDK:** OTel GenAI instrumentation reports tokens but rarely cost. AgentLens reconstructs `costUsd` from the model's per-1M-token pricing (fuzzy-matched on the model id), so OTel-only agents get the same cost analytics as SDK-instrumented ones — no per-call cost attribute required.
 
 ### 🤖 OpenClaw Plugin
 
