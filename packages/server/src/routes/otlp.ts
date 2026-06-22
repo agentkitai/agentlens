@@ -21,7 +21,11 @@ import { createLogger } from '../lib/logger.js';
 
 const otlpLogger = createLogger('OTLP');
 // Warn at most once per service.name so high-volume ingest doesn't flood logs.
+// ponytail: capped so an attacker pumping distinct service.name values can't
+// grow this unboundedly; past the cap we just stop warning (low-cardinality in
+// normal operation, so the cap is never reached).
 const warnedServiceNames = new Set<string>();
+const MAX_WARNED_SERVICE_NAMES = 10_000;
 
 // ─── Cost attribution for OTel-ingested GenAI spans ─────────────────
 // OTel instrumentation usually reports tokens but not cost. Reconstruct it
@@ -239,7 +243,7 @@ function extractAgentId(resourceAttrs: OtlpKeyValue[] | undefined): string {
   if (explicit) return explicit;
   const serviceName = getAttrStr(resourceAttrs, 'service.name');
   if (serviceName) {
-    if (!warnedServiceNames.has(serviceName)) {
+    if (!warnedServiceNames.has(serviceName) && warnedServiceNames.size < MAX_WARNED_SERVICE_NAMES) {
       warnedServiceNames.add(serviceName);
       otlpLogger.warn(
         `OTel spans have no agentlens.agentId; attributing cost to service.name="${serviceName}". ` +

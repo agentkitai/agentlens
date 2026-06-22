@@ -2,8 +2,9 @@
  * POST /api/internal/spend — service-token-authenticated per-agent spend reads (#13).
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { createTestApp, authHeaders } from './test-helpers.js';
+import { createTestApp, createApiKey, authHeaders } from './test-helpers.js';
 import type { Hono } from 'hono';
+import type { SqliteDb } from '../db/index.js';
 
 const SVC_TOKEN = 'svc-test-token-abc123';
 const WINDOW = { from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00Z' };
@@ -27,12 +28,14 @@ async function spend(app: Hono, body: unknown, token: string | null = SVC_TOKEN)
 describe('POST /api/internal/spend', () => {
   let app: Hono;
   let apiKey: string;
+  let db: SqliteDb;
 
   beforeEach(async () => {
     process.env['AGENTGATE_SERVICE_TOKEN'] = SVC_TOKEN;
     const ctx = await createTestApp();
     app = ctx.app;
     apiKey = ctx.apiKey;
+    db = ctx.db;
     // Two agents with cost in the window (tenant 'default').
     await app.request('/api/events', {
       method: 'POST',
@@ -66,10 +69,26 @@ describe('POST /api/internal/spend', () => {
     expect(body.spend.map((s) => s.agentId)).toEqual(['agt_a']);
   });
 
-  it('isolates by tenant (no cross-tenant leakage)', async () => {
-    const res = await spend(app, { agentIds: ['agt_a', 'agt_b'], tenantId: 'someone-else', ...WINDOW });
-    const body = (await res.json()) as { spend: unknown[] };
-    expect(body.spend).toEqual([]);
+  it('isolates by tenant for the SAME agent id (no cross-tenant leakage)', async () => {
+    // Same agent id (agt_a) earns spend under a second tenant. A query scoped to
+    // one tenant must not see the other's rows — the core invariant, since
+    // tenantId comes from the (org-scoped) request body.
+    const keyB = createApiKey(db, { tenantId: 'tenant-b' });
+    await app.request('/api/events', {
+      method: 'POST',
+      headers: authHeaders(keyB),
+      body: JSON.stringify({ events: [costEvent('agt_a', 's3', 0.50, '2026-01-17T10:00:00Z')] }),
+    });
+
+    const resDefault = await spend(app, { agentIds: ['agt_a'], tenantId: 'default', ...WINDOW });
+    const defaultSpend = ((await resDefault.json()) as { spend: Array<{ agentId: string; totalCostUsd: number }> }).spend;
+    expect(defaultSpend).toHaveLength(1);
+    expect(defaultSpend[0]!.totalCostUsd).toBeCloseTo(0.02, 6); // default only, NOT 0.52
+
+    const resB = await spend(app, { agentIds: ['agt_a'], tenantId: 'tenant-b', ...WINDOW });
+    const bSpend = ((await resB.json()) as { spend: Array<{ totalCostUsd: number }> }).spend;
+    expect(bSpend).toHaveLength(1);
+    expect(bSpend[0]!.totalCostUsd).toBeCloseTo(0.50, 6); // tenant-b only
   });
 
   it('omits agents with no spend in the window (caller defaults them to $0)', async () => {
@@ -96,5 +115,10 @@ describe('POST /api/internal/spend', () => {
     expect((await spend(app, { agentIds: [], tenantId: 'default' })).status).toBe(400);
     expect((await spend(app, { agentIds: ['agt_a'] })).status).toBe(400);
     expect((await spend(app, { tenantId: 'default' })).status).toBe(400);
+  });
+
+  it('rejects more than 1000 agentIds (400)', async () => {
+    const tooMany = Array.from({ length: 1001 }, (_, i) => `agt_${i}`);
+    expect((await spend(app, { agentIds: tooMany, tenantId: 'default' })).status).toBe(400);
   });
 });
