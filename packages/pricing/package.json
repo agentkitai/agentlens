@@ -1,29 +1,26 @@
 {
-  "name": "@agentlensai/core",
-  "version": "0.13.0",
-  "description": "Core types, schemas, and utilities for AgentLens — AI agent observability platform",
+  "name": "@agentkit/pricing",
+  "version": "0.1.0",
+  "description": "Centralized LLM model pricing for the AgentKit suite, sourced from LiteLLM's published prices with an embedded fallback.",
   "type": "module",
   "license": "MIT",
   "author": "Amit Paz",
   "repository": {
     "type": "git",
     "url": "https://github.com/agentkitai/agentlens.git",
-    "directory": "packages/core"
+    "directory": "packages/pricing"
   },
-  "homepage": "https://github.com/agentkitai/agentlens/tree/main/packages/core",
+  "homepage": "https://github.com/agentkitai/agentlens/tree/main/packages/pricing",
   "bugs": {
     "url": "https://github.com/agentkitai/agentlens/issues"
   },
   "keywords": [
-    "agentlens",
-    "ai-agents",
-    "observability",
-    "mcp",
-    "event-sourcing",
-    "audit-trail",
-    "types",
-    "schemas",
-    "zod"
+    "llm",
+    "pricing",
+    "cost",
+    "litellm",
+    "tokens",
+    "agentkit"
   ],
   "exports": {
     ".": {
@@ -42,10 +39,5 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@agentkit/pricing": "workspace:*",
-    "ulid": "^3.0.2",
-    "zod": "^4.3.6"
   }
 }

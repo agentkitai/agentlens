@@ -7,6 +7,7 @@
  */
 
 import { createHash } from 'crypto';
+import { costUsd, lookupModelCost } from '@agentlensai/core';
 import type { QueuedEvent, RedisClient } from './event-queue.js';
 import { STREAM_NAME, DLQ_STREAM_NAME, CONSUMER_GROUP } from './event-queue.js';
 import type { Pool } from '../tenant-pool.js';
@@ -52,24 +53,12 @@ export interface ConsumerRedisClient extends RedisClient {
 // Cost Calculation
 // ═══════════════════════════════════════════
 
-/** Known model pricing (per 1K tokens) */
-const MODEL_COSTS: Record<string, { input: number; output: number }> = {
-  'gpt-4': { input: 0.03, output: 0.06 },
-  'gpt-4-turbo': { input: 0.01, output: 0.03 },
-  'gpt-4o': { input: 0.005, output: 0.015 },
-  'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
-  'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
-  'claude-3-opus': { input: 0.015, output: 0.075 },
-  'claude-3-sonnet': { input: 0.003, output: 0.015 },
-  'claude-3-haiku': { input: 0.00025, output: 0.00125 },
-  'claude-3.5-sonnet': { input: 0.003, output: 0.015 },
-  'claude-4-opus': { input: 0.015, output: 0.075 },
-  'claude-4-sonnet': { input: 0.003, output: 0.015 },
-};
-
 /**
  * Calculate cost for an LLM call event.
- * Returns cost in USD or null if not calculable.
+ * Returns cost in USD or null if not calculable (unknown model or no tokens).
+ * Pricing comes from the shared @agentkit/pricing table (via @agentlensai/core),
+ * so modern model ids (e.g. claude-opus-4-8) are covered, unlike the legacy
+ * hand-maintained per-1K table this replaced.
  */
 export function calculateCost(event: QueuedEvent): number | null {
   if (event.type !== 'llm_call') return null;
@@ -79,19 +68,10 @@ export function calculateCost(event: QueuedEvent): number | null {
   const inputTokens = (data.input_tokens as number) ?? (data.prompt_tokens as number) ?? 0;
   const outputTokens = (data.output_tokens as number) ?? (data.completion_tokens as number) ?? 0;
 
-  // Find matching model (prefix match for versioned names)
-  let pricing: { input: number; output: number } | undefined;
-  for (const [key, cost] of Object.entries(MODEL_COSTS)) {
-    if (model === key || model.startsWith(key + '-')) {
-      pricing = cost;
-      break;
-    }
-  }
-
-  if (!pricing) return null;
+  if (lookupModelCost(model) === undefined) return null; // unknown model
   if (inputTokens === 0 && outputTokens === 0) return null;
 
-  return (inputTokens / 1000) * pricing.input + (outputTokens / 1000) * pricing.output;
+  return costUsd(model, inputTokens, outputTokens);
 }
 
 // ═══════════════════════════════════════════
