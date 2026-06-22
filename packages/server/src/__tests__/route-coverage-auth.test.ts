@@ -19,6 +19,7 @@ const PUBLIC_ALLOWLIST = new Set([
 const SEPARATE_AUTH = new Set([
   '/api/events/ingest',
   '/api/stream',
+  '/api/internal', // service-token auth (AGENTGATE_SERVICE_TOKEN); 503 when unset
 ]);
 
 function shouldSkip(method: string, path: string): boolean {

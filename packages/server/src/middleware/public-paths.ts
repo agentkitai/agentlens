@@ -16,6 +16,9 @@
  *     so it authenticates via a ?token= query param inside its own handler.
  *   - /api/events/ingest        — webhook ingest; authenticates via HMAC signature
  *     verification in its own handler, not via API key.
+ *   - /api/internal             — internal service-to-service endpoints (e.g.
+ *     AgentGate spend reads); authenticate via the AGENTGATE_SERVICE_TOKEN
+ *     bearer in their own handler, not via a user API key / JWT.
  *
  * Health (`/api/health`) is registered before the auth middleware, so it does not
  * need an entry here.
@@ -30,6 +33,7 @@ const EXACT_PUBLIC_PATHS = new Set<string>([
 const SELF_AUTH_PREFIXES = [
   '/api/stream',
   '/api/events/ingest',
+  '/api/internal',
 ];
 
 /**

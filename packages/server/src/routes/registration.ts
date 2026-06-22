@@ -25,6 +25,7 @@ import { NotificationChannelRepository } from '../db/repositories/notification-c
 import { NotificationRouter } from '../lib/notifications/router.js';
 import { ingestRoutes } from './ingest.js';
 import { analyticsRoutes } from './analytics.js';
+import { internalRoutes } from './internal.js';
 import { streamRoutes } from './stream.js';
 import { reflectRoutes } from './reflect.js';
 import { recallRoutes } from './recall.js';
@@ -178,6 +179,7 @@ export async function registerRoutes(
   if (db) {
     app.route('/api/config', configRoutes(db));
     app.route('/api/analytics', analyticsRoutes(store, db, config?.pgDb));
+    app.route('/api/internal', internalRoutes(store, db, config?.pgDb));
   }
   app.route('/api/alerts', alertsRoutes(store));
 
