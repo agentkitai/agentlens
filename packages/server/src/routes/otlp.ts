@@ -17,6 +17,11 @@ import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@ag
 import type { IEventStore } from '@agentlensai/core';
 import { eventBus } from '../lib/event-bus.js';
 import type { ServerConfig } from '../config.js';
+import { createLogger } from '../lib/logger.js';
+
+const otlpLogger = createLogger('OTLP');
+// Warn at most once per service.name so high-volume ingest doesn't flood logs.
+const warnedServiceNames = new Set<string>();
 
 // ─── Cost attribution for OTel-ingested GenAI spans ─────────────────
 // OTel instrumentation usually reports tokens but not cost. Reconstruct it
@@ -225,11 +230,25 @@ function extractSessionId(spanAttrs: OtlpKeyValue[] | undefined, resourceAttrs: 
 }
 
 function extractAgentId(resourceAttrs: OtlpKeyValue[] | undefined): string {
-  const raw = getAttrStr(resourceAttrs, 'service.name') ?? 'openclaw';
-  // Strip 'openclaw-' prefix so service names like 'openclaw-brad' map to config
-  // agent IDs (e.g. 'main' uses serviceName 'openclaw-brad' in OTel config).
-  // Also check for an explicit agentlens.agentId resource attribute override.
-  return getAttrStr(resourceAttrs, 'agentlens.agentId') ?? raw;
+  // `agentlens.agentId` is the PRIMARY cost-attribution key — set it to the
+  // emitter's stable id (e.g. an AgentGate `agt_*` id) to make per-agent spend
+  // joinable across the control plane (#13). It falls back to `service.name`,
+  // which is operator-controlled and can collide between distinct agents, so we
+  // warn when the explicit attribute is absent.
+  const explicit = getAttrStr(resourceAttrs, 'agentlens.agentId');
+  if (explicit) return explicit;
+  const serviceName = getAttrStr(resourceAttrs, 'service.name');
+  if (serviceName) {
+    if (!warnedServiceNames.has(serviceName)) {
+      warnedServiceNames.add(serviceName);
+      otlpLogger.warn(
+        `OTel spans have no agentlens.agentId; attributing cost to service.name="${serviceName}". ` +
+          `Set the agentlens.agentId resource attribute for stable per-agent attribution.`,
+      );
+    }
+    return serviceName;
+  }
+  return 'openclaw';
 }
 
 // ─── Span → Event Mapping ───────────────────────────────────────────
