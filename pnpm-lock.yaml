@@ -94,6 +94,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@agentkit/pricing':
+        specifier: workspace:*
+        version: link:../pricing
       ulid:
         specifier: ^3.0.2
         version: 3.0.2
@@ -173,6 +176,8 @@ importers:
       zod:
         specifier: ^4.3.6
         version: 4.3.6
+
+  packages/pricing: {}
 
   packages/sdk:
     dependencies:

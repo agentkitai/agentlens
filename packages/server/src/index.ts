@@ -10,6 +10,7 @@
 
 import { serve } from '@hono/node-server';
 import type { IEventStore } from '@agentlensai/core';
+import { refreshFromLiteLLM } from '@agentlensai/core';
 import { getConfig, validateConfig } from './config.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
@@ -214,6 +215,16 @@ export async function startServer() {
   const anomalyDetector = new CostAnomalyDetector(store, budgetEngine.getStore());
   anomalyDetector.start();
   log.info('Cost budgets & anomaly detection: enabled');
+
+  // Keep model pricing current from LiteLLM's published rates. Fire-and-forget:
+  // never blocks startup and falls back to the embedded table on any failure.
+  // Off-switch (e.g. air-gapped deploys): AGENTKIT_PRICING_REFRESH=false.
+  if (process.env.AGENTKIT_PRICING_REFRESH !== 'false') {
+    void refreshFromLiteLLM().then(
+      (t) => log.info(`Model pricing: refreshed from LiteLLM (${Object.keys(t).length} models)`),
+      () => {}, // refreshFromLiteLLM never rejects; defensive only
+    );
+  }
 
   // M-11 FIX: Graceful shutdown
   let httpServer: ReturnType<typeof serve> | undefined;
