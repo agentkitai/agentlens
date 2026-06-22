@@ -8,6 +8,7 @@ RUN corepack enable && corepack prepare pnpm@10.18.2 --activate
 
 # Copy workspace config first for layer caching
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json ./
+COPY packages/pricing/package.json packages/pricing/
 COPY packages/core/package.json packages/core/
 COPY packages/auth/package.json packages/auth/
 COPY packages/server/package.json packages/server/
@@ -17,6 +18,7 @@ COPY packages/dashboard/package.json packages/dashboard/
 RUN pnpm install --frozen-lockfile
 
 # Copy source and build
+COPY packages/pricing/ packages/pricing/
 COPY packages/core/ packages/core/
 COPY packages/auth/ packages/auth/
 COPY packages/server/ packages/server/
@@ -24,7 +26,7 @@ COPY packages/dashboard/ packages/dashboard/
 RUN pnpm run build
 
 # Cleanup source (keep only dist)
-RUN rm -rf packages/core/src packages/auth/src packages/server/src packages/dashboard/src \
+RUN rm -rf packages/pricing/src packages/core/src packages/auth/src packages/server/src packages/dashboard/src \
     packages/*/tsconfig.json packages/*/__tests__ packages/*/vitest.config.*
 
 ENV NODE_ENV=production
