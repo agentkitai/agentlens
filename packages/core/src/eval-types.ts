@@ -41,7 +41,24 @@ export interface EvalInput {
 
 // ─── Scorer Types ──────────────────────────────────────────
 
-export type ScorerType = 'exact_match' | 'contains' | 'regex' | 'llm_judge' | 'custom' | 'composite';
+export type ScorerType = 'exact_match' | 'contains' | 'regex' | 'llm_judge' | 'compliance' | 'custom' | 'composite';
+
+/**
+ * A single deterministic compliance rule evaluated against a session's events.
+ * Tool patterns support a trailing/leading `*` wildcard (e.g. `delete_*`).
+ */
+export type ComplianceRule =
+  | { id: string; type: 'tool_denylist'; description?: string; tools: string[] }
+  | { id: string; type: 'tool_allowlist'; description?: string; tools: string[] }
+  | { id: string; type: 'max_cost'; description?: string; maxUsd: number }
+  | { id: string; type: 'no_severity_above'; description?: string; severity: 'debug' | 'info' | 'warn' | 'error' | 'critical' };
+
+export interface ComplianceViolation {
+  ruleId: string;
+  ruleType: ComplianceRule['type'];
+  description?: string;
+  detail: string;
+}
 
 export interface ScorerConfig {
   type: ScorerType;
@@ -52,6 +69,8 @@ export interface ScorerConfig {
   model?: string;
   webhookUrl?: string;
   scorers?: ScorerConfig[];
+  /** Compliance scorer: policy rules to check the session's events against */
+  rules?: ComplianceRule[];
 }
 
 export interface ScoreResult {

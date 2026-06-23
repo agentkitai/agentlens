@@ -17,14 +17,17 @@
  */
 
 import { Hono } from 'hono';
+import { complianceScoreRequestSchema } from '@agentlensai/core';
+import type { EvalResultPayload, IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
-import { getTenantId } from './tenant-helper.js';
+import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { EvalStore } from '../db/eval-store.js';
 import { EvalRunner } from '../lib/eval/runner.js';
-import { createDefaultRegistry } from '../lib/eval/index.js';
+import { createDefaultRegistry, evaluateCompliance } from '../lib/eval/index.js';
+import { appendEventToSession } from '../lib/append-event.js';
 import type { SqliteDb } from '../db/index.js';
 
-export function evalRoutes(db?: SqliteDb) {
+export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
   const registry = createDefaultRegistry();
 
@@ -277,6 +280,75 @@ export function evalRoutes(db?: SqliteDb) {
     }
 
     return c.json({ results });
+  });
+
+  // ─── Compliance Eval (#55 — Phase 1) ───────────────────
+  //
+  // Score a completed session against deterministic policy rules and record the
+  // outcome as a hash-chained `eval_result` event in the session's audit trail —
+  // making the eval result itself tamper-evident evidence.
+  app.post('/sessions/:sessionId/compliance', async (c) => {
+    if (!store) return c.json({ error: 'Event store not available' }, 500);
+
+    const tenantStore = getTenantStore(store, c);
+    const tenantId = getTenantId(c);
+    const sessionId = c.req.param('sessionId');
+
+    const body = await c.req.json().catch(() => null);
+    const parsed = complianceScoreRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({
+        error: 'Validation failed',
+        details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })),
+      }, 400);
+    }
+    const { rules, passThreshold } = parsed.data;
+
+    const timeline = await tenantStore.getSessionTimeline(sessionId);
+    if (timeline.length === 0) {
+      return c.json({ error: 'Session not found or has no events' }, 404);
+    }
+
+    const result = evaluateCompliance(timeline, rules);
+
+    // Strict by default (any violation fails); a passThreshold switches to score-based.
+    const passed = passThreshold !== undefined ? result.score >= passThreshold : result.passed;
+    const agentId = parsed.data.agentId ?? timeline[0]!.agentId;
+
+    const payload: EvalResultPayload = {
+      scorerType: 'compliance',
+      score: result.score,
+      passed,
+      reasoning: result.reasoning,
+      violations: result.violations,
+      rulesEvaluated: result.rulesEvaluated,
+    };
+
+    let event;
+    try {
+      event = await appendEventToSession(tenantStore, {
+        tenantId,
+        sessionId,
+        agentId,
+        eventType: 'eval_result',
+        severity: passed ? 'info' : 'warn',
+        payload,
+        metadata: { source: 'compliance_eval' },
+      });
+    } catch (err) {
+      // Hash-chain continuity error (e.g. concurrent append) → safe to retry.
+      return c.json({ error: `Failed to record eval result: ${(err as Error).message}` }, 409);
+    }
+
+    return c.json({
+      sessionId,
+      score: result.score,
+      passed,
+      violations: result.violations,
+      rulesEvaluated: result.rulesEvaluated,
+      reasoning: result.reasoning,
+      event: { id: event.id, hash: event.hash, prevHash: event.prevHash },
+    }, 201);
   });
 
   app.post('/runs/:id/cancel', async (c) => {

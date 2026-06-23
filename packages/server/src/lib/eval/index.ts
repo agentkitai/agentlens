@@ -7,6 +7,10 @@ export { ExactMatchScorer } from './scorers/exact-match.js';
 export { ContainsScorer } from './scorers/contains.js';
 export { RegexScorer } from './scorers/regex.js';
 export { LlmJudgeScorer, type LlmClient } from './scorers/llm-judge.js';
+// Compliance scoring is exposed via POST /api/eval/sessions/:id/compliance, which
+// calls evaluateCompliance() directly (it needs the session's events, which the
+// dataset-run ScorerContext doesn't carry). Wiring it as a runner scorer is Phase 2.
+export { evaluateCompliance, matchTool, type ComplianceEvalResult } from './compliance.js';
 export { EvalRunner } from './runner.js';
 
 import { ScorerRegistry } from './scorers/index.js';

@@ -442,7 +442,9 @@ export class PostgresEventStore implements IEventStore {
       .select()
       .from(events)
       .where(and(...conditions))
-      .orderBy(asc(events.timestamp));
+      // (timestamp, id) so the chain order is deterministic for events that
+      // share a millisecond — required for hash-chain verification.
+      .orderBy(asc(events.timestamp), asc(events.id));
 
     return rows.map(mapEventRow);
   }
