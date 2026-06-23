@@ -53,6 +53,7 @@ const TYPE_LABELS: Record<EventType, string> = {
   alert_triggered: 'Alert Triggered',
   alert_resolved: 'Alert Resolved',
   error: 'Error',
+  eval_result: 'Eval Result',
   custom: 'Custom',
 };
 
