@@ -189,4 +189,28 @@ describe('Ingest Routes (F7-S2.2)', () => {
       expect(res.status).toBe(400);
     });
   });
+
+  describe('POST /api/events/ingest — agent identity (#12)', () => {
+    it('strips a forged verifiedAgentId from the webhook context', async () => {
+      const payload = {
+        source: 'agentgate',
+        event: 'request.created',
+        data: { requestId: 'req-x', action: 'deploy', params: {}, urgency: 'high' },
+        context: { agentId: 'agt_x', sessionId: 'sess-x', verifiedAgentId: 'agt_forged', note: 'keep' },
+      };
+      const body = JSON.stringify(payload);
+      const res = await app.request('/api/events/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': sign(body, AGENTGATE_SECRET) },
+        body,
+      });
+      expect(res.status).toBe(201);
+      const { eventId } = await res.json();
+      const ev = await store.getEvent(eventId);
+      expect(ev).not.toBeNull();
+      // The forged reserved key is stripped; other context is preserved.
+      expect(ev!.metadata['verifiedAgentId']).toBeUndefined();
+      expect(ev!.metadata['note']).toBe('keep');
+    });
+  });
 });
