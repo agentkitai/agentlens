@@ -21,6 +21,7 @@ import type { AgentLensEvent, EventQuery, EventType, EventSeverity } from '@agen
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { eventBus } from '../lib/event-bus.js';
+import { verifyAgentToken, stampVerifiedAgent } from '../lib/agent-identity.js';
 import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { summarizeEvent, summarizeSession } from '../lib/embeddings/summarizer.js';
 import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
@@ -69,6 +70,12 @@ export function eventsRoutes(
 
     const { events: inputEvents } = parseResult.data;
 
+    // Agent-identity (#12): verify an AgentGate agent token once for the batch.
+    // When present + valid, every event gets a server-authoritative
+    // `verifiedAgentId` stamped into its (hashed) metadata; otherwise the
+    // reserved keys are stripped so a client can never forge them.
+    const verifiedAgentId = await verifyAgentToken(c.req.header('x-agent-token'));
+
     // Group events by sessionId to handle per-session hash chains
     const bySession = new Map<string, typeof inputEvents>();
     for (const ev of inputEvents) {
@@ -96,7 +103,7 @@ export function eventsRoutes(
       for (const { input, timestamp } of ordered) {
         const id = nextEventId();
         const severity = input.severity ?? 'info';
-        const metadata = input.metadata ?? {};
+        const metadata = stampVerifiedAgent(input.metadata ?? {}, verifiedAgentId);
         const payload = truncatePayload(input.payload as AgentLensEvent['payload']);
 
         const hash = computeEventHash({

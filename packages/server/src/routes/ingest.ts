@@ -25,6 +25,7 @@ import type {
 import type { IEventStore } from '@agentlensai/core';
 import type { SqliteEventStore } from '../db/sqlite-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
+import { stripVerifiedAgentKeys } from '../lib/agent-identity.js';
 import { eventBus } from '../lib/event-bus.js';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -323,11 +324,15 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
     // Build the AgentLens event
     const id = nextEventId();
     const timestamp = body.timestamp ?? new Date().toISOString();
-    const metadata: Record<string, unknown> = {
+    // body.context is caller-supplied; strip the reserved verified-agent keys so
+    // a webhook can never forge a verifiedAgentId into the audit trail (#12). The
+    // webhook never STAMPS one — only POST /api/events does, after verifying an
+    // agent token. HMAC here proves the source, not the agent's identity.
+    const metadata: Record<string, unknown> = stripVerifiedAgentKeys({
       source,
       webhookEvent: body.event,
       ...(body.context ?? {}),
-    };
+    });
 
     // Get last hash for session chain (optimized — only fetches last event's hash)
     const prevHash = await tenantStore.getLastEventHash(sessionId);
