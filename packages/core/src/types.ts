@@ -48,6 +48,8 @@ export type EventType =
   | 'alert_resolved'
   // General error
   | 'error'
+  // Eval / compliance scoring (server-emitted, hash-chained into the trace)
+  | 'eval_result'
   // Custom / extension
   | 'custom';
 
@@ -73,6 +75,7 @@ export const EVENT_TYPES: readonly EventType[] = [
   'alert_triggered',
   'alert_resolved',
   'error',
+  'eval_result',
   'custom',
 ] as const;
 
@@ -283,6 +286,36 @@ export interface CustomPayload {
 }
 
 /**
+ * Payload for an `eval_result` event — the outcome of scoring a session (or a
+ * dataset test case) against a scorer. Emitted server-side and hash-chained
+ * into the session's audit trail so eval results are themselves tamper-evident
+ * evidence ("we ran the eval, here's the cryptographic proof").
+ */
+export interface EvalResultPayload {
+  /** Which scorer produced this result (e.g. 'compliance', 'llm_judge') */
+  scorerType: string;
+  /** Normalized score in [0, 1] */
+  score: number;
+  /** Whether the result met the pass criteria */
+  passed: boolean;
+  /** Human-readable explanation */
+  reasoning?: string;
+  /** Policy rules that were violated (compliance scorer) */
+  violations?: Array<{
+    ruleId: string;
+    ruleType: string;
+    description?: string;
+    detail: string;
+  }>;
+  /** Number of rules / criteria evaluated */
+  rulesEvaluated?: number;
+  /** Link to a dataset eval run, when scored as part of one */
+  evalRunId?: string;
+  /** Link to the dataset test case, when scored as part of a run */
+  testCaseId?: string;
+}
+
+/**
  * Discriminated union of all payload types
  */
 export type EventPayload =
@@ -301,6 +334,7 @@ export type EventPayload =
   | LlmResponsePayload
   | AlertTriggeredPayload
   | AlertResolvedPayload
+  | EvalResultPayload
   | CustomPayload;
 
 // ─── Core Event Record ──────────────────────────────────────────────

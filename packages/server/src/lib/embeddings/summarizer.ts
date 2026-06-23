@@ -87,6 +87,14 @@ export function summarizeEvent(event: AgentLensEvent): string | null {
       return `llm_response: ${model} - ${truncate(completion, 200)}`;
     }
 
+    case 'eval_result': {
+      const p = payload as { scorerType?: unknown; passed?: unknown; violations?: unknown };
+      const scorer = safeString(p.scorerType, 'eval');
+      const verdict = p.passed ? 'passed' : 'failed';
+      const nViolations = Array.isArray(p.violations) ? p.violations.length : 0;
+      return `eval_result: ${scorer} ${verdict}${nViolations ? ` (${nViolations} violation(s))` : ''}`;
+    }
+
     default: {
       // Embed events with error or critical severity regardless of type
       if (event.severity === 'error' || event.severity === 'critical') {

@@ -221,7 +221,7 @@ export async function registerRoutes(
   if (db) {
     app.route('/api/benchmarks', benchmarkRoutes(store, db));
     app.route('/api/prompts', promptRoutes(db));
-    app.route('/api/eval', evalRoutes(db));
+    app.route('/api/eval', evalRoutes(db, store));
   }
 
   // ─── Guardrails / Proactive Guardrails ────────────────

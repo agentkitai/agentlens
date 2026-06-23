@@ -49,6 +49,14 @@ describe('Story 2.3: Zod Validation Schemas', () => {
       expect(eventTypeSchema.safeParse(null).success).toBe(false);
       expect(eventTypeSchema.safeParse(undefined).success).toBe(false);
     });
+
+    it('must NOT accept server-only event types (clients cannot forge them)', () => {
+      // eval_result is emitted server-side and hash-chained as compliance
+      // evidence; a client must not be able to ingest a forged one. Keep these
+      // out of the ingest enum even though they are valid EventType values.
+      expect(eventTypeSchema.safeParse('eval_result').success).toBe(false);
+      expect(eventTypeSchema.safeParse('error').success).toBe(false);
+    });
   });
 
   describe('severitySchema', () => {

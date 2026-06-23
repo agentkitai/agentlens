@@ -6,7 +6,14 @@
 import { z } from 'zod';
 
 /**
- * Schema for validating event types
+ * Schema for validating CLIENT-INGESTIBLE event types (POST /api/events).
+ *
+ * This is intentionally a SUBSET of the EventType union / EVENT_TYPES: it omits
+ * server-only types — notably `eval_result` (and `error`) — so a client cannot
+ * forge eval/compliance evidence by ingesting it directly. Server-emitted
+ * events (e.g. compliance scoring) bypass this schema and are chained
+ * server-side. Keep `eval_result` OUT of this list. (Guarded by a test in
+ * schemas.test.ts.)
  */
 export const eventTypeSchema = z.enum([
   'session_started',
@@ -251,6 +258,49 @@ export const ingestEventSchema = z
  * Type inferred from the ingest event schema
  */
 export type IngestEventInput = z.infer<typeof ingestEventSchema>;
+
+// ─── Compliance Eval Schemas (#55) ──────────────────────────────────
+
+/**
+ * A single deterministic compliance rule. Validates untrusted rule JSON at the
+ * POST /api/eval/sessions/:id/compliance trust boundary so malformed rules are
+ * rejected (400) rather than crashing or silently mis-scoring the evaluator.
+ */
+export const complianceRuleSchema = z.discriminatedUnion('type', [
+  z.object({
+    id: z.string().min(1),
+    type: z.literal('tool_denylist'),
+    description: z.string().optional(),
+    tools: z.array(z.string().min(1)).min(1),
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal('tool_allowlist'),
+    description: z.string().optional(),
+    tools: z.array(z.string().min(1)).min(1),
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal('max_cost'),
+    description: z.string().optional(),
+    maxUsd: z.number().nonnegative().finite(),
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal('no_severity_above'),
+    description: z.string().optional(),
+    severity: severitySchema,
+  }),
+]);
+
+export const complianceScoreRequestSchema = z.object({
+  rules: z.array(complianceRuleSchema).min(1),
+  /** Optional score-based pass threshold in [0, 1]; omit for strict (any violation fails) */
+  passThreshold: z.number().min(0).max(1).optional(),
+  agentId: z.string().min(1).optional(),
+});
+
+export type ComplianceScoreRequest = z.infer<typeof complianceScoreRequestSchema>;
 
 // ─── Health Score Schemas (Story 1.1) ───────────────────────────────
 
