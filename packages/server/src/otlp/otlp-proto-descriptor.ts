@@ -1,6 +1,7 @@
 // GENERATED — do not edit. protobufjs JSON descriptor for the OTLP collector
-// service requests, from opentelemetry-proto v1.3.2. Regenerate with:
-//   node scripts/gen-otlp-descriptor.mjs
+// service requests, built from the vendored opentelemetry-proto v1.3.2 .proto
+// files in ./proto. Regenerate with:  node scripts/gen-otlp-descriptor.mjs
+// (the otlp-descriptor drift test fails if this file and ./proto disagree).
 // Owns the OTLP binary decode so the receiver doesn't depend on
 // @opentelemetry/otlp-transformer internals (see #52).
 

@@ -164,6 +164,36 @@ describe('OTLP Protobuf Support', () => {
     expect(llmResponse!.severity).toBe('error'); // would be 'info' if enums decoded as strings
   });
 
+  it('should decode protobuf histogram metrics (surfacing the sum)', async () => {
+    const { app, store } = makeApp();
+    const buf = encodeOtlpProtobuf('opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest', {
+      resourceMetrics: [{
+        resource: { attributes: [] },
+        scopeMetrics: [{
+          metrics: [{
+            name: 'openclaw.latency.ms',
+            histogram: {
+              aggregationTemporality: 2,
+              dataPoints: [{
+                count: '4',
+                sum: 88.5,
+                timeUnixNano: '1700000000000000000',
+                attributes: [{ key: 'openclaw.sessionId', value: { stringValue: 'sess-pb-hist' } }],
+              }],
+            },
+          }],
+        }],
+      }],
+    });
+    const res = await app.request('/v1/metrics', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-protobuf' }, body: buf,
+    });
+    expect(res.status).toBe(200);
+    const events = (await store.queryEvents({ sessionId: 'sess-pb-hist' })).events;
+    expect(events).toHaveLength(1);
+    expect((events[0]!.payload as { data: { value: number } }).data.value).toBe(88.5);
+  });
+
   it('should decode protobuf logs and ingest as events', async () => {
     const { app, store } = makeApp();
     const buf = encodeOtlpProtobuf('opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest', {
@@ -392,6 +422,124 @@ describe('OTLP Metrics Endpoint', () => {
     const payload = events[0]!.payload as { type: string; data: { name: string; value: number } };
     expect(payload.type).toBe('otlp_metric');
     expect(payload.data.value).toBe(500);
+  });
+
+  it('ingests histogram metrics (surfacing the sum), not silently dropping them', async () => {
+    const { app, store } = makeApp();
+    const body = {
+      resourceMetrics: [{
+        resource: { attributes: [] },
+        scopeMetrics: [{
+          metrics: [{
+            name: 'openclaw.latency.ms',
+            histogram: {
+              dataPoints: [{
+                sum: 123.5,
+                count: '7',
+                timeUnixNano: '1700000000000000000',
+                attributes: [{ key: 'openclaw.sessionId', value: { stringValue: 'sess-hist' } }],
+              }],
+            },
+          }],
+        }],
+      }],
+    };
+    const res = await app.request('/v1/metrics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+    const events = (await store.queryEvents({ sessionId: 'sess-hist' })).events;
+    expect(events).toHaveLength(1);
+    const payload = events[0]!.payload as { type: string; data: { name: string; value: number } };
+    expect(payload.type).toBe('otlp_metric');
+    expect(payload.data.value).toBe(123.5); // the histogram's summed total
+  });
+
+  it('does not crash or ingest on unsupported (summary) metric aggregations', async () => {
+    const { app, store } = makeApp();
+    const body = {
+      resourceMetrics: [{
+        resource: { attributes: [] },
+        scopeMetrics: [{
+          metrics: [{
+            name: 'some.summary.metric',
+            summary: { dataPoints: [{ sum: 9, count: '2', attributes: [{ key: 'openclaw.sessionId', value: { stringValue: 'sess-summary' } }] }] },
+          }],
+        }],
+      }],
+    };
+    const res = await app.request('/v1/metrics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200); // accepted, but no event produced (warned, not silent)
+    const events = (await store.queryEvents({ sessionId: 'sess-summary' })).events;
+    expect(events).toHaveLength(0);
+  });
+
+  it('does not crash or ingest on unsupported (exponentialHistogram) aggregations', async () => {
+    const { app, store } = makeApp();
+    const body = {
+      resourceMetrics: [{
+        resource: { attributes: [] },
+        scopeMetrics: [{
+          metrics: [{
+            name: 'some.exp.metric',
+            exponentialHistogram: { dataPoints: [{ sum: 5, count: '3', attributes: [{ key: 'openclaw.sessionId', value: { stringValue: 'sess-exp' } }] }] },
+          }],
+        }],
+      }],
+    };
+    const res = await app.request('/v1/metrics', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+    expect((await store.queryEvents({ sessionId: 'sess-exp' })).events).toHaveLength(0);
+  });
+
+  it('does NOT treat a histogram named openclaw.cost.usd as cost (no inflated spend)', async () => {
+    const { app, store } = makeApp();
+    const body = {
+      resourceMetrics: [{
+        resource: { attributes: [] },
+        scopeMetrics: [{
+          metrics: [{
+            name: 'openclaw.cost.usd', // misconfigured as a histogram
+            histogram: { dataPoints: [{ sum: 9999, count: '1', attributes: [{ key: 'openclaw.sessionId', value: { stringValue: 'sess-costhist' } }] }] },
+          }],
+        }],
+      }],
+    };
+    const res = await app.request('/v1/metrics', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+    const events = (await store.queryEvents({ sessionId: 'sess-costhist' })).events;
+    expect(events).toHaveLength(1);
+    expect(events[0]!.eventType).toBe('custom'); // generic otlp_metric, NOT cost_tracked
+  });
+
+  it('skips histogram data points with no sum rather than ingesting value=0', async () => {
+    const { app, store } = makeApp();
+    const body = {
+      resourceMetrics: [{
+        resource: { attributes: [] },
+        scopeMetrics: [{
+          metrics: [{
+            name: 'openclaw.count.only',
+            histogram: { dataPoints: [{ count: '5', attributes: [{ key: 'openclaw.sessionId', value: { stringValue: 'sess-nosum' } }] }] },
+          }],
+        }],
+      }],
+    };
+    const res = await app.request('/v1/metrics', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+    expect((await store.queryEvents({ sessionId: 'sess-nosum' })).events).toHaveLength(0);
   });
 });
 
