@@ -28,6 +28,9 @@ const otlpLogger = createLogger('OTLP');
 // normal operation, so the cap is never reached).
 const warnedServiceNames = new Set<string>();
 const MAX_WARNED_SERVICE_NAMES = 10_000;
+// Metric names already warned about for an unsupported aggregation type (same
+// cap rationale as warnedServiceNames).
+const warnedUnsupportedMetrics = new Set<string>();
 
 // ─── Cost attribution for OTel-ingested GenAI spans ─────────────────
 // OTel instrumentation usually reports tokens but not cost. Reconstruct it
@@ -133,11 +136,29 @@ interface OtlpDataPoint {
   timeUnixNano?: string;
 }
 
+interface OtlpHistogramDataPoint {
+  sum?: number;
+  count?: string | number;
+  attributes?: OtlpKeyValue[];
+  timeUnixNano?: string;
+}
+
 interface OtlpMetric {
   name: string;
   sum?: { dataPoints: OtlpDataPoint[] };
   gauge?: { dataPoints: OtlpDataPoint[] };
-  histogram?: { dataPoints: Array<{ sum?: number; count?: string | number; attributes?: OtlpKeyValue[] }> };
+  histogram?: { dataPoints: OtlpHistogramDataPoint[] };
+  // Modeled only to detect-and-warn — these aggregations aren't ingested.
+  exponentialHistogram?: { dataPoints?: unknown[] };
+  summary?: { dataPoints?: unknown[] };
+}
+
+/** A metric data point normalized to a single scalar across number (sum/gauge)
+ *  and histogram shapes, so every supported metric type ingests uniformly. */
+interface NormalizedMetricPoint {
+  value: number;
+  attributes?: OtlpKeyValue[];
+  timeUnixNano?: string;
 }
 
 interface OtlpScopeMetrics {
@@ -809,6 +830,42 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
   });
 
   // POST /v1/metrics
+  // Normalize a metric to scalar points across sum/gauge (NumberDataPoint) and
+  // histogram (HistogramDataPoint → its `sum`). Returns [] for the aggregation
+  // types we don't ingest (exponentialHistogram, summary), warning once so the
+  // drop is visible rather than silent.
+  const metricToPoints = (metric: OtlpMetric): NormalizedMetricPoint[] => {
+    const numeric = metric.sum?.dataPoints ?? metric.gauge?.dataPoints;
+    if (numeric) {
+      return numeric.map((dp) => ({
+        value: dp.asDouble ?? (dp.asInt !== undefined ? Number(dp.asInt) : 0),
+        attributes: dp.attributes,
+        timeUnixNano: dp.timeUnixNano,
+      }));
+    }
+    if (metric.histogram?.dataPoints) {
+      // A histogram's summed total is the scalar we surface. Skip points with no
+      // `sum` (it's optional in OTLP) rather than emit a misleading 0.
+      return metric.histogram.dataPoints.flatMap((dp) =>
+        dp.sum === undefined
+          ? []
+          : [{ value: dp.sum, attributes: dp.attributes, timeUnixNano: dp.timeUnixNano }],
+      );
+    }
+    // Aggregation types we don't ingest. Warn once (per name, capped) — but only
+    // when there's actually data, so empty metrics don't spam the log.
+    const kind = metric.exponentialHistogram ? 'exponentialHistogram' : metric.summary ? 'summary' : null;
+    const hasData =
+      (metric.exponentialHistogram?.dataPoints?.length ?? metric.summary?.dataPoints?.length ?? 0) > 0;
+    if (kind && hasData && !warnedUnsupportedMetrics.has(metric.name) && warnedUnsupportedMetrics.size < MAX_WARNED_SERVICE_NAMES) {
+      warnedUnsupportedMetrics.add(metric.name);
+      otlpLogger.warn(
+        `OTLP ${kind} metric "${metric.name}" not ingested (only sum, gauge, and histogram are mapped).`,
+      );
+    }
+    return [];
+  };
+
   app.post('/metrics', async (c) => {
     const body: OtlpMetricsPayload | null = await parseOtlpBody(c, 'metrics');
     if (!body?.resourceMetrics) {
@@ -823,44 +880,47 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
 
       for (const sm of rm.scopeMetrics ?? []) {
         for (const metric of sm.metrics ?? []) {
-          const dataPoints = metric.sum?.dataPoints ?? metric.gauge?.dataPoints ?? [];
+          const points = metricToPoints(metric);
+          // Cost is always a sum/gauge counter — never trust a histogram (or other
+          // aggregation) named openclaw.cost.usd as spend; it falls through to a
+          // generic otlp_metric event instead of inflating cost_tracked.
+          const isCostMetric =
+            metric.name === 'openclaw.cost.usd' && (metric.sum !== undefined || metric.gauge !== undefined);
 
-          if (metric.name === 'openclaw.cost.usd') {
-            for (const dp of dataPoints) {
-              const value = dp.asDouble ?? (dp.asInt !== undefined ? Number(dp.asInt) : 0);
+          if (isCostMetric) {
+            for (const p of points) {
               mapped.push({
                 eventType: 'cost_tracked',
                 severity: 'info',
-                sessionId: getAttrStr(dp.attributes, 'openclaw.sessionId') ?? 'otlp-default',
+                sessionId: getAttrStr(p.attributes, 'openclaw.sessionId') ?? 'otlp-default',
                 agentId,
-                timestamp: nanoToIso(dp.timeUnixNano),
+                timestamp: nanoToIso(p.timeUnixNano),
                 metadata: { source: 'otlp_metric', metricName: metric.name },
                 payload: {
-                  provider: getAttrStr(dp.attributes, 'openclaw.provider') ?? 'unknown',
-                  model: getAttrStr(dp.attributes, 'openclaw.model') ?? 'unknown',
+                  provider: getAttrStr(p.attributes, 'openclaw.provider') ?? 'unknown',
+                  model: getAttrStr(p.attributes, 'openclaw.model') ?? 'unknown',
                   inputTokens: 0,
                   outputTokens: 0,
                   totalTokens: 0,
-                  costUsd: value,
+                  costUsd: p.value,
                 },
               });
             }
           } else {
-            for (const dp of dataPoints) {
-              const value = dp.asDouble ?? (dp.asInt !== undefined ? Number(dp.asInt) : 0);
+            for (const p of points) {
               mapped.push({
                 eventType: 'custom',
                 severity: 'info',
-                sessionId: getAttrStr(dp.attributes, 'openclaw.sessionId') ?? 'otlp-default',
+                sessionId: getAttrStr(p.attributes, 'openclaw.sessionId') ?? 'otlp-default',
                 agentId,
-                timestamp: nanoToIso(dp.timeUnixNano),
+                timestamp: nanoToIso(p.timeUnixNano),
                 metadata: { source: 'otlp_metric', metricName: metric.name },
                 payload: {
                   type: 'otlp_metric',
                   data: {
                     name: metric.name,
-                    value,
-                    attributes: attrsToRecord(dp.attributes),
+                    value: p.value,
+                    attributes: attrsToRecord(p.attributes),
                   },
                 },
               });
