@@ -11,7 +11,9 @@
 
 import { Hono } from 'hono';
 import { timingSafeEqual, createHash } from 'node:crypto';
+import protobuf from 'protobufjs';
 import { computeEventHash, truncatePayload, costUsd } from '@agentlensai/core';
+import { OTLP_PROTO_DESCRIPTOR } from '../otlp/otlp-proto-descriptor.js';
 import { nextEventId } from '../lib/event-id.js';
 import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentlensai/core';
 import type { IEventStore } from '@agentlensai/core';
@@ -35,34 +37,33 @@ export function otelCostUsd(model: string, inputTokens: number, outputTokens: nu
   return costUsd(model, inputTokens, outputTokens);
 }
 
-// ─── Protobuf Decoders (lazy-loaded) ────────────────────────────────
+// ─── Protobuf Decoders ──────────────────────────────────────────────
+// Decode incoming binary OTLP requests from a vendored protobufjs descriptor
+// (src/otlp/otlp-proto-descriptor.ts) so the receiver owns the schema rather than
+// reaching into @opentelemetry/otlp-transformer internals (removed in 0.219 — #52).
+// The Root + per-endpoint message types are built once on first use.
+let _decoders: Record<'traces' | 'metrics' | 'logs', protobuf.Type> | null = null;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _protoRoot: Record<string, any> | null = null;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getProtoRoot(): Promise<Record<string, any>> {
-  if (_protoRoot) return _protoRoot;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mod: any = await import('@opentelemetry/otlp-transformer/build/src/generated/root.js');
-  const root = mod.default ?? mod;
-  _protoRoot = root.opentelemetry.proto;
-  return _protoRoot!;
+function getDecoders(): Record<'traces' | 'metrics' | 'logs', protobuf.Type> {
+  if (_decoders) return _decoders;
+  const root = protobuf.Root.fromJSON(OTLP_PROTO_DESCRIPTOR);
+  _decoders = {
+    traces: root.lookupType('opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest'),
+    metrics: root.lookupType('opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest'),
+    logs: root.lookupType('opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest'),
+  };
+  return _decoders;
 }
 
-async function decodeProtobuf(type: 'traces' | 'metrics' | 'logs', buf: Uint8Array): Promise<unknown> {
-  const root = await getProtoRoot();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const typeMap: Record<string, any> = {
-    traces: root['collector'].trace.v1.ExportTraceServiceRequest,
-    metrics: root['collector'].metrics.v1.ExportMetricsServiceRequest,
-    logs: root['collector'].logs.v1.ExportLogsServiceRequest,
-  };
-  const MessageType = typeMap[type];
-  const decoded = MessageType.decode(buf);
-  return MessageType.toObject(decoded, {
+function decodeProtobuf(type: 'traces' | 'metrics' | 'logs', buf: Uint8Array): unknown {
+  const MessageType = getDecoders()[type];
+  // longs→String (precision), bytes→base64, fill defaults. Enums stay NUMERIC so
+  // status.code matches the numeric constants the mapping compares against (e.g.
+  // OTEL_STATUS_ERROR=2) — the same shape the JSON path produces. (The previous
+  // otlp-transformer path used enums:String, which silently broke the protobuf
+  // error-status check; spans with status.code=2 mapped to 'info' severity.)
+  return MessageType.toObject(MessageType.decode(buf), {
     longs: String,
-    enums: String,
     bytes: String,
     defaults: true,
   });

@@ -3,7 +3,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
+import protobuf from 'protobufjs';
 import { otlpRoutes } from '../routes/otlp.js';
+import { OTLP_PROTO_DESCRIPTOR } from '../otlp/otlp-proto-descriptor.js';
 import { createTestDb } from '../db/index.js';
 import { runMigrations } from '../db/migrate.js';
 import { SqliteEventStore } from '../db/sqlite-store.js';
@@ -42,13 +44,15 @@ function makeTracesPayload(spans: Array<{
   };
 }
 
-// Helper to encode a traces payload as protobuf
-async function encodeTracesProtobuf(payload: ReturnType<typeof makeTracesPayload>): Promise<Uint8Array> {
-  const mod = await import('@opentelemetry/otlp-transformer/build/src/generated/root.js' as string);
-  const root = ((mod as any).default ?? mod).opentelemetry.proto;
-  const T = root.collector.trace.v1.ExportTraceServiceRequest;
-  const msg = T.create(payload);
-  return T.encode(msg).finish();
+// Encode an OTLP request as protobuf using the same vendored descriptor the
+// receiver decodes with, so these are true round-trips.
+function encodeOtlpProtobuf(typeName: string, payload: object): Uint8Array {
+  const root = protobuf.Root.fromJSON(OTLP_PROTO_DESCRIPTOR);
+  const T = root.lookupType(typeName);
+  return T.encode(T.create(payload)).finish();
+}
+function encodeTracesProtobuf(payload: ReturnType<typeof makeTracesPayload>): Uint8Array {
+  return encodeOtlpProtobuf('opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest', payload);
 }
 
 describe('OTLP Protobuf Support', () => {
@@ -88,6 +92,103 @@ describe('OTLP Protobuf Support', () => {
     });
     // Invalid protobuf may decode as empty or fail — either 200 with no events or 400
     expect([200, 400]).toContain(res.status);
+  });
+
+  it('should decode protobuf metrics and ingest as events', async () => {
+    const { app, store } = makeApp();
+    const buf = encodeOtlpProtobuf('opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest', {
+      resourceMetrics: [{
+        resource: { attributes: [{ key: 'service.name', value: { stringValue: 'openclaw' } }] },
+        scopeMetrics: [{
+          metrics: [{
+            name: 'openclaw.cost.usd',
+            sum: {
+              dataPoints: [{
+                asDouble: 0.05,
+                timeUnixNano: '1700000000000000000',
+                attributes: [
+                  { key: 'openclaw.provider', value: { stringValue: 'anthropic' } },
+                  { key: 'openclaw.sessionId', value: { stringValue: 'sess-pb-metric' } },
+                ],
+              }],
+            },
+          }],
+        }],
+      }],
+    });
+    const res = await app.request('/v1/metrics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-protobuf' },
+      body: buf,
+    });
+    expect(res.status).toBe(200);
+    const events = (await store.queryEvents({ sessionId: 'sess-pb-metric' })).events;
+    expect(events).toHaveLength(1);
+    expect(events[0]!.eventType).toBe('cost_tracked');
+  });
+
+  it('should decode protobuf gen_ai error status (numeric enum) as error severity', async () => {
+    const { app, store } = makeApp();
+    // A gen_ai chat span with an ERROR status, sent as protobuf. status.code must
+    // decode to the NUMERIC 2 (not the string 'STATUS_CODE_ERROR') for the
+    // error-severity check to fire — guards the enums-stay-numeric decode option.
+    const buf = encodeOtlpProtobuf('opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest', {
+      resourceSpans: [{
+        scopeSpans: [{
+          spans: [{
+            name: 'chat gpt-4o',
+            traceId: new Uint8Array(16),
+            spanId: new Uint8Array(8),
+            startTimeUnixNano: '1700000000000000000',
+            endTimeUnixNano: '1700000002000000000',
+            status: { code: 2 }, // STATUS_CODE_ERROR
+            attributes: [
+              { key: 'session.id', value: { stringValue: 'sess-pb-genai-err' } },
+              { key: 'gen_ai.system', value: { stringValue: 'openai' } },
+              { key: 'gen_ai.operation.name', value: { stringValue: 'chat' } },
+              { key: 'gen_ai.request.model', value: { stringValue: 'gpt-4o' } },
+            ],
+          }],
+        }],
+      }],
+    });
+    const res = await app.request('/v1/traces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-protobuf' },
+      body: buf,
+    });
+    expect(res.status).toBe(200);
+    const events = (await store.queryEvents({ sessionId: 'sess-pb-genai-err' })).events;
+    const llmResponse = events.find((e) => e.eventType === 'llm_response');
+    expect(llmResponse).toBeDefined();
+    expect(llmResponse!.severity).toBe('error'); // would be 'info' if enums decoded as strings
+  });
+
+  it('should decode protobuf logs and ingest as events', async () => {
+    const { app, store } = makeApp();
+    const buf = encodeOtlpProtobuf('opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest', {
+      resourceLogs: [{
+        resource: { attributes: [] },
+        scopeLogs: [{
+          logRecords: [{
+            body: { stringValue: 'pb log line' },
+            severityText: 'WARN',
+            severityNumber: 13,
+            timeUnixNano: '1700000000000000000',
+            attributes: [{ key: 'openclaw.sessionId', value: { stringValue: 'sess-pb-log' } }],
+          }],
+        }],
+      }],
+    });
+    const res = await app.request('/v1/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-protobuf' },
+      body: buf,
+    });
+    expect(res.status).toBe(200);
+    const events = (await store.queryEvents({ sessionId: 'sess-pb-log' })).events;
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload).toMatchObject({ type: 'otlp_log' });
   });
 });
 
