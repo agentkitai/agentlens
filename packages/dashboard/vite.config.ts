@@ -26,9 +26,8 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          recharts: ['recharts'],
-        },
+        // Function form (object form isn't supported by Vite 8's Rolldown bundler).
+        manualChunks: (id) => (id.includes('node_modules/recharts') ? 'recharts' : undefined),
       },
     },
   },
