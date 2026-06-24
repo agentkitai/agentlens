@@ -10,6 +10,7 @@
  *   AGENTLENS_API_KEY          — API key for authentication (optional)
  *   AGENTLENS_MCP_TOOLS        — Comma-separated allowlist of tool names to register
  *   AGENTLENS_MCP_TOOLS_EXCLUDE — Comma-separated denylist of tool names to exclude
+ *   AGENTLENS_MCP_PROBE_TIMEOUT_MS — Capability-probe timeout in ms (default: 1500)
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';

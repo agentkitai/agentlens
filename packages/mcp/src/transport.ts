@@ -584,12 +584,21 @@ export class AgentLensTransport {
   // ─── Server Info / Auto-Discovery (Feature 10, Story 10.3) ───
 
   async probeCapabilities(): Promise<ServerInfo | null> {
+    // The stdio entrypoint awaits this probe before connecting the transport
+    // (see ../index.ts main()), so an MCP client can't complete `initialize`
+    // until it resolves. Keep the budget tight: an unreachable or slow
+    // AGENTLENS_URL must not stall the handshake (e.g. a remote host that drops
+    // packets won't fail fast like localhost does). The probe is fail-open —
+    // null just skips capability filtering and registers all tools — so a
+    // timeout degrades gracefully rather than breaking the server. Override via
+    // AGENTLENS_MCP_PROBE_TIMEOUT_MS for a legitimately slow backend.
+    const timeoutMs = Number(process.env['AGENTLENS_MCP_PROBE_TIMEOUT_MS']) || 1500;
     try {
       const url = `${this.baseUrl}/api/server-info`;
       const response = await fetch(url, {
         method: 'GET',
         headers: this.buildHeaders(),
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) return null;
       return (await response.json()) as ServerInfo;
