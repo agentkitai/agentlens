@@ -1,8 +1,8 @@
-import { request, toQueryString } from './core';
-import type { EvalDataset, EvalTestCase, EvalInput, ScorerConfig } from '@agentlensai/core';
+import { request, toQueryString, ApiError } from './core';
+import type { EvalDataset, EvalTestCase, EvalInput, ScorerConfig, EvaluatorDefinition, ScorerType } from '@agentlensai/core';
 
 // Re-export for convenience
-export type { EvalDataset, EvalTestCase };
+export type { EvalDataset, EvalTestCase, EvaluatorDefinition, ScorerType };
 
 export interface EvalDatasetListResponse {
   datasets: EvalDataset[];
@@ -112,4 +112,54 @@ export async function createDatasetVersion(
     `/api/eval/datasets/${encodeURIComponent(datasetId)}/versions`,
     { method: 'POST' },
   );
+}
+
+// ─── Evaluator Catalog (#55 Phase 4) ───────────────────────
+
+export async function listEvaluators(params?: {
+  scorerType?: string;
+  tag?: string;
+  status?: string;
+  builtin?: boolean;
+  verified?: boolean;
+}): Promise<{ evaluators: EvaluatorDefinition[] }> {
+  const qs = toQueryString({
+    scorerType: params?.scorerType,
+    tag: params?.tag,
+    status: params?.status,
+    builtin: params?.builtin,
+    verified: params?.verified,
+  });
+  return request<{ evaluators: EvaluatorDefinition[] }>(`/api/eval/evaluators${qs}`);
+}
+
+export async function getEvaluator(id: string): Promise<EvaluatorDefinition> {
+  return request<EvaluatorDefinition>(`/api/eval/evaluators/${encodeURIComponent(id)}`);
+}
+
+export async function createEvaluator(data: {
+  name: string;
+  description?: string;
+  scorerType: ScorerType;
+  configTemplate: Record<string, unknown>;
+  tags?: string[];
+}): Promise<EvaluatorDefinition> {
+  return request<EvaluatorDefinition>('/api/eval/evaluators', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function publishEvaluator(id: string): Promise<EvaluatorDefinition> {
+  return request<EvaluatorDefinition>(`/api/eval/evaluators/${encodeURIComponent(id)}/publish`, { method: 'POST' });
+}
+
+export async function verifyEvaluator(id: string): Promise<EvaluatorDefinition> {
+  return request<EvaluatorDefinition>(`/api/eval/evaluators/${encodeURIComponent(id)}/verify`, { method: 'POST' });
+}
+
+/** DELETE returns 204 (no body) — handle directly so we don't res.json() an empty body. */
+export async function deleteEvaluator(id: string): Promise<void> {
+  const res = await fetch(`/api/eval/evaluators/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new ApiError(res.status, (await res.text().catch(() => '')) || `HTTP ${res.status}`);
 }
