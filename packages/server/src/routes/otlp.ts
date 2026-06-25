@@ -21,6 +21,7 @@ import { eventBus } from '../lib/event-bus.js';
 import type { ServerConfig } from '../config.js';
 import type { PromptStore } from '../db/prompt-store.js';
 import { recordPromptFingerprints } from '../lib/prompt-fingerprint.js';
+import { verifyAgentToken, stampVerifiedAgent } from '../lib/agent-identity.js';
 import { createLogger } from '../lib/logger.js';
 
 const otlpLogger = createLogger('OTLP');
@@ -611,6 +612,7 @@ async function buildAndInsertEvents(
   tenantStore: IEventStore,
   mappedEvents: MappedEvent[],
   tenantId: string = 'default',
+  verifiedAgentId: string | null = null,
 ): Promise<AgentLensEvent[]> {
   if (mappedEvents.length === 0) return [];
 
@@ -637,6 +639,12 @@ async function buildAndInsertEvents(
     for (const input of ordered) {
       const id = nextEventId();
       const payload = truncatePayload(input.payload);
+      // Stamp the server-verified agent id into the (server-built) metadata so it
+      // is hashed like every other field and the Slice-A verified_agent_id column
+      // is derived from it at insert (#88). stampVerifiedAgent also strips the
+      // reserved keys, so an OTLP caller can never forge a verified id; an
+      // unverified span (verifiedAgentId=null) keeps its metadata byte-for-byte.
+      const metadata = stampVerifiedAgent(input.metadata, verifiedAgentId);
       const hash = computeEventHash({
         id,
         timestamp: input.timestamp,
@@ -645,7 +653,7 @@ async function buildAndInsertEvents(
         eventType: input.eventType,
         severity: input.severity,
         payload,
-        metadata: input.metadata,
+        metadata,
         prevHash,
       });
 
@@ -657,7 +665,7 @@ async function buildAndInsertEvents(
         eventType: input.eventType,
         severity: input.severity,
         payload,
-        metadata: input.metadata,
+        metadata,
         prevHash,
         hash,
         tenantId,
@@ -848,7 +856,11 @@ export function otlpRoutes(
       return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
     }
 
-    const inserted = await buildAndInsertEvents(tenantStore, mapped, otlpTenantId);
+    // Verification gate (#88): an AgentGate agent token (X-Agent-Token, e.g. via
+    // OTEL_EXPORTER_OTLP_HEADERS) yields a server-authoritative verified id; a
+    // spoofed agentlens.agentId without a valid token stays unverified.
+    const verifiedAgentId = await verifyAgentToken(c.req.header('x-agent-token'));
+    const inserted = await buildAndInsertEvents(tenantStore, mapped, otlpTenantId, verifiedAgentId);
     // Auto-discover prompt templates from ingested llm_call events (best-effort).
     recordPromptFingerprints(promptStore ?? null, inserted);
     return c.json({ partialSuccess: {} }, 200);
@@ -962,7 +974,8 @@ export function otlpRoutes(
       if (metricTenantId === null) {
         return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
       }
-      const inserted = await buildAndInsertEvents(tenantStore, mapped, metricTenantId);
+      const verifiedAgentId = await verifyAgentToken(c.req.header('x-agent-token'));
+      const inserted = await buildAndInsertEvents(tenantStore, mapped, metricTenantId, verifiedAgentId);
       // Symmetry with the traces path; metrics don't emit llm_call today, so this
       // no-ops, but keeps fingerprinting wired if that ever changes.
       recordPromptFingerprints(promptStore ?? null, inserted);
@@ -1018,7 +1031,8 @@ export function otlpRoutes(
       if (logTenantId === null) {
         return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
       }
-      const inserted = await buildAndInsertEvents(tenantStore, mapped, logTenantId);
+      const verifiedAgentId = await verifyAgentToken(c.req.header('x-agent-token'));
+      const inserted = await buildAndInsertEvents(tenantStore, mapped, logTenantId, verifiedAgentId);
       recordPromptFingerprints(promptStore ?? null, inserted);
     }
     return c.json({ partialSuccess: {} }, 200);
