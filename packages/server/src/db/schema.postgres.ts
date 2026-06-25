@@ -48,6 +48,10 @@ export const events = pgTable(
     // DERIVED at insert from the already-hashed metadata.verifiedAgentId — never
     // part of the hash input. NULL = unverified ("unattributed" in billing mode).
     verifiedAgentId: text('verified_agent_id'),
+    // Pricing provenance (#89): a fingerprint of the active pricing table at
+    // ingest, stamped server-side on cost-bearing events. Lets reconciliation
+    // tell whether a stored cost predates a price change. NULL for non-cost events.
+    pricingVersion: text('pricing_version'),
   },
   (table) => [
     index('idx_events_timestamp').on(table.timestamp),

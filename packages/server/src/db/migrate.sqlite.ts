@@ -166,6 +166,12 @@ export function runMigrations(db: SqliteDb): void {
     db.run(sql`ALTER TABLE events ADD COLUMN verified_agent_id TEXT`);
   }
 
+  // events.pricing_version (reconciliation provenance, #89) — stamped at insert
+  // on cost-bearing events; NULL otherwise.
+  if (!eventColumnNames.has('pricing_version')) {
+    db.run(sql`ALTER TABLE events ADD COLUMN pricing_version TEXT`);
+  }
+
   // sessions.tenant_id
   if (!sessionColumnNames.has('tenant_id')) {
     db.run(sql`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);

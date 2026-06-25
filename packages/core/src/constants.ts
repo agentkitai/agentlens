@@ -36,5 +36,5 @@ export const DEFAULT_HEALTH_WEIGHTS: HealthWeights = {
 /** Default model costs per 1M tokens (input/output). @see \@agentkitai/pricing */
 export const DEFAULT_MODEL_COSTS = EMBEDDED_MODEL_COSTS;
 
-export { lookupModelCost, costUsd, costUsdDetailed, refreshFromLiteLLM } from '@agentkitai/pricing';
-export type { UsageTokens } from '@agentkitai/pricing';
+export { lookupModelCost, costUsd, costUsdDetailed, refreshFromLiteLLM, pricingVersion, getModelCosts, setModelCosts } from '@agentkitai/pricing';
+export type { UsageTokens, ModelRate, ModelCostTable } from '@agentkitai/pricing';

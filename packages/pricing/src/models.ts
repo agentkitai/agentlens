@@ -77,6 +77,29 @@ export function getModelCosts(): ModelCostTable {
 }
 
 /**
+ * A stable content fingerprint of a pricing table — changes iff any rate
+ * changes. Stamped on cost-bearing events at ingest as pricing provenance
+ * (#89), so reconciliation can tell whether a stored cost predates a price
+ * change (FNV-1a over the canonical rate list; pure JS, no crypto dependency).
+ */
+export function pricingVersion(table: ModelCostTable = currentTable): string {
+  const canonical = JSON.stringify(
+    Object.keys(table)
+      .sort()
+      .map((k) => {
+        const r = table[k]!;
+        return [k, r.input, r.output, r.cacheRead ?? null, r.cacheWrite ?? null];
+      }),
+  );
+  let h = 0x811c9dc5;
+  for (let i = 0; i < canonical.length; i++) {
+    h ^= canonical.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return 'pv_' + (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
  * Look up a model's rate. Exact match first, then the longest matching prefix
  * key (so `claude-opus-4-8-20260101` resolves via `claude-opus-4`). Returns
  * undefined for genuinely unknown models.
