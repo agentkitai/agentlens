@@ -67,6 +67,7 @@ export default defineConfig({
           { text: 'Agent Memory', link: '/guide/agent-memory' },
           { text: 'Tenant Isolation', link: '/guide/tenant-isolation' },
           { text: 'Compliance Evals', link: '/compliance-evals' },
+          { text: 'Billing-grade Spend (design)', link: '/billing-grade-spend' },
         ],
       },
       {
