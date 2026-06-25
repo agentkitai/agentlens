@@ -1,0 +1,67 @@
+name: 'AgentLens eval gate'
+description: 'Gate a PR on an AgentLens eval pass-rate (fails the step if below threshold).'
+author: 'agentkitai'
+
+# Composite action wrapping the `agentlens eval-gate` CLI. Two modes:
+#  - dataset run: set dataset-id + agent-id + webhook-url (runs a dataset against a live agent)
+#  - trace scoring: set evaluator-id + (session-ids | agent-id) (scores sessions, no webhook)
+
+inputs:
+  server-url:
+    description: 'AgentLens server URL (e.g. https://lens.example).'
+    required: true
+  api-key:
+    description: 'AgentLens API key (passed via env, not argv). Use a secret.'
+    required: false
+  min-pass-rate:
+    description: 'Gate threshold in [0,1]. Default 0.8.'
+    required: false
+    default: '0.8'
+  # Mode A — dataset run
+  dataset-id:
+    description: 'Eval dataset id (dataset-run mode).'
+    required: false
+  agent-id:
+    description: 'Agent id (dataset-run mode, or trace-scoring recent-sessions mode).'
+    required: false
+  webhook-url:
+    description: 'Agent webhook the runner calls per test case (dataset-run mode).'
+    required: false
+  timeout-seconds:
+    description: 'Max wait for a dataset run to finish (dataset-run mode).'
+    required: false
+  # Mode B — trace scoring
+  evaluator-id:
+    description: 'Catalog evaluator id (trace-scoring mode).'
+    required: false
+  session-ids:
+    description: 'Comma-separated session ids to score (trace-scoring mode).'
+    required: false
+  limit:
+    description: 'How many recent sessions to score with agent-id (trace-scoring mode).'
+    required: false
+  cli-version:
+    description: 'Version of @agentlensai/cli to run.'
+    required: false
+    default: 'latest'
+
+runs:
+  using: composite
+  steps:
+    - name: Run AgentLens eval gate
+      shell: bash
+      env:
+        AGENTLENS_API_KEY: ${{ inputs.api-key }}
+      run: |
+        set -euo pipefail
+        args=( --url "${{ inputs.server-url }}" --min-pass-rate "${{ inputs.min-pass-rate }}" )
+        # if/then/fi (not `[ -n x ] && ...`) so an empty optional input can never
+        # abort the step under set -e regardless of line order.
+        if [ -n "${{ inputs.dataset-id }}" ];      then args+=( --dataset-id "${{ inputs.dataset-id }}" ); fi
+        if [ -n "${{ inputs.evaluator-id }}" ];    then args+=( --evaluator-id "${{ inputs.evaluator-id }}" ); fi
+        if [ -n "${{ inputs.agent-id }}" ];        then args+=( --agent-id "${{ inputs.agent-id }}" ); fi
+        if [ -n "${{ inputs.webhook-url }}" ];     then args+=( --webhook-url "${{ inputs.webhook-url }}" ); fi
+        if [ -n "${{ inputs.session-ids }}" ];     then args+=( --session-ids "${{ inputs.session-ids }}" ); fi
+        if [ -n "${{ inputs.limit }}" ];           then args+=( --limit "${{ inputs.limit }}" ); fi
+        if [ -n "${{ inputs.timeout-seconds }}" ]; then args+=( --timeout-seconds "${{ inputs.timeout-seconds }}" ); fi
+        npx -y "@agentlensai/cli@${{ inputs.cli-version }}" eval-gate "${args[@]}"
