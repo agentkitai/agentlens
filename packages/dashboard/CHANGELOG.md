@@ -1,5 +1,12 @@
 # @agentlensai/dashboard
 
+## 0.13.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @agentlensai/core@0.16.0
+
 ## 0.13.2
 
 ### Patch Changes

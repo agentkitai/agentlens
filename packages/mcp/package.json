@@ -1,6 +1,6 @@
 {
   "name": "@agentlensai/mcp",
-  "version": "0.13.4",
+  "version": "0.13.5",
   "mcpName": "io.github.agentkitai/agentlens",
   "description": "MCP server for AgentLens — instrument AI agents with zero code changes",
   "type": "module",
