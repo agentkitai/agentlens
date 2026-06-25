@@ -13,13 +13,18 @@
 import { Hono } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import { sql, type SQL } from 'drizzle-orm';
-import type { IEventStore } from '@agentlensai/core';
+import { guardrailBreachRequestSchema } from '@agentlensai/core';
+import type { EvalResultPayload, IEventStore } from '@agentlensai/core';
 import type { SqliteDb } from '../db/index.js';
 import type { PostgresDb } from '../db/connection.postgres.js';
 import { getConfig } from '../config.js';
 import { createLogger } from '../lib/logger.js';
+import { tenantScopedStore } from './tenant-helper.js';
+import { appendEventToSession } from '../lib/append-event.js';
+import { buildBreachEvalResult } from '../lib/eval/index.js';
+import { HashChainError } from '../db/errors.js';
 
-const log = createLogger('InternalSpend');
+const log = createLogger('Internal');
 
 /** Numeric JSON field extraction, dialect-aware (mirrors analytics.ts). */
 function jn(isPg: boolean, field: string): SQL {
@@ -39,7 +44,7 @@ function tokenMatches(presented: string, expected: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export function internalRoutes(_store: IEventStore, db: SqliteDb, pgDb?: PostgresDb) {
+export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: PostgresDb) {
   const app = new Hono();
   const isPg = !!pgDb;
   const qdb = pgDb ?? null;
@@ -115,6 +120,62 @@ export function internalRoutes(_store: IEventStore, db: SqliteDb, pgDb?: Postgre
         lastEventAt: r.lastEventAt ?? null,
       })),
     });
+  });
+
+  // POST /api/internal/eval/guardrail-breach — record an AgentGate guardrail
+  // breach as a hash-chained compliance eval_result in the session's audit trail
+  // (#55 — the gate→lens wedge). The gate calls this fire-and-forget (fail-open),
+  // passing the session it observed the breach in. eval_result stays
+  // server-authoritative; this is reached only with the service token.
+  app.post('/eval/guardrail-breach', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsed = guardrailBreachRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({
+        error: 'Validation failed',
+        details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })),
+      }, 400);
+    }
+    const { tenantId, sessionId, agentId, breach } = parsed.data;
+
+    const tenantStore = tenantScopedStore(store, tenantId);
+    // Append even to an empty/unseen session: the gate is trusted and a breach
+    // must never go unrecorded. An empty timeline starts a fresh chain (genesis).
+    const timeline = await tenantStore.getSessionTimeline(sessionId);
+    const payload: EvalResultPayload = buildBreachEvalResult(timeline, breach);
+
+    let event;
+    try {
+      event = await appendEventToSession(tenantStore, {
+        tenantId,
+        sessionId,
+        agentId,
+        eventType: 'eval_result',
+        severity: 'warn',
+        payload,
+        metadata: { source: 'guardrail_breach', gateSource: breach.source, ruleId: breach.ruleId },
+      });
+    } catch (err) {
+      // Only a chain-continuity race is retryable (409). Surface a generic
+      // message — the detail (event ids / hashes) goes to logs, not the caller.
+      if (err instanceof HashChainError) {
+        log.warn(`guardrail breach append raced on session ${sessionId}: ${err.message}`);
+        return c.json({ error: 'Failed to record eval result (chain conflict); retry.' }, 409);
+      }
+      log.error(`guardrail breach append failed for session ${sessionId}: ${(err as Error).message}`);
+      return c.json({ error: 'Failed to record eval result.' }, 500);
+    }
+
+    log.debug(`guardrail breach recorded for session ${sessionId} (tenant ${tenantId}, source ${breach.source})`);
+    return c.json({
+      sessionId,
+      recorded: true,
+      score: payload.score,
+      passed: payload.passed,
+      violations: payload.violations,
+      rulesEvaluated: payload.rulesEvaluated,
+      event: { id: event.id, hash: event.hash, prevHash: event.prevHash },
+    }, 201);
   });
 
   return app;

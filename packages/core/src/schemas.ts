@@ -320,6 +320,34 @@ export const judgeScoreRequestSchema = z.object({
 
 export type JudgeScoreRequest = z.infer<typeof judgeScoreRequestSchema>;
 
+/**
+ * Service-to-service request (from AgentGate) to record a guardrail breach as a
+ * hash-chained compliance `eval_result` in a session's audit trail (#55 — the
+ * gate→lens wedge). AgentGate holds no AgentLens session of its own, so it passes
+ * the session it observed the breach in explicitly. Authenticated by
+ * AGENTGATE_SERVICE_TOKEN; tenant comes from the (org-scoped) body.
+ */
+export const guardrailBreachRequestSchema = z.object({
+  tenantId: z.string().min(1),
+  sessionId: z.string().min(1),
+  agentId: z.string().min(1),
+  breach: z.object({
+    /** The gate rule/policy id that was breached. */
+    ruleId: z.string().min(1),
+    /** Gate rule type (free-form, e.g. 'tool_denylist', 'budget', 'policy'). */
+    ruleType: z.string().min(1).optional(),
+    /** The tool/action that was denied, if applicable. */
+    tool: z.string().min(1).optional(),
+    description: z.string().optional(),
+    /** Human-readable denial reason from the gate. */
+    reason: z.string().optional(),
+    /** Where in AgentGate this fired, e.g. 'mcp_guardrail' | 'reactive_guardrail'. */
+    source: z.string().min(1),
+  }),
+});
+
+export type GuardrailBreachRequest = z.infer<typeof guardrailBreachRequestSchema>;
+
 // ─── Health Score Schemas (Story 1.1) ───────────────────────────────
 
 export const HealthDimensionSchema = z.object({

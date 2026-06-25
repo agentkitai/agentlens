@@ -17,6 +17,7 @@ export {
 // AgentGate gate→lens breach loop), which call evaluateCompliance() directly — it
 // needs the session's events, which the dataset-run ScorerContext doesn't carry.
 export { evaluateCompliance, matchTool, type ComplianceEvalResult } from './compliance.js';
+export { buildBreachEvalResult, type GuardrailBreach } from './guardrail-breach.js';
 export { EvalRunner } from './runner.js';
 
 import { ScorerRegistry } from './scorers/index.js';
