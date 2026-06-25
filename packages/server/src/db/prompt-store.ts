@@ -336,15 +336,17 @@ export class PromptStore {
     tenantId: string,
     agentId: string,
     sampleContent?: string,
+    count = 1,
   ): void {
     const now = new Date().toISOString();
     const sample = sampleContent?.slice(0, 2000) ?? null;
+    const inc = Math.max(1, Math.trunc(count));
 
     this.db.run(sql`
       INSERT INTO prompt_fingerprints (content_hash, tenant_id, agent_id, first_seen_at, last_seen_at, call_count, sample_content)
-      VALUES (${hash}, ${tenantId}, ${agentId}, ${now}, ${now}, ${1}, ${sample})
+      VALUES (${hash}, ${tenantId}, ${agentId}, ${now}, ${now}, ${inc}, ${sample})
       ON CONFLICT (content_hash, tenant_id, agent_id)
-      DO UPDATE SET last_seen_at = ${now}, call_count = call_count + 1
+      DO UPDATE SET last_seen_at = ${now}, call_count = call_count + ${inc}
     `);
   }
 

@@ -19,6 +19,8 @@ import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@ag
 import type { IEventStore } from '@agentlensai/core';
 import { eventBus } from '../lib/event-bus.js';
 import type { ServerConfig } from '../config.js';
+import type { PromptStore } from '../db/prompt-store.js';
+import { recordPromptFingerprints } from '../lib/prompt-fingerprint.js';
 import { createLogger } from '../lib/logger.js';
 
 const otlpLogger = createLogger('OTLP');
@@ -710,7 +712,11 @@ export function resetRateLimiter(): void {
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 
-export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfig, 'otlpAuthToken' | 'otlpRateLimit' | 'multiTenantMode'>>) {
+export function otlpRoutes(
+  store: IEventStore,
+  config?: Partial<Pick<ServerConfig, 'otlpAuthToken' | 'otlpRateLimit' | 'multiTenantMode'>>,
+  promptStore?: PromptStore | null,
+) {
   const app = new Hono();
   const tenantStore = store;
   const authToken = config?.otlpAuthToken;
@@ -825,7 +831,9 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
       return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
     }
 
-    await buildAndInsertEvents(tenantStore, mapped, otlpTenantId);
+    const inserted = await buildAndInsertEvents(tenantStore, mapped, otlpTenantId);
+    // Auto-discover prompt templates from ingested llm_call events (best-effort).
+    recordPromptFingerprints(promptStore ?? null, inserted);
     return c.json({ partialSuccess: {} }, 200);
   });
 
@@ -937,7 +945,10 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
       if (metricTenantId === null) {
         return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
       }
-      await buildAndInsertEvents(tenantStore, mapped, metricTenantId);
+      const inserted = await buildAndInsertEvents(tenantStore, mapped, metricTenantId);
+      // Symmetry with the traces path; metrics don't emit llm_call today, so this
+      // no-ops, but keeps fingerprinting wired if that ever changes.
+      recordPromptFingerprints(promptStore ?? null, inserted);
     }
     return c.json({ partialSuccess: {} }, 200);
   });
@@ -990,7 +1001,8 @@ export function otlpRoutes(store: IEventStore, config?: Partial<Pick<ServerConfi
       if (logTenantId === null) {
         return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
       }
-      await buildAndInsertEvents(tenantStore, mapped, logTenantId);
+      const inserted = await buildAndInsertEvents(tenantStore, mapped, logTenantId);
+      recordPromptFingerprints(promptStore ?? null, inserted);
     }
     return c.json({ partialSuccess: {} }, 200);
   });
