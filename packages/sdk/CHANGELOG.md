@@ -1,5 +1,12 @@
 # @agentlensai/sdk
 
+## 0.14.4
+
+### Patch Changes
+
+- Updated dependencies [930aa11]
+  - @agentlensai/core@0.18.0
+
 ## 0.14.3
 
 ### Patch Changes
