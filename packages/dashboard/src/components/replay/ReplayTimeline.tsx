@@ -56,6 +56,7 @@ const EVENT_STYLES: Record<string, EventStyle> = {
   llm_response:        { icon: '💬', label: 'LLM Response',       color: 'text-indigo-700', bgColor: 'bg-indigo-50',  borderColor: 'border-indigo-200' },
   alert_triggered:     { icon: '🚨', label: 'Alert Triggered',    color: 'text-red-700',    bgColor: 'bg-red-50',     borderColor: 'border-red-200' },
   alert_resolved:      { icon: '🔔', label: 'Alert Resolved',     color: 'text-green-700',  bgColor: 'bg-green-50',   borderColor: 'border-green-200' },
+  eval_result:         { icon: '⚖️', label: 'Eval Result',        color: 'text-cyan-700',   bgColor: 'bg-cyan-50',    borderColor: 'border-cyan-200' },
   custom:              { icon: '📎', label: 'Custom',             color: 'text-gray-700',   bgColor: 'bg-gray-50',    borderColor: 'border-gray-200' },
 };
 
@@ -80,6 +81,7 @@ const FILTER_CATEGORIES: FilterCategory[] = [
   { key: 'forms',     label: 'Forms',     icon: '📝', eventTypes: new Set(['form_submitted', 'form_completed', 'form_expired']) },
   { key: 'lifecycle', label: 'Lifecycle', icon: '🔄', eventTypes: new Set(['session_started', 'session_ended']) },
   { key: 'cost',      label: 'Cost',      icon: '💰', eventTypes: new Set(['cost_tracked']) },
+  { key: 'evals',     label: 'Evals',     icon: '⚖️', eventTypes: new Set(['eval_result']) },
 ];
 
 // ─── Pairing helpers ────────────────────────────────────────────────
@@ -216,6 +218,12 @@ function getEventSummary(ev: AgentLensEvent): string {
       return `${p.alertName}: ${p.message}`;
     case 'alert_resolved':
       return `${p.alertName} resolved`;
+    case 'eval_result': {
+      const score = typeof p.score === 'number' ? p.score : 0;
+      const violations = (p.violations as unknown[] | undefined)?.length ?? 0;
+      const kind = p.method === 'llm_judge' ? 'AI judgment' : (p.scorerType ?? 'compliance');
+      return `${kind} · ${(score * 100).toFixed(0)}%${violations ? ` · ${violations} violation${violations === 1 ? '' : 's'}` : ''}`;
+    }
     default: {
       const customP = p as { type?: string };
       return customP.type ?? ev.eventType;
@@ -324,6 +332,27 @@ function ReplayEventCard({
               {entry.event.severity}
             </span>
           )}
+
+          {/* Eval-result verdict: PASS/FAIL, plus an "AI judgment" tag so a
+              non-deterministic LLM judgment reads as a judgment, not a proof. */}
+          {entry.event.eventType === 'eval_result' && (() => {
+            const ev = entry.event.payload as { passed: boolean; method?: string };
+            return (
+              <>
+                <span className={`text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${ev.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {ev.passed ? 'PASS' : 'FAIL'}
+                </span>
+                {ev.method === 'llm_judge' && (
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium flex-shrink-0"
+                    title="Non-deterministic AI judgment — recorded tamper-evidently in the audit chain, but not a deterministic proof of compliance."
+                  >
+                    AI judgment
+                  </span>
+                )}
+              </>
+            );
+          })()}
 
           {/* [F11-S4] Bookmark toggle */}
           <button

@@ -45,6 +45,7 @@ const EVENT_COLORS: Record<string, string> = {
   cost_tracked:    '#ca8a04',
   alert_triggered: '#dc2626',
   alert_resolved:  '#16a34a',
+  eval_result:     '#0891b2',   // cyan-600
   custom:          '#6b7280',   // gray-500
 };
 
