@@ -74,6 +74,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Sum the judge's own token spend across a (possibly composite) score result. */
+function judgeCostOf(result: ScoreResult): number {
+  return (result.costUsd ?? 0) + (result.subScores?.reduce((sum, s) => sum + judgeCostOf(s), 0) ?? 0);
+}
+
 // ─── Runner ────────────────────────────────────────────────
 
 export interface EvalRunnerDeps {
@@ -198,9 +203,13 @@ export class EvalRunner {
             error,
           });
 
+          // Run total = agent-under-test spend (from webhook) + the judge's own
+          // spend. Per-result columns keep them distinct: costUsd = agent cost,
+          // scorerDetails.costUsd = judge cost.
           if (webhookResponse?.metadata?.costUsd) {
             totalCost += webhookResponse.metadata.costUsd as number;
           }
+          totalCost += judgeCostOf(finalScore);
         } finally {
           semaphore.release();
         }

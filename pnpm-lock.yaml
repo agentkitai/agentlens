@@ -182,8 +182,8 @@ importers:
   packages/sdk:
     dependencies:
       '@agentlensai/core':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: workspace:*
+        version: link:../core
 
   packages/sdk-integration-tests:
     devDependencies:
@@ -265,9 +265,6 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
-
-  '@agentlensai/core@0.8.0':
-    resolution: {integrity: sha512-hXxajW6MznAvDOyeSS5s3NCJ4zl/Jgigy4k8bp0FdigAiKK3AVlF1bJZqAozVzgwPsuhV+jeiob1t2IsOilvoA==}
 
   '@algolia/abtesting@1.14.0':
     resolution: {integrity: sha512-cZfj+1Z1dgrk3YPtNQNt0H9Rr67P8b4M79JjUKGS0d7/EbFbGxGgSu6zby5f22KXo3LT0LZa4O2c6VVbupJuDg==}
@@ -4351,9 +4348,6 @@ packages:
     peerDependencies:
       zod: ^3.25 || ^4
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -4365,11 +4359,6 @@ snapshots:
   '@acemir/cssom@0.9.31': {}
 
   '@adobe/css-tools@4.4.4': {}
-
-  '@agentlensai/core@0.8.0':
-    dependencies:
-      ulid: 3.0.2
-      zod: 3.25.76
 
   '@algolia/abtesting@1.14.0':
     dependencies:
@@ -8303,8 +8292,6 @@ snapshots:
   zod-to-json-schema@3.25.1(zod@4.4.3):
     dependencies:
       zod: 4.4.3
-
-  zod@3.25.76: {}
 
   zod@4.4.3: {}
 
