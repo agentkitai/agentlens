@@ -17,9 +17,11 @@ on:
 
 jobs:
   npm:
-    # Publishes the 6 public packages: @agentlensai/{server,mcp,core,cli,sdk} + agentkit-auth
-    # (a required dep of server). The @agentlensai/* glob also matches the private
-    # dashboard/api-spec/sdk-integration-tests packages, but `publish` skips private ones.
+    # Publishes the 7 public packages: @agentlensai/{server,mcp,core,cli,sdk} + agentkit-auth
+    # + @agentkit/pricing (a runtime dep of @agentlensai/core — MUST publish or core's
+    # install breaks; it's in the @agentkit scope so the @agentlensai/* glob misses it).
+    # The @agentlensai/* glob also matches the private dashboard/api-spec/sdk-integration-tests
+    # packages, but `publish` skips private ones.
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -46,7 +48,7 @@ jobs:
       - name: Publish public packages (OIDC trusted publishing)
         # No token: npm auto-detects the GitHub OIDC environment and authenticates.
         # Provenance is generated automatically under trusted publishing.
-        run: pnpm publish -r --filter "@agentlensai/*" --filter agentkit-auth --access public --no-git-checks
+        run: pnpm publish -r --filter "@agentlensai/*" --filter agentkit-auth --filter "@agentkit/pricing" --access public --no-git-checks
 
   docker:
     # Builds and pushes the public image to ghcr.io/agentkitai/agentlens using the
