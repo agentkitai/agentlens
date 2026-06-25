@@ -1,5 +1,12 @@
 # @agentlensai/mcp
 
+## 0.13.7
+
+### Patch Changes
+
+- Updated dependencies [930aa11]
+  - @agentlensai/core@0.18.0
+
 ## 0.13.6
 
 ### Patch Changes

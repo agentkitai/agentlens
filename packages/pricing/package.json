@@ -1,6 +1,6 @@
 {
   "name": "@agentkitai/pricing",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Centralized LLM model pricing for the AgentKit suite, sourced from LiteLLM's published prices with an embedded fallback.",
   "type": "module",
   "license": "MIT",

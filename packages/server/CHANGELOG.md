@@ -1,5 +1,74 @@
 # @agentlensai/server
 
+## 0.19.0
+
+### Minor Changes
+
+- 930aa11: feat(spend): pricing provenance + reconciliation/drift (#89, Slice C). The final
+  slice that makes per-agent spend billing-grade. `costUsd` is frozen at ingest-time
+  pricing while the rate table is refreshed in place with no retroactive recompute,
+  so stored sums silently drift.
+
+  - `@agentkitai/pricing` adds `pricingVersion()` — a stable fingerprint of the
+    active rate table (re-exported via `@agentlensai/core`, alongside
+    `getModelCosts`/`setModelCosts`).
+  - A new `events.pricing_version` column (sqlite + postgres migrations) is stamped
+    server-side at ingest on cost-bearing events (`cost_tracked`/`llm_response`) on
+    **both** ingest paths — it's a provenance column, not part of the event hash.
+  - `POST /api/internal/reconcile` (service-token, billing-aware grouping like
+    `/spend`) recomputes each cost-bearing event at **current** pricing and returns a
+    per-agent stored-vs-recompute **drift** report + threshold alert
+    (`RECONCILE_DRIFT_THRESHOLD`, default 1%), signed with the audit signing key.
+    Stale-priced events surface as drift with a `staleVersionCount`.
+
+  The optional provider-invoice cross-check is deferred (provider usage is per-org,
+  not per-agent, so it can only validate the aggregate). With `BILLING_GRADE_SPEND`
+  on, per-agent spend is now billing-grade end to end (A+B+C); the flag stays
+  default-OFF so guardrail mode is unchanged.
+
+- 5a37f90: feat(spend): billing-grade verified attribution (#87, Slice A). Adds a dedicated,
+  indexed `events.verified_agent_id` column (sqlite + postgres migrations), derived
+  server-side at insert from the already-hashed `metadata.verifiedAgentId` stamp — it
+  is never part of the hash input, so the chain stays valid, and never settable from
+  client input. Behind a new default-OFF flag `BILLING_GRADE_SPEND`, `POST
+/api/internal/spend` and `GET /api/analytics/costs` attribute cost by the verified
+  id instead of the self-reported `agent_id`, so a spoofed `event.agentId` can no
+  longer claim another agent's spend; unverified cost is surfaced in an
+  "unattributed" bucket rather than billed. With the flag off, guardrail-mode
+  behavior (today's `agent_id` grouping and response shape) is byte-for-byte unchanged.
+- ac42e8e: feat(otlp): verify a longer-lived ingest key on the OTLP path (#24, Option 3).
+  The OTLP verification gate (#88) only accepted the 15-min agent JWT, which is
+  awkward for long-running exporters that can't refresh it — so in practice their
+  spend fell to "unattributed" in billing mode. An OTLP exporter can now present a
+  longer-lived, revocable, ingest-scoped credential (`X-Agent-Ingest-Key`, issued
+  by AgentGate) set once in `OTEL_EXPORTER_OTLP_HEADERS`. AgentLens resolves it to
+  a server-authoritative verified id by calling AgentGate's
+  `/api/internal/verify-ingest-key` (new `AGENTGATE_URL` config, reusing
+  `AGENTGATE_SERVICE_TOKEN`) with a short in-memory cache, so a revoked/rotated key
+  stops resolving within ~60s. The lookup is **fail-open**: any error/timeout (or
+  unconfigured `AGENTGATE_URL`) resolves to null → the span ingests unattributed,
+  never mis-attributed. The agent JWT still wins when both credentials are present;
+  the verified id is stamped with `verifiedAgentMethod: agentgate_ingest_key`.
+  Token-path and guardrail behavior are unchanged.
+- 9e9eda4: feat(otlp): verification gate on OTLP ingest (#88, Slice B). The OTLP path read
+  the agent id straight from untrusted span/resource attributes, so per-agent
+  attribution was spoofable. OTLP exporters can now present an AgentGate agent
+  token as `X-Agent-Token` (e.g. via `OTEL_EXPORTER_OTLP_HEADERS`); every ingest
+  path (traces, metrics, logs) verifies it with the same `verifyAgentToken`
+  primitive `POST /api/events` uses and stamps the resulting server-authoritative
+  verified id into the (server-built) metadata before hashing, so the Slice A
+  `verified_agent_id` column is derived from it. A spoofed `agentlens.agentId` /
+  `service.name` without a valid token stays unverified — unattributed in
+  billing-grade mode — and OTLP keeps ingesting unverified spans unchanged (no
+  rejection, same events/hash as before). This closes the OTLP half of the
+  attribution gap; together with Slice A, both ingest paths now carry a verified
+  id. Reconciliation (Slice C) remains before per-agent spend is fully billing-grade.
+
+### Patch Changes
+
+- Updated dependencies [930aa11]
+  - @agentlensai/core@0.18.0
+
 ## 0.18.0
 
 ### Minor Changes
