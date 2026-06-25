@@ -6,6 +6,7 @@ export {
   getModelCosts,
   setModelCosts,
   lookupModelCost,
+  pricingVersion,
   costUsd,
   costUsdDetailed,
   type UsageTokens,

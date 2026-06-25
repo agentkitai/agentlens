@@ -6,7 +6,7 @@
  */
 
 import { eq, and, gte, lte, desc, asc, sql, inArray, count as drizzleCount } from 'drizzle-orm';
-import { computeEventHash } from '@agentlensai/core';
+import { computeEventHash, pricingVersion } from '@agentlensai/core';
 import type {
   AgentLensEvent,
   EventQuery,
@@ -30,6 +30,7 @@ import { HashChainError, NotFoundError } from './errors.js';
 import { createLogger } from '../lib/logger.js';
 import { withRetry } from '../lib/db-resilience.js';
 import { metadataVerifiedAgentId } from '../lib/agent-identity.js';
+import { COST_EVENT_TYPES } from './repositories/event-repository.js';
 
 const log = createLogger('PostgresEventStore');
 
@@ -187,6 +188,10 @@ export class PostgresEventStore implements IEventStore {
   async insertEvents(eventList: AgentLensEvent[]): Promise<void> {
     if (eventList.length === 0) return;
 
+    // Pricing provenance (#89): active pricing fingerprint at ingest, stamped on
+    // cost-bearing events only. Resolved once per batch.
+    const pv = pricingVersion();
+
     await withRetry(() => this.db.transaction(async (tx) => {
       const firstEvent = eventList[0]!;
       const tenantId = firstEvent.tenantId ?? 'default';
@@ -266,6 +271,8 @@ export class PostgresEventStore implements IEventStore {
             tenantId: evTenantId,
             // Derived projection of the hashed metadata — never hashed itself (#87).
             verifiedAgentId: metadataVerifiedAgentId(event.metadata),
+            // Pricing provenance for cost-bearing events only (#89).
+            pricingVersion: COST_EVENT_TYPES.has(event.eventType) ? pv : null,
           })
           .onConflictDoNothing({ target: events.id });
 

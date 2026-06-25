@@ -1,9 +1,12 @@
 # Billing-grade per-agent spend (design)
 
-> **Status:** design / RFC. Tracks [agentkitai/agentgate#24](https://github.com/agentkitai/agentgate/issues/24).
-> Implementation slices: [#87](https://github.com/agentkitai/agentlens/issues/87) ·
-> [#88](https://github.com/agentkitai/agentlens/issues/88) ·
-> [#89](https://github.com/agentkitai/agentlens/issues/89).
+> **Status:** ✅ **all three slices shipped** (A + B + C). Tracks
+> [agentkitai/agentgate#24](https://github.com/agentkitai/agentgate/issues/24).
+> Implementation slices: [#87](https://github.com/agentkitai/agentlens/issues/87) (verified
+> attribution) · [#88](https://github.com/agentkitai/agentlens/issues/88) (OTLP verification) ·
+> [#89](https://github.com/agentkitai/agentlens/issues/89) (reconciliation). Billing-grade
+> attribution is gated behind the default-OFF `BILLING_GRADE_SPEND` flag; guardrail mode is
+> unchanged.
 
 AgentGate enforces per-agent monthly budgets by reading priced spend from AgentLens
 (`POST /api/internal/spend`), joined on the convention `agentgate.agents.id (agt_*) =
@@ -60,11 +63,11 @@ than the core of the reconciliation work.
 
 ## Plan — three slices
 
-| Slice | Issue | Scope | Depends on |
-|------|-------|-------|-----------|
-| **A — Verified attribution** | [#87](https://github.com/agentkitai/agentlens/issues/87) | Dedicated indexed `verifiedAgentId` column; spend/analytics group by it; billing-grade mode (unverified → "unattributed" bucket); guardrail mode unchanged. AgentLens-only. | — |
-| **B — OTLP verification** | [#88](https://github.com/agentkitai/agentlens/issues/88) | A verification gate on the OTLP ingest path so OTLP spans carry a verified id. Cross-repo (the fork below). | A |
-| **C — Reconciliation** | [#89](https://github.com/agentkitai/agentlens/issues/89) | Pricing provenance at ingest; a stored-vs-recompute drift report per agent/period + threshold alert; optional provider-invoice aggregate check. | A, B |
+| Slice | Issue | Scope | Depends on | Status |
+|------|-------|-------|-----------|--------|
+| **A — Verified attribution** | [#87](https://github.com/agentkitai/agentlens/issues/87) | Dedicated indexed `verified_agent_id` column; spend/analytics group by it in billing mode (unverified → "unattributed" bucket); guardrail mode unchanged. AgentLens-only. | — | ✅ shipped (PR #91) |
+| **B — OTLP verification** | [#88](https://github.com/agentkitai/agentlens/issues/88) | A verification gate on the OTLP ingest path so OTLP spans carry a verified id (reuse the agent JWT via `X-Agent-Token`). | A | ✅ shipped (PR #92) |
+| **C — Reconciliation** | [#89](https://github.com/agentkitai/agentlens/issues/89) | Pricing provenance (`pricing_version`) at ingest on both paths; `POST /api/internal/reconcile` — a signed stored-vs-recompute drift report per agent + threshold alert. Optional provider-invoice aggregate check deferred (per-org, not per-agent). | A, B | ✅ shipped |
 
 Recommended order: **A → B → C.** A removes the spoofability that blocks calling spend
 trustworthy and is shippable on its own. Full "billing-grade" (provider-invoice integration,
@@ -98,5 +101,24 @@ token approach fits the deployment model.
 Per-agent spend can be called **billing-grade** when: every cost-bearing event on **both**
 ingest paths carries a cryptographically **verified** agent id (A + B), spend aggregates on that
 id, and a **reconciliation** report can show stored-vs-recompute drift (and, optionally, agree
-with the provider invoice in aggregate) within a stated threshold (C). Until then it stays a
-guardrail, as documented in AgentGate's `governance.md`.
+with the provider invoice in aggregate) within a stated threshold (C).
+
+**Status: met (behind the `BILLING_GRADE_SPEND` flag).**
+
+- **A + B — verified attribution on both paths.** `events.verified_agent_id` is stamped
+  server-side from the AgentGate agent token (`X-Agent-Token`) on the client (`/api/events`) and
+  OTLP (`/v1/traces|metrics|logs`) paths; in billing mode `/api/internal/spend` and
+  `/api/analytics/costs` aggregate on it, and unverified cost surfaces as **"unattributed"**
+  rather than being billed.
+- **C — reconciliation.** `events.pricing_version` records the pricing fingerprint at ingest on
+  both paths. `POST /api/internal/reconcile` (service-token) recomputes each cost-bearing event
+  at **current** pricing and returns per-agent stored-vs-recompute **drift** + a threshold alert
+  (`RECONCILE_DRIFT_THRESHOLD`, default 1%), signed with the audit signing key. The window
+  `[from, to]` is the reconciliation period.
+- **Deferred (optional):** provider-invoice aggregate cross-check. Provider usage APIs are
+  **per-org, not per-agent**, so they can only validate the *total* — that check belongs at the
+  org/total level and is out of scope for the per-agent report. Zero-staleness enforcement and
+  cross-replica exactly-once alerting also remain non-goals (see above).
+
+Until the flag is enabled, per-agent spend stays a **guardrail**, as documented in AgentGate's
+`governance.md`.

@@ -4,7 +4,7 @@
  */
 
 import { eq, and, gte, lte, desc, asc, sql, count as drizzleCount } from 'drizzle-orm';
-import { computeEventHash } from '@agentlensai/core';
+import { computeEventHash, pricingVersion } from '@agentlensai/core';
 import type { AgentLensEvent, EventQuery, EventQueryResult, ChainEvent } from '@agentlensai/core';
 import type { SqliteDb } from '../index.js';
 import { events, sessions, agents } from '../schema.sqlite.js';
@@ -14,6 +14,9 @@ import { metadataVerifiedAgentId } from '../../lib/agent-identity.js';
 import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('EventRepository');
+
+/** Cost-bearing event types — the only ones that carry priced spend / pricing provenance (#89). */
+export const COST_EVENT_TYPES = new Set(['cost_tracked', 'llm_response']);
 
 export class EventRepository {
   constructor(private db: SqliteDb) {}
@@ -33,6 +36,11 @@ export class EventRepository {
     handleAgentUpsert: (tx: any, event: AgentLensEvent, tenantId: string) => void,
   ): void {
     if (eventList.length === 0) return;
+
+    // Pricing provenance (#89): the active pricing fingerprint at ingest, stamped
+    // on cost-bearing events so reconciliation can detect stored cost that
+    // predates a price change. Resolved once per batch.
+    const pv = pricingVersion();
 
     this.db.transaction((tx) => {
       const firstEvent = eventList[0]!;
@@ -111,6 +119,8 @@ export class EventRepository {
             tenantId,
             // Derived projection of the hashed metadata — never hashed itself (#87).
             verifiedAgentId: metadataVerifiedAgentId(event.metadata),
+            // Pricing provenance for cost-bearing events only (#89).
+            pricingVersion: COST_EVENT_TYPES.has(event.eventType) ? pv : null,
           })
           .onConflictDoNothing({ target: events.id })
           .run();

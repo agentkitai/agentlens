@@ -57,6 +57,10 @@ export interface ServerConfig {
    *  "unattributed" bucket. When off, spend groups by the self-reported
    *  agent_id (guardrail mode — today's behavior, unchanged). */
   billingGradeSpend: boolean;
+
+  /** Default |drift| fraction at which POST /api/internal/reconcile flags an agent
+   *  (#89). 0.01 = 1%. Overridable per-request via the `threshold` body field. */
+  reconcileDriftThreshold: number;
 }
 
 /**
@@ -112,6 +116,12 @@ export function getConfig(): ServerConfig {
 
     // Billing-grade spend attribution (#87) — default OFF (guardrail mode)
     billingGradeSpend: process.env['BILLING_GRADE_SPEND'] === 'true',
+
+    // Reconciliation drift alert threshold (#89) — default 1%
+    reconcileDriftThreshold: (() => {
+      const parsed = parseFloat(process.env['RECONCILE_DRIFT_THRESHOLD'] ?? '0.01');
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0.01;
+    })(),
   };
 }
 

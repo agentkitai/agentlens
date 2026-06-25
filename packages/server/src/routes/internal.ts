@@ -11,9 +11,10 @@
  */
 
 import { Hono } from 'hono';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, createHmac } from 'node:crypto';
 import { sql, type SQL } from 'drizzle-orm';
-import { guardrailBreachRequestSchema, evalRunRequestSchema } from '@agentlensai/core';
+import { guardrailBreachRequestSchema, evalRunRequestSchema, pricingVersion } from '@agentlensai/core';
+import { reconcile, type ReconcileEventRow } from '../lib/reconcile.js';
 import type { EvalResultPayload, IEventStore } from '@agentlensai/core';
 import type { SqliteDb } from '../db/index.js';
 import type { PostgresDb } from '../db/connection.postgres.js';
@@ -35,6 +36,16 @@ function jn(isPg: boolean, field: string): SQL {
 async function dbAll<T>(db: SqliteDb | null, pgDb: PostgresDb | null, query: SQL): Promise<T[]> {
   if (pgDb) return (await pgDb.execute(query)) as unknown as T[];
   return db!.all<T>(query);
+}
+
+/** Parse a JSON payload string (sqlite); returns {} on garbage. */
+function safeParse(s: string): Record<string, unknown> {
+  try {
+    const v: unknown = JSON.parse(s);
+    return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
 }
 
 /** Constant-time bearer-token check against AGENTGATE_SERVICE_TOKEN. */
@@ -156,6 +167,81 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
     }
 
     return c.json(response);
+  });
+
+  // POST /api/internal/reconcile — per-agent stored-vs-recompute pricing drift
+  // over [from, to] for a tenant (#89). Recompute is at CURRENT pricing; events
+  // priced under stale rates surface as drift + a staleVersionCount. Reuses the
+  // /spend billing-aware grouping and the audit-export HMAC signing. The [from,
+  // to] window IS the reconciliation period (the caller picks a billing period).
+  app.post('/reconcile', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as {
+      tenantId?: unknown; from?: unknown; to?: unknown; agentIds?: unknown; threshold?: unknown;
+    } | null;
+
+    const tenantId = body?.tenantId;
+    if (typeof tenantId !== 'string' || !tenantId) {
+      return c.json({ error: 'tenantId is required' }, 400);
+    }
+    const agentIds = body?.agentIds;
+    if (agentIds !== undefined && (!Array.isArray(agentIds) || !agentIds.every((a) => typeof a === 'string'))) {
+      return c.json({ error: 'agentIds must be an array of strings' }, 400);
+    }
+    if (Array.isArray(agentIds) && agentIds.length > 1000) {
+      return c.json({ error: 'agentIds may not exceed 1000 entries' }, 400);
+    }
+    const from = typeof body?.from === 'string' ? body.from : new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const to = typeof body?.to === 'string' ? body.to : new Date().toISOString();
+    const cfg = getConfig();
+    const threshold = typeof body?.threshold === 'number' && Number.isFinite(body.threshold) && body.threshold >= 0
+      ? body.threshold : cfg.reconcileDriftThreshold;
+
+    // Same billing-aware attribution as /spend: by verified id in billing mode.
+    const billing = cfg.billingGradeSpend;
+    const idCol = sql.raw(billing ? 'verified_agent_id' : 'agent_id');
+    const agentFilter = Array.isArray(agentIds) && agentIds.length > 0
+      ? sql` AND ${idCol} IN (${sql.join((agentIds as string[]).map((id) => sql`${id}`), sql`, `)})`
+      : sql``;
+
+    // Bound the per-event scan; reconciliation is per-row (not a SQL aggregate).
+    const MAX_ROWS = 100_000;
+    const rawRows = await dbAll<{ agentId: string | null; payload: unknown; pricingVersion: string | null }>(
+      isPg ? null : db, qdb,
+      sql`
+        SELECT
+          ${idCol} as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
+          payload,
+          pricing_version as ${sql.raw(isPg ? '"pricingVersion"' : 'pricingVersion')}
+        FROM events
+        WHERE event_type IN ('cost_tracked', 'llm_response')
+          AND tenant_id = ${tenantId}
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}${agentFilter}
+        ORDER BY timestamp
+        LIMIT ${MAX_ROWS}
+      `,
+    );
+    const truncated = rawRows.length >= MAX_ROWS;
+    if (truncated) {
+      log.warn(`reconcile truncated at ${MAX_ROWS} events (tenant ${tenantId}, ${from}..${to})`);
+    }
+
+    const rows: ReconcileEventRow[] = rawRows.map((r) => ({
+      agentId: r.agentId ?? 'unattributed',
+      payload: typeof r.payload === 'string' ? safeParse(r.payload) : ((r.payload as Record<string, unknown>) ?? {}),
+      pricingVersion: r.pricingVersion ?? null,
+    }));
+
+    const report = reconcile(rows, { threshold, currentPricingVersion: pricingVersion() });
+    log.debug(`reconcile (${billing ? 'billing' : 'guardrail'}): ${rows.length} events, ${report.totals.agentsAlerting} agents alerting (tenant ${tenantId})`);
+
+    const reportBody = { tenantId, from, to, mode: billing ? 'billing' : 'guardrail', truncated, ...report };
+    // Sign the report like the audit export when a signing key is configured.
+    const signature = cfg.auditSigningKey
+      ? 'hmac-sha256:' + createHmac('sha256', cfg.auditSigningKey).update(JSON.stringify(reportBody)).digest('hex')
+      : null;
+
+    return c.json({ ...reportBody, signature });
   });
 
   // POST /api/internal/eval/guardrail-breach — record an AgentGate guardrail

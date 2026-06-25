@@ -29,6 +29,13 @@
       "when": 1740134400000,
       "tag": "0003_verified_agent_id",
       "breakpoints": false
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1740220800000,
+      "tag": "0004_pricing_version",
+      "breakpoints": false
     }
   ]
 }
