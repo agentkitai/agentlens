@@ -1,5 +1,17 @@
 # @agentkit/pricing
 
+## 0.3.0
+
+### Minor Changes
+
+- Compliance evals & prompt stack (#55 Phase 2):
+
+  - **LLM-as-judge** scorer backed by a real Anthropic client (default `claude-haiku-4-5`, overridable) with token-cost tracking, plus `POST /api/eval/sessions/:id/score` to score a completed session against a rubric. Judgments are hash-chained as `eval_result` events labelled `method: "llm_judge"` — a judgment, recorded tamper-evidently, not a proof.
+  - **Gate→lens wedge**: `POST /api/internal/eval/guardrail-breach` (service-token internal route) records an AgentGate guardrail breach as a deterministic compliance `eval_result` in the breaching session's audit trail.
+  - **Prompt auto-discovery**: ingested `llm_call` system prompts are fingerprinted on both the OTLP and `/api/events` paths and surfaced via `GET /api/prompts/fingerprints`.
+  - **Cache-aware cost**: prompt-cache read/write tokens are extracted from gen_ai OTLP spans and priced via `costUsdDetailed` (Anthropic/OpenAI cache rates), with per-version `estimatedCacheSavingsUsd` in prompt analytics.
+  - **Dashboard** renders `eval_result` inline in session replay (PASS/FAIL + an "AI judgment" tag), and a new compliance-evals guide documents PII / data-retention / authorization rubrics. (Dashboard ships in the container image.)
+
 ## 0.2.0
 
 ### Minor Changes
