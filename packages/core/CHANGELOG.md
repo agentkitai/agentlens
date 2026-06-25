@@ -1,5 +1,20 @@
 # @agentlensai/core
 
+## 0.16.0
+
+### Minor Changes
+
+- Evaluator catalog (#55 Phase 4): reusable, named scorer definitions, browsable and
+  instantiable into session scoring.
+
+  - `EvaluatorDefinition` + `GET/POST/PUT/DELETE /api/eval/evaluators` (+ `/:id/publish`,
+    `/:id/verify`); a `draft → published → verified` lifecycle. Built-in evaluators
+    (PII / data-retention / authorization compliance + PII-leak / response-quality
+    llm_judge) are seeded global + read-only.
+  - `POST /api/eval/sessions/:id/compliance` and `/score` now accept an `evaluatorId`
+    that resolves to the stored config (recorded on the hash-chained `eval_result`).
+  - Dashboard catalog browse page at `/eval/evaluators` (ships in the container image).
+
 ## 0.15.0
 
 ### Minor Changes

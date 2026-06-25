@@ -1,5 +1,11 @@
 # @agentlensai/cli
 
+## 0.13.3
+
+### Patch Changes
+
+- @agentlensai/sdk@0.14.2
+
 ## 0.13.2
 
 ### Patch Changes
