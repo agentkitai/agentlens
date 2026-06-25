@@ -1,5 +1,15 @@
 # @agentlensai/cli
 
+## 0.14.0
+
+### Minor Changes
+
+- `agentlens eval-gate` (#55 Phase 5): gate CI/CD on an eval pass-rate (exit 1 below
+  threshold). Trace-scoring mode scores a set of sessions against a catalog evaluator
+  (no agent webhook); dataset-run mode triggers a dataset eval against a live agent
+  webhook and gates on passedCases/totalCases. Pairs with the composite GitHub Action
+  at `.github/actions/eval-gate`.
+
 ## 0.13.3
 
 ### Patch Changes
