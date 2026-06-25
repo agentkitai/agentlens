@@ -366,6 +366,56 @@ export const guardrailBreachRequestSchema = z.object({
 
 export type GuardrailBreachRequest = z.infer<typeof guardrailBreachRequestSchema>;
 
+/**
+ * Service-to-service request (from agenteval, the external Python eval framework)
+ * to record a completed eval-suite run as a hash-chained `eval_result` in a
+ * session's audit trail (#55 — the agenteval→lens federation). agenteval holds no
+ * AgentLens session, so it passes a synthetic per-run sessionId and the server
+ * genesis-chains the result. Authenticated by AGENTGATE_SERVICE_TOKEN; tenant
+ * comes from the (org-scoped) body. `eval_result` stays server-authoritative —
+ * agenteval cannot POST eval_result events directly (they're excluded from the
+ * client ingest enum so evidence can't be forged); this route is the only path in.
+ */
+export const evalRunRequestSchema = z.object({
+  tenantId: z.string().min(1),
+  sessionId: z.string().min(1),
+  agentId: z.string().min(1),
+  run: z.object({
+    /** agenteval run id. */
+    id: z.string().min(1),
+    /** Suite name. */
+    suite: z.string().min(1),
+    /** When the run completed (ISO-8601), recorded as provenance metadata. */
+    createdAt: z.string().min(1).optional(),
+    /**
+     * Evidence class. agenteval ships LLM/semantic graders, so the emitter marks
+     * 'llm_judge' when any case used a non-deterministic grader; otherwise the run
+     * is reproducible ('deterministic'). Absent → treated as 'deterministic'.
+     */
+    method: z.enum(['deterministic', 'llm_judge']).optional(),
+    summary: z.object({
+      total: z.number().int().nonnegative(),
+      passed: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+      passRate: z.number().min(0).max(1),
+      totalCostUsd: z.number().nonnegative().optional(),
+    }),
+    /** Failed cases, mapped to violations. Bounded so the event stays small. */
+    failedCases: z
+      .array(
+        z.object({
+          name: z.string().min(1),
+          score: z.number().optional(),
+          detail: z.string().max(1000).optional(),
+        }),
+      )
+      .max(1000)
+      .optional(),
+  }),
+});
+
+export type EvalRunRequest = z.infer<typeof evalRunRequestSchema>;
+
 // ─── Evaluator Catalog (#55 Phase 4) ────────────────────────────────
 
 const scorerTypeSchema = z.enum([

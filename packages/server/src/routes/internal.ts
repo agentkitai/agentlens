@@ -13,7 +13,7 @@
 import { Hono } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import { sql, type SQL } from 'drizzle-orm';
-import { guardrailBreachRequestSchema } from '@agentlensai/core';
+import { guardrailBreachRequestSchema, evalRunRequestSchema } from '@agentlensai/core';
 import type { EvalResultPayload, IEventStore } from '@agentlensai/core';
 import type { SqliteDb } from '../db/index.js';
 import type { PostgresDb } from '../db/connection.postgres.js';
@@ -21,7 +21,7 @@ import { getConfig } from '../config.js';
 import { createLogger } from '../lib/logger.js';
 import { tenantScopedStore } from './tenant-helper.js';
 import { appendEventToSession } from '../lib/append-event.js';
-import { buildBreachEvalResult } from '../lib/eval/index.js';
+import { buildBreachEvalResult, buildAgentEvalResult } from '../lib/eval/index.js';
 import { HashChainError } from '../db/errors.js';
 
 const log = createLogger('Internal');
@@ -167,6 +167,63 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
     }
 
     log.debug(`guardrail breach recorded for session ${sessionId} (tenant ${tenantId}, source ${breach.source})`);
+    return c.json({
+      sessionId,
+      recorded: true,
+      score: payload.score,
+      passed: payload.passed,
+      violations: payload.violations,
+      rulesEvaluated: payload.rulesEvaluated,
+      event: { id: event.id, hash: event.hash, prevHash: event.prevHash },
+    }, 201);
+  });
+
+  // POST /api/internal/eval/run — record an external agenteval suite run as a
+  // hash-chained, server-authoritative eval_result (#55 — the agenteval→lens
+  // federation). agenteval holds no AgentLens session, so it passes a synthetic
+  // per-run sessionId; an empty timeline starts a fresh chain (genesis). The run
+  // already happened externally, so (unlike the guardrail-breach wedge) there's no
+  // timeline to score — the emitter's summary IS the evidence. eval_result stays
+  // server-authoritative; this is reached only with the service token.
+  app.post('/eval/run', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsed = evalRunRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({
+        error: 'Validation failed',
+        details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })),
+      }, 400);
+    }
+    const { tenantId, sessionId, agentId, run } = parsed.data;
+    const payload: EvalResultPayload = buildAgentEvalResult(run);
+
+    const tenantStore = tenantScopedStore(store, tenantId);
+    let event;
+    try {
+      event = await appendEventToSession(tenantStore, {
+        tenantId,
+        sessionId,
+        agentId,
+        eventType: 'eval_result',
+        severity: payload.passed ? 'info' : 'warn',
+        payload,
+        metadata: {
+          source: 'agenteval',
+          suite: run.suite,
+          runId: run.id,
+          ...(run.createdAt ? { ranAt: run.createdAt } : {}),
+        },
+      });
+    } catch (err) {
+      if (err instanceof HashChainError) {
+        log.warn(`agenteval run append raced on session ${sessionId}: ${err.message}`);
+        return c.json({ error: 'Failed to record eval result (chain conflict); retry.' }, 409);
+      }
+      log.error(`agenteval run append failed for session ${sessionId}: ${(err as Error).message}`);
+      return c.json({ error: 'Failed to record eval result.' }, 500);
+    }
+
+    log.debug(`agenteval run recorded for session ${sessionId} (tenant ${tenantId}, suite ${run.suite})`);
     return c.json({
       sessionId,
       recorded: true,
