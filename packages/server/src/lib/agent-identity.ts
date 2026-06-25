@@ -94,11 +94,12 @@ export function metadataVerifiedAgentId(metadata: Record<string, unknown> | null
 export function stampVerifiedAgent(
   metadata: Record<string, unknown>,
   verifiedAgentId: string | null,
+  method: string = 'agentgate_token',
 ): Record<string, unknown> {
   const clean = stripVerifiedAgentKeys(metadata);
   if (verifiedAgentId) {
     clean['verifiedAgentId'] = verifiedAgentId;
-    clean['verifiedAgentMethod'] = 'agentgate_token';
+    clean['verifiedAgentMethod'] = method;
   }
   return clean;
 }
