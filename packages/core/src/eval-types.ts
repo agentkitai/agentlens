@@ -174,3 +174,34 @@ export interface EvalWebhookResponse {
   sessionId?: string;
   metadata?: Record<string, unknown>;
 }
+
+// ─── Evaluator Catalog (#55 Phase 4) ───────────────────────
+
+export type EvaluatorStatus = 'draft' | 'published';
+
+/**
+ * A reusable, named scorer definition in the evaluator catalog. Bundles a scorer
+ * config template (rules for `compliance`, rubric+model for `llm_judge`, pattern
+ * for `regex`, …) with discovery metadata, so it can be browsed and instantiated
+ * into eval runs / session scoring by id instead of re-specifying the config.
+ */
+export interface EvaluatorDefinition {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  scorerType: ScorerType;
+  /** The reusable scorer config this evaluator instantiates. */
+  configTemplate: ScorerConfig;
+  tags: string[];
+  /** Seeded, read-only built-in evaluator (cannot be edited/deleted via the API). */
+  builtin: boolean;
+  /** `draft` evaluators are private WIP; `published` ones surface in the catalog. */
+  status: EvaluatorStatus;
+  publishedBy?: string;
+  publishedAt?: string;
+  /** Set when a curator marks the evaluator trustworthy (a verified-badge signal). */
+  verifiedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}

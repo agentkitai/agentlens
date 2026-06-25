@@ -293,12 +293,22 @@ export const complianceRuleSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-export const complianceScoreRequestSchema = z.object({
-  rules: z.array(complianceRuleSchema).min(1),
-  /** Optional score-based pass threshold in [0, 1]; omit for strict (any violation fails) */
-  passThreshold: z.number().min(0).max(1).optional(),
-  agentId: z.string().min(1).optional(),
-});
+export const complianceScoreRequestSchema = z
+  .object({
+    /** Inline rules, OR provide `evaluatorId` to instantiate a catalog evaluator's rules.
+     *  Not `.min(1)` here — the refine below enforces "rules (non-empty) OR evaluatorId",
+     *  so `{ rules: [], evaluatorId }` is accepted rather than wrongly rejected. */
+    rules: z.array(complianceRuleSchema).optional(),
+    /** Catalog evaluator (scorerType 'compliance') whose rules to apply (#55 Phase 4). */
+    evaluatorId: z.string().min(1).optional(),
+    /** Optional score-based pass threshold in [0, 1]; omit for strict (any violation fails) */
+    passThreshold: z.number().min(0).max(1).optional(),
+    agentId: z.string().min(1).optional(),
+  })
+  .refine((v) => (v.rules?.length ?? 0) > 0 || !!v.evaluatorId, {
+    message: 'provide either `rules` (non-empty) or `evaluatorId`',
+    path: ['rules'],
+  });
 
 export type ComplianceScoreRequest = z.infer<typeof complianceScoreRequestSchema>;
 
@@ -306,17 +316,25 @@ export type ComplianceScoreRequest = z.infer<typeof complianceScoreRequestSchema
  * Request to score a completed session with the LLM judge (online/retroactive).
  * The judgment is hash-chained as an `eval_result` event labelled method:'llm_judge'.
  */
-export const judgeScoreRequestSchema = z.object({
-  /** The rubric the judge grades the session transcript against. */
-  rubric: z.string().min(1),
-  /** Judge model override; defaults to a cheap Claude tier server-side. */
-  model: z.string().min(1).optional(),
-  /** Pass threshold in [0, 1]; defaults to the judge's 0.7. */
-  passThreshold: z.number().min(0).max(1).optional(),
-  /** Optional reference answer to ground the judgment. */
-  expectedOutput: z.unknown().optional(),
-  agentId: z.string().min(1).optional(),
-});
+export const judgeScoreRequestSchema = z
+  .object({
+    /** The rubric the judge grades against, OR provide `evaluatorId` to use a catalog one.
+     *  Not `.min(1)` — the refine enforces "rubric OR evaluatorId". */
+    rubric: z.string().optional(),
+    /** Catalog evaluator (scorerType 'llm_judge') whose rubric/model to apply (#55 Phase 4). */
+    evaluatorId: z.string().min(1).optional(),
+    /** Judge model override; defaults to a cheap Claude tier server-side. */
+    model: z.string().min(1).optional(),
+    /** Pass threshold in [0, 1]; defaults to the judge's 0.7. */
+    passThreshold: z.number().min(0).max(1).optional(),
+    /** Optional reference answer to ground the judgment. */
+    expectedOutput: z.unknown().optional(),
+    agentId: z.string().min(1).optional(),
+  })
+  .refine((v) => !!v.rubric || !!v.evaluatorId, {
+    message: 'provide either `rubric` or `evaluatorId`',
+    path: ['rubric'],
+  });
 
 export type JudgeScoreRequest = z.infer<typeof judgeScoreRequestSchema>;
 
@@ -347,6 +365,58 @@ export const guardrailBreachRequestSchema = z.object({
 });
 
 export type GuardrailBreachRequest = z.infer<typeof guardrailBreachRequestSchema>;
+
+// ─── Evaluator Catalog (#55 Phase 4) ────────────────────────────────
+
+const scorerTypeSchema = z.enum([
+  'exact_match', 'contains', 'regex', 'llm_judge', 'compliance', 'custom', 'composite',
+]);
+
+/**
+ * Create a catalog evaluator. The configTemplate is validated against the scorerType
+ * at the trust boundary: a compliance evaluator must carry valid `rules`, an
+ * llm_judge one a `rubric`, a regex one a `pattern`.
+ */
+export const createEvaluatorRequestSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    description: z.string().max(2000).optional(),
+    scorerType: scorerTypeSchema,
+    configTemplate: z.record(z.string(), z.unknown()),
+    tags: z.array(z.string().min(1).max(50)).max(20).optional(),
+  })
+  .superRefine((val, ctx) => {
+    const ct = val.configTemplate as Record<string, unknown>;
+    if (val.scorerType === 'compliance') {
+      if (!z.array(complianceRuleSchema).min(1).safeParse(ct.rules).success) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['configTemplate', 'rules'],
+          message: 'compliance evaluator requires configTemplate.rules: a non-empty array of valid ComplianceRule' });
+      }
+    } else if (val.scorerType === 'llm_judge') {
+      if (typeof ct.rubric !== 'string' || !ct.rubric.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['configTemplate', 'rubric'],
+          message: 'llm_judge evaluator requires configTemplate.rubric (a non-empty string)' });
+      }
+    } else if (val.scorerType === 'regex') {
+      if (typeof ct.pattern !== 'string' || !ct.pattern.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['configTemplate', 'pattern'],
+          message: 'regex evaluator requires configTemplate.pattern (a non-empty string)' });
+      }
+    }
+  });
+
+export type CreateEvaluatorRequest = z.infer<typeof createEvaluatorRequestSchema>;
+
+/** Update an evaluator's metadata. configTemplate/scorerType are fixed at creation. */
+export const updateEvaluatorRequestSchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().max(2000).optional(),
+    tags: z.array(z.string().min(1).max(50)).max(20).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'provide at least one field to update' });
+
+export type UpdateEvaluatorRequest = z.infer<typeof updateEvaluatorRequestSchema>;
 
 // ─── Health Score Schemas (Story 1.1) ───────────────────────────────
 

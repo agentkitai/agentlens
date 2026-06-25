@@ -925,6 +925,28 @@ export function runMigrations(db: SqliteDb): void {
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_results_run ON eval_results(run_id)`);
 
+  // ─── Evaluator Catalog (#55 Phase 4) ────────────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS evaluator_definitions (
+      id              TEXT PRIMARY KEY,
+      tenant_id       TEXT NOT NULL,
+      name            TEXT NOT NULL,
+      description     TEXT,
+      scorer_type     TEXT NOT NULL,
+      config_template TEXT NOT NULL DEFAULT '{}',
+      tags            TEXT NOT NULL DEFAULT '[]',
+      builtin         INTEGER NOT NULL DEFAULT 0,
+      status          TEXT NOT NULL DEFAULT 'draft',
+      published_by    TEXT,
+      published_at    TEXT,
+      verified_at     TEXT,
+      created_at      TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_evaluator_defs_tenant ON evaluator_definitions(tenant_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_evaluator_defs_tenant_type ON evaluator_definitions(tenant_id, scorer_type)`);
+
   // ─── Prompt Management tables (Feature 19) ──────────────────
 
   db.run(sql`
