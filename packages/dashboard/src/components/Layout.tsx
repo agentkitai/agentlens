@@ -106,6 +106,11 @@ const navSections: NavSection[] = [
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">📋</span>,
       },
       {
+        to: '/eval/evaluators',
+        label: 'Evaluators',
+        icon: <span className="w-5 h-5 flex items-center justify-center text-base">⚖️</span>,
+      },
+      {
         to: '/alerts',
         label: 'Alerts',
         icon: (
@@ -170,6 +175,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/guardrails': 'Guardrails',
   '/budgets': 'Budgets',
   '/compliance': 'Compliance',
+  '/eval/evaluators': 'Evaluator Catalog',
   '/alerts': 'Alerts',
   '/settings': 'Settings',
 };
