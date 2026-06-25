@@ -22,6 +22,7 @@ import type { ServerConfig } from '../config.js';
 import type { PromptStore } from '../db/prompt-store.js';
 import { recordPromptFingerprints } from '../lib/prompt-fingerprint.js';
 import { verifyAgentToken, stampVerifiedAgent } from '../lib/agent-identity.js';
+import { verifyIngestKey } from '../lib/ingest-key-verify.js';
 import { createLogger } from '../lib/logger.js';
 
 const otlpLogger = createLogger('OTLP');
@@ -608,11 +609,30 @@ function mapGenAiSpan(
   }];
 }
 
+/**
+ * Resolve a server-authoritative verified agent id for an OTLP request (#24).
+ * Prefer the agent JWT (X-Agent-Token, crypto-only, no network); fall back to a
+ * longer-lived ingest key (X-Agent-Ingest-Key, verified via AgentGate with a
+ * short cache) for exporters that can't refresh the 15-min token. Either yields
+ * the SAME opaque verified id, distinguished only by `method` for provenance.
+ */
+async function resolveOtlpVerified(
+  agentToken: string | undefined,
+  ingestKey: string | undefined,
+): Promise<{ id: string | null; method: string }> {
+  const tokenId = await verifyAgentToken(agentToken);
+  if (tokenId) return { id: tokenId, method: 'agentgate_token' };
+  const keyId = await verifyIngestKey(ingestKey);
+  if (keyId) return { id: keyId, method: 'agentgate_ingest_key' };
+  return { id: null, method: 'agentgate_token' };
+}
+
 async function buildAndInsertEvents(
   tenantStore: IEventStore,
   mappedEvents: MappedEvent[],
   tenantId: string = 'default',
   verifiedAgentId: string | null = null,
+  verifiedAgentMethod: string = 'agentgate_token',
 ): Promise<AgentLensEvent[]> {
   if (mappedEvents.length === 0) return [];
 
@@ -644,7 +664,7 @@ async function buildAndInsertEvents(
       // is derived from it at insert (#88). stampVerifiedAgent also strips the
       // reserved keys, so an OTLP caller can never forge a verified id; an
       // unverified span (verifiedAgentId=null) keeps its metadata byte-for-byte.
-      const metadata = stampVerifiedAgent(input.metadata, verifiedAgentId);
+      const metadata = stampVerifiedAgent(input.metadata, verifiedAgentId, verifiedAgentMethod);
       const hash = computeEventHash({
         id,
         timestamp: input.timestamp,
@@ -856,11 +876,12 @@ export function otlpRoutes(
       return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
     }
 
-    // Verification gate (#88): an AgentGate agent token (X-Agent-Token, e.g. via
-    // OTEL_EXPORTER_OTLP_HEADERS) yields a server-authoritative verified id; a
-    // spoofed agentlens.agentId without a valid token stays unverified.
-    const verifiedAgentId = await verifyAgentToken(c.req.header('x-agent-token'));
-    const inserted = await buildAndInsertEvents(tenantStore, mapped, otlpTenantId, verifiedAgentId);
+    // Verification gate (#88/#24): an AgentGate agent token (X-Agent-Token) or a
+    // longer-lived ingest key (X-Agent-Ingest-Key) — e.g. via
+    // OTEL_EXPORTER_OTLP_HEADERS — yields a server-authoritative verified id; a
+    // spoofed agentlens.agentId without a valid credential stays unverified.
+    const verified = await resolveOtlpVerified(c.req.header('x-agent-token'), c.req.header('x-agent-ingest-key'));
+    const inserted = await buildAndInsertEvents(tenantStore, mapped, otlpTenantId, verified.id, verified.method);
     // Auto-discover prompt templates from ingested llm_call events (best-effort).
     recordPromptFingerprints(promptStore ?? null, inserted);
     return c.json({ partialSuccess: {} }, 200);
@@ -974,8 +995,8 @@ export function otlpRoutes(
       if (metricTenantId === null) {
         return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
       }
-      const verifiedAgentId = await verifyAgentToken(c.req.header('x-agent-token'));
-      const inserted = await buildAndInsertEvents(tenantStore, mapped, metricTenantId, verifiedAgentId);
+      const verified = await resolveOtlpVerified(c.req.header('x-agent-token'), c.req.header('x-agent-ingest-key'));
+      const inserted = await buildAndInsertEvents(tenantStore, mapped, metricTenantId, verified.id, verified.method);
       // Symmetry with the traces path; metrics don't emit llm_call today, so this
       // no-ops, but keeps fingerprinting wired if that ever changes.
       recordPromptFingerprints(promptStore ?? null, inserted);
@@ -1031,8 +1052,8 @@ export function otlpRoutes(
       if (logTenantId === null) {
         return c.json({ error: 'Tenant identification required in multi-tenant mode' }, 400);
       }
-      const verifiedAgentId = await verifyAgentToken(c.req.header('x-agent-token'));
-      const inserted = await buildAndInsertEvents(tenantStore, mapped, logTenantId, verifiedAgentId);
+      const verified = await resolveOtlpVerified(c.req.header('x-agent-token'), c.req.header('x-agent-ingest-key'));
+      const inserted = await buildAndInsertEvents(tenantStore, mapped, logTenantId, verified.id, verified.method);
       recordPromptFingerprints(promptStore ?? null, inserted);
     }
     return c.json({ partialSuccess: {} }, 200);

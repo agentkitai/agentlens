@@ -24,8 +24,15 @@ export interface ServerConfig {
   /** Optional bearer token for OTLP ingestion auth */
   otlpAuthToken?: string;
   /** Service token authenticating AgentGate's internal spend-read calls (#13).
-   *  When unset, POST /api/internal/spend is disabled. */
+   *  Also used to authenticate AgentLens's OUTBOUND ingest-key verify call to
+   *  AgentGate (#24) — a bidirectional shared service secret. When unset, POST
+   *  /api/internal/spend is disabled and OTLP ingest-key verification is off. */
   agentgateServiceToken?: string;
+  /** AgentGate base URL (#24). When set (with agentgateServiceToken), an OTLP
+   *  exporter may present a longer-lived X-Agent-Ingest-Key, which AgentLens
+   *  verifies against AgentGate's POST /api/internal/verify-ingest-key with a
+   *  short cache. Unset → ingest-key verification is off (token path unchanged). */
+  agentgateUrl?: string;
   /** OTLP rate limit per IP per minute (default: 1000) */
   otlpRateLimit: number;
   /** Whether OTLP endpoints require full unified auth (default: false) */
@@ -93,6 +100,7 @@ export function getConfig(): ServerConfig {
     })(),
     otlpAuthToken: process.env['OTLP_AUTH_TOKEN'] || undefined,
     agentgateServiceToken: process.env['AGENTGATE_SERVICE_TOKEN'] || undefined,
+    agentgateUrl: process.env['AGENTGATE_URL'] || undefined,
     otlpAuthRequired: process.env['OTLP_AUTH_REQUIRED'] === 'true',
     otlpRateLimit: (() => {
       const parsed = parseInt(process.env['OTLP_RATE_LIMIT'] ?? '1000', 10);

@@ -89,6 +89,19 @@ column). The issue allows "HMAC-signed OTLP payloads (or equivalent)":
 before building B. (2) is viable but adds a bespoke signing path; prefer it only if neither
 token approach fits the deployment model.
 
+> **Resolved — both (1) and (3) ship.** Slice B (PR #92) landed **(1)**: the OTLP gate verifies an
+> `X-Agent-Token`. But the dominant OTLP deployment is a long-running, statically-configured
+> exporter that can't refresh a 15-min JWT, so on (1) alone its spend silently fell to
+> *unattributed* in billing mode. So **(3)** followed: AgentGate issues a longer-lived, **revocable**,
+> ingest-scoped credential (`agl_ingest_*`); an exporter sets it once as `X-Agent-Ingest-Key` (e.g.
+> via `OTEL_EXPORTER_OTLP_HEADERS`), and AgentLens resolves it to a verified id by calling AgentGate's
+> `POST /api/internal/verify-ingest-key` (`AGENTGATE_URL` + the shared `AGENTGATE_SERVICE_TOKEN`) with
+> a short cache — so revocation/rotation take effect within ~60s. The call is **fail-open** (any
+> error/timeout → unattributed, never mis-attributed). The agent JWT still wins when both are present.
+> Manage keys with `POST/DELETE /api/agents/:id/ingest-key` on AgentGate. The verified id is stamped
+> with `verifiedAgentMethod: agentgate_ingest_key`. (2) remains unbuilt — neither token approach
+> needed a bespoke signing path.
+
 ## Non-goals (for now)
 
 - Zero-staleness / in-flight enforcement — AgentGate doesn't sit in the completion path; budgets
