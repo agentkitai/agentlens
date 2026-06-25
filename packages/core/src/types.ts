@@ -294,6 +294,16 @@ export interface CustomPayload {
 export interface EvalResultPayload {
   /** Which scorer produced this result (e.g. 'compliance', 'llm_judge') */
   scorerType: string;
+  /**
+   * Evidence class. `deterministic` results (compliance, exact_match, …) are
+   * reproducible and provable — re-running the same scorer over the same events
+   * yields the same outcome. `llm_judge` results are a model's non-deterministic
+   * *judgment*: the hash chain proves this judgment was recorded and not altered,
+   * NOT that the agent was compliant. The dashboard renders the two differently.
+   * Absent on pre-Phase-2 events — consumers MUST treat `undefined` as
+   * `'deterministic'` (compliance was the only scorer before this field existed).
+   */
+  method?: 'deterministic' | 'llm_judge';
   /** Normalized score in [0, 1] */
   score: number;
   /** Whether the result met the pass criteria */
@@ -313,6 +323,12 @@ export interface EvalResultPayload {
   evalRunId?: string;
   /** Link to the dataset test case, when scored as part of a run */
   testCaseId?: string;
+  /** LLM-judge: the judge model that produced this result. */
+  model?: string;
+  /** LLM-judge: the judge's own token spend (USD) for this judgment. */
+  costUsd?: number;
+  /** LLM-judge: input+output tokens the judge consumed for this judgment. */
+  tokenCount?: number;
 }
 
 /**

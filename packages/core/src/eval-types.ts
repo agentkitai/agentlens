@@ -79,6 +79,13 @@ export interface ScoreResult {
   scorerType: ScorerType;
   reasoning?: string;
   subScores?: ScoreResult[];
+  /** LLM-judge scorers: the judge model that produced this result. */
+  model?: string;
+  /** LLM-judge scorers: the judge's own token spend (USD), kept distinct from the
+   *  agent-under-test's execution cost (which the runner reads from webhook metadata). */
+  costUsd?: number;
+  /** LLM-judge scorers: input+output tokens the judge consumed. */
+  tokenCount?: number;
 }
 
 // ─── Run Types ─────────────────────────────────────────────

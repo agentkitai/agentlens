@@ -17,15 +17,32 @@
  */
 
 import { Hono } from 'hono';
-import { complianceScoreRequestSchema } from '@agentlensai/core';
-import type { EvalResultPayload, IEventStore } from '@agentlensai/core';
+import { complianceScoreRequestSchema, judgeScoreRequestSchema } from '@agentlensai/core';
+import type { AgentLensEvent, EvalResultPayload, IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { EvalStore } from '../db/eval-store.js';
 import { EvalRunner } from '../lib/eval/runner.js';
-import { createDefaultRegistry, evaluateCompliance } from '../lib/eval/index.js';
+import { createDefaultRegistry, evaluateCompliance, judgeWithLlm, judgeProviderFromEnv } from '../lib/eval/index.js';
 import { appendEventToSession } from '../lib/append-event.js';
 import type { SqliteDb } from '../db/index.js';
+
+/**
+ * Compact a session's events into a linear transcript for the LLM judge.
+ * ponytail: flat transcript capped at 200 events; summarize/paginate if sessions
+ * ever grow huge enough to blow the judge's context window.
+ */
+function buildSessionTranscript(events: AgentLensEvent[], maxEvents = 200): string {
+  const slice = events.slice(0, maxEvents);
+  const lines = slice.map((e) => {
+    const p = (e.payload ?? {}) as Record<string, unknown>;
+    const detail = p['toolName'] ?? p['message'] ?? p['model'] ?? p['output'] ?? '';
+    const detailStr = typeof detail === 'string' ? detail : JSON.stringify(detail);
+    return `[${e.eventType}/${e.severity}] ${detailStr}`.trim();
+  });
+  if (events.length > maxEvents) lines.push(`… (${events.length - maxEvents} more events truncated)`);
+  return lines.join('\n');
+}
 
 export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -317,6 +334,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
 
     const payload: EvalResultPayload = {
       scorerType: 'compliance',
+      method: 'deterministic',
       score: result.score,
       passed,
       reasoning: result.reasoning,
@@ -347,6 +365,93 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
       violations: result.violations,
       rulesEvaluated: result.rulesEvaluated,
       reasoning: result.reasoning,
+      event: { id: event.id, hash: event.hash, prevHash: event.prevHash },
+    }, 201);
+  });
+
+  // ─── Online LLM-Judge Scoring (#55 — Phase 2) ──────────
+  //
+  // Score a completed session against a rubric with the LLM judge and chain the
+  // result into its audit trail. The judgment is non-deterministic, so it is
+  // labelled method:'llm_judge' — the chain proves the judgment was recorded and
+  // unaltered, NOT that the agent was compliant (that's the deterministic
+  // /compliance endpoint). The judge's own token cost is recorded on the event.
+  app.post('/sessions/:sessionId/score', async (c) => {
+    if (!store) return c.json({ error: 'Event store not available' }, 500);
+
+    const makeProvider = judgeProviderFromEnv();
+    if (!makeProvider) {
+      return c.json(
+        { error: 'LLM judge not configured: set AGENTLENS_LLM_API_KEY (and AGENTLENS_LLM_PROVIDER=anthropic).' },
+        503,
+      );
+    }
+
+    const tenantStore = getTenantStore(store, c);
+    const tenantId = getTenantId(c);
+    const sessionId = c.req.param('sessionId');
+
+    const body = await c.req.json().catch(() => null);
+    const parsed = judgeScoreRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({
+        error: 'Validation failed',
+        details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })),
+      }, 400);
+    }
+    const { rubric, model, passThreshold, expectedOutput } = parsed.data;
+
+    const timeline = await tenantStore.getSessionTimeline(sessionId);
+    if (timeline.length === 0) {
+      return c.json({ error: 'Session not found or has no events' }, 404);
+    }
+
+    const result = await judgeWithLlm({
+      makeProvider,
+      model,
+      rubric,
+      inputPrompt: 'An AI agent session (the transcript is in Actual Output below).',
+      expectedOutput,
+      actualOutput: buildSessionTranscript(timeline),
+    });
+
+    const passed = passThreshold !== undefined ? result.score >= passThreshold : result.passed;
+    const agentId = parsed.data.agentId ?? timeline[0]!.agentId;
+
+    const payload: EvalResultPayload = {
+      scorerType: 'llm_judge',
+      method: 'llm_judge',
+      score: result.score,
+      passed,
+      reasoning: result.reasoning,
+      model: result.model,
+      costUsd: result.costUsd,
+      tokenCount: result.tokenCount,
+    };
+
+    let event;
+    try {
+      event = await appendEventToSession(tenantStore, {
+        tenantId,
+        sessionId,
+        agentId,
+        eventType: 'eval_result',
+        severity: passed ? 'info' : 'warn',
+        payload,
+        metadata: { source: 'llm_judge_eval' },
+      });
+    } catch (err) {
+      return c.json({ error: `Failed to record eval result: ${(err as Error).message}` }, 409);
+    }
+
+    return c.json({
+      sessionId,
+      score: result.score,
+      passed,
+      reasoning: result.reasoning,
+      model: result.model,
+      costUsd: result.costUsd,
+      tokenCount: result.tokenCount,
       event: { id: event.id, hash: event.hash, prevHash: event.prevHash },
     }, 201);
   });

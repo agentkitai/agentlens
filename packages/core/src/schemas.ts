@@ -302,6 +302,24 @@ export const complianceScoreRequestSchema = z.object({
 
 export type ComplianceScoreRequest = z.infer<typeof complianceScoreRequestSchema>;
 
+/**
+ * Request to score a completed session with the LLM judge (online/retroactive).
+ * The judgment is hash-chained as an `eval_result` event labelled method:'llm_judge'.
+ */
+export const judgeScoreRequestSchema = z.object({
+  /** The rubric the judge grades the session transcript against. */
+  rubric: z.string().min(1),
+  /** Judge model override; defaults to a cheap Claude tier server-side. */
+  model: z.string().min(1).optional(),
+  /** Pass threshold in [0, 1]; defaults to the judge's 0.7. */
+  passThreshold: z.number().min(0).max(1).optional(),
+  /** Optional reference answer to ground the judgment. */
+  expectedOutput: z.unknown().optional(),
+  agentId: z.string().min(1).optional(),
+});
+
+export type JudgeScoreRequest = z.infer<typeof judgeScoreRequestSchema>;
+
 // ─── Health Score Schemas (Story 1.1) ───────────────────────────────
 
 export const HealthDimensionSchema = z.object({
