@@ -3,6 +3,7 @@ import {
   EMBEDDED_MODEL_COSTS,
   lookupModelCost,
   costUsd,
+  costUsdDetailed,
   getModelCosts,
   setModelCosts,
 } from "./models.js";
@@ -10,6 +11,58 @@ import { mapLiteLlmPrices, refreshFromLiteLLM } from "./litellm.js";
 
 beforeEach(() => {
   setModelCosts({ ...EMBEDDED_MODEL_COSTS }); // reset live table between tests
+});
+
+describe("cache-aware pricing (costUsdDetailed)", () => {
+  it("charges Anthropic cache read/write additively (0.1x/1.25x input) and reports savings", () => {
+    // 1M cache reads + 1M cache writes on claude-haiku-4-5 (input 0.8).
+    const { costUsd: c, cacheSavingsUsd: saved } = costUsdDetailed("claude-haiku-4-5", {
+      inputTokens: 0, outputTokens: 0, cacheReadTokens: 1_000_000, cacheWriteTokens: 1_000_000,
+    });
+    expect(c).toBeCloseTo(0.08 + 1.0, 6); // read (0.1×0.8) + write (1.25×0.8)
+    expect(saved).toBeCloseTo(0.8 - 0.08, 6); // reads at full input − actual cache-read cost
+  });
+
+  it("derives the discount at compute time, so it SURVIVES a LiteLLM refresh", () => {
+    // Refresh replaces the table with input/output-only rows (no cache fields).
+    setModelCosts(mapLiteLlmPrices({
+      "claude-haiku-4-5": { input_cost_per_token: 0.0000008, output_cost_per_token: 0.000004 },
+    }));
+    const { costUsd: c, cacheSavingsUsd: saved } = costUsdDetailed("claude-haiku-4-5", {
+      inputTokens: 0, outputTokens: 0, cacheReadTokens: 1_000_000,
+    });
+    expect(c).toBeCloseTo(0.08, 6); // still discounted, not 0.8
+    expect(saved).toBeCloseTo(0.72, 6);
+  });
+
+  it("applies OpenAI cache-read discount (0.5x input)", () => {
+    const { costUsd: c, cacheSavingsUsd: saved } = costUsdDetailed("gpt-4o", {
+      inputTokens: 0, outputTokens: 0, cacheReadTokens: 1_000_000,
+    });
+    expect(c).toBeCloseTo(1.25, 6); // 0.5 × 2.5
+    expect(saved).toBeCloseTo(1.25, 6);
+  });
+
+  it("charges unknown providers at full input rate with NO savings claimed", () => {
+    const { costUsd: c, cacheSavingsUsd: saved } = costUsdDetailed("gemini-2.5-pro", {
+      inputTokens: 0, outputTokens: 0, cacheReadTokens: 1_000_000,
+    });
+    expect(c).toBeCloseTo(1.25, 6); // gemini input rate, no discount
+    expect(saved).toBe(0);
+  });
+
+  it("treats negative / NaN token counts as zero (malformed telemetry)", () => {
+    const r = costUsdDetailed("claude-haiku-4-5", {
+      inputTokens: -100, outputTokens: NaN, cacheReadTokens: -5, cacheWriteTokens: Infinity,
+    });
+    expect(r.costUsd).toBe(0);
+    expect(r.cacheSavingsUsd).toBe(0);
+  });
+
+  it("returns zeros for an unpriced model", () => {
+    expect(costUsdDetailed("who-knows-x", { inputTokens: 100, outputTokens: 100, cacheReadTokens: 100 }))
+      .toEqual({ costUsd: 0, cacheSavingsUsd: 0 });
+  });
 });
 
 describe("lookupModelCost", () => {

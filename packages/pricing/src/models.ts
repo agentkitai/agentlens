@@ -7,10 +7,14 @@
 // LiteLLM's published prices (model_prices_and_context_window.json) and can be
 // refreshed live at runtime via refreshFromLiteLLM().
 
-/** Per-1M-token input/output rate in USD. */
+/** Per-1M-token rates in USD. */
 export interface ModelRate {
   input: number;
   output: number;
+  /** Cached-input READ rate (Anthropic ≈ 0.1× input). Omitted → no cache discount. */
+  cacheRead?: number;
+  /** Cache WRITE/creation rate (Anthropic ≈ 1.25× input). Omitted → charged at input. */
+  cacheWrite?: number;
 }
 
 export type ModelCostTable = Record<string, ModelRate>;
@@ -103,4 +107,66 @@ export function costUsd(
   const rate = lookupModelCost(model, table);
   if (!rate) return 0;
   return (inputTokens / 1_000_000) * rate.input + (outputTokens / 1_000_000) * rate.output;
+}
+
+/** Token usage for a single call, with optional prompt-cache breakdown. */
+export interface UsageTokens {
+  /** Uncached input tokens (provider convention: excludes cache read/creation). */
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+}
+
+/** Non-negative finite token count (guards malformed/negative/NaN telemetry). */
+function tok(n: number | undefined): number {
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * Per-1M cache read/write rates for a model. Explicit table rates win; otherwise
+ * derived from the input rate per provider convention — Anthropic: read 0.1×,
+ * write 1.25×; OpenAI: read 0.5× (no separate write charge). Unknown providers get
+ * the full input rate (conservative — never under-counts) with `hasDiscount=false`
+ * so we never claim savings we can't substantiate. Deriving at COMPUTE time (not
+ * mutating the table) keeps rates correct after a refreshFromLiteLLM() that drops
+ * them.
+ */
+function resolveCacheRates(model: string, rate: ModelRate): { read: number; write: number; hasDiscount: boolean } {
+  if (rate.cacheRead !== undefined) {
+    return { read: rate.cacheRead, write: rate.cacheWrite ?? rate.input, hasDiscount: true };
+  }
+  if (model.startsWith('claude')) {
+    return { read: rate.input * 0.1, write: rate.input * 1.25, hasDiscount: true };
+  }
+  if (/^(gpt-|o1|o3|o4|chatgpt)/.test(model)) {
+    return { read: rate.input * 0.5, write: rate.input, hasDiscount: true };
+  }
+  return { read: rate.input, write: rate.input, hasDiscount: false };
+}
+
+/**
+ * Cache-aware cost. Cache read/write tokens are charged ADDITIVELY (the provider
+ * convention — Anthropic/OpenAI report input_tokens excluding cache), at the
+ * model's resolved cache rates. `cacheSavingsUsd` is what the cache reads WOULD
+ * have cost at the full input rate minus what they actually cost — claimed only
+ * when a cache discount is known for the model (else 0). Negative/NaN token counts
+ * are treated as 0. Returns zeros for an unpriced model (never throws).
+ */
+export function costUsdDetailed(
+  model: string,
+  usage: UsageTokens,
+  table: ModelCostTable = currentTable,
+): { costUsd: number; cacheSavingsUsd: number } {
+  const rate = lookupModelCost(model, table);
+  if (!rate) return { costUsd: 0, cacheSavingsUsd: 0 };
+  const input = tok(usage.inputTokens);
+  const output = tok(usage.outputTokens);
+  const cr = tok(usage.cacheReadTokens);
+  const cw = tok(usage.cacheWriteTokens);
+  const cache = resolveCacheRates(model, rate);
+  const costUsd =
+    (input * rate.input + output * rate.output + cr * cache.read + cw * cache.write) / 1_000_000;
+  const cacheSavingsUsd = cache.hasDiscount ? (cr * (rate.input - cache.read)) / 1_000_000 : 0;
+  return { costUsd, cacheSavingsUsd };
 }

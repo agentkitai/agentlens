@@ -11,6 +11,7 @@ import {
   computePromptHash,
   type CreateTemplateInput,
 } from '../prompt-store.js';
+import { events as eventsTable } from '../schema.sqlite.js';
 
 let db: SqliteDb;
 let store: PromptStore;
@@ -247,5 +248,50 @@ describe('PromptStore — getVersionAnalytics', () => {
     expect(analytics).toHaveLength(1);
     expect(analytics[0].callCount).toBe(0);
     expect(analytics[0].totalCostUsd).toBe(0);
+    expect(analytics[0].totalCacheReadTokens).toBe(0);
+    expect(analytics[0].estimatedCacheSavingsUsd).toBe(0);
+  });
+
+  it('aggregates cache tokens and estimates per-version savings (#55 Thread 2)', () => {
+    const { template, version } = store.createTemplate(TENANT, makeInput());
+    // A paired llm_call (linked to the version) + llm_response with cache reads.
+    db.insert(eventsTable).values([
+      { id: 'e1', timestamp: '2026-03-01T00:00:01Z', sessionId: 's1', agentId: 'agt_a',
+        eventType: 'llm_call', severity: 'info', metadata: '{}', prevHash: null, hash: 'h1', tenantId: TENANT,
+        payload: JSON.stringify({ callId: 'c1', provider: 'anthropic', model: 'claude-haiku-4-5', promptVersionId: version.id, messages: [] }) },
+      { id: 'e2', timestamp: '2026-03-01T00:00:02Z', sessionId: 's1', agentId: 'agt_a',
+        eventType: 'llm_response', severity: 'info', metadata: '{}', prevHash: 'h1', hash: 'h2', tenantId: TENANT,
+        payload: JSON.stringify({ callId: 'c1', model: 'claude-haiku-4-5', completion: 'ok', costUsd: 0.01, latencyMs: 5,
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150, cacheReadTokens: 1_000_000, cacheWriteTokens: 200_000 } }) },
+    ]).run();
+
+    const a = store.getVersionAnalytics(template.id, TENANT, '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z')
+      .find((x) => x.versionId === version.id)!;
+    expect(a.callCount).toBe(1);
+    expect(a.totalCacheReadTokens).toBe(1_000_000);
+    expect(a.totalCacheWriteTokens).toBe(200_000);
+    // claude-haiku-4-5: input 0.8, cacheRead 0.08 → savings = 1e6 × (0.8 − 0.08) / 1e6 = 0.72
+    expect(a.estimatedCacheSavingsUsd).toBeCloseTo(0.72, 6);
+  });
+
+  it('sums cache savings across multiple models used by one version', () => {
+    const { template, version } = store.createTemplate(TENANT, makeInput());
+    const mk = (id: string, callId: string, model: string, cacheRead: number) => ([
+      { id: `${id}c`, timestamp: '2026-03-01T00:00:01Z', sessionId: 's1', agentId: 'agt_a',
+        eventType: 'llm_call', severity: 'info', metadata: '{}', prevHash: null, hash: `${id}h1`, tenantId: TENANT,
+        payload: JSON.stringify({ callId, model, promptVersionId: version.id, messages: [] }) },
+      { id: `${id}r`, timestamp: '2026-03-01T00:00:02Z', sessionId: 's1', agentId: 'agt_a',
+        eventType: 'llm_response', severity: 'info', metadata: '{}', prevHash: `${id}h1`, hash: `${id}h2`, tenantId: TENANT,
+        payload: JSON.stringify({ callId, model, costUsd: 0.01, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, cacheReadTokens: cacheRead } }) },
+    ]);
+    db.insert(eventsTable).values([
+      ...mk('a', 'c1', 'claude-haiku-4-5', 1_000_000), // savings 0.72
+      ...mk('b', 'c2', 'gpt-4o', 1_000_000),           // savings 1.25 (OpenAI 0.5×)
+    ]).run();
+
+    const a = store.getVersionAnalytics(template.id, TENANT, '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z')
+      .find((x) => x.versionId === version.id)!;
+    expect(a.totalCacheReadTokens).toBe(2_000_000);
+    expect(a.estimatedCacheSavingsUsd).toBeCloseTo(0.72 + 1.25, 6);
   });
 });

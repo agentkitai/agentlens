@@ -12,7 +12,7 @@
 import { Hono } from 'hono';
 import { timingSafeEqual, createHash } from 'node:crypto';
 import protobuf from 'protobufjs';
-import { computeEventHash, truncatePayload, costUsd } from '@agentlensai/core';
+import { computeEventHash, truncatePayload, costUsdDetailed } from '@agentlensai/core';
 import { OTLP_PROTO_DESCRIPTOR } from '../otlp/otlp-proto-descriptor.js';
 import { nextEventId } from '../lib/event-id.js';
 import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentlensai/core';
@@ -38,8 +38,14 @@ const warnedUnsupportedMetrics = new Set<string>();
 // OTel instrumentation usually reports tokens but not cost. Reconstruct it
 // from the model's per-1M-token rates so OTel-instrumented agents get cost
 // analytics with no SDK and no per-call cost attribute. Unknown models → 0.
-export function otelCostUsd(model: string, inputTokens: number, outputTokens: number): number {
-  return costUsd(model, inputTokens, outputTokens);
+export function otelCostUsd(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cacheReadTokens = 0,
+  cacheWriteTokens = 0,
+): number {
+  return costUsdDetailed(model, { inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens }).costUsd;
 }
 
 // ─── Protobuf Decoders ──────────────────────────────────────────────
@@ -507,6 +513,13 @@ function mapGenAiSpan(
     const maxTokens = getAttr(attrs, 'gen_ai.request.max_tokens');
     const inputTokens = getAttrNum(attrs, 'gen_ai.usage.input_tokens');
     const outputTokens = getAttrNum(attrs, 'gen_ai.usage.output_tokens');
+    // Prompt-cache tokens (#55 Thread 2). Anthropic-via-OpenLLMetry uses
+    // cache_read_input_tokens / cache_creation_input_tokens; tolerate the shorter
+    // cached_input_tokens some instrumentations emit.
+    const cacheReadTokens =
+      getAttrNum(attrs, 'gen_ai.usage.cache_read_input_tokens') ||
+      getAttrNum(attrs, 'gen_ai.usage.cached_input_tokens');
+    const cacheWriteTokens = getAttrNum(attrs, 'gen_ai.usage.cache_creation_input_tokens');
 
     // One LLM span → a paired llm_call (request, at span start) and llm_response
     // (response + token usage, at span end). The dashboard pairs them by callId.
@@ -532,8 +545,12 @@ function mapGenAiSpan(
           callId: span.spanId, provider, model: responseModel,
           completion: outputMsgs.map((m) => m.content).filter(Boolean).join('\n') || null,
           finishReason: genAiFinishReason(attrs),
-          usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
-          costUsd: otelCostUsd(responseModel, inputTokens, outputTokens),
+          usage: {
+            inputTokens, outputTokens, totalTokens: inputTokens + outputTokens,
+            ...(cacheReadTokens ? { cacheReadTokens } : {}),
+            ...(cacheWriteTokens ? { cacheWriteTokens } : {}),
+          },
+          costUsd: otelCostUsd(responseModel, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens),
           latencyMs,
         },
       },
