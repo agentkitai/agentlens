@@ -1423,4 +1423,10 @@ export interface PromptVersionAnalytics {
   errorRate: number;
   avgInputTokens: number;
   avgOutputTokens: number;
+  /** Total cached-input tokens read across this version's calls (#55 Thread 2). */
+  totalCacheReadTokens: number;
+  /** Total cache-write/creation tokens across this version's calls. */
+  totalCacheWriteTokens: number;
+  /** Estimated USD saved by cache reads vs. full input price (0 when unknown). */
+  estimatedCacheSavingsUsd: number;
 }

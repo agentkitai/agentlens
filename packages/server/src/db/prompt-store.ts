@@ -16,6 +16,7 @@ import type {
   PromptFingerprint,
   PromptVersionAnalytics,
 } from '@agentlensai/core';
+import { costUsdDetailed } from '@agentlensai/core';
 
 // ─── DB Row Types ──────────────────────────────────────────
 
@@ -400,6 +401,8 @@ export class PromptStore {
       error_rate: number;
       avg_input_tokens: number;
       avg_output_tokens: number;
+      total_cache_read_tokens: number;
+      total_cache_write_tokens: number;
     }>(sql`
       SELECT
         pv.id AS version_id,
@@ -414,7 +417,9 @@ export class PromptStore {
           0
         ) AS error_rate,
         COALESCE(AVG(json_extract(r.payload, '$.usage.inputTokens')), 0) AS avg_input_tokens,
-        COALESCE(AVG(json_extract(r.payload, '$.usage.outputTokens')), 0) AS avg_output_tokens
+        COALESCE(AVG(json_extract(r.payload, '$.usage.outputTokens')), 0) AS avg_output_tokens,
+        COALESCE(SUM(json_extract(r.payload, '$.usage.cacheReadTokens')), 0) AS total_cache_read_tokens,
+        COALESCE(SUM(json_extract(r.payload, '$.usage.cacheWriteTokens')), 0) AS total_cache_write_tokens
       FROM prompt_versions pv
       LEFT JOIN events e
         ON json_extract(e.payload, '$.promptVersionId') = pv.id
@@ -430,6 +435,10 @@ export class PromptStore {
       ORDER BY pv.version_number DESC
     `);
 
+    // Cache savings need a per-model rate, so aggregate cache-read tokens grouped
+    // by (version, model) and price each group in JS (the main query is per-version).
+    const savings = this.cacheSavingsByVersion(templateId, tenantId, fromDate, toDate);
+
     return rows.map((r) => ({
       versionId: r.version_id,
       versionNumber: r.version_number,
@@ -440,6 +449,48 @@ export class PromptStore {
       errorRate: r.error_rate,
       avgInputTokens: r.avg_input_tokens,
       avgOutputTokens: r.avg_output_tokens,
+      totalCacheReadTokens: r.total_cache_read_tokens,
+      totalCacheWriteTokens: r.total_cache_write_tokens,
+      estimatedCacheSavingsUsd: savings.get(r.version_id) ?? 0,
     }));
+  }
+
+  /** Estimated USD saved by cache reads per version = cacheReadTokens × (input − cacheRead) rate. */
+  private cacheSavingsByVersion(
+    templateId: string,
+    tenantId: string,
+    fromDate: string,
+    toDate: string,
+  ): Map<string, number> {
+    const rows = this.db.all<{ version_id: string; model: string | null; cache_read: number }>(sql`
+      SELECT
+        pv.id AS version_id,
+        json_extract(r.payload, '$.model') AS model,
+        COALESCE(SUM(json_extract(r.payload, '$.usage.cacheReadTokens')), 0) AS cache_read
+      FROM prompt_versions pv
+      LEFT JOIN events e
+        ON json_extract(e.payload, '$.promptVersionId') = pv.id
+        AND e.event_type = 'llm_call'
+        AND e.tenant_id = ${tenantId}
+        AND e.timestamp BETWEEN ${fromDate} AND ${toDate}
+      LEFT JOIN events r
+        ON json_extract(r.payload, '$.callId') = json_extract(e.payload, '$.callId')
+        AND r.event_type = 'llm_response'
+        AND r.tenant_id = ${tenantId}
+      WHERE pv.template_id = ${templateId} AND pv.tenant_id = ${tenantId}
+      GROUP BY pv.id, model
+    `);
+
+    const byVersion = new Map<string, number>();
+    for (const row of rows) {
+      if (!row.model || !row.cache_read) continue;
+      // Single source of truth for the per-model cache discount (robust to a
+      // LiteLLM refresh): savings = the cacheSavingsUsd costUsdDetailed reports.
+      const { cacheSavingsUsd } = costUsdDetailed(row.model, {
+        inputTokens: 0, outputTokens: 0, cacheReadTokens: row.cache_read,
+      });
+      if (cacheSavingsUsd > 0) byVersion.set(row.version_id, (byVersion.get(row.version_id) ?? 0) + cacheSavingsUsd);
+    }
+    return byVersion;
   }
 }

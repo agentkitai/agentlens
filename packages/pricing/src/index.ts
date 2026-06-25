@@ -7,6 +7,8 @@ export {
   setModelCosts,
   lookupModelCost,
   costUsd,
+  costUsdDetailed,
+  type UsageTokens,
 } from "./models.js";
 export {
   LITELLM_PRICES_URL,
