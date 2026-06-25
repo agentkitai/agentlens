@@ -37,22 +37,29 @@ export function getTenantId(
 }
 
 /**
- * Get a tenant-scoped event store from request context. [F6-S2]
+ * Wrap an IEventStore so every operation is scoped to an explicit tenantId.
  *
  * For SqliteEventStore or PostgresEventStore: wraps in TenantScopedStore.
  * For other IEventStore impls (tests, mocks): returns as-is.
+ *
+ * Use this when the tenant comes from somewhere other than the user auth context
+ * — e.g. service-to-service internal routes that take tenantId from the body.
+ */
+export function tenantScopedStore(store: IEventStore, tenantId: string): IEventStore {
+  if (store instanceof SqliteEventStore || store instanceof PostgresEventStore) {
+    return new TenantScopedStore(store, tenantId);
+  }
+  // Test mocks / other IEventStore implementations — return as-is
+  return store;
+}
+
+/**
+ * Get a tenant-scoped event store from request context. [F6-S2]
  */
 export function getTenantStore(
   store: IEventStore,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   c: Context<any, any, any>,
 ): IEventStore {
-  const tenantId = getTenantId(c);
-
-  if (store instanceof SqliteEventStore || store instanceof PostgresEventStore) {
-    return new TenantScopedStore(store, tenantId);
-  }
-
-  // Test mocks / other IEventStore implementations — return as-is
-  return store;
+  return tenantScopedStore(store, getTenantId(c));
 }
