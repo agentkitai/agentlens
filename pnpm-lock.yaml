@@ -94,7 +94,7 @@ importers:
 
   packages/core:
     dependencies:
-      '@agentkit/pricing':
+      '@agentkitai/pricing':
         specifier: workspace:*
         version: link:../pricing
       ulid:

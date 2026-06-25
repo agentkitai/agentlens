@@ -1,5 +1,5 @@
 {
-  "name": "@agentkit/pricing",
+  "name": "@agentkitai/pricing",
   "version": "0.2.0",
   "description": "Centralized LLM model pricing for the AgentKit suite, sourced from LiteLLM's published prices with an embedded fallback.",
   "type": "module",

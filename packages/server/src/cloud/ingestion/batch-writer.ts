@@ -56,7 +56,7 @@ export interface ConsumerRedisClient extends RedisClient {
 /**
  * Calculate cost for an LLM call event.
  * Returns cost in USD or null if not calculable (unknown model or no tokens).
- * Pricing comes from the shared @agentkit/pricing table (via @agentlensai/core),
+ * Pricing comes from the shared @agentkitai/pricing table (via @agentlensai/core),
  * so modern model ids (e.g. claude-opus-4-8) are covered, unlike the legacy
  * hand-maintained per-1K table this replaced.
  */

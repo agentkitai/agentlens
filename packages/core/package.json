@@ -1,6 +1,6 @@
 {
   "name": "@agentlensai/core",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "description": "Core types, schemas, and utilities for AgentLens — AI agent observability platform",
   "type": "module",
   "license": "MIT",
@@ -44,7 +44,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentkit/pricing": "workspace:*",
+    "@agentkitai/pricing": "workspace:*",
     "ulid": "^3.0.2",
     "zod": "^4.4.3"
   }
