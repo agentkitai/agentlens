@@ -26,6 +26,8 @@ import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { summarizeEvent, summarizeSession } from '../lib/embeddings/summarizer.js';
 import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
 import type { SessionSummaryStore } from '../db/session-summary-store.js';
+import type { PromptStore } from '../db/prompt-store.js';
+import { recordPromptFingerprints } from '../lib/prompt-fingerprint.js';
 import { createLogger } from '../lib/logger.js';
 
 const log = createLogger('Events');
@@ -40,6 +42,7 @@ export function eventsRoutes(
   deps?: {
     embeddingWorker: EmbeddingWorker | null;
     sessionSummaryStore?: SessionSummaryStore | null;
+    promptStore?: PromptStore | null;
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -163,6 +166,9 @@ export function eventsRoutes(
     for (const event of allProcessed) {
       eventBus.emit({ type: 'event_ingested', event, timestamp: now });
     }
+
+    // Auto-discover prompt templates from ingested llm_call events (best-effort).
+    recordPromptFingerprints(deps?.promptStore ?? null, allProcessed);
 
     // Enqueue embeddable events for background embedding
     const worker = deps?.embeddingWorker;

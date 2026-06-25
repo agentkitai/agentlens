@@ -36,6 +36,7 @@ import { diagnoseRoutes } from './diagnose.js';
 import { registerReplayRoutes } from './replay.js';
 import { benchmarkRoutes } from './benchmarks.js';
 import { promptRoutes } from './prompts.js';
+import { PromptStore } from '../db/prompt-store.js';
 import { guardrailRoutes } from './guardrails.js';
 import { evalRoutes } from './eval.js';
 import { capabilityRoutes } from './capabilities.js';
@@ -155,9 +156,12 @@ export async function registerRoutes(
   if (db) {
     app.route('/api/keys', apiKeysRoutes(db));
   }
+  // Prompt auto-discovery (#55 Thread 2) — SQLite-backed; null on Postgres-only.
+  const promptStore = db ? new PromptStore(db) : null;
   app.route('/api/events', eventsRoutes(store, {
     embeddingWorker: config?.embeddingWorker ?? null,
     sessionSummaryStore: db ? new SessionSummaryStore(db) : null,
+    promptStore,
   }));
   // Replay route registered directly on main app BEFORE sessions sub-app
   registerReplayRoutes(app, store);
@@ -314,7 +318,7 @@ export async function registerRoutes(
       return next();
     }));
   }
-  app.route('/v1', otlpRoutes(store, resolvedConfig));
+  app.route('/v1', otlpRoutes(store, resolvedConfig, promptStore));
 
   // ─── Server Info (Feature 10, Story 10.1) ─────────────
   {
