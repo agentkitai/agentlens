@@ -37,6 +37,8 @@ import { registerReplayRoutes } from './replay.js';
 import { benchmarkRoutes } from './benchmarks.js';
 import { promptRoutes } from './prompts.js';
 import { PromptStore } from '../db/prompt-store.js';
+import { EvaluatorStore } from '../db/evaluator-store.js';
+import { BUILTIN_EVALUATORS } from '../lib/eval/builtin-evaluators.js';
 import { guardrailRoutes } from './guardrails.js';
 import { evalRoutes } from './eval.js';
 import { capabilityRoutes } from './capabilities.js';
@@ -226,6 +228,12 @@ export async function registerRoutes(
     app.route('/api/benchmarks', benchmarkRoutes(store, db));
     app.route('/api/prompts', promptRoutes(db));
     app.route('/api/eval', evalRoutes(db, store));
+    // Seed the read-only built-in evaluator catalog (#55 Phase 4), idempotent.
+    try {
+      new EvaluatorStore(db).seedBuiltins(BUILTIN_EVALUATORS);
+    } catch (err) {
+      log.warn(`Built-in evaluator seed failed: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   // ─── Guardrails / Proactive Guardrails ────────────────

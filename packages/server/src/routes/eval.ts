@@ -17,11 +17,17 @@
  */
 
 import { Hono } from 'hono';
-import { complianceScoreRequestSchema, judgeScoreRequestSchema } from '@agentlensai/core';
-import type { AgentLensEvent, EvalResultPayload, IEventStore } from '@agentlensai/core';
+import {
+  complianceScoreRequestSchema,
+  judgeScoreRequestSchema,
+  createEvaluatorRequestSchema,
+  updateEvaluatorRequestSchema,
+} from '@agentlensai/core';
+import type { AgentLensEvent, ComplianceRule, EvalResultPayload, IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { EvalStore } from '../db/eval-store.js';
+import { EvaluatorStore } from '../db/evaluator-store.js';
 import { EvalRunner } from '../lib/eval/runner.js';
 import { createDefaultRegistry, evaluateCompliance, judgeWithLlm, judgeProviderFromEnv } from '../lib/eval/index.js';
 import { appendEventToSession } from '../lib/append-event.js';
@@ -51,6 +57,11 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
   function getStore(): EvalStore | null {
     if (!db) return null;
     return new EvalStore(db);
+  }
+
+  function getEvaluatorStore(): EvaluatorStore | null {
+    if (!db) return null;
+    return new EvaluatorStore(db);
   }
 
   // ─── Dataset Routes ────────────────────────────────────
@@ -319,14 +330,30 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
         details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })),
       }, 400);
     }
-    const { rules, passThreshold } = parsed.data;
+    const { passThreshold } = parsed.data;
+
+    // Rules come inline OR from a catalog evaluator (#55 Phase 4).
+    let rules = parsed.data.rules;
+    let evaluatorId: string | undefined;
+    if (parsed.data.evaluatorId) {
+      const evStore = getEvaluatorStore();
+      if (!evStore) return c.json({ error: 'Evaluator catalog unavailable' }, 503);
+      const ev = evStore.get(tenantId, parsed.data.evaluatorId);
+      if (!ev) return c.json({ error: 'Evaluator not found' }, 404);
+      if (ev.scorerType !== 'compliance') {
+        return c.json({ error: `Evaluator '${ev.id}' is a ${ev.scorerType} evaluator, not compliance` }, 400);
+      }
+      rules = (ev.configTemplate.rules ?? []) as ComplianceRule[];
+      if (rules.length === 0) return c.json({ error: 'Evaluator has no compliance rules' }, 400);
+      evaluatorId = ev.id;
+    }
 
     const timeline = await tenantStore.getSessionTimeline(sessionId);
     if (timeline.length === 0) {
       return c.json({ error: 'Session not found or has no events' }, 404);
     }
 
-    const result = evaluateCompliance(timeline, rules);
+    const result = evaluateCompliance(timeline, rules!);
 
     // Strict by default (any violation fails); a passThreshold switches to score-based.
     const passed = passThreshold !== undefined ? result.score >= passThreshold : result.passed;
@@ -351,7 +378,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
         eventType: 'eval_result',
         severity: passed ? 'info' : 'warn',
         payload,
-        metadata: { source: 'compliance_eval' },
+        metadata: { source: 'compliance_eval', ...(evaluatorId ? { evaluatorId } : {}) },
       });
     } catch (err) {
       // Hash-chain continuity error (e.g. concurrent append) → safe to retry.
@@ -399,7 +426,28 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
         details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })),
       }, 400);
     }
-    const { rubric, model, passThreshold, expectedOutput } = parsed.data;
+    const { passThreshold, expectedOutput } = parsed.data;
+
+    // Rubric/model come inline OR from a catalog evaluator (#55 Phase 4).
+    let rubric = parsed.data.rubric;
+    let model = parsed.data.model;
+    let evaluatorId: string | undefined;
+    if (parsed.data.evaluatorId) {
+      const evStore = getEvaluatorStore();
+      if (!evStore) return c.json({ error: 'Evaluator catalog unavailable' }, 503);
+      const ev = evStore.get(tenantId, parsed.data.evaluatorId);
+      if (!ev) return c.json({ error: 'Evaluator not found' }, 404);
+      if (ev.scorerType !== 'llm_judge') {
+        return c.json({ error: `Evaluator '${ev.id}' is a ${ev.scorerType} evaluator, not llm_judge` }, 400);
+      }
+      // The evaluator is authoritative for its config (consistent with /compliance,
+      // which takes the evaluator's rules wholesale); inline rubric/model are only a
+      // fallback when the evaluator omits them.
+      rubric = ev.configTemplate.rubric ?? rubric;
+      model = ev.configTemplate.model ?? model;
+      if (!rubric) return c.json({ error: 'Evaluator has no rubric' }, 400);
+      evaluatorId = ev.id;
+    }
 
     const timeline = await tenantStore.getSessionTimeline(sessionId);
     if (timeline.length === 0) {
@@ -409,7 +457,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     const result = await judgeWithLlm({
       makeProvider,
       model,
-      rubric,
+      rubric: rubric!,
       inputPrompt: 'An AI agent session (the transcript is in Actual Output below).',
       expectedOutput,
       actualOutput: buildSessionTranscript(timeline),
@@ -438,7 +486,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
         eventType: 'eval_result',
         severity: passed ? 'info' : 'warn',
         payload,
-        metadata: { source: 'llm_judge_eval' },
+        metadata: { source: 'llm_judge_eval', ...(evaluatorId ? { evaluatorId } : {}) },
       });
     } catch (err) {
       return c.json({ error: `Failed to record eval result: ${(err as Error).message}` }, 409);
@@ -467,6 +515,94 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
 
     store.cancelRun(id);
     return c.json({ id, status: 'cancelled' });
+  });
+
+  // ─── Evaluator Catalog (#55 — Phase 4) ─────────────────
+  //
+  // Reusable, named scorer definitions. Built-ins (PII/retention/authz/…) are
+  // global + read-only; tenants add/publish/verify their own. Reference one by id
+  // from the /compliance and /score endpoints (evaluatorId) instead of inlining
+  // the config.
+
+  app.get('/evaluators', async (c) => {
+    const evStore = getEvaluatorStore();
+    if (!evStore) return c.json({ error: 'Database not available' }, 500);
+    const tenantId = getTenantId(c);
+    const q = c.req.query();
+    const evaluators = evStore.list(tenantId, {
+      scorerType: (q.scorerType as never) || undefined,
+      tag: q.tag || undefined,
+      status: (q.status as never) || undefined,
+      builtin: q.builtin === undefined ? undefined : q.builtin === 'true',
+      verified: q.verified === undefined ? undefined : q.verified === 'true',
+    });
+    return c.json({ evaluators });
+  });
+
+  app.get('/evaluators/:id', async (c) => {
+    const evStore = getEvaluatorStore();
+    if (!evStore) return c.json({ error: 'Database not available' }, 500);
+    const ev = evStore.get(getTenantId(c), c.req.param('id'));
+    if (!ev) return c.json({ error: 'Evaluator not found' }, 404);
+    return c.json(ev);
+  });
+
+  app.post('/evaluators', async (c) => {
+    const evStore = getEvaluatorStore();
+    if (!evStore) return c.json({ error: 'Database not available' }, 500);
+    const parsed = createEvaluatorRequestSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: 'Validation failed', details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })) }, 400);
+    }
+    const ev = evStore.create(getTenantId(c), {
+      name: parsed.data.name,
+      description: parsed.data.description,
+      scorerType: parsed.data.scorerType,
+      // scorerType wins — spread first so a caller-supplied configTemplate.type
+      // can't contradict the declared scorerType.
+      configTemplate: { ...parsed.data.configTemplate, type: parsed.data.scorerType },
+      tags: parsed.data.tags,
+    });
+    return c.json(ev, 201);
+  });
+
+  app.put('/evaluators/:id', async (c) => {
+    const evStore = getEvaluatorStore();
+    if (!evStore) return c.json({ error: 'Database not available' }, 500);
+    const parsed = updateEvaluatorRequestSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: 'Validation failed', details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })) }, 400);
+    }
+    const ev = evStore.update(getTenantId(c), c.req.param('id'), parsed.data);
+    if (!ev) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
+    return c.json(ev);
+  });
+
+  app.delete('/evaluators/:id', async (c) => {
+    const evStore = getEvaluatorStore();
+    if (!evStore) return c.json({ error: 'Database not available' }, 500);
+    const ok = evStore.delete(getTenantId(c), c.req.param('id'));
+    if (!ok) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
+    return c.body(null, 204);
+  });
+
+  app.post('/evaluators/:id/publish', async (c) => {
+    const evStore = getEvaluatorStore();
+    if (!evStore) return c.json({ error: 'Database not available' }, 500);
+    // Attribute the publish to the calling API key (the unified-auth 'auth' var
+    // isn't set on this path — the middleware sets 'apiKey').
+    const apiKey = c.get('apiKey') as { id?: string; name?: string } | undefined;
+    const ev = evStore.publish(getTenantId(c), c.req.param('id'), apiKey?.name ?? apiKey?.id);
+    if (!ev) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
+    return c.json(ev);
+  });
+
+  app.post('/evaluators/:id/verify', async (c) => {
+    const evStore = getEvaluatorStore();
+    if (!evStore) return c.json({ error: 'Database not available' }, 500);
+    const ev = evStore.verify(getTenantId(c), c.req.param('id'));
+    if (!ev) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
+    return c.json(ev);
   });
 
   return app;
