@@ -160,6 +160,12 @@ export function runMigrations(db: SqliteDb): void {
     db.run(sql`ALTER TABLE events ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
   }
 
+  // events.verified_agent_id (billing-grade attribution, #87) — derived at
+  // insert from metadata.verifiedAgentId; NULL when unverified.
+  if (!eventColumnNames.has('verified_agent_id')) {
+    db.run(sql`ALTER TABLE events ADD COLUMN verified_agent_id TEXT`);
+  }
+
   // sessions.tenant_id
   if (!sessionColumnNames.has('tenant_id')) {
     db.run(sql`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
@@ -190,6 +196,7 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_tenant_id ON events(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_tenant_session ON events(tenant_id, session_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_tenant_agent_ts ON events(tenant_id, agent_id, timestamp)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_tenant_verified_ts ON events(tenant_id, verified_agent_id, timestamp)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_tenant_id ON sessions(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_tenant_agent ON sessions(tenant_id, agent_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_sessions_tenant_started ON sessions(tenant_id, started_at)`);

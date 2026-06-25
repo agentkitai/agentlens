@@ -89,28 +89,34 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
 
     const idList = sql.join((agentIds as string[]).map((id) => sql`${id}`), sql`, `);
 
+    // Billing-grade mode (#87, default OFF): attribute by the server-verified
+    // agent id (a self-reported / spoofed agent_id can't claim another agent's
+    // spend). Guardrail mode groups by the self-reported agent_id, unchanged.
+    const billing = getConfig().billingGradeSpend;
+    const idCol = sql.raw(billing ? 'verified_agent_id' : 'agent_id');
+
     const rows = await dbAll<{ agentId: string; totalCostUsd: number; lastEventAt: string }>(
       isPg ? null : db,
       qdb,
       sql`
         SELECT
-          agent_id as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
+          ${idCol} as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
           COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
           MAX(timestamp) as ${sql.raw(isPg ? '"lastEventAt"' : 'lastEventAt')}
         FROM events
         WHERE event_type IN ('cost_tracked', 'llm_response')
           AND tenant_id = ${tenantId}
-          AND agent_id IN (${idList})
+          AND ${idCol} IN (${idList})
           AND timestamp >= ${from}
           AND timestamp <= ${to}
-        GROUP BY agent_id
+        GROUP BY ${idCol}
       `,
     );
 
     // Agents with no spend in the window simply don't appear — the caller
     // treats a missing agent as $0.
-    log.debug(`spend read: ${rows.length}/${agentIds.length} agents have spend (tenant ${tenantId})`);
-    return c.json({
+    log.debug(`spend read (${billing ? 'billing' : 'guardrail'}): ${rows.length}/${agentIds.length} agents have spend (tenant ${tenantId})`);
+    const response: Record<string, unknown> = {
       tenantId,
       from,
       to,
@@ -119,7 +125,37 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
         totalCostUsd: Number(r.totalCostUsd) || 0,
         lastEventAt: r.lastEventAt ?? null,
       })),
-    });
+    };
+
+    // In billing mode, surface (but do not trust) cost that carries no verified
+    // id — spoofed/unverified spend that must not be billed to any agent.
+    // Guardrail mode keeps its response byte-for-byte unchanged.
+    if (billing) {
+      const [un] = await dbAll<{ totalCostUsd: number; eventCount: number; lastEventAt: string | null }>(
+        isPg ? null : db,
+        qdb,
+        sql`
+          SELECT
+            COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
+            COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')},
+            MAX(timestamp) as ${sql.raw(isPg ? '"lastEventAt"' : 'lastEventAt')}
+          FROM events
+          WHERE event_type IN ('cost_tracked', 'llm_response')
+            AND tenant_id = ${tenantId}
+            AND verified_agent_id IS NULL
+            AND timestamp >= ${from}
+            AND timestamp <= ${to}
+        `,
+      );
+      response['mode'] = 'billing';
+      response['unattributed'] = {
+        totalCostUsd: Number(un?.totalCostUsd) || 0,
+        eventCount: Number(un?.eventCount) || 0,
+        lastEventAt: un?.lastEventAt ?? null,
+      };
+    }
+
+    return c.json(response);
   });
 
   // POST /api/internal/eval/guardrail-breach — record an AgentGate guardrail

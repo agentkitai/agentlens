@@ -44,6 +44,10 @@ export const events = pgTable(
     prevHash: text('prev_hash'),
     hash: text('hash').notNull(),
     tenantId: text('tenant_id').notNull().default('default'),
+    // Server-authoritative verified agent id (billing-grade attribution, #87).
+    // DERIVED at insert from the already-hashed metadata.verifiedAgentId — never
+    // part of the hash input. NULL = unverified ("unattributed" in billing mode).
+    verifiedAgentId: text('verified_agent_id'),
   },
   (table) => [
     index('idx_events_timestamp').on(table.timestamp),
@@ -55,6 +59,8 @@ export const events = pgTable(
     index('idx_events_tenant_id').on(table.tenantId),
     index('idx_events_tenant_session').on(table.tenantId, table.sessionId),
     index('idx_events_tenant_agent_ts').on(table.tenantId, table.agentId, table.timestamp),
+    // Billing-grade spend grouping by verified id (#87)
+    index('idx_events_tenant_verified_ts').on(table.tenantId, table.verifiedAgentId, table.timestamp),
     // S6: BRIN index on timestamp for time-range scans
     index('idx_events_timestamp_brin').using('brin', table.timestamp),
     // S6: Covering index for tenant+session queries ordered by time

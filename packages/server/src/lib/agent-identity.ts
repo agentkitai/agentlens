@@ -76,6 +76,17 @@ export function stripVerifiedAgentKeys(metadata: Record<string, unknown>): Recor
 }
 
 /**
+ * Read the server-set verified agent id out of (already-stamped) metadata, for
+ * projection into the dedicated `verified_agent_id` column at insert (#87). The
+ * column is a DERIVED index of this value — never hashed, never client-settable
+ * (the keys were stripped/stamped upstream). Returns null when unverified.
+ */
+export function metadataVerifiedAgentId(metadata: Record<string, unknown> | null | undefined): string | null {
+  const v = metadata?.['verifiedAgentId'];
+  return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/**
  * Strip the reserved verified-agent keys from `metadata` (so a client can never
  * forge them) and stamp the server-verified id back in when one was resolved.
  * The result is what gets hashed + persisted.
