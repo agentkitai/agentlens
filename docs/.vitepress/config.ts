@@ -66,6 +66,7 @@ export default defineConfig({
           { text: 'LLM Call Tracking', link: '/guide/llm-tracking' },
           { text: 'Agent Memory', link: '/guide/agent-memory' },
           { text: 'Tenant Isolation', link: '/guide/tenant-isolation' },
+          { text: 'Compliance Evals', link: '/compliance-evals' },
         ],
       },
       {
