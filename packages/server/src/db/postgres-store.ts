@@ -29,6 +29,7 @@ import {
 import { HashChainError, NotFoundError } from './errors.js';
 import { createLogger } from '../lib/logger.js';
 import { withRetry } from '../lib/db-resilience.js';
+import { metadataVerifiedAgentId } from '../lib/agent-identity.js';
 
 const log = createLogger('PostgresEventStore');
 
@@ -263,6 +264,8 @@ export class PostgresEventStore implements IEventStore {
             prevHash: event.prevHash,
             hash: event.hash,
             tenantId: evTenantId,
+            // Derived projection of the hashed metadata — never hashed itself (#87).
+            verifiedAgentId: metadataVerifiedAgentId(event.metadata),
           })
           .onConflictDoNothing({ target: events.id });
 

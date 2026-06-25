@@ -10,6 +10,7 @@ import type { SqliteDb } from '../index.js';
 import { events, sessions, agents } from '../schema.sqlite.js';
 import { HashChainError } from '../errors.js';
 import { buildEventConditions, mapEventRow, safeJsonParse } from '../shared/query-helpers.js';
+import { metadataVerifiedAgentId } from '../../lib/agent-identity.js';
 import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('EventRepository');
@@ -108,6 +109,8 @@ export class EventRepository {
             prevHash: event.prevHash,
             hash: event.hash,
             tenantId,
+            // Derived projection of the hashed metadata — never hashed itself (#87).
+            verifiedAgentId: metadataVerifiedAgentId(event.metadata),
           })
           .onConflictDoNothing({ target: events.id })
           .run();

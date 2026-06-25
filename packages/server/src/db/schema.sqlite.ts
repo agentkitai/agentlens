@@ -24,6 +24,10 @@ export const events = sqliteTable(
     prevHash: text('prev_hash'),
     hash: text('hash').notNull(),
     tenantId: text('tenant_id').notNull().default('default'),
+    // Server-authoritative verified agent id (billing-grade attribution, #87).
+    // DERIVED at insert from the already-hashed metadata.verifiedAgentId — never
+    // part of the hash input. NULL = unverified ("unattributed" in billing mode).
+    verifiedAgentId: text('verified_agent_id'),
   },
   (table) => [
     index('idx_events_timestamp').on(table.timestamp),
@@ -37,6 +41,8 @@ export const events = sqliteTable(
     index('idx_events_tenant_id').on(table.tenantId),
     index('idx_events_tenant_session').on(table.tenantId, table.sessionId),
     index('idx_events_tenant_agent_ts').on(table.tenantId, table.agentId, table.timestamp),
+    // Billing-grade spend grouping by verified id (#87)
+    index('idx_events_tenant_verified_ts').on(table.tenantId, table.verifiedAgentId, table.timestamp),
   ],
 );
 

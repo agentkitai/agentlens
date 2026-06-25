@@ -50,6 +50,13 @@ export interface ServerConfig {
 
   /** Enable strict multi-tenant mode — rejects unscoped ingestion (default: false) [F6-S13] */
   multiTenantMode: boolean;
+
+  /** Billing-grade spend attribution (#87, DEFAULT OFF). When on, /api/internal/spend
+   *  and /api/analytics/costs attribute cost by the server-verified agent id
+   *  (events table `verified_agent_id`); unverified spend falls into an
+   *  "unattributed" bucket. When off, spend groups by the self-reported
+   *  agent_id (guardrail mode — today's behavior, unchanged). */
+  billingGradeSpend: boolean;
 }
 
 /**
@@ -102,6 +109,9 @@ export function getConfig(): ServerConfig {
 
     // Multi-tenant mode [F6-S13]
     multiTenantMode: process.env['MULTI_TENANT_MODE'] === 'true',
+
+    // Billing-grade spend attribution (#87) — default OFF (guardrail mode)
+    billingGradeSpend: process.env['BILLING_GRADE_SPEND'] === 'true',
   };
 }
 

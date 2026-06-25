@@ -9,6 +9,7 @@
 
 import { Hono } from 'hono';
 import { getTenantId } from './tenant-helper.js';
+import { getConfig } from '../config.js';
 import { sql, type SQL } from 'drizzle-orm';
 import type { IEventStore } from '@agentlensai/core';
 import type { AuthVariables } from '../middleware/auth.js';
@@ -128,9 +129,17 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
 
     const bucket = tb(isPg, formatStr);
 
+    // Billing-grade mode (#87, default OFF): attribute by the server-verified
+    // agent id; unverified events group under NULL → surfaced as "unattributed".
+    // Guardrail mode groups by the self-reported agent_id, unchanged.
+    const billing = getConfig().billingGradeSpend;
+    const agentCol = sql.raw(billing ? 'verified_agent_id' : 'agent_id');
+    // agent_id is NOT NULL, so this label is a no-op in guardrail mode.
+    const attrib = (id: string | null) => id ?? 'unattributed';
+
     // Cost by agent
     const byAgent = await dbAll<{
-      agentId: string;
+      agentId: string | null;
       totalCostUsd: number;
       totalInputTokens: number;
       totalOutputTokens: number;
@@ -141,7 +150,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
     }>(db, qdb,
       sql`
         SELECT
-          agent_id as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
+          ${agentCol} as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
           COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
           COALESCE(SUM(COALESCE(${jn(isPg, 'inputTokens')}, ${jn(isPg, 'usage.inputTokens')})), 0) as ${sql.raw(isPg ? '"totalInputTokens"' : 'totalInputTokens')},
           COALESCE(SUM(COALESCE(${jn(isPg, 'outputTokens')}, ${jn(isPg, 'usage.outputTokens')})), 0) as ${sql.raw(isPg ? '"totalOutputTokens"' : 'totalOutputTokens')},
@@ -154,7 +163,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
           AND timestamp >= ${from}
           AND timestamp <= ${to}
           AND tenant_id = ${tenantId}
-        GROUP BY agent_id
+        GROUP BY ${agentCol}
         ORDER BY ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')} DESC
       `,
     );
@@ -162,14 +171,14 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
     // Cost over time — broken down by agent for stacked chart
     const overTimeByAgent = await dbAll<{
       bucket: string;
-      agentId: string;
+      agentId: string | null;
       totalCostUsd: number;
       eventCount: number;
     }>(db, qdb,
       sql`
         SELECT
           ${bucket} as bucket,
-          agent_id as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
+          ${agentCol} as ${sql.raw(isPg ? '"agentId"' : 'agentId')},
           COALESCE(SUM(${jn(isPg, 'costUsd')}), 0) as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')},
           COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')}
         FROM events
@@ -177,7 +186,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
           AND timestamp >= ${from}
           AND timestamp <= ${to}
           AND tenant_id = ${tenantId}
-        GROUP BY bucket, agent_id
+        GROUP BY bucket, ${agentCol}
         ORDER BY bucket ASC
       `,
     );
@@ -193,7 +202,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
       };
       existing.totalCostUsd += Number(row.totalCostUsd);
       existing.eventCount += Number(row.eventCount);
-      existing.byAgent[row.agentId] = Number(row.totalCostUsd);
+      existing.byAgent[attrib(row.agentId)] = Number(row.totalCostUsd);
       bucketMap.set(row.bucket, existing);
     }
     const overTime = Array.from(bucketMap.values());
@@ -287,7 +296,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
 
     return c.json({
       byAgent: byAgent.map((r) => ({
-        agentId: r.agentId,
+        agentId: attrib(r.agentId),
         totalCostUsd: Number(r.totalCostUsd),
         totalInputTokens: Number(r.totalInputTokens),
         totalOutputTokens: Number(r.totalOutputTokens),
