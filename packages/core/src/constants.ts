@@ -1,5 +1,5 @@
 import type { HealthWeights } from './types.js';
-import { EMBEDDED_MODEL_COSTS } from '@agentkit/pricing';
+import { EMBEDDED_MODEL_COSTS } from '@agentkitai/pricing';
 
 /**
  * @agentlensai/core — Shared Constants
@@ -29,11 +29,11 @@ export const DEFAULT_HEALTH_WEIGHTS: HealthWeights = {
 };
 
 // ─── Model Cost Defaults (per 1M tokens) ───────────────────────────
-// Pricing is owned by @agentkit/pricing (the single source of truth, seeded
+// Pricing is owned by @agentkitai/pricing (the single source of truth, seeded
 // from LiteLLM). Re-exported here so existing @agentlensai/core consumers keep
 // importing DEFAULT_MODEL_COSTS / lookupModelCost / costUsd unchanged.
 
-/** Default model costs per 1M tokens (input/output). @see \@agentkit/pricing */
+/** Default model costs per 1M tokens (input/output). @see \@agentkitai/pricing */
 export const DEFAULT_MODEL_COSTS = EMBEDDED_MODEL_COSTS;
 
-export { lookupModelCost, costUsd, refreshFromLiteLLM } from '@agentkit/pricing';
+export { lookupModelCost, costUsd, refreshFromLiteLLM } from '@agentkitai/pricing';

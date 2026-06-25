@@ -1,5 +1,5 @@
 {
-  "name": "@agentkit/agentlens-relay",
+  "name": "@agentkitai/agentlens-relay",
   "version": "0.1.0",
   "description": "OpenClaw plugin that captures LLM calls and relays telemetry to AgentLens",
   "type": "module",

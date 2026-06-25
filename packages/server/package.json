@@ -1,6 +1,6 @@
 {
   "name": "@agentlensai/server",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "AgentLens API server — event ingestion, querying, dashboard, and alerting for AI agents",
   "type": "module",
   "license": "MIT",
