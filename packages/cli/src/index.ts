@@ -9,6 +9,7 @@ import { runAuditCommand } from './commands/audit.js';
 import { runConfigCommand } from './commands/config.js';
 import { runDiagnoseCommand } from './commands/diagnose.js';
 import { runContextCommand } from './commands/context.js';
+import { runEvalGateCommand } from './commands/eval-gate.js';
 import { runEventsCommand } from './commands/events.js';
 import { runGuardrailsCommand } from './commands/guardrails.js';
 import { runHealthCommand } from './commands/health.js';
@@ -30,6 +31,7 @@ Commands:
   config              Get or set configuration (url, api-key)
   diagnose            AI-powered diagnostics & root cause analysis
   context             Retrieve cross-session context for a topic
+  eval-gate           Gate CI/CD on an eval pass-rate (exit 1 if below threshold)
   events              Query events
   guardrails          Manage guardrail rules (list, get, create, enable, disable, history, delete)
   health              Agent health scores and trends
@@ -70,6 +72,10 @@ async function main(): Promise<void> {
 
     case 'diagnose':
       await runDiagnoseCommand(rest);
+      break;
+
+    case 'eval-gate':
+      await runEvalGateCommand(rest);
       break;
 
     case 'events':

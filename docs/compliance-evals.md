@@ -136,3 +136,42 @@ curl $AGENTLENS_URL/api/audit/verify?sessionId=$SESSION_ID -H "Authorization: Be
 This is the wedge: competitors offer eval tooling, but the eval result here is
 itself cryptographically auditable — table stakes for regulated AI (e.g. EU AI Act
 Article 12 traceability).
+
+## Gating CI/CD on evals
+
+`agentlens eval-gate` (in `@agentlensai/cli`) fails with a non-zero exit code when an
+eval pass-rate is below a threshold, so it can gate a pull request. Two modes:
+
+- **Trace scoring** (no agent webhook) — score "this PR's trace subset" against a
+  catalog evaluator and gate on how many sessions pass:
+  ```bash
+  agentlens eval-gate --evaluator-id builtin:pii-no-exfil \
+    --session-ids s1,s2,s3 --min-pass-rate 1.0
+  # or: --agent-id agt_1 --limit 50   (scores that agent's recent sessions)
+  ```
+- **Dataset run** (needs a live agent webhook) — run a dataset eval and gate on
+  `passedCases / totalCases`:
+  ```bash
+  agentlens eval-gate --dataset-id ds_1 --agent-id agt_1 \
+    --webhook-url https://my-agent/eval --min-pass-rate 0.9 --timeout-seconds 1800
+  ```
+
+It reads the server URL from `--url` / `AGENTLENS_SERVER_URL` and the key from
+`AGENTLENS_API_KEY` (never a flag, so the key stays out of the process list).
+
+### GitHub Action
+
+A composite action wraps the CLI — drop it into a PR workflow:
+
+```yaml
+- uses: agentkitai/agentlens/.github/actions/eval-gate@main
+  with:
+    server-url: https://lens.example
+    api-key: ${{ secrets.AGENTLENS_API_KEY }}
+    evaluator-id: builtin:pii-no-exfil
+    session-ids: ${{ steps.collect.outputs.session_ids }}
+    min-pass-rate: '1.0'
+```
+
+The step fails the check when the pass-rate is below `min-pass-rate`, blocking the
+merge. Set `dataset-id` + `agent-id` + `webhook-url` instead to gate on a dataset run.
