@@ -57,6 +57,7 @@ import { authRoutes } from './auth.js';
 import { auditRoutes } from './audit.js';
 import { cloudOrgRoutes } from '../cloud/routes/index.js';
 import { auditVerifyRoutes } from './audit-verify.js';
+import { auditTimelineRoutes, auditEvidenceRoutes } from './audit-evidence.js';
 import { complianceRoutes } from './compliance.js';
 import { costBudgetRoutes } from './cost-budgets.js';
 import { GuardrailStore } from '../db/guardrail-store.js';
@@ -283,6 +284,8 @@ export async function registerRoutes(
   if (db) {
     app.route('/api/audit', auditRoutes(db));
     app.route('/api/audit/verify', auditVerifyRoutes(db, resolvedConfig.auditSigningKey));
+    app.route('/api/audit/timeline', auditTimelineRoutes(db));
+    app.route('/api/audit/evidence', auditEvidenceRoutes(db, resolvedConfig.auditSigningKey));
     app.route('/api/compliance', complianceRoutes(db, resolvedConfig.auditSigningKey, {
       retentionDays: resolvedConfig.retentionDays,
     }));
