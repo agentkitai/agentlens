@@ -5,11 +5,14 @@ export {
   EMBEDDED_MODEL_COSTS,
   getModelCosts,
   setModelCosts,
+  getPricingProvenance,
   lookupModelCost,
   pricingVersion,
   costUsd,
   costUsdDetailed,
   type UsageTokens,
+  type PricingSource,
+  type PricingProvenance,
 } from "./models.js";
 export {
   LITELLM_PRICES_URL,

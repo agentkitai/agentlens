@@ -50,7 +50,7 @@ export async function refreshFromLiteLLM(opts: RefreshOptions = {}): Promise<Mod
     const raw = (await res.json()) as Record<string, unknown>;
     // Embedded stays as the base so curated/generic family keys survive.
     const merged: ModelCostTable = { ...EMBEDDED_MODEL_COSTS, ...mapLiteLlmPrices(raw) };
-    setModelCosts(merged);
+    setModelCosts(merged, { source: "litellm", asOf: new Date().toISOString() });
     return merged;
   } catch (err) {
     console.warn(
