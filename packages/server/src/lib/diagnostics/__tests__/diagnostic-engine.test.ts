@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DiagnosticEngine } from '../index.js';
 import { DiagnosticCache } from '../cache.js';
 import type { LLMProvider, LLMCompletionResponse } from '../providers/types.js';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 
 // Mock store that returns minimal valid data
 function createMockStore(): IEventStore {

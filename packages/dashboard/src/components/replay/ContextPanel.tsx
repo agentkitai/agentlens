@@ -19,7 +19,7 @@ import type {
   ApprovalRequestedPayload,
   ApprovalDecisionPayload,
   CostTrackedPayload,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { useBookmarks } from './BookmarkProvider';
 
 // ─── Types ──────────────────────────────────────────────────────────

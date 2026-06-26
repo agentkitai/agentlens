@@ -23,8 +23,8 @@ import type {
   ApprovalRequestedPayload,
   ApprovalDecisionPayload,
   CostTrackedPayload,
-} from '@agentlensai/core';
-import { verifyChain } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import { verifyChain } from '@agentkitai/agentlens-core';
 
 // ─── Build Options ─────────────────────────────────────────
 

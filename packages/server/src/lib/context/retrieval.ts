@@ -7,12 +7,12 @@
  * Falls back to text search when embeddings are unavailable.
  */
 
-import type { ContextQuery, ContextResult, ContextSession, ContextLesson, ContextKeyEvent } from '@agentlensai/core';
+import type { ContextQuery, ContextResult, ContextSession, ContextLesson, ContextKeyEvent } from '@agentkitai/agentlens-core';
 import type { IEmbeddingStore } from '../../db/embedding-store.interface.js';
 import type { SimilarityResult } from '../../db/embedding-store.js';
 import type { EmbeddingService } from '../embeddings/index.js';
 import type { SessionSummaryStore, SessionSummaryRecord } from '../../db/session-summary-store.js';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import { summarizeEvent } from '../embeddings/summarizer.js';
 
 /** Default maximum results */

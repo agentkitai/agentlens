@@ -12,9 +12,9 @@
 import { Hono } from 'hono';
 import { getTenantId } from './tenant-helper.js';
 import { ulid } from 'ulid';
-import { createAlertRuleSchema, updateAlertRuleSchema } from '@agentlensai/core';
-import type { AlertRule } from '@agentlensai/core';
-import type { IEventStore } from '@agentlensai/core';
+import { createAlertRuleSchema, updateAlertRuleSchema } from '@agentkitai/agentlens-core';
+import type { AlertRule } from '@agentkitai/agentlens-core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { NotFoundError } from '../db/errors.js';
 import { getTenantStore } from './tenant-helper.js';

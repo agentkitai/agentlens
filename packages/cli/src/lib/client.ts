@@ -3,7 +3,7 @@
  *
  * @param urlOverride - Optional URL that takes precedence over the stored config.
  */
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 import { loadConfig } from './config.js';
 
 export function createClientFromConfig(urlOverride?: string): AgentLensClient {

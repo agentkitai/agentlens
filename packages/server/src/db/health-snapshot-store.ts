@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { SqliteDb } from './index.js';
-import type { HealthSnapshot } from '@agentlensai/core';
+import type { HealthSnapshot } from '@agentkitai/agentlens-core';
 
 /** Full row shape as stored in the database */
 interface HealthSnapshotRow {

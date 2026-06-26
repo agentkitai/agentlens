@@ -1,16 +1,16 @@
-# @agentlensai/cli
+# @agentkitai/agentlens-cli
 
 ## 0.14.2
 
 ### Patch Changes
 
-- @agentlensai/sdk@0.14.4
+- @agentkitai/agentlens-sdk@0.14.4
 
 ## 0.14.1
 
 ### Patch Changes
 
-- @agentlensai/sdk@0.14.3
+- @agentkitai/agentlens-sdk@0.14.3
 
 ## 0.14.0
 
@@ -26,21 +26,21 @@
 
 ### Patch Changes
 
-- @agentlensai/sdk@0.14.2
+- @agentkitai/agentlens-sdk@0.14.2
 
 ## 0.13.2
 
 ### Patch Changes
 
 - Updated dependencies [ae2a5d9]
-  - @agentlensai/sdk@0.14.1
+  - @agentkitai/agentlens-sdk@0.14.1
 
 ## 0.13.1
 
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlensai/sdk@0.14.0
+  - @agentkitai/agentlens-sdk@0.14.0
 
 ## 0.2.0
 
@@ -58,4 +58,4 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlensai/sdk@0.2.0
+  - @agentkitai/agentlens-sdk@0.2.0

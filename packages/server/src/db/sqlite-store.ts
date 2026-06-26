@@ -19,8 +19,8 @@ import type {
   Agent,
   AlertRule,
   AlertHistory,
-} from '@agentlensai/core';
-import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import type { IEventStore, AnalyticsResult, StorageStats } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from './index.js';
 import { EventRepository } from './repositories/event-repository.js';
 import { SessionRepository } from './repositories/session-repository.js';

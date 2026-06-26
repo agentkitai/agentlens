@@ -2,7 +2,7 @@
  * agentlens events — query events
  */
 import { parseArgs } from 'node:util';
-import type { EventType } from '@agentlensai/sdk';
+import type { EventType } from '@agentkitai/agentlens-sdk';
 import { createClientFromConfig } from '../lib/client.js';
 import { printTable, printJson, formatTimestamp, truncate } from '../lib/output.js';
 

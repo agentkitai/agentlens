@@ -2,7 +2,7 @@
  * [F11-S2] useErrorIndices — Pre-computed error event index array with binary-search helpers
  */
 import { useMemo } from 'react';
-import type { AgentLensEvent } from '@agentlensai/core';
+import type { AgentLensEvent } from '@agentkitai/agentlens-core';
 
 function isError(ev: AgentLensEvent): boolean {
   return (

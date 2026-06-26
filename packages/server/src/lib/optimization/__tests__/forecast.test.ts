@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { linearRegression, CostForecaster } from '../forecast.js';
-import type { IEventStore, EventQueryResult } from '@agentlensai/core';
+import type { IEventStore, EventQueryResult } from '@agentkitai/agentlens-core';
 
 describe('linearRegression', () => {
   it('computes correct slope and intercept for known series', () => {

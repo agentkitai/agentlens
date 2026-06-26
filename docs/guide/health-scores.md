@@ -97,7 +97,7 @@ Health snapshots are saved automatically the first time an agent's health is que
 
 ### Weights
 
-Default weights are defined in `@agentlensai/core`:
+Default weights are defined in `@agentkitai/agentlens-core`:
 
 ```json
 {

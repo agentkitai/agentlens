@@ -2,7 +2,7 @@
  * Agent identity verification (#12 Phase 2).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { signAccessToken, type AuthConfig } from 'agentkit-auth';
+import { signAccessToken, type AuthConfig } from '@agentkitai/auth';
 import { verifyAgentToken, stampVerifiedAgent, stripVerifiedAgentKeys, agentIdentityEnabled } from '../agent-identity.js';
 
 const SECRET = 'agentgate-shared-secret-at-least-32-chars!';

@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import { verifyChain } from '@agentlensai/core';
+import { verifyChain } from '@agentkitai/agentlens-core';
 import { eventsRoutes } from '../events.js';
 import { authMiddleware, hashApiKey, type AuthVariables } from '../../middleware/auth.js';
 import { createTestDb } from '../../db/index.js';

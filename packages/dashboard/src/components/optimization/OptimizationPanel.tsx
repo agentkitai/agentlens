@@ -7,7 +7,7 @@
 import React from 'react';
 import { useApi } from '../../hooks/useApi';
 import { request, toQueryString } from '../../api/core';
-import type { EnhancedOptimizationResult } from '@agentlensai/core';
+import type { EnhancedOptimizationResult } from '@agentkitai/agentlens-core';
 import { SavingsSummary } from './SavingsSummary';
 import { RecommendationCard } from './RecommendationCard';
 

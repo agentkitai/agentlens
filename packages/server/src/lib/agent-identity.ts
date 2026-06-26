@@ -25,7 +25,7 @@
  * Mirrors AgentGate's verifyAgentToken so the two stay in lockstep.
  */
 
-import { verifyAccessToken, type AuthConfig } from 'agentkit-auth';
+import { verifyAccessToken, type AuthConfig } from '@agentkitai/auth';
 import { jwtVerify, createRemoteJWKSet, decodeProtectedHeader } from 'jose';
 
 /** The reserved metadata keys this module owns; always server-set, never trusted from a client. */
@@ -153,7 +153,7 @@ export async function verifyAgentTokenWithMethod(
   const claims = await verifyAccessToken(token, config);
   if (!claims) return null;
   if ((claims as Record<string, unknown>)['typ'] !== AGENT_TOKEN_TYP) return null;
-  // agentkit-auth's HS256 verify doesn't check aud/iss, so enforce them here so
+  // @agentkitai/auth's HS256 verify doesn't check aud/iss, so enforce them here so
   // both paths honour AGENTGATE_TOKEN_AUDIENCE / _ISSUER consistently.
   const aud = agentTokenAudience();
   if (aud && !audienceMatches((claims as Record<string, unknown>)['aud'], aud)) return null;

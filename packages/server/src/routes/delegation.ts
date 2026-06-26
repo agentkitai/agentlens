@@ -12,7 +12,7 @@ import { Hono } from 'hono';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { DelegationService, type PoolTransport } from '../services/delegation-service.js';
-import { TASK_TYPES } from '@agentlensai/core';
+import { TASK_TYPES } from '@agentkitai/agentlens-core';
 import { createDelegationSchema, rejectDelegationSchema, completeDelegationSchema } from '../schemas/delegation.js';
 import { formatZodErrors } from '../middleware/validation.js';
 import { getTenantId } from './tenant-helper.js';

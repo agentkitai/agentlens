@@ -8,10 +8,10 @@ import {
   SqliteEventStore,
   createApp,
   hashApiKey,
-} from '@agentlensai/server';
+} from '@agentkitai/agentlens-server';
 import { sql } from 'drizzle-orm';
 import { serve } from '@hono/node-server';
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 
 export { AgentLensClient };
 

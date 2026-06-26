@@ -16,7 +16,7 @@
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import type { SessionStatus } from '@agentlensai/core';
+import type { SessionStatus } from '@agentkitai/agentlens-core';
 import { getSessionReplay } from '../api/client';
 import type { SessionReplayData } from '../api/client';
 import { useApi } from '../hooks/useApi';

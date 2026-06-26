@@ -1,5 +1,5 @@
 /**
- * @agentlensai/core — Typed Guardrail Condition & Action Config Schemas (B1 — Story 1.1)
+ * @agentkitai/agentlens-core — Typed Guardrail Condition & Action Config Schemas (B1 — Story 1.1)
  *
  * Typed interfaces + Zod schemas for each guardrail condition and action type.
  * These replace the generic `Record<string,unknown>` conditionConfig/actionConfig

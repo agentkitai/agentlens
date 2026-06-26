@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { setModelCosts, getModelCosts, pricingVersion, costUsdDetailed, type ModelCostTable } from '@agentlensai/core';
+import { setModelCosts, getModelCosts, pricingVersion, costUsdDetailed, type ModelCostTable } from '@agentkitai/agentlens-core';
 import { reconcile, type ReconcileEventRow } from '../lib/reconcile.js';
 import { createTestApp, authHeaders } from './test-helpers.js';
 import type { Hono } from 'hono';

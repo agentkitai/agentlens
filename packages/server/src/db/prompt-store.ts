@@ -15,8 +15,8 @@ import type {
   PromptVariable,
   PromptFingerprint,
   PromptVersionAnalytics,
-} from '@agentlensai/core';
-import { costUsdDetailed } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import { costUsdDetailed } from '@agentkitai/agentlens-core';
 
 // ─── DB Row Types ──────────────────────────────────────────
 

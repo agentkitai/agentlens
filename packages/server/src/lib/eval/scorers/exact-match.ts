@@ -2,7 +2,7 @@
  * Exact Match Scorer (Feature 15 — Story 4)
  */
 
-import type { ScoreResult } from '@agentlensai/core';
+import type { ScoreResult } from '@agentkitai/agentlens-core';
 import type { IScorer, ScorerContext } from './index.js';
 
 export class ExactMatchScorer implements IScorer {

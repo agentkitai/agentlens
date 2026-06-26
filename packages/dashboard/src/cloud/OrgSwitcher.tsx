@@ -5,7 +5,7 @@
  * Shows current org name, dropdown of user's orgs, and create org option.
  */
 
-import { getErrorMessage } from '@agentlensai/core';
+import { getErrorMessage } from '@agentkitai/agentlens-core';
 import React, { useState, useRef, useEffect } from 'react';
 import { useOrg } from './OrgContext';
 

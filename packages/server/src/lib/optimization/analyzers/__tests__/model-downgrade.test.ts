@@ -11,7 +11,7 @@ import type {
   ModelCosts,
   LlmCallPayload,
   LlmResponsePayload,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import type { AnalyzerContext } from '../types.js';
 
 let eventCounter = 0;

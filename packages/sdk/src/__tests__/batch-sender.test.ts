@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BatchSender } from '../batch-sender.js';
 import { QuotaExceededError } from '../errors.js';
-import type { AgentLensEvent } from '@agentlensai/core';
+import type { AgentLensEvent } from '@agentkitai/agentlens-core';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { mkdtempSync } from 'node:fs';

@@ -5,7 +5,7 @@
  * their results into the unified ReflectResult format.
  */
 
-import type { IEventStore, ReflectResult, ReflectAnalysis, ReflectInsight } from '@agentlensai/core';
+import type { IEventStore, ReflectResult, ReflectAnalysis, ReflectInsight } from '@agentkitai/agentlens-core';
 import { analyzeErrorPatterns } from './error-patterns.js';
 import { analyzeToolSequences } from './tool-sequences.js';
 import { analyzeCosts } from './cost-analysis.js';

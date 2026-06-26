@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono';
 import { ulid } from 'ulid';
-import { CreateGuardrailRuleSchema, UpdateGuardrailRuleSchema } from '@agentlensai/core';
+import { CreateGuardrailRuleSchema, UpdateGuardrailRuleSchema } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { GuardrailStore } from '../db/guardrail-store.js';
 import type { ContentGuardrailEngine } from '../lib/guardrails/content-engine.js';

@@ -12,7 +12,7 @@ import type {
   ForecastBucket,
   ForecastSummary,
   BudgetBurnRate,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { analyzeCosts } from '../analysis/cost-analysis.js';
 import { CostOptimizer } from './cost-optimizer.js';
 

@@ -11,8 +11,8 @@
  */
 
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { IEventStore } from '@agentlensai/core';
-import { DEFAULT_HEALTH_WEIGHTS, HealthWeightsSchema as WeightsSchema } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
+import { DEFAULT_HEALTH_WEIGHTS, HealthWeightsSchema as WeightsSchema } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantStore, getTenantId } from './tenant-helper.js';
 import { HealthComputer } from '../lib/health/computer.js';

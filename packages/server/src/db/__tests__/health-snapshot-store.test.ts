@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createTestDb } from '../index.js';
 import { runMigrations } from '../migrate.js';
 import { HealthSnapshotStore } from '../health-snapshot-store.js';
-import type { HealthSnapshot } from '@agentlensai/core';
+import type { HealthSnapshot } from '@agentkitai/agentlens-core';
 
 let store: HealthSnapshotStore;
 

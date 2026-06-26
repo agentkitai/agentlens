@@ -1,17 +1,17 @@
-# @agentlensai/sdk
+# @agentkitai/agentlens-sdk
 
 TypeScript SDK for the AgentLens observability API.
 
 ## Installation
 
 ```bash
-npm install @agentlensai/sdk
+npm install @agentkitai/agentlens-sdk
 ```
 
 ## Quick Start
 
 ```ts
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 
 const client = AgentLensClient.fromEnv();
 
@@ -112,7 +112,7 @@ import {
   RateLimitError,        // 429 (has .retryAfter)
   QuotaExceededError,    // 402
   BackpressureError,     // 503
-} from '@agentlensai/sdk';
+} from '@agentkitai/agentlens-sdk';
 
 try {
   await client.getEvent('bad-id');

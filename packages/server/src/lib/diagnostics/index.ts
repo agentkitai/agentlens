@@ -6,7 +6,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { LLMProvider } from './providers/types.js';
 import type { DiagnosticReport } from './types.js';
 import { DiagnosticCache } from './cache.js';

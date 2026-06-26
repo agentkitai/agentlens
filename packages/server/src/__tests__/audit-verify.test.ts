@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { computeEventHash } from '@agentlensai/core';
-import type { HashableEvent } from '@agentlensai/core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
+import type { HashableEvent } from '@agentkitai/agentlens-core';
 import { createTestApp, authHeaders, createApiKey, type TestContext } from './test-helpers.js';
 import { events } from '../db/schema.sqlite.js';
 import { apiKeys } from '../db/schema.sqlite.js';

@@ -4,7 +4,7 @@
  * Displays total potential savings and per-category breakdown.
  */
 import React from 'react';
-import type { OptimizationCategory } from '@agentlensai/core';
+import type { OptimizationCategory } from '@agentkitai/agentlens-core';
 
 interface CategoryBreakdown {
   count: number;

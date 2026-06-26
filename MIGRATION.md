@@ -16,7 +16,7 @@ npm install lore-sdk
 
 ```ts
 // ❌ Before
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 const client = AgentLensClient.fromEnv();
 await client.createLesson({ ... }); // throws!
 

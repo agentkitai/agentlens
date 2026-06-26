@@ -4,7 +4,7 @@
  * Uses nodemailer for SMTP delivery with HTML templates.
  */
 
-import type { NotificationPayload, DeliveryResult, NotificationChannel, EmailChannelConfig } from '@agentlensai/core';
+import type { NotificationPayload, DeliveryResult, NotificationChannel, EmailChannelConfig } from '@agentkitai/agentlens-core';
 import type { NotificationProvider } from '../provider.js';
 import { createLogger } from '../../logger.js';
 

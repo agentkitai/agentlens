@@ -139,7 +139,7 @@ Article 12 traceability).
 
 ## Gating CI/CD on evals
 
-`agentlens eval-gate` (in `@agentlensai/cli`) fails with a non-zero exit code when an
+`agentlens eval-gate` (in `@agentkitai/agentlens-cli`) fails with a non-zero exit code when an
 eval pass-rate is below a threshold, so it can gate a pull request. Two modes:
 
 - **Trace scoring** (no agent webhook) — score "this PR's trace subset" against a

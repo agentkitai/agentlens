@@ -9,8 +9,8 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { signAccessToken, type AuthConfig } from 'agentkit-auth';
-import { verifyChain } from '@agentlensai/core';
+import { signAccessToken, type AuthConfig } from '@agentkitai/auth';
+import { verifyChain } from '@agentkitai/agentlens-core';
 import { createTestApp, authHeaders } from './test-helpers.js';
 import type { Hono } from 'hono';
 import type { SqliteDb } from '../db/index.js';

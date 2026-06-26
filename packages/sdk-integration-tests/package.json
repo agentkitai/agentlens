@@ -1,5 +1,5 @@
 {
-  "name": "@agentlensai/sdk-integration-tests",
+  "name": "@agentkitai/agentlens-sdk-integration-tests",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -8,9 +8,9 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@agentlensai/server": "workspace:*",
-    "@agentlensai/sdk": "workspace:*",
-    "@agentlensai/core": "workspace:*",
+    "@agentkitai/agentlens-server": "workspace:*",
+    "@agentkitai/agentlens-sdk": "workspace:*",
+    "@agentkitai/agentlens-core": "workspace:*",
     "@hono/node-server": "^1.19.10",
     "drizzle-orm": "^0.45.2"
   }

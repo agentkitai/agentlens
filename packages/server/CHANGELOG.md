@@ -1,4 +1,4 @@
-# @agentlensai/server
+# @agentkitai/agentlens-server
 
 ## 0.19.0
 
@@ -10,7 +10,7 @@
   so stored sums silently drift.
 
   - `@agentkitai/pricing` adds `pricingVersion()` — a stable fingerprint of the
-    active rate table (re-exported via `@agentlensai/core`, alongside
+    active rate table (re-exported via `@agentkitai/agentlens-core`, alongside
     `getModelCosts`/`setModelCosts`).
   - A new `events.pricing_version` column (sqlite + postgres migrations) is stamped
     server-side at ingest on cost-bearing events (`cost_tracked`/`llm_response`) on
@@ -67,7 +67,7 @@
 ### Patch Changes
 
 - Updated dependencies [930aa11]
-  - @agentlensai/core@0.18.0
+  - @agentkitai/agentlens-core@0.18.0
 
 ## 0.18.0
 
@@ -84,7 +84,7 @@
 ### Patch Changes
 
 - Updated dependencies [e1b9dce]
-  - @agentlensai/core@0.17.0
+  - @agentkitai/agentlens-core@0.17.0
 
 ## 0.17.0
 
@@ -104,7 +104,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlensai/core@0.16.0
+  - @agentkitai/agentlens-core@0.16.0
 
 ## 0.16.0
 
@@ -121,7 +121,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlensai/core@0.15.0
+  - @agentkitai/agentlens-core@0.15.0
 
 ## 0.15.0
 
@@ -133,18 +133,18 @@
 
   - The verified id lives in event **metadata**, which is already part of the hashed payload, so the stamp is itself tamper-evident **without** changing the hashed field set (existing hash chains stay valid — no `HASH_VERSION` bump).
   - It is **forgery-proof**: the reserved `verifiedAgentId`/`verifiedAgentMethod` metadata keys are always stripped from client input and only re-set after the server verifies the token, so a client can never inject them. The webhook ingest path (`POST /api/events/ingest`) also strips these reserved keys from caller-supplied context (it never stamps — HMAC there proves the source, not the agent identity); the OTLP path builds metadata server-side and is unaffected.
-  - Verification mirrors AgentGate (shared `agentkit-auth`): HS256 signature over the shared secret **plus** the load-bearing `typ:"agent"` claim. A user token, an expired token, or a wrong-key token is ignored (no stamp).
+  - Verification mirrors AgentGate (shared `@agentkitai/auth`): HS256 signature over the shared secret **plus** the load-bearing `typ:"agent"` claim. A user token, an expired token, or a wrong-key token is ignored (no stamp).
   - New env var **`AGENTGATE_JWT_SECRET`** — AgentGate's signing secret, shared with AgentLens to verify agent tokens. When unset, the feature is off and ingest is unchanged. Verification is cryptographic only (no callback to AgentGate); agent tokens are short-lived, which bounds staleness.
 
   See AgentGate's `docs/agent-identity.md` for the full identity model and trust boundary.
 
 - 6a8c268: Centralize LLM model pricing in a new `@agentkit/pricing` package, sourced from LiteLLM's published prices with an embedded fallback.
 
-  - Consolidates the two server-side cost tables (`@agentlensai/core` `DEFAULT_MODEL_COSTS` and the cloud `batch-writer` table) onto one source of truth — they had drifted in both units (per-1M vs per-1K) and model coverage.
+  - Consolidates the two server-side cost tables (`@agentkitai/agentlens-core` `DEFAULT_MODEL_COSTS` and the cloud `batch-writer` table) onto one source of truth — they had drifted in both units (per-1M vs per-1K) and model coverage.
   - Fixes the cloud-ingest path, which previously returned no cost for modern model ids (e.g. `claude-opus-4-8`) because its hand-maintained table used outdated key formats.
   - Refreshes prices live from LiteLLM at server startup (fire-and-forget, falls back to the embedded table on failure). Off-switch: `AGENTKIT_PRICING_REFRESH=false`.
 
-  `@agentlensai/core` continues to re-export `DEFAULT_MODEL_COSTS` / `lookupModelCost` and now also exports `costUsd` and `refreshFromLiteLLM` — no breaking change for existing consumers.
+  `@agentkitai/agentlens-core` continues to re-export `DEFAULT_MODEL_COSTS` / `lookupModelCost` and now also exports `costUsd` and `refreshFromLiteLLM` — no breaking change for existing consumers.
 
 - 18428ae: Add compliance evals on the tamper-evident audit trail (#55, Phase 1).
 
@@ -158,7 +158,7 @@
 
 - Updated dependencies [6a8c268]
 - Updated dependencies [18428ae]
-  - @agentlensai/core@0.14.0
+  - @agentkitai/agentlens-core@0.14.0
 
 ## 0.14.0
 
@@ -192,4 +192,4 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlensai/core@0.2.0
+  - @agentkitai/agentlens-core@0.2.0

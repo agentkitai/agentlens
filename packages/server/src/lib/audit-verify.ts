@@ -6,8 +6,8 @@
  */
 
 import { createHmac } from 'node:crypto';
-import { verifyChainBatchRaw } from '@agentlensai/core';
-import type { RawChainEvent } from '@agentlensai/core';
+import { verifyChainBatchRaw } from '@agentkitai/agentlens-core';
+import type { RawChainEvent } from '@agentkitai/agentlens-core';
 import type { EventRepository } from '../db/repositories/event-repository.js';
 import { createLogger } from './logger.js';
 

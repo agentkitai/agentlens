@@ -2,7 +2,7 @@
  * Scorer Interface & Registry (Feature 15 — Story 4)
  */
 
-import type { EvalTestCase, ScorerConfig, ScorerType, ScoreResult } from '@agentlensai/core';
+import type { EvalTestCase, ScorerConfig, ScorerType, ScoreResult } from '@agentkitai/agentlens-core';
 
 export interface ScorerContext {
   testCase: EvalTestCase;

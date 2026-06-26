@@ -41,7 +41,7 @@ LORE_API_KEY=lore_your_key           # Optional, if Lore requires auth
 
 **Before (v0.11.x):**
 ```typescript
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 const client = new AgentLensClient({ baseUrl, apiKey });
 await client.createLesson({ title: 'Fix', content: '...', category: 'debug' });
 const lessons = await client.getLessons();
@@ -58,7 +58,7 @@ await lore.createLesson({ title: 'Fix', content: '...', category: 'debug' });
 
 ## MCP Migration
 
-**Before:** `agentlens_learn` and `agentlens_community` tools in `@agentlensai/mcp`
+**Before:** `agentlens_learn` and `agentlens_community` tools in `@agentkitai/agentlens-mcp`
 
 **After:** Use the Lore MCP server alongside AgentLens MCP:
 
@@ -67,7 +67,7 @@ await lore.createLesson({ title: 'Fix', content: '...', category: 'debug' });
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlensai/mcp"],
+      "args": ["@agentkitai/agentlens-mcp"],
       "env": { "AGENTLENS_API_URL": "http://localhost:3400" }
     },
     "lore": {

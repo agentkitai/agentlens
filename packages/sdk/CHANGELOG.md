@@ -1,36 +1,36 @@
-# @agentlensai/sdk
+# @agentkitai/agentlens-sdk
 
 ## 0.14.4
 
 ### Patch Changes
 
 - Updated dependencies [930aa11]
-  - @agentlensai/core@0.18.0
+  - @agentkitai/agentlens-core@0.18.0
 
 ## 0.14.3
 
 ### Patch Changes
 
 - Updated dependencies [e1b9dce]
-  - @agentlensai/core@0.17.0
+  - @agentkitai/agentlens-core@0.17.0
 
 ## 0.14.2
 
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlensai/core@0.16.0
+  - @agentkitai/agentlens-core@0.16.0
 
 ## 0.14.1
 
 ### Patch Changes
 
-- ae2a5d9: Fix the stale `@agentlensai/core` dependency range (`^0.8.0` → `workspace:*`).
+- ae2a5d9: Fix the stale `@agentkitai/agentlens-core` dependency range (`^0.8.0` → `workspace:*`).
   The published `sdk@0.14.0` pinned `core@^0.8.0`, which resolved to the long-stale
   `core@0.8.0` on install instead of the matching current core. `workspace:*` is
   rewritten to the exact core version at publish time (matching server/mcp).
 - Updated dependencies
-  - @agentlensai/core@0.15.0
+  - @agentkitai/agentlens-core@0.15.0
 
 ## 0.14.0
 
@@ -64,4 +64,4 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @agentlensai/core@0.2.0
+  - @agentkitai/agentlens-core@0.2.0

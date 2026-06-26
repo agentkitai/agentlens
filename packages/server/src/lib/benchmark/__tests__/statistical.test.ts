@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { StatisticalComparator } from '../statistical.js';
-import type { MetricStats, BenchmarkMetric } from '@agentlensai/core';
+import type { MetricStats, BenchmarkMetric } from '@agentkitai/agentlens-core';
 
 const comparator = new StatisticalComparator();
 

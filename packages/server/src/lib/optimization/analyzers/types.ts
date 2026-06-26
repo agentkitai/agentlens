@@ -2,7 +2,7 @@
  * Analyzer Plugin Interface (Feature 17 — Story 17.1)
  */
 
-import type { IEventStore, AgentLensEvent, EnhancedRecommendation } from '@agentlensai/core';
+import type { IEventStore, AgentLensEvent, EnhancedRecommendation } from '@agentkitai/agentlens-core';
 
 export interface AnalyzerContext {
   store: IEventStore;

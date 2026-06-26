@@ -13,8 +13,8 @@ import type {
   OptimizationCategory,
   LlmResponsePayload,
   AgentLensEvent,
-} from '@agentlensai/core';
-import { DEFAULT_MODEL_COSTS } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import { DEFAULT_MODEL_COSTS } from '@agentkitai/agentlens-core';
 import type { Analyzer, AnalyzerContext } from './analyzers/types.js';
 import { ModelDowngradeAnalyzer } from './analyzers/model-downgrade.js';
 import { PromptOptimizationAnalyzer } from './analyzers/prompt-optimization.js';

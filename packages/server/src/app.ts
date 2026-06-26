@@ -9,7 +9,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import { BearerAuthScheme } from './schemas/common.js';
 import { getConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';

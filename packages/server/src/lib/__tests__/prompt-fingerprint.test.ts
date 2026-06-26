@@ -2,7 +2,7 @@
  * Prompt auto-discovery (#55 Thread 2, box 126) — recordPromptFingerprints.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { AgentLensEvent } from '@agentlensai/core';
+import type { AgentLensEvent } from '@agentkitai/agentlens-core';
 import { createTestDb } from '../../db/index.js';
 import { runMigrations } from '../../db/migrate.js';
 import { PromptStore, computePromptHash } from '../../db/prompt-store.js';

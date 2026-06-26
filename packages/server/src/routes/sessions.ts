@@ -7,9 +7,9 @@
  */
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { verifyChain, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentlensai/core';
-import type { SessionQuery, SessionStatus } from '@agentlensai/core';
-import type { IEventStore } from '@agentlensai/core';
+import { verifyChain, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentkitai/agentlens-core';
+import type { SessionQuery, SessionStatus } from '@agentkitai/agentlens-core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantStore } from './tenant-helper.js';
 import { ErrorResponseSchema } from '../schemas/common.js';

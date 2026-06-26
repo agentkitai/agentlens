@@ -8,8 +8,8 @@
 
 import { Hono } from 'hono';
 import { getTenantId } from './tenant-helper.js';
-import type { IEventStore, EventType, ReplayState } from '@agentlensai/core';
-import { EVENT_TYPES } from '@agentlensai/core';
+import type { IEventStore, EventType, ReplayState } from '@agentkitai/agentlens-core';
+import { EVENT_TYPES } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantStore } from './tenant-helper.js';
 import { ReplayBuilder } from '../lib/replay/builder.js';

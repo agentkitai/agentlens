@@ -9,8 +9,8 @@ import { runMigrations } from '../../db/migrate.js';
 import { SqliteEventStore } from '../../db/sqlite-store.js';
 import { AlertEngine } from '../alert-engine.js';
 import { eventBus } from '../event-bus.js';
-import type { AlertRule, AgentLensEvent } from '@agentlensai/core';
-import { computeEventHash } from '@agentlensai/core';
+import type { AlertRule, AgentLensEvent } from '@agentkitai/agentlens-core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
 
 let db: SqliteDb;
 let store: SqliteEventStore;

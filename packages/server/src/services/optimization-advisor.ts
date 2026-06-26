@@ -14,8 +14,8 @@ import type {
   AgentLensEvent,
   LlmCallPayload,
   LlmResponsePayload,
-} from '@agentlensai/core';
-import { lookupModelCost, DEFAULT_MODEL_COSTS } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import { lookupModelCost, DEFAULT_MODEL_COSTS } from '@agentkitai/agentlens-core';
 import { classifyCallComplexity } from '../lib/optimization/classifier.js';
 
 // ─── Types ────────────────────────────────────────────

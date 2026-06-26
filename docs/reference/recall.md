@@ -99,7 +99,7 @@ agentlens recall "auth" --json
 ### SDK Example
 
 ```typescript
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 
 const client = new AgentLensClient({
   url: 'http://localhost:3400',

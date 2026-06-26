@@ -6,7 +6,7 @@
  */
 
 import { eq, and, gte, lte, desc, asc, sql, inArray, count as drizzleCount } from 'drizzle-orm';
-import { computeEventHash, pricingVersion } from '@agentlensai/core';
+import { computeEventHash, pricingVersion } from '@agentkitai/agentlens-core';
 import type {
   AgentLensEvent,
   EventQuery,
@@ -16,8 +16,8 @@ import type {
   Agent,
   AlertRule,
   AlertHistory,
-} from '@agentlensai/core';
-import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import type { IEventStore, AnalyticsResult, StorageStats } from '@agentkitai/agentlens-core';
 import type { PostgresDb } from './index.js';
 import {
   events,

@@ -14,7 +14,7 @@ import type {
   SessionQuery,
   Agent,
   AlertRule,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { events, sessions, agents, alertRules } from '../schema.sqlite.js';
 
 // ─── JSON Helpers ──────────────────────────────────────────

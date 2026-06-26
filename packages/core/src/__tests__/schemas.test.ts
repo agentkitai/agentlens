@@ -490,7 +490,7 @@ describe('Story 2.3: Zod Validation Schemas', () => {
   });
 
   describe('Re-exports from index', () => {
-    it('should export schemas and types from @agentlensai/core barrel', async () => {
+    it('should export schemas and types from @agentkitai/agentlens-core barrel', async () => {
       const core = await import('../index.js');
       expect(core.eventTypeSchema).toBeDefined();
       expect(core.severitySchema).toBeDefined();

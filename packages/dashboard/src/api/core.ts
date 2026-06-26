@@ -11,7 +11,7 @@ import type {
   SessionQueryResult,
   Agent,
   StorageStats,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // Re-export core types so domain modules can use them
 export type { AgentLensEvent, EventQuery, EventQueryResult, Session, SessionQuery, SessionQueryResult, Agent, StorageStats };

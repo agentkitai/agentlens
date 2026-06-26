@@ -2,7 +2,7 @@
  * SH-3: Zod schemas for delegation endpoints
  */
 import { z } from 'zod';
-import { TASK_TYPES } from '@agentlensai/core';
+import { TASK_TYPES } from '@agentkitai/agentlens-core';
 
 const taskTypeEnum = z.enum(TASK_TYPES as unknown as [string, ...string[]]);
 

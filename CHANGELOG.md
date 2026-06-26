@@ -9,7 +9,7 @@
 - **Redaction pipeline removed from server** — 6-layer redaction pipeline deleted.
 - **`pool-server` package removed** — Entire package deleted from monorepo.
 - **SDK lesson methods deprecated** — `createLesson()`, `getLessons()`, `updateLesson()`, `deleteLesson()`, `searchLessons()` now throw errors.
-- **MCP tools removed** — `agentlens_learn` and `agentlens_community` tools removed from `@agentlensai/mcp`.
+- **MCP tools removed** — `agentlens_learn` and `agentlens_community` tools removed from `@agentkitai/agentlens-mcp`.
 
 ### ✨ New Features
 

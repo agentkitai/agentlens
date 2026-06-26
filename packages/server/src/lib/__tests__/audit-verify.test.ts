@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { computeEventHash } from '@agentlensai/core';
-import type { ChainEvent, HashableEvent } from '@agentlensai/core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
+import type { ChainEvent, HashableEvent } from '@agentkitai/agentlens-core';
 import { signReport, runVerification } from '../audit-verify.js';
 import type { VerifyOptions } from '../audit-verify.js';
 

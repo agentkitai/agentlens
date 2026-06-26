@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import type { StorageStats } from '@agentlensai/core';
+import type { StorageStats } from '@agentkitai/agentlens-core';
 import {
   getStats,
   getConfig,

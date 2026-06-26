@@ -18,7 +18,7 @@ import type {
   EvalResult,
   ScoreResult,
   ScorerType,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // ─── DB Row Types ──────────────────────────────────────────
 

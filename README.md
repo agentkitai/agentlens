@@ -7,8 +7,8 @@
   </p>
   <p align="center">
     <a href="https://pypi.org/project/agentlensai/"><img src="https://img.shields.io/pypi/v/agentlensai?label=pypi" alt="PyPI"></a>
-    <a href="https://www.npmjs.com/package/@agentlensai/server"><img src="https://img.shields.io/npm/v/@agentlensai/server?label=npm" alt="npm server"></a>
-    <a href="https://www.npmjs.com/package/@agentlensai/mcp"><img src="https://img.shields.io/npm/v/@agentlensai/mcp?label=mcp" alt="npm mcp"></a>
+    <a href="https://www.npmjs.com/package/@agentkitai/agentlens-server"><img src="https://img.shields.io/npm/v/@agentkitai/agentlens-server?label=npm" alt="npm server"></a>
+    <a href="https://www.npmjs.com/package/@agentkitai/agentlens-mcp"><img src="https://img.shields.io/npm/v/@agentkitai/agentlens-mcp?label=mcp" alt="npm mcp"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
     <a href="https://github.com/agentkitai/agentlens/actions"><img src="https://img.shields.io/github/actions/workflow/status/agentkitai/agentlens/ci.yml?branch=main" alt="Build Status"></a>
     <a href="https://github.com/agentkitai/agentlens/pkgs/container/agentlens"><img src="https://img.shields.io/badge/ghcr.io-agentkitai%2Fagentlens-2496ED?logo=docker&logoColor=white" alt="Container: ghcr.io/agentkitai/agentlens"></a>
@@ -84,7 +84,7 @@ docker run -p 3400:3400 -e AUTH_DISABLED=true -e JWT_SECRET=dev-secret ghcr.io/a
 Or without Docker:
 
 ```bash
-npx @agentlensai/server
+npx @agentkitai/agentlens-server
 # http://localhost:3400 with SQLite — zero config
 ```
 
@@ -124,12 +124,12 @@ graph TB
     end
 
     PY -->|"agentlensai.init()<br/>auto-instrumentation"| SERVER
-    MCP_C -->|MCP Protocol| MCP_S["@agentlensai/mcp"]
+    MCP_C -->|MCP Protocol| MCP_S["@agentkitai/agentlens-mcp"]
     MCP_S -->|HTTP| SERVER
-    TS -->|"@agentlensai/sdk"| SERVER
+    TS -->|"@agentkitai/agentlens-sdk"| SERVER
     OC -->|HTTP| SERVER
 
-    subgraph Server["@agentlensai/server"]
+    subgraph Server["@agentkitai/agentlens-server"]
         direction TB
         INGEST[Ingest Engine]
         QUERY[Query Engine]
@@ -217,7 +217,7 @@ For Claude Desktop, Cursor, or any MCP client — add to your config:
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlensai/mcp"],
+      "args": ["@agentkitai/agentlens-mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_your_key_here"
@@ -246,10 +246,10 @@ analytics = client.get_llm_analytics()
 
 **TypeScript:**
 ```bash
-npm install @agentlensai/sdk
+npm install @agentkitai/agentlens-sdk
 ```
 ```typescript
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 const client = new AgentLensClient({ baseUrl: 'http://localhost:3400', apiKey: 'als_your_key' });
 const sessions = await client.getSessions();
 ```
@@ -385,12 +385,12 @@ agentlensai.init(cloud=True, api_key="als_cloud_your_key_here", agent_id="my-age
 
 | Package | Description | npm |
 |---|---|---|
-| [`@agentlensai/server`](./packages/server) | Hono API server + dashboard serving | [![npm](https://img.shields.io/npm/v/@agentlensai/server)](https://npmjs.com/package/@agentlensai/server) |
-| [`@agentlensai/mcp`](./packages/mcp) | MCP server for agent instrumentation | [![npm](https://img.shields.io/npm/v/@agentlensai/mcp)](https://npmjs.com/package/@agentlensai/mcp) |
-| [`@agentlensai/sdk`](./packages/sdk) | Programmatic TypeScript client | [![npm](https://img.shields.io/npm/v/@agentlensai/sdk)](https://npmjs.com/package/@agentlensai/sdk) |
-| [`@agentlensai/core`](./packages/core) | Shared types, schemas, hash chain utilities | [![npm](https://img.shields.io/npm/v/@agentlensai/core)](https://npmjs.com/package/@agentlensai/core) |
-| [`@agentlensai/cli`](./packages/cli) | Command-line interface | [![npm](https://img.shields.io/npm/v/@agentlensai/cli)](https://npmjs.com/package/@agentlensai/cli) |
-| [`@agentlensai/dashboard`](./packages/dashboard) | React web dashboard (bundled with server) | private |
+| [`@agentkitai/agentlens-server`](./packages/server) | Hono API server + dashboard serving | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-server)](https://npmjs.com/package/@agentkitai/agentlens-server) |
+| [`@agentkitai/agentlens-mcp`](./packages/mcp) | MCP server for agent instrumentation | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-mcp)](https://npmjs.com/package/@agentkitai/agentlens-mcp) |
+| [`@agentkitai/agentlens-sdk`](./packages/sdk) | Programmatic TypeScript client | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-sdk)](https://npmjs.com/package/@agentkitai/agentlens-sdk) |
+| [`@agentkitai/agentlens-core`](./packages/core) | Shared types, schemas, hash chain utilities | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-core)](https://npmjs.com/package/@agentkitai/agentlens-core) |
+| [`@agentkitai/agentlens-cli`](./packages/cli) | Command-line interface | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-cli)](https://npmjs.com/package/@agentkitai/agentlens-cli) |
+| [`@agentkitai/agentlens-dashboard`](./packages/dashboard) | React web dashboard (bundled with server) | private |
 
 ## 🔌 API Overview
 
@@ -407,9 +407,9 @@ agentlensai.init(cloud=True, api_key="als_cloud_your_key_here", agent_id="my-age
 ## ⌨️ CLI
 
 ```bash
-npx @agentlensai/cli health                          # Overview of all agents
-npx @agentlensai/cli health --agent my-agent          # Detailed health with dimensions
-npx @agentlensai/cli optimize                          # Cost optimization recommendations
+npx @agentkitai/agentlens-cli health                          # Overview of all agents
+npx @agentkitai/agentlens-cli health --agent my-agent          # Detailed health with dimensions
+npx @agentkitai/agentlens-cli optimize                          # Cost optimization recommendations
 ```
 
 Both commands support `--format json` for machine-readable output. See `agentlens health --help` for all options.

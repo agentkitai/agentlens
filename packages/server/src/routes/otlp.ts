@@ -12,11 +12,11 @@
 import { Hono } from 'hono';
 import { timingSafeEqual, createHash } from 'node:crypto';
 import protobuf from 'protobufjs';
-import { computeEventHash, truncatePayload, costUsdDetailed } from '@agentlensai/core';
+import { computeEventHash, truncatePayload, costUsdDetailed } from '@agentkitai/agentlens-core';
 import { OTLP_PROTO_DESCRIPTOR } from '../otlp/otlp-proto-descriptor.js';
 import { nextEventId } from '../lib/event-id.js';
-import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentlensai/core';
-import type { IEventStore } from '@agentlensai/core';
+import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentkitai/agentlens-core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import { eventBus } from '../lib/event-bus.js';
 import type { ServerConfig } from '../config.js';
 import type { PromptStore } from '../db/prompt-store.js';

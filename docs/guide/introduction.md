@@ -32,12 +32,12 @@ AI Agents (Claude, GPT, Custom)
        │ MCP Protocol (stdio/SSE)
        ▼
 ┌─────────────────────┐
-│  @agentlensai/mcp     │  ← MCP server with 4 tools
+│  @agentkitai/agentlens-mcp     │  ← MCP server with 4 tools
 └────────┬────────────┘
          │ HTTP
          ▼
 ┌─────────────────────┐
-│  @agentlensai/server  │  ← Hono API + Dashboard
+│  @agentkitai/agentlens-server  │  ← Hono API + Dashboard
 │  ┌───────────────┐  │
 │  │ SQLite / PG   │  │  ← Append-only event store
 │  └───────────────┘  │
@@ -62,9 +62,9 @@ AgentLens is a monorepo with six packages:
 
 | Package | npm | Description |
 |---|---|---|
-| `@agentlensai/core` | [![npm](https://img.shields.io/npm/v/@agentlensai/core)](https://npmjs.com/package/@agentlensai/core) | Shared types, schemas, and utilities |
-| `@agentlensai/server` | [![npm](https://img.shields.io/npm/v/@agentlensai/server)](https://npmjs.com/package/@agentlensai/server) | Hono API server + dashboard |
-| `@agentlensai/mcp` | [![npm](https://img.shields.io/npm/v/@agentlensai/mcp)](https://npmjs.com/package/@agentlensai/mcp) | MCP server for agent instrumentation |
-| `@agentlensai/dashboard` | — | React dashboard (bundled with server) |
-| `@agentlensai/sdk` | [![npm](https://img.shields.io/npm/v/@agentlensai/sdk)](https://npmjs.com/package/@agentlensai/sdk) | Programmatic TypeScript client |
-| `@agentlensai/cli` | [![npm](https://img.shields.io/npm/v/@agentlensai/cli)](https://npmjs.com/package/@agentlensai/cli) | Command-line interface |
+| `@agentkitai/agentlens-core` | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-core)](https://npmjs.com/package/@agentkitai/agentlens-core) | Shared types, schemas, and utilities |
+| `@agentkitai/agentlens-server` | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-server)](https://npmjs.com/package/@agentkitai/agentlens-server) | Hono API server + dashboard |
+| `@agentkitai/agentlens-mcp` | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-mcp)](https://npmjs.com/package/@agentkitai/agentlens-mcp) | MCP server for agent instrumentation |
+| `@agentkitai/agentlens-dashboard` | — | React dashboard (bundled with server) |
+| `@agentkitai/agentlens-sdk` | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-sdk)](https://npmjs.com/package/@agentkitai/agentlens-sdk) | Programmatic TypeScript client |
+| `@agentkitai/agentlens-cli` | [![npm](https://img.shields.io/npm/v/@agentkitai/agentlens-cli)](https://npmjs.com/package/@agentkitai/agentlens-cli) | Command-line interface |

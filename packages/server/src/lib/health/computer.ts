@@ -14,7 +14,7 @@ import type {
   HealthWeights,
   Session,
   AgentLensEvent,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 /** Clamp a value between min and max */
 function clamp(value: number, min: number, max: number): number {

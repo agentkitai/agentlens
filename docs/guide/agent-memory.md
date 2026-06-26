@@ -30,7 +30,7 @@ Add the AgentLens MCP server to your agent's config. The memory tools are automa
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlensai/mcp"],
+      "args": ["@agentkitai/agentlens-mcp"],
       "env": {
         "AGENTLENS_API_URL": "http://localhost:3400",
         "AGENTLENS_API_KEY": "als_your_key_here",

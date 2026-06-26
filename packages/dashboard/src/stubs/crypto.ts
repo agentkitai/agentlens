@@ -1,6 +1,6 @@
 /**
  * Stub for node:crypto in browser builds.
- * @agentlensai/core exports hash utilities that use node:crypto,
+ * @agentkitai/agentlens-core exports hash utilities that use node:crypto,
  * but the dashboard only needs types + constants from core.
  * This stub prevents the build from failing on the import.
  */

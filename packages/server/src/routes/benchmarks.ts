@@ -10,8 +10,8 @@
  */
 
 import { Hono } from 'hono';
-import type { IEventStore, BenchmarkMetric, BenchmarkStatus } from '@agentlensai/core';
-import { BENCHMARK_METRICS } from '@agentlensai/core';
+import type { IEventStore, BenchmarkMetric, BenchmarkStatus } from '@agentkitai/agentlens-core';
+import { BENCHMARK_METRICS } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantStore, getTenantId } from './tenant-helper.js';
 import {

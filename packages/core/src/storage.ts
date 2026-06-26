@@ -1,5 +1,5 @@
 /**
- * @agentlensai/core — Storage Interface
+ * @agentkitai/agentlens-core — Storage Interface
  *
  * Defines the IEventStore interface that all storage backends implement.
  * This enables pluggable storage (SQLite, PostgreSQL, in-memory for tests)

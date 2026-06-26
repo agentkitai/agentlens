@@ -17,7 +17,7 @@ only lists steering-group reference servers and redirects third parties here.
 
 ### Blocker — handled in this PR
 The registry verifies ownership by requiring the published npm package to carry a
-top-level **`mcpName`** matching `server.json` `name`. Published `@agentlensai/mcp@0.13.0`
+top-level **`mcpName`** matching `server.json` `name`. Published `@agentkitai/agentlens-mcp@0.13.0`
 lacked it. This PR:
 - adds `"mcpName": "io.github.agentkitai/agentlens"` to `packages/mcp/package.json`
 - bumps it `0.13.0 → 0.13.1` (npm versions are immutable, so a republish needs a new version)
@@ -25,8 +25,8 @@ lacked it. This PR:
 
 ### Steps (you)
 1. **Republish the mcp package with `mcpName`.** Merge this PR, then cut a release tag
-   (`vX.Y.Z`) — the OIDC release pipeline republishes `@agentlensai/mcp@0.13.1`.
-   Confirm: `npm view @agentlensai/mcp mcpName` → `io.github.agentkitai/agentlens`.
+   (`vX.Y.Z`) — the OIDC release pipeline republishes `@agentkitai/agentlens-mcp@0.13.1`.
+   Confirm: `npm view @agentkitai/agentlens-mcp mcpName` → `io.github.agentkitai/agentlens`.
 2. **Install the publisher CLI** (Windows PowerShell):
    ```powershell
    $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -eq "Arm64") {"arm64"} else {"amd64"}
@@ -54,7 +54,7 @@ Place in the **`### 📊 Monitoring`** section, alphabetically by `owner/repo` s
 between `adanb13/cirdan` and `alilxxey/openobserve-community-mcp`:
 
 ```markdown
-- [agentkitai/agentlens](https://github.com/agentkitai/agentlens) 📇 🏠 ☁️ 🍎 🪟 🐧 - Tamper-evident observability for AI agents: a SHA-256 hash-chained audit log with chain verification and signed export (EU AI Act Art. 12). Instrument any agent with zero code via `npx -y @agentlensai/mcp`; also ingests OpenTelemetry GenAI traces.
+- [agentkitai/agentlens](https://github.com/agentkitai/agentlens) 📇 🏠 ☁️ 🍎 🪟 🐧 - Tamper-evident observability for AI agents: a SHA-256 hash-chained audit log with chain verification and signed export (EU AI Act Art. 12). Instrument any agent with zero code via `npx -y @agentkitai/agentlens-mcp`; also ingests OpenTelemetry GenAI traces.
 ```
 
 Icons (per the repo's legend): 📇 TypeScript · 🏠 local/self-hosted · ☁️ cloud option · 🍎🪟🐧 macOS/Windows/Linux. (This icon order has a live precedent in the same section.)

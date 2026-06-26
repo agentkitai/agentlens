@@ -7,7 +7,7 @@ import type {
   EventQuery,
   EventQueryResult,
   AgentLensEvent,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { BaseClient } from './base.js';
 import type { LogLlmCallParams } from './types.js';
 

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { analyzeCosts } from '../cost-analysis.js';
-import type { IEventStore, AgentLensEvent, Session, EventQueryResult } from '@agentlensai/core';
+import type { IEventStore, AgentLensEvent, Session, EventQueryResult } from '@agentkitai/agentlens-core';
 
 function createMockStore(opts: {
   sessions?: Session[];

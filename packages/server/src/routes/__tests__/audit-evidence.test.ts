@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
-import { signAccessToken, type AuthConfig } from 'agentkit-auth';
+import { signAccessToken, type AuthConfig } from '@agentkitai/auth';
 import { eventsRoutes } from '../events.js';
 import { auditTimelineRoutes, auditEvidenceRoutes } from '../audit-evidence.js';
 import { authMiddleware, hashApiKey, type AuthVariables } from '../../middleware/auth.js';

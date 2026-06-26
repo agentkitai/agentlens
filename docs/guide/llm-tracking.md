@@ -45,7 +45,7 @@ The sections below cover **manual logging** via the SDK and MCP — useful when 
 The fastest way to manually log an LLM call is with the SDK:
 
 ```typescript
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 
 const client = new AgentLensClient({
   url: 'http://localhost:3400',
@@ -134,7 +134,7 @@ llm_response  { callId: "abc-123", model: "gpt-4o", completion: "...", latencyMs
 The `logLlmCall()` method is the recommended way to log LLM interactions. It handles event pairing automatically.
 
 ```typescript
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 
 const client = new AgentLensClient({
   url: 'http://localhost:3400',

@@ -15,7 +15,7 @@ const mockDisableGuardrail = vi.fn();
 const mockGetGuardrailHistory = vi.fn();
 const mockGetGuardrailStatus = vi.fn();
 
-vi.mock('@agentlensai/sdk', () => {
+vi.mock('@agentkitai/agentlens-sdk', () => {
   return {
     AgentLensClient: class MockAgentLensClient {
       listGuardrails = mockListGuardrails;

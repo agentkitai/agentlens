@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { setupTestEnv, type TestEnv } from './helpers.js';
-import { AuthenticationError } from '@agentlensai/sdk';
+import { AuthenticationError } from '@agentkitai/agentlens-sdk';
 
 describe('SDK Integration Tests', () => {
   let env: TestEnv;

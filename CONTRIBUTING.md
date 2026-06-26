@@ -40,14 +40,14 @@ cp .env.example .env
 
 ```
 packages/
-├── core/          Shared types, schemas & utilities (@agentlensai/core)
-├── server/        Hono API server + SQLite backend (@agentlensai/server)
-├── dashboard/     React + Vite web dashboard (@agentlensai/dashboard)
-├── cli/           Command-line interface (@agentlensai/cli)
-├── sdk/           TypeScript SDK (@agentlensai/sdk)
+├── core/          Shared types, schemas & utilities (@agentkitai/agentlens-core)
+├── server/        Hono API server + SQLite backend (@agentkitai/agentlens-server)
+├── dashboard/     React + Vite web dashboard (@agentkitai/agentlens-dashboard)
+├── cli/           Command-line interface (@agentkitai/agentlens-cli)
+├── sdk/           TypeScript SDK (@agentkitai/agentlens-sdk)
 ├── python-sdk/    Python SDK + auto-instrumentation (agentlensai)
-├── mcp/           MCP tool server (@agentlensai/mcp)
-└── pool-server/   Community pool server (@agentlensai/pool-server)
+├── mcp/           MCP tool server (@agentkitai/agentlens-mcp)
+└── pool-server/   Community pool server (@agentkitai/agentlens-pool-server)
 ```
 
 ## Development Workflow
@@ -68,8 +68,8 @@ Use descriptive prefixes:
 pnpm dev
 
 # Individual packages
-pnpm --filter @agentlensai/server dev
-pnpm --filter @agentlensai/dashboard dev
+pnpm --filter @agentkitai/agentlens-server dev
+pnpm --filter @agentkitai/agentlens-dashboard dev
 ```
 
 ### Working on a Specific Package
@@ -78,10 +78,10 @@ Most changes only affect one or two packages. Build dependencies first:
 
 ```bash
 # Build core (most packages depend on it)
-pnpm --filter @agentlensai/core build
+pnpm --filter @agentkitai/agentlens-core build
 
 # Then work on your target package
-pnpm --filter @agentlensai/server dev
+pnpm --filter @agentkitai/agentlens-server dev
 ```
 
 ## Testing
@@ -93,11 +93,11 @@ We use [Vitest](https://vitest.dev/) for all TypeScript packages.
 pnpm test
 
 # Run tests for a specific package
-pnpm --filter @agentlensai/server test
-pnpm --filter @agentlensai/core test
+pnpm --filter @agentkitai/agentlens-server test
+pnpm --filter @agentkitai/agentlens-core test
 
 # Watch mode
-pnpm --filter @agentlensai/server test -- --watch
+pnpm --filter @agentkitai/agentlens-server test -- --watch
 ```
 
 ### Python SDK Tests

@@ -26,7 +26,7 @@ import {
 import { useApi } from '../hooks/useApi';
 import { getLlmAnalytics, getAgents } from '../api/client';
 import type { LlmAnalyticsResult } from '../api/client';
-import type { Agent } from '@agentlensai/core';
+import type { Agent } from '@agentkitai/agentlens-core';
 import { OptimizationPanel } from '../components/optimization/OptimizationPanel';
 
 // ─── Types ──────────────────────────────────────────────────────────

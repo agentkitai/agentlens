@@ -6,7 +6,7 @@
  */
 
 import { createHmac } from 'node:crypto';
-import { HASH_VERSION } from '@agentlensai/core';
+import { HASH_VERSION } from '@agentkitai/agentlens-core';
 import type { EventRepository } from '../db/repositories/event-repository.js';
 import type { AnalyticsRepository } from '../db/repositories/analytics-repository.js';
 import type { GuardrailStore } from '../db/guardrail-store.js';

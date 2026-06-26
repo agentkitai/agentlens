@@ -5,7 +5,7 @@
  * on cost-relevant events, and executes breach actions via executeAction().
  */
 
-import type { AgentLensEvent, CostBudget, CostBudgetState, IEventStore } from '@agentlensai/core';
+import type { AgentLensEvent, CostBudget, CostBudgetState, IEventStore } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../db/index.js';
 import { CostBudgetStore } from '../db/cost-budget-store.js';
 import { executeAction } from './guardrails/actions.js';

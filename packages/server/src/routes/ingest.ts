@@ -10,7 +10,7 @@
 import { Hono } from 'hono';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ulid } from 'ulid';
-import { computeEventHash, truncatePayload } from '@agentlensai/core';
+import { computeEventHash, truncatePayload } from '@agentkitai/agentlens-core';
 import { nextEventId } from '../lib/event-id.js';
 import type {
   AgentLensEvent,
@@ -21,8 +21,8 @@ import type {
   FormExpiredPayload,
   ApprovalRequestedPayload,
   ApprovalDecisionPayload,
-} from '@agentlensai/core';
-import type { IEventStore } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { SqliteEventStore } from '../db/sqlite-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { stripVerifiedAgentKeys } from '../lib/agent-identity.js';

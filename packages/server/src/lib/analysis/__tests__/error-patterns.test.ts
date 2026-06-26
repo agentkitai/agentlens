@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { analyzeErrorPatterns, normalizeErrorMessage } from '../error-patterns.js';
-import type { IEventStore, AgentLensEvent, EventQueryResult } from '@agentlensai/core';
+import type { IEventStore, AgentLensEvent, EventQueryResult } from '@agentkitai/agentlens-core';
 
 // ─── Mock store factory ────────────────────────────────────────
 

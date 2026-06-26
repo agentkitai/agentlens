@@ -13,8 +13,8 @@ import type {
   Session,
   EventQueryResult,
   HealthWeights,
-} from '@agentlensai/core';
-import { DEFAULT_HEALTH_WEIGHTS } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import { DEFAULT_HEALTH_WEIGHTS } from '@agentkitai/agentlens-core';
 
 // ─── Test Helpers ──────────────────────────────────────────
 

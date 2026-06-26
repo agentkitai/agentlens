@@ -4,7 +4,7 @@
  */
 
 import { eq, and, desc, sql } from 'drizzle-orm';
-import type { AgentLensEvent, Agent } from '@agentlensai/core';
+import type { AgentLensEvent, Agent } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../index.js';
 import { agents } from '../schema.sqlite.js';
 import { mapAgentRow } from '../shared/query-helpers.js';

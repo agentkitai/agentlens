@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { analyzeToolSequences } from '../tool-sequences.js';
-import type { IEventStore, AgentLensEvent, EventQueryResult } from '@agentlensai/core';
+import type { IEventStore, AgentLensEvent, EventQueryResult } from '@agentkitai/agentlens-core';
 
 function createMockStore(events: AgentLensEvent[]): IEventStore {
   return {

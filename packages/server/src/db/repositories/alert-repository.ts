@@ -4,7 +4,7 @@
  */
 
 import { eq, and, desc, count as drizzleCount } from 'drizzle-orm';
-import type { AlertRule, AlertHistory } from '@agentlensai/core';
+import type { AlertRule, AlertHistory } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../index.js';
 import { alertRules, alertHistory } from '../schema.sqlite.js';
 import { NotFoundError } from '../errors.js';

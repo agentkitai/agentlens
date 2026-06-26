@@ -13,8 +13,8 @@ import type {
   LlmResponsePayload,
   ConfidenceLevel,
   AgentLensEvent,
-} from '@agentlensai/core';
-import { DEFAULT_MODEL_COSTS, lookupModelCost } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import { DEFAULT_MODEL_COSTS, lookupModelCost } from '@agentkitai/agentlens-core';
 import type { Analyzer, AnalyzerContext } from './types.js';
 import { createHash } from 'node:crypto';
 

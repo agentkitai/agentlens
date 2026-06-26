@@ -7,9 +7,9 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { SessionStatus, Agent } from '@agentlensai/core';
+import type { SessionStatus, Agent } from '@agentkitai/agentlens-core';
 import { getSessions, getAgents } from '../api/client';
-import type { SessionQueryResult } from '@agentlensai/core';
+import type { SessionQueryResult } from '@agentkitai/agentlens-core';
 import { useApi } from '../hooks/useApi';
 import { SessionList } from '../components/SessionList';
 import type { SortField, SortDir } from '../components/SessionList';

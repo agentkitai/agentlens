@@ -3,7 +3,7 @@
  *
  * Maps condition types to scanner implementations with compile-once caching.
  */
-import type { GuardrailRule } from '@agentlensai/core';
+import type { GuardrailRule } from '@agentkitai/agentlens-core';
 import type { ContentScanner } from './base-scanner.js';
 import { PiiScanner } from './pii-scanner.js';
 import { SecretsScanner } from './secrets-scanner.js';

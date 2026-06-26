@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTestDb, type SqliteDb } from '../index.js';
 import { runMigrations } from '../migrate.js';
 import { CostBudgetStore } from '../cost-budget-store.js';
-import type { CostBudget, CostBudgetState, CostAnomalyConfig } from '@agentlensai/core';
+import type { CostBudget, CostBudgetState, CostAnomalyConfig } from '@agentkitai/agentlens-core';
 
 describe('CostBudgetStore', () => {
   let db: SqliteDb;

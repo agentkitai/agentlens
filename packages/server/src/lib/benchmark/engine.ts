@@ -12,7 +12,7 @@ import type {
   MetricComparison,
   MetricStats,
   VariantMetrics,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { MetricAggregator } from './metric-aggregator.js';
 import { StatisticalComparator } from './statistical.js';
 import type { BenchmarkStore, BenchmarkWithVariants } from '../../db/benchmark-store.js';

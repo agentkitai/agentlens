@@ -39,8 +39,8 @@
  */
 
 import { ulid } from 'ulid';
-import type { AgentLensEvent, GuardrailRule, GuardrailState } from '@agentlensai/core';
-import type { IEventStore } from '@agentlensai/core';
+import type { AgentLensEvent, GuardrailRule, GuardrailState } from '@agentkitai/agentlens-core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../../db/index.js';
 import { GuardrailStore } from '../../db/guardrail-store.js';
 import { evaluateCondition } from './conditions.js';

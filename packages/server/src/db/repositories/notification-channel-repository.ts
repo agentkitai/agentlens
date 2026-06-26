@@ -4,7 +4,7 @@
  */
 
 import { eq, and, desc, count as drizzleCount } from 'drizzle-orm';
-import type { NotificationChannel, NotificationLogEntry } from '@agentlensai/core';
+import type { NotificationChannel, NotificationLogEntry } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../index.js';
 import { notificationChannels, notificationLog } from '../schema.sqlite.js';
 import { NotFoundError } from '../errors.js';

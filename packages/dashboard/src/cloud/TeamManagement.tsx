@@ -9,7 +9,7 @@
  * - Pending invitations list
  */
 
-import { getErrorMessage } from '@agentlensai/core';
+import { getErrorMessage } from '@agentkitai/agentlens-core';
 import React, { useState, useCallback, useEffect } from 'react';
 import { useOrg } from './OrgContext';
 import {

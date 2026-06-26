@@ -16,8 +16,8 @@ import {
   createNotificationChannelSchema,
   updateNotificationChannelSchema,
   validateChannelConfig,
-} from '@agentlensai/core';
-import type { NotificationChannel } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import type { NotificationChannel } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { NotificationChannelRepository } from '../db/repositories/notification-channel-repository.js';
 import type { NotificationRouter } from '../lib/notifications/router.js';

@@ -18,8 +18,8 @@ import type {
   SessionQuery,
   Agent,
   HealthSnapshot,
-} from '@agentlensai/core';
-import type { AnalyticsResult, StorageStats } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import type { AnalyticsResult, StorageStats } from '@agentkitai/agentlens-core';
 
 // ─── Pagination ─────────────────────────────────────────────
 

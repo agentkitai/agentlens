@@ -10,8 +10,8 @@ import { createTestDb } from '../index.js';
 import { runMigrations } from '../migrate.js';
 import { SqliteEventStore } from '../sqlite-store.js';
 import { TenantScopedStore } from '../tenant-scoped-store.js';
-import { computeEventHash } from '@agentlensai/core';
-import type { AgentLensEvent, AlertRule } from '@agentlensai/core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
+import type { AgentLensEvent, AlertRule } from '@agentkitai/agentlens-core';
 
 // ─── Helpers ─────────────────────────────────────────────────────
 

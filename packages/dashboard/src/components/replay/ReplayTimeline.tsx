@@ -13,7 +13,7 @@
  *  - Performance: simple slice-based windowing (~50 visible cards)
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentLensEvent, EventType } from '@agentlensai/core';
+import type { AgentLensEvent, EventType } from '@agentkitai/agentlens-core';
 import { highlightMatches } from '../../utils/highlight';
 import { useBookmarks } from './BookmarkProvider';
 

@@ -7,7 +7,7 @@
  */
 
 import { ulid } from 'ulid';
-import type { NotificationPayload, NotificationChannel, DeliveryResult, NotificationLogEntry } from '@agentlensai/core';
+import type { NotificationPayload, NotificationChannel, DeliveryResult, NotificationLogEntry } from '@agentkitai/agentlens-core';
 import type { NotificationProvider } from './provider.js';
 import type { NotificationChannelRepository } from '../../db/repositories/notification-channel-repository.js';
 import { WebhookProvider } from './providers/webhook.js';

@@ -10,7 +10,7 @@ import { ContextRetriever } from '../retrieval.js';
 import type { EmbeddingStore, SimilarityResult } from '../../../db/embedding-store.js';
 import type { EmbeddingService } from '../../embeddings/index.js';
 import type { SessionSummaryStore, SessionSummaryRecord } from '../../../db/session-summary-store.js';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 /** Inline type for test mocks (Lesson type removed from core) */
 interface MockLesson {
   id: string;

@@ -19,15 +19,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm typecheck
-      - run: pnpm --filter @agentlensai/core test -- --coverage
-      - run: pnpm --filter @agentlensai/server test -- --coverage
-      - run: pnpm --filter @agentlensai/mcp test -- --coverage
-      - run: pnpm --filter @agentlensai/sdk test -- --coverage
-      - run: pnpm --filter @agentlensai/auth test -- --coverage
-      - run: pnpm --filter @agentlensai/cli test -- --coverage
-      - run: pnpm --filter @agentlensai/sdk-integration-tests test
-      - run: pnpm --filter @agentlensai/dashboard test
-      - run: pnpm --filter @agentlensai/dashboard build
+      - run: pnpm --filter @agentkitai/agentlens-core test -- --coverage
+      - run: pnpm --filter @agentkitai/agentlens-server test -- --coverage
+      - run: pnpm --filter @agentkitai/agentlens-mcp test -- --coverage
+      - run: pnpm --filter @agentkitai/agentlens-sdk test -- --coverage
+      - run: pnpm --filter @agentkitai/agentlens-auth test -- --coverage
+      - run: pnpm --filter @agentkitai/agentlens-cli test -- --coverage
+      - run: pnpm --filter @agentkitai/agentlens-sdk-integration-tests test
+      - run: pnpm --filter @agentkitai/agentlens-dashboard test
+      - run: pnpm --filter @agentkitai/agentlens-dashboard build
       - name: Verify SDK packaging
         run: cd packages/sdk && npm pack --dry-run
       - name: Upload coverage
@@ -95,7 +95,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm --filter @agentlensai/server exec vitest run --config vitest.postgres.config.ts
+      - run: pnpm --filter @agentkitai/agentlens-server exec vitest run --config vitest.postgres.config.ts
         env:
           DB_DIALECT: postgresql
           DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test

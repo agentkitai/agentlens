@@ -7,8 +7,8 @@
 import { eq, and } from 'drizzle-orm';
 import type { SqliteDb } from '../db/index.js';
 import { capabilityRegistry, discoveryConfig } from '../db/schema.sqlite.js';
-import type { TaskType, DiscoveryQuery, DiscoveryResult } from '@agentlensai/core';
-import { TASK_TYPES } from '@agentlensai/core';
+import type { TaskType, DiscoveryQuery, DiscoveryResult } from '@agentkitai/agentlens-core';
+import { TASK_TYPES } from '@agentkitai/agentlens-core';
 import { AnonymousIdManager } from '../db/anonymous-id-manager.js';
 
 // ─── Rate Limiting (in-memory, per-process) ───────────────

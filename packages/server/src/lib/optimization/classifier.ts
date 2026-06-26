@@ -6,7 +6,7 @@
  * calls for model-downgrade recommendations.
  */
 
-import type { AgentLensEvent, ComplexityTier, LlmCallPayload, LlmResponsePayload } from '@agentlensai/core';
+import type { AgentLensEvent, ComplexityTier, LlmCallPayload, LlmResponsePayload } from '@agentkitai/agentlens-core';
 
 export interface ClassificationSignals {
   inputTokens: number;

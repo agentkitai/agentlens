@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { generateKeyPair, exportJWK, SignJWT, type JWK } from 'jose';
-import { signAccessToken, type AuthConfig } from 'agentkit-auth';
+import { signAccessToken, type AuthConfig } from '@agentkitai/auth';
 import {
   verifyAgentToken,
   verifyAgentTokenWithMethod,

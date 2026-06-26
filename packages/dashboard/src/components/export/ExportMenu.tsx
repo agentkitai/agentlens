@@ -2,7 +2,7 @@
  * [F11-S3] ExportMenu — Dropdown button with JSON/CSV export options
  */
 import React, { useCallback, useState } from 'react';
-import type { AgentLensEvent, Session } from '@agentlensai/core';
+import type { AgentLensEvent, Session } from '@agentkitai/agentlens-core';
 import {
   exportSessionJSON,
   exportSessionCSV,

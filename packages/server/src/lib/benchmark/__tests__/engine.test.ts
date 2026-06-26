@@ -14,7 +14,7 @@ import type {
   MetricStats,
   VariantMetrics,
   BenchmarkResults,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import type { BenchmarkWithVariants, BenchmarkStore } from '../../../db/benchmark-store.js';
 
 // ─── Helpers ───────────────────────────────────────────────

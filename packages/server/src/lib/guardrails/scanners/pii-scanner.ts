@@ -1,8 +1,8 @@
 /**
  * PII Detection Scanner (Feature 8 — Story 4)
  */
-import type { ContentMatch } from '@agentlensai/core';
-import { PiiDetectionConfigSchema } from '@agentlensai/core';
+import type { ContentMatch } from '@agentkitai/agentlens-core';
+import { PiiDetectionConfigSchema } from '@agentkitai/agentlens-core';
 import { ContentScanner, type ScanContext, type ScanResult } from './base-scanner.js';
 import { PII_PATTERNS, type PatternDef } from './patterns/pii-patterns.js';
 

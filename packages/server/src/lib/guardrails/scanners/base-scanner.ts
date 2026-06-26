@@ -1,7 +1,7 @@
 /**
  * Base Content Scanner (Feature 8 — Story 3)
  */
-import type { ContentMatch } from '@agentlensai/core';
+import type { ContentMatch } from '@agentkitai/agentlens-core';
 
 export interface ScanContext {
   tenantId: string;

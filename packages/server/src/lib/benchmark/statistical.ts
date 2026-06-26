@@ -10,7 +10,7 @@ import type {
   MetricComparison,
   MetricStats,
   VariantMetrics,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // ─── Metric Classification ────────────────────────────────
 

@@ -51,7 +51,7 @@ interface RedactionFinding {
 ## Example: Custom PII Layer
 
 ```typescript
-import type { RedactionLayer, RedactionContext } from '@agentlensai/core';
+import type { RedactionLayer, RedactionContext } from '@agentkitai/agentlens-core';
 
 class CustomPhoneRedactionLayer implements RedactionLayer {
   name = 'custom-phone' as any;
@@ -93,7 +93,7 @@ class CustomPhoneRedactionLayer implements RedactionLayer {
 ### At Construction
 
 ```typescript
-import { RedactionPipeline } from '@agentlensai/server';
+import { RedactionPipeline } from '@agentkitai/agentlens-server';
 
 const pipeline = new RedactionPipeline(
   { humanReviewEnabled: false },

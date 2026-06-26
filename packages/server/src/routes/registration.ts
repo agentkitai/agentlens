@@ -5,7 +5,7 @@
  */
 
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { ServerConfig } from '../config.js';
 import type { SqliteDb } from '../db/index.js';
@@ -124,7 +124,7 @@ export async function registerRoutes(
   {
     const authDb = config?.db;
     if (authDb) {
-      const { loadOidcConfig } = await import('agentkit-auth');
+      const { loadOidcConfig } = await import('@agentkitai/auth');
       const oidcConfig = loadOidcConfig();
       if (oidcConfig) {
         const jwtSecret = process.env['JWT_SECRET'];

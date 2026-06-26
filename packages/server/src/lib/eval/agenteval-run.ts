@@ -12,7 +12,7 @@
  * single run-level event still carries per-case detail.
  */
 
-import type { EvalResultPayload, EvalRunRequest } from '@agentlensai/core';
+import type { EvalResultPayload, EvalRunRequest } from '@agentkitai/agentlens-core';
 
 export function buildAgentEvalResult(run: EvalRunRequest['run']): EvalResultPayload {
   const { summary } = run;

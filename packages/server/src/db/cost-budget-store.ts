@@ -11,7 +11,7 @@ import type {
   CostBudget,
   CostBudgetState,
   CostAnomalyConfig,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 export class CostBudgetStore {
   constructor(private readonly db: SqliteDb) {}
