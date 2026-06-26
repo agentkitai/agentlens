@@ -4,7 +4,7 @@
  * Backward-compatible with existing webhook delivery + retry with exponential backoff.
  */
 
-import type { NotificationPayload, DeliveryResult, NotificationChannel, WebhookChannelConfig } from '@agentlensai/core';
+import type { NotificationPayload, DeliveryResult, NotificationChannel, WebhookChannelConfig } from '@agentkitai/agentlens-core';
 import type { NotificationProvider } from '../provider.js';
 import { validateExternalUrl } from '../ssrf.js';
 import { createLogger } from '../../logger.js';

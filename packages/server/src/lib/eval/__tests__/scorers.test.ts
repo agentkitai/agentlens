@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { EvalTestCase, ScorerConfig } from '@agentlensai/core';
+import type { EvalTestCase, ScorerConfig } from '@agentkitai/agentlens-core';
 import { ExactMatchScorer } from '../scorers/exact-match.js';
 import { ContainsScorer } from '../scorers/contains.js';
 import { RegexScorer } from '../scorers/regex.js';

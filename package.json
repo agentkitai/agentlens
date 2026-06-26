@@ -1,5 +1,5 @@
 {
-  "name": "agentlens",
+  "name": "@agentkitai/agentlens-monorepo",
   "version": "0.15.1",
   "repository": {
     "type": "git",
@@ -10,7 +10,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
-    "dev": "pnpm --filter @agentlensai/server --filter @agentlensai/dashboard -r --parallel run dev",
+    "dev": "pnpm --filter @agentkitai/agentlens-server --filter @agentkitai/agentlens-dashboard -r --parallel run dev",
     "lint": "eslint .",
     "typecheck": "pnpm -r run typecheck",
     "format": "prettier --write .",

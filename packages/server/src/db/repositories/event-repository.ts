@@ -4,8 +4,8 @@
  */
 
 import { eq, and, gte, lte, desc, asc, sql, count as drizzleCount } from 'drizzle-orm';
-import { computeEventHash, pricingVersion } from '@agentlensai/core';
-import type { AgentLensEvent, EventQuery, EventQueryResult, ChainEvent } from '@agentlensai/core';
+import { computeEventHash, pricingVersion } from '@agentkitai/agentlens-core';
+import type { AgentLensEvent, EventQuery, EventQueryResult, ChainEvent } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../index.js';
 import { events, sessions, agents } from '../schema.sqlite.js';
 import { HashChainError } from '../errors.js';
@@ -258,7 +258,7 @@ export class EventRepository {
     tenantId: string,
     offset: number,
     limit: number,
-  ): import('@agentlensai/core').RawChainEvent[] {
+  ): import('@agentkitai/agentlens-core').RawChainEvent[] {
     const rows = this.db
       .select()
       .from(events)

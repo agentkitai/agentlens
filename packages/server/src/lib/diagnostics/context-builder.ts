@@ -10,9 +10,9 @@ import type {
   ReflectResult,
   Session,
   AgentLensEvent,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { HealthComputer } from '../health/computer.js';
-import { DEFAULT_HEALTH_WEIGHTS } from '@agentlensai/core';
+import { DEFAULT_HEALTH_WEIGHTS } from '@agentkitai/agentlens-core';
 import { runAnalysis } from '../analysis/index.js';
 import { sanitizeForLLM } from '../error-sanitizer.js';
 

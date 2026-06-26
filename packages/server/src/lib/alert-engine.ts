@@ -10,8 +10,8 @@
  */
 
 import { ulid } from 'ulid';
-import type { IEventStore } from '@agentlensai/core';
-import type { AlertRule, AlertHistory, AlertCondition, NotificationPayload } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
+import type { AlertRule, AlertHistory, AlertCondition, NotificationPayload } from '@agentkitai/agentlens-core';
 import { SqliteEventStore } from '../db/sqlite-store.js';
 import { PostgresEventStore } from '../db/postgres-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';

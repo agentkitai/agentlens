@@ -6,7 +6,7 @@
  * (The `llm_judge` scorer covers rubric-style judgment separately.)
  */
 
-import type { AgentLensEvent, ComplianceRule, ComplianceViolation } from '@agentlensai/core';
+import type { AgentLensEvent, ComplianceRule, ComplianceViolation } from '@agentkitai/agentlens-core';
 
 const SEVERITY_RANK: Record<string, number> = { debug: 0, info: 1, warn: 2, error: 3, critical: 4 };
 

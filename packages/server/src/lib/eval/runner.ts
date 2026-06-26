@@ -11,7 +11,7 @@ import type {
   EvalWebhookResponse,
   EvalTestCase,
   ScoreResult,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import type { EvalStore } from '../../db/eval-store.js';
 import type { ScorerRegistry, ScorerContext } from './scorers/index.js';
 

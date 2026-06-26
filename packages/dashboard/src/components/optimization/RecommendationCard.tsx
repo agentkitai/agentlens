@@ -8,7 +8,7 @@ import type {
   EnhancedRecommendation,
   OptimizationCategory,
   ImplementationDifficulty,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { request } from '../../api/core';
 
 const CATEGORY_META: Record<OptimizationCategory, { label: string; icon: string }> = {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { computeEventHash } from '@agentlensai/core';
-import type { ChainEvent, HashableEvent } from '@agentlensai/core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
+import type { ChainEvent, HashableEvent } from '@agentkitai/agentlens-core';
 import { runVerification } from '../audit-verify.js';
 
 /**

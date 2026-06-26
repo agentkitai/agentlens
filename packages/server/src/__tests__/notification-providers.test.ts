@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { NotificationPayload, NotificationChannel } from '@agentlensai/core';
+import type { NotificationPayload, NotificationChannel } from '@agentkitai/agentlens-core';
 import { WebhookProvider } from '../lib/notifications/providers/webhook.js';
 import { SlackProvider } from '../lib/notifications/providers/slack.js';
 import { PagerDutyProvider } from '../lib/notifications/providers/pagerduty.js';

@@ -1,7 +1,7 @@
 /**
  * [F11-S3] Export utilities — JSON and CSV session export
  */
-import type { AgentLensEvent, Session } from '@agentlensai/core';
+import type { AgentLensEvent, Session } from '@agentkitai/agentlens-core';
 
 const VERSION = '0.12.1'; // TODO: import from package.json or build-time constant
 

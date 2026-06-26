@@ -16,7 +16,7 @@ import type {
   BenchmarkResults,
   VariantMetrics,
   MetricComparison,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // ─── DB Row Types ──────────────────────────────────────────
 

@@ -2,7 +2,7 @@
  * buildBreachEvalResult — gate→lens wedge (#55).
  */
 import { describe, it, expect } from 'vitest';
-import type { AgentLensEvent } from '@agentlensai/core';
+import type { AgentLensEvent } from '@agentkitai/agentlens-core';
 import { buildBreachEvalResult } from '../guardrail-breach.js';
 
 function toolCall(toolName: string): AgentLensEvent {

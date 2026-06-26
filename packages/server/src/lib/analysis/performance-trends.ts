@@ -5,12 +5,12 @@
  * tool call averages, and error averages, with trend detection.
  */
 
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type {
   PerformanceTrendsResult,
   PerformanceTrendBucket,
   Session,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 export interface PerformanceTrendsOpts {
   agentId?: string;

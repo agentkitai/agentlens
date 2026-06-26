@@ -4,7 +4,7 @@
  */
 
 import { eq, and, gte, lte, desc, sql, count as drizzleCount } from 'drizzle-orm';
-import type { AgentLensEvent, Session, SessionQuery } from '@agentlensai/core';
+import type { AgentLensEvent, Session, SessionQuery } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../index.js';
 import { events, sessions } from '../schema.sqlite.js';
 import { buildSessionConditions, mapSessionRow } from '../shared/query-helpers.js';

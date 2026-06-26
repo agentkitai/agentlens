@@ -1,5 +1,5 @@
 /**
- * @agentlensai/core — Core Event Types and Interfaces
+ * @agentkitai/agentlens-core — Core Event Types and Interfaces
  *
  * All types per Architecture §4.1
  */

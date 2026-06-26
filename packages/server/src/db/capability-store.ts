@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, and } from 'drizzle-orm';
 import type { SqliteDb } from './index.js';
 import { capabilityRegistry } from './schema.sqlite.js';
-import { TASK_TYPES, type TaskType, type CapabilityRegistration } from '@agentlensai/core';
+import { TASK_TYPES, type TaskType, type CapabilityRegistration } from '@agentkitai/agentlens-core';
 import { NotFoundError } from './errors.js';
 
 /** Valid task types as a Set for fast lookup */

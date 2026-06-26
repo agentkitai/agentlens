@@ -1,4 +1,4 @@
-import { getErrorMessage } from '@agentlensai/core';
+import { getErrorMessage } from '@agentkitai/agentlens-core';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {

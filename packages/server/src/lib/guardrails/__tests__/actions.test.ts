@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { GuardrailRule, GuardrailConditionResult } from '@agentlensai/core';
+import type { GuardrailRule, GuardrailConditionResult } from '@agentkitai/agentlens-core';
 import { executePauseAgent, executeNotifyWebhook, executeDowngradeModel, executeAgentgatePolicy, executeAction } from '../actions.js';
 import { eventBus } from '../../event-bus.js';
 

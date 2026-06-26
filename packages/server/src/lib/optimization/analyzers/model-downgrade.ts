@@ -5,8 +5,8 @@
  * output to EnhancedRecommendation with category 'model_downgrade'.
  */
 
-import type { ModelCosts, EnhancedRecommendation } from '@agentlensai/core';
-import { DEFAULT_MODEL_COSTS } from '@agentlensai/core';
+import type { ModelCosts, EnhancedRecommendation } from '@agentkitai/agentlens-core';
+import { DEFAULT_MODEL_COSTS } from '@agentkitai/agentlens-core';
 import { OptimizationEngine } from '../engine.js';
 import type { Analyzer, AnalyzerContext } from './types.js';
 import { createHash } from 'node:crypto';

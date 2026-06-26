@@ -6,7 +6,7 @@
  */
 
 import { Hono } from 'hono';
-import { getPricingProvenance } from '@agentlensai/core';
+import { getPricingProvenance } from '@agentkitai/agentlens-core';
 
 export function serverInfoRoutes(features: string[]) {
   const app = new Hono();

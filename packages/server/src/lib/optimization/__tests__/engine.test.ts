@@ -11,7 +11,7 @@ import type {
   ModelCosts,
   LlmCallPayload,
   LlmResponsePayload,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // ─── Test Helpers ──────────────────────────────────────────────────
 

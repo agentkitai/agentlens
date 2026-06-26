@@ -7,7 +7,7 @@
  */
 
 import { createHash } from 'crypto';
-import { costUsd, lookupModelCost } from '@agentlensai/core';
+import { costUsd, lookupModelCost } from '@agentkitai/agentlens-core';
 import type { QueuedEvent, RedisClient } from './event-queue.js';
 import { STREAM_NAME, DLQ_STREAM_NAME, CONSUMER_GROUP } from './event-queue.js';
 import type { Pool } from '../tenant-pool.js';
@@ -56,7 +56,7 @@ export interface ConsumerRedisClient extends RedisClient {
 /**
  * Calculate cost for an LLM call event.
  * Returns cost in USD or null if not calculable (unknown model or no tokens).
- * Pricing comes from the shared @agentkitai/pricing table (via @agentlensai/core),
+ * Pricing comes from the shared @agentkitai/pricing table (via @agentkitai/agentlens-core),
  * so modern model ids (e.g. claude-opus-4-8) are covered, unlike the legacy
  * hand-maintained per-1K table this replaced.
  */

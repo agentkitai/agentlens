@@ -6,7 +6,7 @@ import type {
   Session,
   SessionQuery,
   Agent,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { EventMethods } from './events.js';
 import type { SessionQueryResult, TimelineResult } from './types.js';
 

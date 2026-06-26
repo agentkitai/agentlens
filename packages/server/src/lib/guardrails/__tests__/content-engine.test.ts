@@ -8,7 +8,7 @@ import { runMigrations } from '../../../db/migrate.js';
 import { GuardrailStore } from '../../../db/guardrail-store.js';
 import { ContentGuardrailEngine } from '../content-engine.js';
 import { invalidateAllScanners } from '../scanners/scanner-registry.js';
-import type { GuardrailRule } from '@agentlensai/core';
+import type { GuardrailRule } from '@agentkitai/agentlens-core';
 
 let db: SqliteDb;
 let store: GuardrailStore;

@@ -293,7 +293,7 @@ async createLesson(): Promise<never> {
 
 ### For SDK Users
 ```diff
-- import { AgentLensClient } from '@agentlensai/sdk';
+- import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 - const client = new AgentLensClient({ apiKey: '...' });
 - await client.createLesson({ title: '...', content: '...' });
 

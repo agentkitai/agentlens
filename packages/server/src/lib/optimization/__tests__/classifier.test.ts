@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { classifyCallComplexity } from '../classifier.js';
-import type { AgentLensEvent, LlmCallPayload, LlmResponsePayload } from '@agentlensai/core';
+import type { AgentLensEvent, LlmCallPayload, LlmResponsePayload } from '@agentkitai/agentlens-core';
 
 /** Helper: create a minimal llm_call event */
 function makeCallEvent(overrides: {

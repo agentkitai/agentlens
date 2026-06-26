@@ -513,7 +513,7 @@ describe('Story 1.3: LLM event creation and hash chain', () => {
   });
 
   describe('re-exports from index barrel', () => {
-    it('should export LLM schemas and types from @agentlensai/core', async () => {
+    it('should export LLM schemas and types from @agentkitai/agentlens-core', async () => {
       const core = await import('../index.js');
       expect(core.llmCallPayloadSchema).toBeDefined();
       expect(core.llmResponsePayloadSchema).toBeDefined();

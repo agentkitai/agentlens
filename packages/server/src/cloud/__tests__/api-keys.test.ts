@@ -5,7 +5,7 @@
  * Integration tests run when DATABASE_URL is set.
  */
 
-import { getErrorMessage } from '@agentlensai/core';
+import { getErrorMessage } from '@agentkitai/agentlens-core';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   ApiKeyService,

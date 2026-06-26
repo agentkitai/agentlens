@@ -4,7 +4,7 @@
  * Uses PagerDuty Events API v2.
  */
 
-import type { NotificationPayload, DeliveryResult, NotificationChannel, PagerDutyChannelConfig } from '@agentlensai/core';
+import type { NotificationPayload, DeliveryResult, NotificationChannel, PagerDutyChannelConfig } from '@agentkitai/agentlens-core';
 import type { NotificationProvider } from '../provider.js';
 import { createLogger } from '../../logger.js';
 

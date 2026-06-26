@@ -2,7 +2,7 @@
  * agentlens sessions — list and inspect sessions
  */
 import { parseArgs } from 'node:util';
-import type { SessionStatus } from '@agentlensai/sdk';
+import type { SessionStatus } from '@agentkitai/agentlens-sdk';
 import { createClientFromConfig } from '../lib/client.js';
 import {
   printTable,

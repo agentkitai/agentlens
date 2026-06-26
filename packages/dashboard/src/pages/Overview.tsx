@@ -14,7 +14,7 @@ import type {
   Session,
   EventQueryResult,
   SessionQueryResult,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';
 import { getOverviewStats, getEvents, getSessions, getLlmAnalytics, getAnalytics } from '../api/client';

@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createTestDb, type SqliteDb } from '../index.js';
 import { runMigrations } from '../migrate.js';
 import { BenchmarkStore, type CreateBenchmarkInput } from '../benchmark-store.js';
-import type { BenchmarkResults, MetricComparison, VariantMetrics } from '@agentlensai/core';
+import type { BenchmarkResults, MetricComparison, VariantMetrics } from '@agentkitai/agentlens-core';
 
 let db: SqliteDb;
 let store: BenchmarkStore;

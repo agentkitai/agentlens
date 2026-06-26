@@ -16,8 +16,8 @@ import {
   createCostBudgetSchema,
   updateCostBudgetSchema,
   updateAnomalyConfigSchema,
-} from '@agentlensai/core';
-import type { CostBudget, CostAnomalyConfig, IEventStore } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import type { CostBudget, CostAnomalyConfig, IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { CostBudgetStore } from '../db/cost-budget-store.js';
 import type { BudgetEngine } from '../lib/budget-engine.js';

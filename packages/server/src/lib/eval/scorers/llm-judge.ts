@@ -7,8 +7,8 @@
  * a proof — callers label the chained eval_result as method:'llm_judge'.
  */
 
-import { costUsd, lookupModelCost } from '@agentlensai/core';
-import type { ScoreResult } from '@agentlensai/core';
+import { costUsd, lookupModelCost } from '@agentkitai/agentlens-core';
+import type { ScoreResult } from '@agentkitai/agentlens-core';
 import type { LLMProvider } from '../../diagnostics/providers/types.js';
 import type { IScorer, ScorerContext } from './index.js';
 

@@ -1,6 +1,6 @@
 # MCP Integration
 
-AgentLens ships as an MCP server (`@agentlensai/mcp`) that agents add to their tool configuration. This is the primary integration method — it requires zero code changes in your agent.
+AgentLens ships as an MCP server (`@agentkitai/agentlens-mcp`) that agents add to their tool configuration. This is the primary integration method — it requires zero code changes in your agent.
 
 ## How It Works
 
@@ -10,7 +10,7 @@ AgentLens ships as an MCP server (`@agentlensai/mcp`) that agents add to their t
 4. Events appear in the dashboard in real time
 
 ```
-Agent  ──MCP stdio──►  @agentlensai/mcp  ──HTTP──►  @agentlensai/server
+Agent  ──MCP stdio──►  @agentkitai/agentlens-mcp  ──HTTP──►  @agentkitai/agentlens-server
                         (5 tools)                    (API + Dashboard)
 ```
 

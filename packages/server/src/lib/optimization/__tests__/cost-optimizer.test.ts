@@ -9,7 +9,7 @@ import type {
   AgentLensEvent,
   EventQueryResult,
   ModelCosts,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 let counter = 0;
 

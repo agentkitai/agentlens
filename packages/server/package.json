@@ -1,5 +1,5 @@
 {
-  "name": "@agentlensai/server",
+  "name": "@agentkitai/agentlens-server",
   "version": "0.19.0",
   "description": "AgentLens API server — event ingestion, querying, dashboard, and alerting for AI agents",
   "type": "module",
@@ -48,11 +48,11 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@agentlensai/core": "workspace:*",
+    "@agentkitai/agentlens-core": "workspace:*",
     "@hono/node-server": "^1.19.10",
     "@hono/zod-openapi": "^1.4.0",
     "@scalar/hono-api-reference": "^0.9.44",
-    "agentkit-auth": "workspace:*",
+    "@agentkitai/auth": "workspace:*",
     "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.25",

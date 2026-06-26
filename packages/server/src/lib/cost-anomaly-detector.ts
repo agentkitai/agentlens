@@ -5,7 +5,7 @@
  * against 7-day baseline, emits alert_triggered on anomaly.
  */
 
-import type { IEventStore, Session } from '@agentlensai/core';
+import type { IEventStore, Session } from '@agentkitai/agentlens-core';
 import { CostBudgetStore } from '../db/cost-budget-store.js';
 import { eventBus, type BusEvent } from './event-bus.js';
 import { createLogger } from './logger.js';

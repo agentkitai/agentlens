@@ -41,7 +41,7 @@ inputs:
     description: 'How many recent sessions to score with agent-id (trace-scoring mode).'
     required: false
   cli-version:
-    description: 'Version of @agentlensai/cli to run.'
+    description: 'Version of @agentkitai/agentlens-cli to run.'
     required: false
     default: 'latest'
 
@@ -64,4 +64,4 @@ runs:
         if [ -n "${{ inputs.session-ids }}" ];     then args+=( --session-ids "${{ inputs.session-ids }}" ); fi
         if [ -n "${{ inputs.limit }}" ];           then args+=( --limit "${{ inputs.limit }}" ); fi
         if [ -n "${{ inputs.timeout-seconds }}" ]; then args+=( --timeout-seconds "${{ inputs.timeout-seconds }}" ); fi
-        npx -y "@agentlensai/cli@${{ inputs.cli-version }}" eval-gate "${args[@]}"
+        npx -y "@agentkitai/agentlens-cli@${{ inputs.cli-version }}" eval-gate "${args[@]}"

@@ -9,7 +9,7 @@
  * - 80% quota warning banner
  */
 
-import { getErrorMessage } from '@agentlensai/core';
+import { getErrorMessage } from '@agentkitai/agentlens-core';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useOrg } from './OrgContext';
 import {

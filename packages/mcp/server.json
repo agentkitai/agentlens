@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
-      "identifier": "@agentlensai/mcp",
+      "identifier": "@agentkitai/agentlens-mcp",
       "version": "0.13.1",
       "runtimeHint": "npx",
       "transport": {

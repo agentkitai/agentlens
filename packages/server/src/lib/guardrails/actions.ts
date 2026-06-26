@@ -4,7 +4,7 @@
  * All executors are FAIL-SAFE — catch errors and return a result string.
  */
 
-import type { GuardrailRule, GuardrailConditionResult } from '@agentlensai/core';
+import type { GuardrailRule, GuardrailConditionResult } from '@agentkitai/agentlens-core';
 import { eventBus } from '../event-bus.js';
 
 // ─── SSRF Protection (C-3, C-4) ────────────────────────────────────
@@ -213,7 +213,7 @@ export async function executeAgentgatePolicy(
 
 /** Module-level notification router — set via `setNotificationRouter()` (Feature 12) */
 let notificationRouter: {
-  dispatch(channelEntries: string[], payload: import('@agentlensai/core').NotificationPayload, tenantId?: string): Promise<unknown>;
+  dispatch(channelEntries: string[], payload: import('@agentkitai/agentlens-core').NotificationPayload, tenantId?: string): Promise<unknown>;
 } | null = null;
 
 export function setNotificationRouter(router: typeof notificationRouter): void {
@@ -231,7 +231,7 @@ async function executeNotifyChannel(
 
     if (!notificationRouter) return { success: false, result: 'failed: notification router not available' };
 
-    const payload: import('@agentlensai/core').NotificationPayload = {
+    const payload: import('@agentkitai/agentlens-core').NotificationPayload = {
       source: 'guardrail',
       severity: 'critical',
       title: `Guardrail: ${rule.name}`,

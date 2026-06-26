@@ -16,8 +16,8 @@ import type {
   ComplexityTier,
   LlmCallPayload,
   LlmResponsePayload,
-} from '@agentlensai/core';
-import { DEFAULT_MODEL_COSTS, lookupModelCost } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import { DEFAULT_MODEL_COSTS, lookupModelCost } from '@agentkitai/agentlens-core';
 import { classifyCallComplexity } from './classifier.js';
 
 /** Allowed downgrade paths — only recommend within these */

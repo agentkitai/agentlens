@@ -11,7 +11,7 @@ import type {
   GuardrailRule,
   GuardrailState,
   GuardrailTriggerHistory,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 export class GuardrailStore {
   constructor(private readonly db: SqliteDb) {}

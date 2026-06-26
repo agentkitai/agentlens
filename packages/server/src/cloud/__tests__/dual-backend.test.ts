@@ -8,8 +8,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { computeEventHash } from '@agentlensai/core';
-import type { AgentLensEvent } from '@agentlensai/core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
+import type { AgentLensEvent } from '@agentkitai/agentlens-core';
 import { createTestDb } from '../../db/index.js';
 import { runMigrations } from '../../db/migrate.js';
 import { SqliteEventStore } from '../../db/sqlite-store.js';

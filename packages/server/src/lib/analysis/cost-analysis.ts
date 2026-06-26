@@ -5,14 +5,14 @@
  * cost breakdowns by model, agent, and time trends.
  */
 
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type {
   CostAnalysisResult,
   CostByModel,
   CostByAgent,
   CostTrendBucket,
   LlmResponsePayload,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 export interface CostAnalysisOpts {
   agentId?: string;

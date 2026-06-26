@@ -1,5 +1,5 @@
 /**
- * @agentlensai/sdk — Typed Errors
+ * @agentkitai/agentlens-sdk — Typed Errors
  */
 
 /**

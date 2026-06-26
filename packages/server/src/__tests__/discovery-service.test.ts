@@ -8,7 +8,7 @@ import { runMigrations } from '../db/migrate.js';
 import { CapabilityStore } from '../db/capability-store.js';
 import { DiscoveryService } from '../services/discovery-service.js';
 import type { SqliteDb } from '../db/index.js';
-import type { DiscoveryQuery } from '@agentlensai/core';
+import type { DiscoveryQuery } from '@agentkitai/agentlens-core';
 
 describe('DiscoveryService (Story 5.3)', () => {
   let db: SqliteDb;

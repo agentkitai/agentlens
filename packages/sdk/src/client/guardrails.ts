@@ -2,7 +2,7 @@
  * Guardrail methods — extracted from client.ts (cq-003)
  */
 
-import type { GuardrailRule } from '@agentlensai/core';
+import type { GuardrailRule } from '@agentkitai/agentlens-core';
 import { AnalyticsMethods } from './analytics.js';
 import type {
   CreateGuardrailRuleParams,

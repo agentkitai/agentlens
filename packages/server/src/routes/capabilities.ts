@@ -7,7 +7,7 @@
  */
 
 import { Hono } from 'hono';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { CapabilityStore, ValidationError } from '../db/capability-store.js';

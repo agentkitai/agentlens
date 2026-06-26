@@ -12,7 +12,7 @@ import type {
   HealthScore,
   HealthSnapshot,
   OptimizationResult,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { NotFoundError } from '../errors.js';
 import { SessionMethods } from './sessions.js';
 import type {

@@ -12,7 +12,7 @@
  *  - Hover tooltip with event type and timestamp
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentLensEvent } from '@agentlensai/core';
+import type { AgentLensEvent } from '@agentkitai/agentlens-core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 

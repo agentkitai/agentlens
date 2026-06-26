@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { summarizeEvent, summarizeSession } from '../summarizer.js';
-import type { AgentLensEvent, Session } from '@agentlensai/core';
+import type { AgentLensEvent, Session } from '@agentkitai/agentlens-core';
 
 /** Create a minimal event for testing */
 function makeEvent(overrides: Partial<AgentLensEvent>): AgentLensEvent {

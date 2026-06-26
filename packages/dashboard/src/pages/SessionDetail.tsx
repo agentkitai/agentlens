@@ -15,7 +15,7 @@
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { AgentLensEvent, Session, SessionStatus, CostTrackedPayload } from '@agentlensai/core';
+import type { AgentLensEvent, Session, SessionStatus, CostTrackedPayload } from '@agentkitai/agentlens-core';
 import { getSession, getSessionTimeline } from '../api/client';
 import type { SessionTimeline } from '../api/client';
 import { useApi } from '../hooks/useApi';

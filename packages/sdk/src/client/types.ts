@@ -9,7 +9,7 @@ import type {
   GuardrailRule,
   GuardrailState,
   GuardrailTriggerHistory,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // ─── Config Types ───────────────────────────────────────────
 

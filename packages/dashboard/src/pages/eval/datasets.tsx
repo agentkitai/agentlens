@@ -15,7 +15,7 @@ import { useApi } from '../../hooks/useApi';
 import { getEvalDatasets, createEvalDataset } from '../../api/eval';
 import { getAgents } from '../../api/client';
 import type { EvalDataset } from '../../api/eval';
-import type { Agent } from '@agentlensai/core';
+import type { Agent } from '@agentkitai/agentlens-core';
 
 const PAGE_SIZE = 20;
 

@@ -5,8 +5,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { computeEventHash } from '@agentlensai/core';
-import type { HashableEvent } from '@agentlensai/core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
+import type { HashableEvent } from '@agentkitai/agentlens-core';
 import { createTestApp, authHeaders, createApiKey, type TestContext } from './test-helpers.js';
 import { apiKeys, events, auditLog } from '../db/schema.sqlite.js';
 import { eq, sql } from 'drizzle-orm';

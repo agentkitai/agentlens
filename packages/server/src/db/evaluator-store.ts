@@ -15,7 +15,7 @@ import type {
   EvaluatorStatus,
   ScorerConfig,
   ScorerType,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 /** Tenant the read-only built-in catalog lives under (visible to all tenants). */
 export const SYSTEM_TENANT = '__system__';

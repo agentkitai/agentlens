@@ -1,5 +1,5 @@
 /**
- * @agentlensai/core — Event Creation Helpers
+ * @agentkitai/agentlens-core — Event Creation Helpers
  *
  * Factory functions for creating events with proper defaults.
  */

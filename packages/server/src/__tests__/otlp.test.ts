@@ -9,8 +9,8 @@ import { OTLP_PROTO_DESCRIPTOR } from '../otlp/otlp-proto-descriptor.js';
 import { createTestDb } from '../db/index.js';
 import { runMigrations } from '../db/migrate.js';
 import { SqliteEventStore } from '../db/sqlite-store.js';
-import { verifyChain } from '@agentlensai/core';
-import type { ChainEvent } from '@agentlensai/core';
+import { verifyChain } from '@agentkitai/agentlens-core';
+import type { ChainEvent } from '@agentkitai/agentlens-core';
 
 function makeApp() {
   const db = createTestDb();

@@ -8,7 +8,7 @@
  */
 
 import { Hono } from 'hono';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { EmbeddingService } from '../lib/embeddings/index.js';
 import type { EmbeddingStore, SimilaritySearchOptions } from '../db/embedding-store.js';

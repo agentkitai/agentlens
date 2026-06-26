@@ -8,7 +8,7 @@
  *   DATABASE_URL=postgres://user:pass@localhost:5432/agentlens_test pnpm test
  */
 
-import { getErrorMessage } from '@agentlensai/core';
+import { getErrorMessage } from '@agentkitai/agentlens-core';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   getMigrationFiles,

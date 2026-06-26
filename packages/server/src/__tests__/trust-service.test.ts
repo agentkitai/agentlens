@@ -11,7 +11,7 @@ import { DiscoveryService } from '../services/discovery-service.js';
 import { TrustService } from '../services/trust-service.js';
 import { delegationLog } from '../db/schema.sqlite.js';
 import type { SqliteDb } from '../db/index.js';
-import type { HealthSnapshot } from '@agentlensai/core';
+import type { HealthSnapshot } from '@agentkitai/agentlens-core';
 
 describe('TrustService — Story 6.3 (Trust Scoring)', () => {
   let db: SqliteDb;

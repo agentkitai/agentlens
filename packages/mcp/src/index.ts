@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @agentlensai/mcp — MCP Server Entrypoint (Story 5.1, Feature 10)
+ * @agentkitai/agentlens-mcp — MCP Server Entrypoint (Story 5.1, Feature 10)
  *
  * Starts an MCP server over stdio transport that exposes AgentLens
  * instrumentation tools to MCP-compatible AI agents.

@@ -21,7 +21,7 @@ import {
   createDatasetVersion,
 } from '../../api/eval';
 import type { EvalTestCase } from '../../api/eval';
-import type { EvalInput } from '@agentlensai/core';
+import type { EvalInput } from '@agentkitai/agentlens-core';
 
 // ─── Test Case Editor ───────────────────────────────────────────────
 

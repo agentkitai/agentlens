@@ -105,7 +105,7 @@ If you're using a virtual environment, make sure it's activated before installin
 
 ```bash
 # Start the MCP server
-npx @agentlensai/mcp --port 3401
+npx @agentkitai/agentlens-mcp --port 3401
 
 # Verify it's running
 curl http://localhost:3401/health
@@ -117,7 +117,7 @@ In your MCP client config (e.g., `claude_desktop_config.json`):
   "mcpServers": {
     "agentlens": {
       "command": "npx",
-      "args": ["@agentlensai/mcp", "--port", "3401"]
+      "args": ["@agentkitai/agentlens-mcp", "--port", "3401"]
     }
   }
 }
@@ -214,7 +214,7 @@ VITE_API_URL=http://your-server:3400 npm run build
 
 ```bash
 # Run the built-in verification tool
-npx @agentlensai/server verify-chain --session SESSION_ID
+npx @agentkitai/agentlens-server verify-chain --session SESSION_ID
 
 # This will show exactly where the chain breaks:
 # ✓ Event 1 → 2 → 3 → 4

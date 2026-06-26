@@ -18,8 +18,8 @@ Get started with AgentLens Cloud in under 5 minutes. No server to deploy, no inf
 Or use the CLI:
 
 ```bash
-npx @agentlensai/cli cloud login
-npx @agentlensai/cli cloud keys create --name dev-local
+npx @agentkitai/agentlens-cli cloud login
+npx @agentkitai/agentlens-cli cloud keys create --name dev-local
 ```
 
 ## 3. Install the SDK
@@ -36,7 +36,7 @@ pip install agentlensai[anthropic]       # just Anthropic
 ### TypeScript
 
 ```bash
-npm install @agentlensai/sdk
+npm install @agentkitai/agentlens-sdk
 ```
 
 ## 4. Instrument Your Agent
@@ -108,7 +108,7 @@ agentlensai.shutdown()
 ### TypeScript
 
 ```typescript
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 
 const client = new AgentLensClient({
   cloud: true,
@@ -143,7 +143,7 @@ After running your instrumented code, verify data is flowing:
 **CLI:**
 
 ```bash
-npx @agentlensai/cli cloud sessions --limit 5
+npx @agentkitai/agentlens-cli cloud sessions --limit 5
 ```
 
 **SDK:**
@@ -220,7 +220,7 @@ Cloud mode requires `agentlensai >= 0.11.0`. Upgrade:
 ```bash
 pip install --upgrade agentlensai
 # or
-npm install @agentlensai/sdk@latest
+npm install @agentkitai/agentlens-sdk@latest
 ```
 
 ## Next Steps

@@ -6,7 +6,7 @@ import { createTestDb, type SqliteDb } from '../index.js';
 import { runMigrations } from '../migrate.js';
 import { EvaluatorStore } from '../evaluator-store.js';
 import { BUILTIN_EVALUATORS } from '../../lib/eval/builtin-evaluators.js';
-import type { ScorerConfig } from '@agentlensai/core';
+import type { ScorerConfig } from '@agentkitai/agentlens-core';
 
 let db: SqliteDb;
 let store: EvaluatorStore;

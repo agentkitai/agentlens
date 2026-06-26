@@ -13,9 +13,9 @@
 import { Hono } from 'hono';
 import { timingSafeEqual, createHmac } from 'node:crypto';
 import { sql, type SQL } from 'drizzle-orm';
-import { guardrailBreachRequestSchema, evalRunRequestSchema, pricingVersion } from '@agentlensai/core';
+import { guardrailBreachRequestSchema, evalRunRequestSchema, pricingVersion } from '@agentkitai/agentlens-core';
 import { reconcile, type ReconcileEventRow } from '../lib/reconcile.js';
-import type { EvalResultPayload, IEventStore } from '@agentlensai/core';
+import type { EvalResultPayload, IEventStore } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../db/index.js';
 import type { PostgresDb } from '../db/connection.postgres.js';
 import { getConfig } from '../config.js';

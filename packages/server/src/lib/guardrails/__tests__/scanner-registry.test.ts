@@ -2,7 +2,7 @@
  * Tests for Scanner Registry (Feature 8 — Story 3) [F8-S3]
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { GuardrailRule } from '@agentlensai/core';
+import type { GuardrailRule } from '@agentkitai/agentlens-core';
 import {
   isContentRule,
   getScannerForRule,

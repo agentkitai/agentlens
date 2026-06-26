@@ -88,7 +88,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@agentlensai/sdk':
+      '@agentkitai/agentlens-sdk':
         specifier: workspace:*
         version: link:../sdk
 
@@ -106,7 +106,7 @@ importers:
 
   packages/dashboard:
     dependencies:
-      '@agentlensai/core':
+      '@agentkitai/agentlens-core':
         specifier: workspace:*
         version: link:../core
       recharts:
@@ -167,7 +167,7 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@agentlensai/core':
+      '@agentkitai/agentlens-core':
         specifier: workspace:*
         version: link:../core
       '@modelcontextprotocol/sdk':
@@ -181,19 +181,19 @@ importers:
 
   packages/sdk:
     dependencies:
-      '@agentlensai/core':
+      '@agentkitai/agentlens-core':
         specifier: workspace:*
         version: link:../core
 
   packages/sdk-integration-tests:
     devDependencies:
-      '@agentlensai/core':
+      '@agentkitai/agentlens-core':
         specifier: workspace:*
         version: link:../core
-      '@agentlensai/sdk':
+      '@agentkitai/agentlens-sdk':
         specifier: workspace:*
         version: link:../sdk
-      '@agentlensai/server':
+      '@agentkitai/agentlens-server':
         specifier: workspace:*
         version: link:../server
       '@hono/node-server':
@@ -205,9 +205,12 @@ importers:
 
   packages/server:
     dependencies:
-      '@agentlensai/core':
+      '@agentkitai/agentlens-core':
         specifier: workspace:*
         version: link:../core
+      '@agentkitai/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@hono/node-server':
         specifier: ^1.19.10
         version: 1.19.14(hono@4.12.26)
@@ -217,9 +220,6 @@ importers:
       '@scalar/hono-api-reference':
         specifier: ^0.9.44
         version: 0.9.44(hono@4.12.26)
-      agentkit-auth:
-        specifier: workspace:*
-        version: link:../auth
       better-sqlite3:
         specifier: ^12.11.1
         version: 12.11.1

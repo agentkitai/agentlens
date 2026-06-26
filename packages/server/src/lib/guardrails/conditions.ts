@@ -52,8 +52,8 @@
  * └─────────────────────────────────────────────────────────────────────┘
  */
 
-import type { IEventStore, GuardrailRule, GuardrailConditionResult } from '@agentlensai/core';
-import { DEFAULT_HEALTH_WEIGHTS } from '@agentlensai/core';
+import type { IEventStore, GuardrailRule, GuardrailConditionResult } from '@agentkitai/agentlens-core';
+import { DEFAULT_HEALTH_WEIGHTS } from '@agentkitai/agentlens-core';
 import { HealthComputer } from '../health/computer.js';
 
 export async function evaluateErrorRateThreshold(

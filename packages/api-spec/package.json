@@ -1,5 +1,5 @@
 {
-  "name": "@agentlensai/api-spec",
+  "name": "@agentkitai/agentlens-api-spec",
   "version": "0.1.0",
   "private": true,
   "description": "OpenAPI 3.0 specification for the AgentLens REST API",

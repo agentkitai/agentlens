@@ -1,5 +1,5 @@
 /**
- * @agentlensai/sdk — Batch Event Sender
+ * @agentkitai/agentlens-sdk — Batch Event Sender
  *
  * Queues events and sends them in batches to the AgentLens server,
  * auto-flushing at a size threshold or time interval.
@@ -8,7 +8,7 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentLensEvent } from '@agentlensai/core';
+import type { AgentLensEvent } from '@agentkitai/agentlens-core';
 
 /** Options accepted by {@link BatchSender}. */
 export interface BatchSenderOptions {

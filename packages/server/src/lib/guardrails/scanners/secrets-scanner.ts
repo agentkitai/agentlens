@@ -1,8 +1,8 @@
 /**
  * Secrets Detection Scanner (Feature 8 — Story 5)
  */
-import type { ContentMatch } from '@agentlensai/core';
-import { SecretsDetectionConfigSchema } from '@agentlensai/core';
+import type { ContentMatch } from '@agentkitai/agentlens-core';
+import { SecretsDetectionConfigSchema } from '@agentkitai/agentlens-core';
 import { ContentScanner, type ScanContext, type ScanResult } from './base-scanner.js';
 import { SECRET_PATTERNS } from './patterns/secret-patterns.js';
 import type { PatternDef } from './patterns/pii-patterns.js';

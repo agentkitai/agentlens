@@ -1,5 +1,5 @@
 /**
- * @agentlensai/server — Hono HTTP API server and event storage
+ * @agentkitai/agentlens-server — Hono HTTP API server and event storage
  *
  * Thin entry point: re-exports createApp from app.ts and startServer below.
  * The heavy lifting lives in:
@@ -9,8 +9,8 @@
  */
 
 import { serve } from '@hono/node-server';
-import type { IEventStore } from '@agentlensai/core';
-import { refreshFromLiteLLM } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
+import { refreshFromLiteLLM } from '@agentkitai/agentlens-core';
 import { getConfig, validateConfig } from './config.js';
 import { createDb, type SqliteDb } from './db/index.js';
 import { runMigrations } from './db/migrate.js';

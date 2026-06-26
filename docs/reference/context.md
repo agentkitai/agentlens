@@ -116,7 +116,7 @@ agentlens context "API rate limiting" --agent my-agent --limit 3
 ### SDK Example
 
 ```typescript
-import { AgentLensClient } from '@agentlensai/sdk';
+import { AgentLensClient } from '@agentkitai/agentlens-sdk';
 
 const client = new AgentLensClient({
   url: 'http://localhost:3400',

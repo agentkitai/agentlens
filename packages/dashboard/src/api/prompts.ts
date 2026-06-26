@@ -3,7 +3,7 @@ import type {
   PromptTemplate,
   PromptVersion,
   PromptVersionAnalytics,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // Re-export core types for convenience
 export type { PromptTemplate, PromptVersion, PromptVersionAnalytics };

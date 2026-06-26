@@ -7,7 +7,7 @@
  * — they'd be new scorer engines, out of scope here.)
  */
 
-import type { ScorerConfig, ScorerType } from '@agentlensai/core';
+import type { ScorerConfig, ScorerType } from '@agentkitai/agentlens-core';
 
 export interface BuiltinEvaluator {
   id: string;

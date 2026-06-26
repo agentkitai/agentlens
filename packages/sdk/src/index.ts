@@ -1,5 +1,5 @@
 /**
- * @agentlensai/sdk — Programmatic client for the AgentLens API
+ * @agentkitai/agentlens-sdk — Programmatic client for the AgentLens API
  */
 
 // Client
@@ -78,4 +78,4 @@ export type {
   GuardrailState,
   GuardrailTriggerHistory,
   GuardrailConditionResult,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';

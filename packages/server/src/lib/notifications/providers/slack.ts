@@ -4,7 +4,7 @@
  * Uses Slack Incoming Webhooks with Block Kit formatting.
  */
 
-import type { NotificationPayload, DeliveryResult, NotificationChannel, SlackChannelConfig } from '@agentlensai/core';
+import type { NotificationPayload, DeliveryResult, NotificationChannel, SlackChannelConfig } from '@agentkitai/agentlens-core';
 import type { NotificationProvider } from '../provider.js';
 import { validateExternalUrl } from '../ssrf.js';
 import { createLogger } from '../../logger.js';

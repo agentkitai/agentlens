@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { analyzePerformance } from '../performance-trends.js';
-import type { IEventStore, Session } from '@agentlensai/core';
+import type { IEventStore, Session } from '@agentkitai/agentlens-core';
 
 function createMockStore(sessions: Session[]): IEventStore {
   return {

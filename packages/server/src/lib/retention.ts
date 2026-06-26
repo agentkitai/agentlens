@@ -8,7 +8,7 @@
  * retention cleanup is the audited, authorized path for event deletion.
  */
 
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 
 export interface RetentionPolicy {
   /** Keep events for this many days (0 = keep forever) */

@@ -4,7 +4,7 @@
  */
 
 import { eq, and, gte, lte, desc, asc, sql, count as drizzleCount } from 'drizzle-orm';
-import type { IEventStore, AnalyticsResult, StorageStats } from '@agentlensai/core';
+import type { IEventStore, AnalyticsResult, StorageStats } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../index.js';
 import { events, sessions, agents } from '../schema.sqlite.js';
 import { createLogger } from '../../lib/logger.js';

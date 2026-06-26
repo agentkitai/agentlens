@@ -3,7 +3,7 @@
  *
  * Wraps tool handlers to intercept input/output for content scanning.
  */
-import type { ContentGuardrailResult } from '@agentlensai/core';
+import type { ContentGuardrailResult } from '@agentkitai/agentlens-core';
 export type { ContentGuardrailResult };
 
 export interface ContentEvalContext {

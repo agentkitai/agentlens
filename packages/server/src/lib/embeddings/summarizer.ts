@@ -15,7 +15,7 @@ import type {
   LlmResponsePayload,
   CostTrackedPayload,
   SessionEndedPayload,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 /**
  * Truncate a string to `maxLen` characters, adding "…" if truncated.

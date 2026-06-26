@@ -21,8 +21,8 @@ import {
   hashToken,
   type AuthConfig,
   type Role,
-} from 'agentkit-auth';
-import type { OidcConfig } from 'agentkit-auth';
+} from '@agentkitai/auth';
+import type { OidcConfig } from '@agentkitai/auth';
 
 // Cookie names
 const SESSION_COOKIE = 'session';

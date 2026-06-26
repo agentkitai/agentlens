@@ -24,7 +24,7 @@ import type {
   LlmCallPayload,
   LlmResponsePayload,
   LlmMessage,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { highlightMatches } from '../utils/highlight';
 
 // ─── Types ──────────────────────────────────────────────────────────

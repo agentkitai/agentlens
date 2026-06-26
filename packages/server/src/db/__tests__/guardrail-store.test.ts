@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTestDb, type SqliteDb } from '../index.js';
 import { runMigrations } from '../migrate.js';
 import { GuardrailStore } from '../guardrail-store.js';
-import type { GuardrailRule, GuardrailState, GuardrailTriggerHistory } from '@agentlensai/core';
+import type { GuardrailRule, GuardrailState, GuardrailTriggerHistory } from '@agentkitai/agentlens-core';
 
 describe('GuardrailStore', () => {
   let db: SqliteDb;

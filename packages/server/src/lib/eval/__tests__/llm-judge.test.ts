@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { EvalTestCase } from '@agentlensai/core';
+import type { EvalTestCase } from '@agentkitai/agentlens-core';
 import { LlmJudgeScorer, judgeWithLlm, type JudgeProviderFactory } from '../scorers/llm-judge.js';
 import type { LLMProvider, LLMCompletionResponse } from '../../diagnostics/providers/types.js';
 

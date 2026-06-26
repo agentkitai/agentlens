@@ -10,7 +10,7 @@ const mockGetHealthOverview = vi.fn();
 const mockGetHealthHistory = vi.fn();
 const mockGetOptimizationRecommendations = vi.fn();
 
-vi.mock('@agentlensai/sdk', () => {
+vi.mock('@agentkitai/agentlens-sdk', () => {
   return {
     AgentLensClient: class MockAgentLensClient {
       getHealth = mockGetHealth;

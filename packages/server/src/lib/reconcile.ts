@@ -15,7 +15,7 @@
  * would belong at the org/total level, not per agent). See billing-grade-spend.md.
  */
 
-import { costUsdDetailed, lookupModelCost } from '@agentlensai/core';
+import { costUsdDetailed, lookupModelCost } from '@agentkitai/agentlens-core';
 
 /** A cost-bearing event row, already attributed to an agent id (incl. 'unattributed'). */
 export interface ReconcileEventRow {

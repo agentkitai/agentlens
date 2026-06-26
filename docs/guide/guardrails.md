@@ -80,10 +80,10 @@ curl -X POST http://localhost:3400/api/guardrails \
 
 ```bash
 # List all guardrail rules
-npx @agentlensai/cli guardrails list
+npx @agentkitai/agentlens-cli guardrails list
 
 # Create a rule
-npx @agentlensai/cli guardrails create \
+npx @agentkitai/agentlens-cli guardrails create \
   --name "Health Alert" \
   --condition health_score_threshold \
   --config '{"minScore": 50}' \
@@ -92,13 +92,13 @@ npx @agentlensai/cli guardrails create \
   --cooldown 30
 
 # Toggle a rule on/off
-npx @agentlensai/cli guardrails toggle <rule-id>
+npx @agentkitai/agentlens-cli guardrails toggle <rule-id>
 
 # View trigger history
-npx @agentlensai/cli guardrails history --limit 20
+npx @agentkitai/agentlens-cli guardrails history --limit 20
 
 # Delete a rule
-npx @agentlensai/cli guardrails delete <rule-id>
+npx @agentkitai/agentlens-cli guardrails delete <rule-id>
 ```
 
 ### Via Dashboard

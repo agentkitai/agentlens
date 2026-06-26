@@ -15,7 +15,7 @@ import { createPostgresConnection, verifyPostgresConnection } from '../src/db/co
 import { runPostgresMigrations } from '../src/db/migrate.postgres.js';
 import { PostgresEventStore } from '../src/db/postgres-store.js';
 import { PostgresEmbeddingStore } from '../src/db/postgres-embedding-store.js';
-import { computeEventHash } from '@agentlensai/core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
 
 // ─── Configuration ──────────────────────────────────────
 const EVENT_COUNT = 100_000;

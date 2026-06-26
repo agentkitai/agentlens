@@ -8,9 +8,9 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
-import { signAccessToken, type AuthConfig } from 'agentkit-auth';
+import { signAccessToken, type AuthConfig } from '@agentkitai/auth';
 import { generateKeyPair, exportJWK, SignJWT, type JWK } from 'jose';
-import { verifyChain } from '@agentlensai/core';
+import { verifyChain } from '@agentkitai/agentlens-core';
 import { __resetAgentJwksCache } from '../../lib/agent-identity.js';
 import { eventsRoutes } from '../events.js';
 import { authMiddleware, hashApiKey, type AuthVariables } from '../../middleware/auth.js';

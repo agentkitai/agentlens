@@ -7,7 +7,7 @@ import type {
   ContentGuardrailResult,
   ContentMatch,
   GuardrailDirection,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import type { GuardrailStore } from '../../db/guardrail-store.js';
 import { getScannerForRule, isContentRule } from './scanners/scanner-registry.js';
 import { createLogger } from '../logger.js';

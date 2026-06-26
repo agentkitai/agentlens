@@ -13,7 +13,7 @@
  */
 
 import { evaluateCompliance } from './compliance.js';
-import type { AgentLensEvent, ComplianceRule, EvalResultPayload } from '@agentlensai/core';
+import type { AgentLensEvent, ComplianceRule, EvalResultPayload } from '@agentkitai/agentlens-core';
 
 export interface GuardrailBreach {
   ruleId: string;

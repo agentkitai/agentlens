@@ -2,7 +2,7 @@
  * Notification Provider interface (Feature 12, Story 12.2)
  */
 
-import type { NotificationPayload, DeliveryResult, NotificationChannel } from '@agentlensai/core';
+import type { NotificationPayload, DeliveryResult, NotificationChannel } from '@agentkitai/agentlens-core';
 
 export interface NotificationProvider {
   readonly type: string;

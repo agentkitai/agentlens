@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { MetricAggregator } from '../metric-aggregator.js';
-import type { Session, IEventStore, BenchmarkVariant } from '@agentlensai/core';
+import type { Session, IEventStore, BenchmarkVariant } from '@agentkitai/agentlens-core';
 
 const aggregator = new MetricAggregator();
 

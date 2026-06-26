@@ -7,7 +7,7 @@
 
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import { SqliteEventStore } from '../db/sqlite-store.js';
 import { PostgresEventStore } from '../db/postgres-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';

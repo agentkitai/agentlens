@@ -9,14 +9,14 @@
  * with HashChainError rather than forking the chain.
  */
 
-import { computeEventHash, truncatePayload } from '@agentlensai/core';
+import { computeEventHash, truncatePayload } from '@agentkitai/agentlens-core';
 import type {
   AgentLensEvent,
   EventPayload,
   EventSeverity,
   EventType,
   IEventStore,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 import { nextEventId } from './event-id.js';
 
 export interface AppendEventInput {

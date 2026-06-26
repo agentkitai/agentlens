@@ -17,7 +17,7 @@ import type {
   LlmCallPayload,
   LlmResponsePayload,
   LlmMessage,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 

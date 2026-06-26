@@ -4,8 +4,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ulid } from 'ulid';
-import { computeEventHash } from '@agentlensai/core';
-import type { AgentLensEvent, GuardrailRule } from '@agentlensai/core';
+import { computeEventHash } from '@agentkitai/agentlens-core';
+import type { AgentLensEvent, GuardrailRule } from '@agentkitai/agentlens-core';
 import { createTestDb, type SqliteDb } from '../../../db/index.js';
 import { runMigrations } from '../../../db/migrate.js';
 import { SqliteEventStore } from '../../../db/sqlite-store.js';

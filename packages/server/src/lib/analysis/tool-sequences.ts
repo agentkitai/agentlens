@@ -5,12 +5,12 @@
  * of tool sequences per session, and identifies error-prone sequences.
  */
 
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type {
   ToolSequenceResult,
   ToolSequence,
   AgentLensEvent,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 export interface ToolSequenceOpts {
   agentId?: string;

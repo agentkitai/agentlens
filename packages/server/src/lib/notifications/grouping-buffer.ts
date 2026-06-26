@@ -5,7 +5,7 @@
  * prevent notification storms.
  */
 
-import type { NotificationPayload } from '@agentlensai/core';
+import type { NotificationPayload } from '@agentkitai/agentlens-core';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('GroupingBuffer');

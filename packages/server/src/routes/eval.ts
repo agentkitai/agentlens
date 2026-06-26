@@ -22,8 +22,8 @@ import {
   judgeScoreRequestSchema,
   createEvaluatorRequestSchema,
   updateEvaluatorRequestSchema,
-} from '@agentlensai/core';
-import type { AgentLensEvent, ComplianceRule, EvalResultPayload, IEventStore } from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
+import type { AgentLensEvent, ComplianceRule, EvalResultPayload, IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { EvalStore } from '../db/eval-store.js';

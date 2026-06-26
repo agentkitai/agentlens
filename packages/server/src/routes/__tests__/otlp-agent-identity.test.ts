@@ -12,8 +12,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
-import { signAccessToken, type AuthConfig } from 'agentkit-auth';
-import { verifyChain } from '@agentlensai/core';
+import { signAccessToken, type AuthConfig } from '@agentkitai/auth';
+import { verifyChain } from '@agentkitai/agentlens-core';
 import { otlpRoutes, resetRateLimiter } from '../otlp.js';
 import { createTestDb, type SqliteDb } from '../../db/index.js';
 import { runMigrations } from '../../db/migrate.js';

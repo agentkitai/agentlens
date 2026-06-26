@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
-import { verifyChain } from '@agentlensai/core';
+import { verifyChain } from '@agentkitai/agentlens-core';
 import { eventsRoutes } from '../events.js';
 import { internalRoutes } from '../internal.js';
 import { HashChainError } from '../../db/errors.js';

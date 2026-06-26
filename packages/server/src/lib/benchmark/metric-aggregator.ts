@@ -11,7 +11,7 @@ import type {
   IEventStore,
   MetricStats,
   Session,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // ─── Public Interface ──────────────────────────────────────
 

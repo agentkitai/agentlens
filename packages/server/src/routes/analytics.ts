@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { getTenantId } from './tenant-helper.js';
 import { getConfig } from '../config.js';
 import { sql, type SQL } from 'drizzle-orm';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import type { PostgresDb } from '../db/connection.postgres.js';

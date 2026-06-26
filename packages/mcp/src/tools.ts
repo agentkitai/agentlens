@@ -1,5 +1,5 @@
 /**
- * @agentlensai/mcp — Tool Definitions and Handlers
+ * @agentkitai/agentlens-mcp — Tool Definitions and Handlers
  *
  * Registers all MCP tools, with optional conditional registration
  * based on server capabilities, allowlist, and denylist.

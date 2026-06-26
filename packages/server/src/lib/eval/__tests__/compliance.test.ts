@@ -2,7 +2,7 @@
  * Compliance evaluation tests (#55 — Phase 1).
  */
 import { describe, it, expect } from 'vitest';
-import type { AgentLensEvent, ComplianceRule } from '@agentlensai/core';
+import type { AgentLensEvent, ComplianceRule } from '@agentkitai/agentlens-core';
 import { evaluateCompliance, matchTool } from '../compliance.js';
 
 function ev(partial: Partial<AgentLensEvent> & { eventType: string }): AgentLensEvent {

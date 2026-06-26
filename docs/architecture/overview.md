@@ -16,7 +16,7 @@ AgentLens is a monorepo with six packages that form a layered observability plat
 │                          │ MCP Protocol (stdio)                 │
 │                          ▼                                      │
 │   ┌──────────────────────────────────────┐                      │
-│   │        @agentlensai/mcp                │                      │
+│   │        @agentkitai/agentlens-mcp                │                      │
 │   │   4 Tools: session_start, log_event, │                      │
 │   │   session_end, query_events          │                      │
 │   └──────────────┬───────────────────────┘                      │
@@ -24,7 +24,7 @@ AgentLens is a monorepo with six packages that form a layered observability plat
 └──────────────────┼──────────────────────────────────────────────┘
                    ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    @agentlensai/server                             │
+│                    @agentkitai/agentlens-server                             │
 │                                                                 │
 │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
 │   │ Event Ingest │  │ Query Engine │  │ Alert Engine │         │
@@ -36,7 +36,7 @@ AgentLens is a monorepo with six packages that form a layered observability plat
 │          │                 │                                     │
 │          ▼                 ▼                                     │
 │   ┌──────────────────────────────────┐                          │
-│   │         @agentlensai/core          │                          │
+│   │         @agentkitai/agentlens-core          │                          │
 │   │   Types · Schemas · Hash Chain   │                          │
 │   │   Storage Interface (IEventStore)│                          │
 │   └──────────────────────────────────┘                          │
@@ -48,7 +48,7 @@ AgentLens is a monorepo with six packages that form a layered observability plat
 │   └──────────────┘  └──────────────┘                            │
 │                                                                 │
 │   ┌──────────────────────────────────┐                          │
-│   │     @agentlensai/dashboard         │                          │
+│   │     @agentkitai/agentlens-dashboard         │                          │
 │   │   React SPA (served at /)        │                          │
 │   │   Overview · Sessions · Events   │                          │
 │   │   Analytics · Alerts · Settings  │                          │
@@ -67,14 +67,14 @@ AgentLens is a monorepo with six packages that form a layered observability plat
 ## Package Dependency Graph
 
 ```
-@agentlensai/core          (no internal deps)
+@agentkitai/agentlens-core          (no internal deps)
      ▲
-     ├── @agentlensai/mcp
-     ├── @agentlensai/server
-     ├── @agentlensai/dashboard
-     └── @agentlensai/sdk
+     ├── @agentkitai/agentlens-mcp
+     ├── @agentkitai/agentlens-server
+     ├── @agentkitai/agentlens-dashboard
+     └── @agentkitai/agentlens-sdk
               ▲
-              └── @agentlensai/cli
+              └── @agentkitai/agentlens-cli
 ```
 
 ## Design Principles

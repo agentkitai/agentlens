@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { PromptOptimizationAnalyzer } from '../prompt-optimization.js';
-import type { AgentLensEvent, IEventStore, ModelCosts, LlmCallPayload } from '@agentlensai/core';
+import type { AgentLensEvent, IEventStore, ModelCosts, LlmCallPayload } from '@agentkitai/agentlens-core';
 import type { AnalyzerContext } from '../types.js';
 
 let counter = 0;

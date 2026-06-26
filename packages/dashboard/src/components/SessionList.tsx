@@ -7,7 +7,7 @@
 import React, { useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Link } from 'react-router-dom';
-import type { Session, SessionStatus } from '@agentlensai/core';
+import type { Session, SessionStatus } from '@agentkitai/agentlens-core';
 
 // ─── Types ──────────────────────────────────────────────────────────
 

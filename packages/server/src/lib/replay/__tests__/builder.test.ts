@@ -20,7 +20,7 @@ import type {
   ApprovalRequestedPayload,
   ApprovalDecisionPayload,
   CostTrackedPayload,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 // ─── Test Helpers ──────────────────────────────────────────
 

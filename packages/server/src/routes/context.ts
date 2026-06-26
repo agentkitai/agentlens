@@ -9,7 +9,7 @@
 
 import { Hono } from 'hono';
 import { getTenantId } from './tenant-helper.js';
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { EmbeddingService } from '../lib/embeddings/index.js';
 import type { EmbeddingStore } from '../db/embedding-store.js';

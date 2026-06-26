@@ -1,5 +1,5 @@
 import { request, toQueryString, ApiError } from './core';
-import type { EvalDataset, EvalTestCase, EvalInput, ScorerConfig, EvaluatorDefinition, ScorerType } from '@agentlensai/core';
+import type { EvalDataset, EvalTestCase, EvalInput, ScorerConfig, EvaluatorDefinition, ScorerType } from '@agentkitai/agentlens-core';
 
 // Re-export for convenience
 export type { EvalDataset, EvalTestCase, EvaluatorDefinition, ScorerType };

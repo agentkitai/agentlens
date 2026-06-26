@@ -13,7 +13,7 @@ import { AnonymousIdManager } from '../db/anonymous-id-manager.js';
 import { DiscoveryService, RateLimiter } from './discovery-service.js';
 import { TrustService } from './trust-service.js';
 import { createLogger } from '../lib/logger.js';
-import type { DelegationRequest, DelegationResult, DelegationPhase, TaskType } from '@agentlensai/core';
+import type { DelegationRequest, DelegationResult, DelegationPhase, TaskType } from '@agentkitai/agentlens-core';
 
 // ─── Pool Transport Interface ─────────────────────────────
 

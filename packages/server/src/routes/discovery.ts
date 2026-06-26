@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { DiscoveryService } from '../services/discovery-service.js';
-import { TASK_TYPES, type DiscoveryQuery, type TaskType } from '@agentlensai/core';
+import { TASK_TYPES, type DiscoveryQuery, type TaskType } from '@agentkitai/agentlens-core';
 import { updateDiscoveryConfigSchema, updateCapabilityPermissionsSchema } from '../schemas/discovery.js';
 import { formatZodErrors } from '../middleware/validation.js';
 import { getTenantId } from './tenant-helper.js';

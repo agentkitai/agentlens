@@ -5,12 +5,12 @@
  * recurring error patterns, grouping by normalized message.
  */
 
-import type { IEventStore } from '@agentlensai/core';
+import type { IEventStore } from '@agentkitai/agentlens-core';
 import type {
   ErrorPatternResult,
   ErrorPattern,
   AgentLensEvent,
-} from '@agentlensai/core';
+} from '@agentkitai/agentlens-core';
 
 export interface ErrorPatternOpts {
   agentId?: string;
