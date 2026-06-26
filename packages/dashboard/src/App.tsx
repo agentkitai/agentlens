@@ -17,6 +17,7 @@ const Analytics = React.lazy(() => import('./pages/Analytics').then(m => ({ defa
 const Alerts = React.lazy(() => import('./pages/Alerts').then(m => ({ default: m.Alerts })));
 const LlmAnalytics = React.lazy(() => import('./pages/LlmAnalytics').then(m => ({ default: m.LlmAnalytics })));
 const Knowledge = React.lazy(() => import('./pages/Knowledge').then(m => ({ default: m.Knowledge })));
+const MemoryProvenance = React.lazy(() => import('./pages/MemoryProvenance').then(m => ({ default: m.MemoryProvenance })));
 const Search = React.lazy(() => import('./pages/Search').then(m => ({ default: m.Search })));
 const Insights = React.lazy(() => import('./pages/Insights').then(m => ({ default: m.Insights })));
 const HealthOverview = React.lazy(() => import('./pages/HealthOverview').then(m => ({ default: m.HealthOverview })));
@@ -98,6 +99,7 @@ function AppRoutes(): React.ReactElement {
         <Route path="benchmarks/new" element={<Suspense fallback={<PageSkeleton />}><BenchmarkNew /></Suspense>} />
         <Route path="benchmarks/:id" element={<Suspense fallback={<PageSkeleton />}><BenchmarkDetail /></Suspense>} />
         {lore && <Route path="memories" element={<Suspense fallback={<PageSkeleton />}><Knowledge /></Suspense>} />}
+        {lore && <Route path="memories/:id/provenance" element={<Suspense fallback={<PageSkeleton />}><MemoryProvenance /></Suspense>} />}
         <Route path="knowledge" element={<Navigate to={lore ? '/memories' : '/'} replace />} />
         <Route path="lessons" element={<Navigate to={lore ? '/memories' : '/'} replace />} />
         <Route path="community/*" element={<Navigate to="/" replace />} />

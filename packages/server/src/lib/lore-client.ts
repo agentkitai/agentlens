@@ -39,6 +39,32 @@ export interface LoreListResponse {
   offset: number;
 }
 
+/** A supersession edge in a memory's lineage (lore #82). */
+export interface SupersessionLink {
+  memoryId: string;
+  supersededBy: string | null;
+  reason: string | null;
+  ts: string;
+  agent: string;
+}
+
+/** Aggregated provenance/lineage for one memory (lore #82). */
+export interface LoreProvenance {
+  id: string;
+  owner: string | null;
+  visibility: string;
+  source: string | null;
+  tags: string[];
+  redactionTags: string[];
+  /** "owned" | "anonymous" — what trust-aware recall keys on. */
+  trustSignal: string;
+  /** Forward audit trail — what this memory was superseded by. */
+  supersessionChain: SupersessionLink[];
+  /** Source memories this one consolidated. */
+  supersessionSources: SupersessionLink[];
+  createdAt: string;
+}
+
 export class LoreError extends Error {
   constructor(public statusCode: number, message: string) {
     super(message);
@@ -82,6 +108,32 @@ export function fromLoreLesson(data: Record<string, any>): LoreMemory {
     upvotes: data.upvotes ?? 0,
     downvotes: data.downvotes ?? 0,
     metadata: Object.keys(meta).length > 0 ? meta : null,
+  };
+}
+
+function fromLoreLink(l: Record<string, any>): SupersessionLink {
+  return {
+    memoryId: l.memory_id,
+    supersededBy: l.superseded_by ?? null,
+    reason: l.reason ?? null,
+    ts: l.ts,
+    agent: l.agent,
+  };
+}
+
+/** Map Lore's snake_case provenance response → camelCase LoreProvenance (#82). */
+export function fromLoreProvenance(data: Record<string, any>): LoreProvenance {
+  return {
+    id: data.id,
+    owner: data.owner ?? null,
+    visibility: data.visibility ?? 'private',
+    source: data.source ?? null,
+    tags: data.tags ?? [],
+    redactionTags: data.redaction_tags ?? [],
+    trustSignal: data.trust_signal ?? 'anonymous',
+    supersessionChain: (data.supersession_chain ?? []).map(fromLoreLink),
+    supersessionSources: (data.supersession_sources ?? []).map(fromLoreLink),
+    createdAt: data.created_at,
   };
 }
 
@@ -139,6 +191,21 @@ export class LoreReadAdapter {
     try {
       const data = await this.request('GET', `/v1/lessons/${id}`);
       return fromLoreLesson(data);
+    } catch (err) {
+      if (err instanceof LoreError && err.statusCode === 404) return null;
+      throw err;
+    }
+  }
+
+  /**
+   * Get a memory's provenance / lineage (lore #82). NB: provenance lives on
+   * Lore's MEMORIES router (`/v1/memories/{id}/provenance`), NOT the `/v1/lessons`
+   * base the other reads use — copying that base would 404.
+   */
+  async getMemoryProvenance(id: string): Promise<LoreProvenance | null> {
+    try {
+      const data = await this.request('GET', `/v1/memories/${encodeURIComponent(id)}/provenance`);
+      return fromLoreProvenance(data);
     } catch (err) {
       if (err instanceof LoreError && err.statusCode === 404) return null;
       throw err;
