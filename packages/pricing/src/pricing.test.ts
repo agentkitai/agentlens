@@ -6,11 +6,12 @@ import {
   costUsdDetailed,
   getModelCosts,
   setModelCosts,
+  getPricingProvenance,
 } from "./models.js";
 import { mapLiteLlmPrices, refreshFromLiteLLM } from "./litellm.js";
 
 beforeEach(() => {
-  setModelCosts({ ...EMBEDDED_MODEL_COSTS }); // reset live table between tests
+  setModelCosts({ ...EMBEDDED_MODEL_COSTS }, { source: "embedded", asOf: null }); // reset live table between tests
 });
 
 describe("cache-aware pricing (costUsdDetailed)", () => {
@@ -133,5 +134,46 @@ describe("refreshFromLiteLLM", () => {
     expect(table).toBe(EMBEDDED_MODEL_COSTS);
     // active table unchanged → known model still priced
     expect(lookupModelCost("gpt-4o")).toBeDefined();
+  });
+
+  it("stamps provenance: source=litellm + an asOf date after a refresh (#100)", async () => {
+    await refreshFromLiteLLM({
+      fetchImpl: fakeFetch({ "x-model": { input_cost_per_token: 0.000001, output_cost_per_token: 0.000002 } }),
+    });
+    const p = getPricingProvenance();
+    expect(p.source).toBe("litellm");
+    expect(p.asOf).toBeTruthy();
+    expect(() => new Date(p.asOf as string).toISOString()).not.toThrow();
+  });
+});
+
+describe("pricing provenance (#100)", () => {
+  it("reports embedded source, null date, version + model count", () => {
+    setModelCosts({ ...EMBEDDED_MODEL_COSTS }, { source: "embedded", asOf: null });
+    const p = getPricingProvenance();
+    expect(p.source).toBe("embedded");
+    expect(p.asOf).toBeNull();
+    expect(p.version).toMatch(/^pv_/);
+    expect(p.modelCount).toBe(Object.keys(EMBEDDED_MODEL_COSTS).length);
+  });
+
+  it("records a custom override (dated) and defaults to custom when omitted", () => {
+    setModelCosts({ "only-model": { input: 1, output: 2 } }, { source: "custom", asOf: "2026-06-01T00:00:00Z" });
+    let p = getPricingProvenance();
+    expect(p.source).toBe("custom");
+    expect(p.asOf).toBe("2026-06-01T00:00:00Z");
+    expect(p.modelCount).toBe(1);
+
+    setModelCosts({ "a": { input: 1, output: 1 } }); // no provenance → custom, no date
+    p = getPricingProvenance();
+    expect(p.source).toBe("custom");
+    expect(p.asOf).toBeNull();
+  });
+
+  it("version changes when a rate changes", () => {
+    setModelCosts({ "m": { input: 1, output: 2 } }, { source: "custom" });
+    const v1 = getPricingProvenance().version;
+    setModelCosts({ "m": { input: 9, output: 2 } }, { source: "custom" });
+    expect(getPricingProvenance().version).not.toBe(v1);
   });
 });

@@ -66,9 +66,50 @@ export const EMBEDDED_MODEL_COSTS: ModelCostTable = {
 // replaced in place by refreshFromLiteLLM(). Module-scoped (per process).
 let currentTable: ModelCostTable = { ...EMBEDDED_MODEL_COSTS };
 
-/** Replace the active pricing table (used by refreshFromLiteLLM). */
-export function setModelCosts(table: ModelCostTable): void {
+/** Where the active pricing table came from (provenance, #100). */
+export type PricingSource = "embedded" | "litellm" | "custom";
+
+/** Dated, provenance-tracked descriptor of the active pricing catalog (#100). */
+export interface PricingProvenance {
+  /** Origin of the active table. */
+  source: PricingSource;
+  /** ISO timestamp this table was loaded/fetched; null for the embedded seed. */
+  asOf: string | null;
+  /** Content fingerprint (see pricingVersion). */
+  version: string;
+  /** Number of priced model keys. */
+  modelCount: number;
+}
+
+let currentProvenance: { source: PricingSource; asOf: string | null } = {
+  source: "embedded",
+  asOf: null,
+};
+
+/**
+ * Replace the active pricing table (used by refreshFromLiteLLM). Pass
+ * `provenance` to record where it came from + when; omitted defaults to a manual
+ * "custom" override with no date (#100).
+ */
+export function setModelCosts(
+  table: ModelCostTable,
+  provenance?: { source: PricingSource; asOf?: string | null },
+): void {
   currentTable = table;
+  currentProvenance = {
+    source: provenance?.source ?? "custom",
+    asOf: provenance?.asOf ?? null,
+  };
+}
+
+/** Dated + provenance-tracked descriptor of the active catalog (#100). */
+export function getPricingProvenance(): PricingProvenance {
+  return {
+    source: currentProvenance.source,
+    asOf: currentProvenance.asOf,
+    version: pricingVersion(currentTable),
+    modelCount: Object.keys(currentTable).length,
+  };
 }
 
 /** The active pricing table (embedded, or the last successful LiteLLM refresh). */
