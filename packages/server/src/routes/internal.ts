@@ -357,5 +357,44 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
     }, 201);
   });
 
+  // GET /api/internal/agent-eval-status?agentId&tenantId — the latest COMPLETED
+  // eval run's pass-rate for one agent, for AgentGate's per-agent eval gate (#7).
+  // Fails to {found:false} (not 500) on any backend/query error so the gate can
+  // fail OPEN rather than block on a degraded/absent eval store.
+  app.get('/agent-eval-status', async (c) => {
+    const agentId = c.req.query('agentId');
+    const tenantId = c.req.query('tenantId');
+    if (!agentId) return c.json({ error: 'agentId is required' }, 400);
+    if (!tenantId) return c.json({ error: 'tenantId is required' }, 400);
+    try {
+      const rows = await dbAll<{ id: string; status: string; total_cases: number; passed_cases: number; created_at: string }>(
+        db,
+        qdb,
+        sql`SELECT id, status, total_cases, passed_cases, created_at
+            FROM eval_runs
+            WHERE tenant_id = ${tenantId} AND agent_id = ${agentId} AND status = 'completed'
+            ORDER BY created_at DESC
+            LIMIT 1`,
+      );
+      if (rows.length === 0) return c.json({ agentId, found: false });
+      const r = rows[0]!;
+      const total = Number(r.total_cases) || 0;
+      const passed = Number(r.passed_cases) || 0;
+      return c.json({
+        agentId,
+        found: true,
+        runId: r.id,
+        status: r.status,
+        totalCases: total,
+        passedCases: passed,
+        passRate: total > 0 ? passed / total : null,
+        completedAt: r.created_at,
+      });
+    } catch (err) {
+      log.warn(`agent-eval-status read failed for ${agentId} (tenant ${tenantId}); returning found:false`, err);
+      return c.json({ agentId, found: false });
+    }
+  });
+
   return app;
 }
