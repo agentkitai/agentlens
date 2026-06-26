@@ -57,6 +57,7 @@
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.25",
     "hono-rate-limiter": "^0.5.3",
+    "jose": "^6.0.11",
     "postgres": "^3.4.8",
     "protobufjs": "^8.6.4",
     "ulid": "^3.0.2",

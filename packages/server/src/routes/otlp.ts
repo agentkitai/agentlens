@@ -21,7 +21,7 @@ import { eventBus } from '../lib/event-bus.js';
 import type { ServerConfig } from '../config.js';
 import type { PromptStore } from '../db/prompt-store.js';
 import { recordPromptFingerprints } from '../lib/prompt-fingerprint.js';
-import { verifyAgentToken, stampVerifiedAgent } from '../lib/agent-identity.js';
+import { verifyAgentTokenWithMethod, stampVerifiedAgent } from '../lib/agent-identity.js';
 import { verifyIngestKey } from '../lib/ingest-key-verify.js';
 import { createLogger } from '../lib/logger.js';
 
@@ -611,7 +611,8 @@ function mapGenAiSpan(
 
 /**
  * Resolve a server-authoritative verified agent id for an OTLP request (#24).
- * Prefer the agent JWT (X-Agent-Token, crypto-only, no network); fall back to a
+ * Prefer the agent JWT (X-Agent-Token — HS256 shared-secret OR RS256 via
+ * AgentGate's JWKS (#40), crypto-only, no per-request callback); fall back to a
  * longer-lived ingest key (X-Agent-Ingest-Key, verified via AgentGate with a
  * short cache) for exporters that can't refresh the 15-min token. Either yields
  * the SAME opaque verified id, distinguished only by `method` for provenance.
@@ -620,8 +621,8 @@ async function resolveOtlpVerified(
   agentToken: string | undefined,
   ingestKey: string | undefined,
 ): Promise<{ id: string | null; method: string }> {
-  const tokenId = await verifyAgentToken(agentToken);
-  if (tokenId) return { id: tokenId, method: 'agentgate_token' };
+  const token = await verifyAgentTokenWithMethod(agentToken);
+  if (token) return { id: token.id, method: token.method };
   const keyId = await verifyIngestKey(ingestKey);
   if (keyId) return { id: keyId, method: 'agentgate_ingest_key' };
   return { id: null, method: 'agentgate_token' };
