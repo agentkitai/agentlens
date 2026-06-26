@@ -128,11 +128,15 @@ interface OtlpSpan {
 
 interface OtlpScopeSpans {
   spans: OtlpSpan[];
+  /** OTel schema URL for this scope, e.g. https://opentelemetry.io/schemas/1.27.0 (#102). */
+  schemaUrl?: string;
 }
 
 interface OtlpResourceSpans {
   resource?: OtlpResource;
   scopeSpans: OtlpScopeSpans[];
+  /** Resource-level OTel schema URL (fallback when the scope omits it) (#102). */
+  schemaUrl?: string;
 }
 
 interface OtlpTracesPayload {
@@ -417,6 +421,32 @@ function isGenAiSpan(attrs: OtlpKeyValue[] | undefined): boolean {
   return getAttrStr(attrs, 'gen_ai.operation.name') !== undefined
     || getAttrStr(attrs, 'gen_ai.system') !== undefined
     || getAttrStr(attrs, 'gen_ai.request.model') !== undefined;
+}
+
+// ── OTel GenAI semconv version tracking (#102) ──────────────────────
+// The schema URL on a scope/resource carries the semconv version the producer
+// emitted against; stamped on the audit record so consumers know which schema a
+// stored event followed (the GenAI semconv is still evolving).
+const SEMCONV_SCHEMA_RE = /schemas\/(\d+\.\d+\.\d+)\/?$/;
+
+export function parseSemconvVersion(schemaUrl: string | undefined): string | null {
+  if (!schemaUrl) return null;
+  const m = SEMCONV_SCHEMA_RE.exec(schemaUrl.trim());
+  return m ? m[1]! : null;
+}
+
+/**
+ * Coarse attribute-style detection for dual-emission compatibility (#102):
+ * the newer structured `gen_ai.input/output.messages` vs the older OpenLLMetry
+ * indexed `gen_ai.prompt.{i}.*`. Independent of the schema URL (some producers
+ * omit it), so it disambiguates which content style a span used.
+ */
+export function detectSemconvStyle(attrs: OtlpKeyValue[] | undefined): 'structured' | 'indexed' | null {
+  if (!attrs) return null;
+  if (getAttrStr(attrs, 'gen_ai.input.messages') !== undefined
+    || getAttrStr(attrs, 'gen_ai.output.messages') !== undefined) return 'structured';
+  if (attrs.some((kv) => /^gen_ai\.(prompt|completion)\.\d+\./.test(kv.key))) return 'indexed';
+  return null;
 }
 
 function genAiProvider(attrs: OtlpKeyValue[] | undefined): string {
@@ -852,11 +882,19 @@ export function otlpRoutes(
     for (const rs of body.resourceSpans) {
       const resourceAttrs = rs.resource?.attributes;
       for (const ss of rs.scopeSpans ?? []) {
+        // Semconv version from the scope's (or resource's) schema URL (#102).
+        const semconvVersion = parseSemconvVersion(ss.schemaUrl ?? rs.schemaUrl);
         for (const span of ss.spans ?? []) {
+          const semconvMeta: Record<string, unknown> = {};
+          if (semconvVersion) semconvMeta.semconvVersion = semconvVersion;
+          const style = detectSemconvStyle(span.attributes);
+          if (style) semconvMeta.semconvStyle = style;
+
           // OTel GenAI spans (gen_ai.*) → real llm_call/llm_response/tool_call
           // events; everything else keeps the existing OpenClaw/default mapping.
           const genai = mapGenAiSpan(span, resourceAttrs);
           if (genai) {
+            for (const e of genai) Object.assign(e.metadata, semconvMeta);
             mapped.push(...genai);
             continue;
           }
@@ -864,7 +902,7 @@ export function otlpRoutes(
           mapped.push({
             ...result,
             timestamp: nanoToIso(span.startTimeUnixNano),
-            metadata: { source: 'otlp', traceId: span.traceId, spanId: span.spanId },
+            metadata: { source: 'otlp', traceId: span.traceId, spanId: span.spanId, ...semconvMeta },
           });
         }
       }
