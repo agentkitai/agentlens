@@ -61,6 +61,7 @@ export default defineConfig({
           { text: 'MCP Integration', link: '/guide/mcp-integration' },
           { text: 'Dashboard', link: '/guide/dashboard' },
           { text: 'Integrations', link: '/guide/integrations' },
+          { text: 'Verifiable Audit Sidecar', link: '/guide/audit-sidecar' },
           { text: 'Alerting', link: '/guide/alerting' },
           { text: 'Cost Tracking', link: '/guide/cost-tracking' },
           { text: 'LLM Call Tracking', link: '/guide/llm-tracking' },
