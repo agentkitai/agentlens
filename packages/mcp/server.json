@@ -8,13 +8,13 @@
     "url": "https://github.com/agentkitai/agentlens",
     "source": "github"
   },
-  "version": "0.13.1",
+  "version": "0.13.7",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@agentkitai/agentlens-mcp",
-      "version": "0.13.1",
+      "version": "0.13.7",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

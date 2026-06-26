@@ -1,0 +1,34 @@
+name: Publish AgentLens to the MCP Registry
+
+# AgentLens's npm package @agentkitai/agentlens-mcp is published by release.yml
+# (OIDC Trusted Publishing). This workflow ONLY syncs the official MCP Registry
+# entry (io.github.agentkitai/agentlens) to packages/mcp/server.json, via GitHub
+# Actions OIDC — no npm publish, no secrets. Run it after bumping server.json to a
+# version already on npm: push an `mcp-v*` tag or dispatch it manually.
+#
+# Setup: none. The io.github.agentkitai/* namespace is proven automatically by
+# this repo's GitHub OIDC token.
+
+on:
+  push:
+    tags: ['mcp-v*']
+  workflow_dispatch: {}
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # MCP Registry OIDC — no secrets
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish to the MCP Registry (GitHub Actions OIDC)
+        working-directory: packages/mcp
+        run: |
+          set -euo pipefail
+          # Stable release redirect — avoids the rate-limited (403) api.github.com.
+          curl -fsSL https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz | tar xz
+          chmod +x mcp-publisher
+          ./mcp-publisher login github-oidc   # authenticates via this workflow's OIDC token
+          ./mcp-publisher publish             # reads packages/mcp/server.json
