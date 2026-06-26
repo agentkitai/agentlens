@@ -2,9 +2,10 @@
  * Lore Proxy Routes — read-only proxy to Lore v0.5.0 server for dashboard display.
  *
  * Routes:
- *   GET /api/lore/memories       → list memories (paginated)
- *   GET /api/lore/memories/:id   → single memory detail
- *   GET /api/lore/stats          → aggregate stats by type
+ *   GET /api/lore/memories                  → list memories (paginated)
+ *   GET /api/lore/memories/:id              → single memory detail
+ *   GET /api/lore/memories/:id/provenance   → memory provenance / lineage (#82)
+ *   GET /api/lore/stats                     → aggregate stats by type
  */
 
 import { Hono } from 'hono';
@@ -58,6 +59,17 @@ export function loreProxyRoutes(adapter: LoreReadAdapter) {
         return c.json({ error: 'Memory not found', code: 'NOT_FOUND' }, 404);
       }
       return c.json(memory);
+    } catch (err) { return handleError(c, err); }
+  });
+
+  // GET /memories/:id/provenance — memory provenance / lineage (#82)
+  app.get('/memories/:id/provenance', async (c) => {
+    try {
+      const provenance = await adapter.getMemoryProvenance(c.req.param('id'));
+      if (!provenance) {
+        return c.json({ error: 'Memory not found', code: 'NOT_FOUND' }, 404);
+      }
+      return c.json(provenance);
     } catch (err) { return handleError(c, err); }
   });
 

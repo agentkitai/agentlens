@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { getMemories, type LoreMemory } from '../api/lore';
 
@@ -110,6 +111,12 @@ export function Knowledge(): React.ReactElement {
                     <span>Confidence: {Math.round(memory.confidence * 100)}%</span>
                     {memory.upvotes > 0 && <span>+{memory.upvotes}</span>}
                     {memory.downvotes > 0 && <span>-{memory.downvotes}</span>}
+                    <Link
+                      to={`/memories/${encodeURIComponent(memory.id)}/provenance`}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      Lineage →
+                    </Link>
                   </div>
                 </div>
               ))}

@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import { fromLoreLesson, LoreReadAdapter, LoreError, createLoreAdapter } from '../lib/lore-client.js';
+import { fromLoreLesson, fromLoreProvenance, LoreReadAdapter, LoreError, createLoreAdapter } from '../lib/lore-client.js';
 import { loreProxyRoutes } from '../routes/lore-proxy.js';
 
 // ─── fromLoreLesson mapping ─────────────────────────────
@@ -328,6 +328,70 @@ describe('Lore proxy routes', () => {
     const body = await res.json();
     expect(body.code).toBe('LORE_SERVER_ERROR');
 
+    vi.restoreAllMocks();
+  });
+});
+
+// ─── Memory provenance / lineage (#82) ──────────────────
+
+describe('memory provenance (#82)', () => {
+  const provResponse = {
+    id: 'm1', owner: 'alice', visibility: 'shared', source: 'capture',
+    tags: ['pii', 'topic'], redaction_tags: ['pii'], trust_signal: 'owned',
+    supersession_chain: [{ memory_id: 'm1', superseded_by: 'm2', reason: 'merged', ts: '2026-01-01T00:00:00Z', agent: 'auto' }],
+    supersession_sources: [{ memory_id: 'm0', superseded_by: 'm1', reason: null, ts: '2026-01-01T00:00:00Z', agent: 'x' }],
+    created_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('fromLoreProvenance maps snake_case → camelCase incl. nested links', () => {
+    const p = fromLoreProvenance(provResponse);
+    expect(p.owner).toBe('alice');
+    expect(p.redactionTags).toEqual(['pii']);
+    expect(p.trustSignal).toBe('owned');
+    expect(p.supersessionChain[0]).toEqual({ memoryId: 'm1', supersededBy: 'm2', reason: 'merged', ts: '2026-01-01T00:00:00Z', agent: 'auto' });
+    expect(p.supersessionSources[0].memoryId).toBe('m0');
+    expect(p.supersessionSources[0].supersededBy).toBe('m1');
+  });
+
+  it('getMemoryProvenance hits the /v1/memories path (NOT /v1/lessons) and maps', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(provResponse), { status: 200 }),
+    );
+    const adapter = new LoreReadAdapter({ apiUrl: 'http://lore:8765', apiKey: 'key' });
+    const p = await adapter.getMemoryProvenance('m1');
+    const url = fetchSpy.mock.calls[0][0] as string;
+    expect(url).toBe('http://lore:8765/v1/memories/m1/provenance');
+    expect(url).not.toContain('/v1/lessons');
+    expect(p!.trustSignal).toBe('owned');
+    vi.restoreAllMocks();
+  });
+
+  it('getMemoryProvenance returns null on 404', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('Not found', { status: 404 }));
+    const adapter = new LoreReadAdapter({ apiUrl: 'http://lore:8765', apiKey: 'key' });
+    expect(await adapter.getMemoryProvenance('missing')).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it('GET /api/lore/memories/:id/provenance returns the provenance', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(provResponse), { status: 200 }));
+    const app = new Hono();
+    app.route('/api/lore', loreProxyRoutes(new LoreReadAdapter({ apiUrl: 'http://lore:8765', apiKey: 'key' })));
+    const res = await app.request('/api/lore/memories/m1/provenance');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.trustSignal).toBe('owned');
+    expect(body.supersessionChain).toHaveLength(1);
+    vi.restoreAllMocks();
+  });
+
+  it('GET /api/lore/memories/:id/provenance returns 404 when missing', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('Not found', { status: 404 }));
+    const app = new Hono();
+    app.route('/api/lore', loreProxyRoutes(new LoreReadAdapter({ apiUrl: 'http://lore:8765', apiKey: 'key' })));
+    const res = await app.request('/api/lore/memories/missing/provenance');
+    expect(res.status).toBe(404);
+    expect((await res.json()).code).toBe('NOT_FOUND');
     vi.restoreAllMocks();
   });
 });
