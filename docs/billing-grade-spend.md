@@ -24,10 +24,21 @@ and breaks the work into three independently shippable slices.
   is frozen into the **hashed, immutable** event payload at ingest. Two ingest paths: the
   client SDK (`POST /api/events`, client *sends* `costUsd`) and OTLP (`/v1/traces`, server
   *computes* `costUsd` from `@agentkitai/pricing` at the ingest moment).
-- **Identity.** AgentGate mints a short-lived (`~15 min`) `typ:"agent"` HS256 JWT signed with
-  `AGENTGATE_JWT_SECRET`; agents present it as `X-Agent-Token`. `POST /api/events` verifies it
-  (`verifyAgentToken`) and stamps a server-authoritative `metadata.verifiedAgentId`
-  ([#12 Phase 2](https://github.com/agentkitai/agentlens/issues/12)).
+- **Identity.** AgentGate mints a short-lived (`~15 min`) `typ:"agent"` JWT; agents present it
+  as `X-Agent-Token`. `POST /api/events` (and the OTLP paths) verify it and stamp a
+  server-authoritative `metadata.verifiedAgentId` + `verifiedAgentMethod`
+  ([#12 Phase 2](https://github.com/agentkitai/agentlens/issues/12)). Two verification schemes,
+  selected by the token's JWS `alg`
+  ([#97](https://github.com/agentkitai/agentlens/issues/97)):
+  - **HS256** over the shared `AGENTGATE_JWT_SECRET` (method `agentgate_token`).
+  - **RS256** verified against AgentGate's published JWKS
+    ([agentgate#40](https://github.com/agentkitai/agentgate/issues/40)) — AgentLens holds **no
+    secret**. Set `AGENTGATE_JWKS_URL` (or it is derived from `AGENTGATE_URL` +
+    `/.well-known/jwks.json`); method `agentgate_jwks`. The JWKS is fetched once and cached
+    (pinned 2.5 s timeout / 30 s refetch cooldown), so a slow AgentGate can't stall ingest;
+    any verify error fails closed to *unverified*.
+  - Optional `AGENTGATE_TOKEN_AUDIENCE` / `AGENTGATE_TOKEN_ISSUER`, when set, are enforced on
+    **both** schemes (must match AgentGate's `AGENT_TOKEN_AUDIENCE` / `AGENT_TOKEN_ISSUER`).
 
 ## The two gaps
 

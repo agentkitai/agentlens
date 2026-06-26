@@ -6,10 +6,12 @@
  * verifies (the stamp lives in the already-hashed metadata field). Without a
  * valid token, the reserved keys are stripped so a client can't forge them.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { signAccessToken, type AuthConfig } from 'agentkit-auth';
+import { generateKeyPair, exportJWK, SignJWT, type JWK } from 'jose';
 import { verifyChain } from '@agentlensai/core';
+import { __resetAgentJwksCache } from '../../lib/agent-identity.js';
 import { eventsRoutes } from '../events.js';
 import { authMiddleware, hashApiKey, type AuthVariables } from '../../middleware/auth.js';
 import { createTestDb } from '../../db/index.js';
@@ -68,7 +70,12 @@ describe('POST /api/events agent identity (#12 Phase 2)', () => {
     apiKey = seedApiKey(db);
     process.env['AGENTGATE_JWT_SECRET'] = SECRET;
   });
-  afterEach(() => { delete process.env['AGENTGATE_JWT_SECRET']; });
+  afterEach(() => {
+    delete process.env['AGENTGATE_JWT_SECRET'];
+    delete process.env['AGENTGATE_JWKS_URL'];
+    __resetAgentJwksCache();
+    vi.unstubAllGlobals();
+  });
 
   it('stamps verifiedAgentId into metadata for every event; chain still verifies', async () => {
     const token = await signAccessToken(agentClaims('agt_99'), agentCfg());
@@ -88,6 +95,45 @@ describe('POST /api/events agent identity (#12 Phase 2)', () => {
       expect(e.metadata['verifiedAgentMethod']).toBe('agentgate_token');
     }
     expect(verifyChain(timeline as any).valid).toBe(true);
+  });
+
+  it('stamps via the RS256/JWKS path with method agentgate_jwks (#97)', async () => {
+    // AgentGate signs RS256; AgentLens verifies against the published JWKS — no shared secret.
+    delete process.env['AGENTGATE_JWT_SECRET'];
+    const { publicKey, privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const jwk = (await exportJWK(publicKey)) as JWK;
+    jwk.kid = 'k1';
+    jwk.alg = 'RS256';
+    jwk.use = 'sig';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ keys: [jwk] }), {
+          status: 200,
+          headers: { 'content-type': 'application/jwk-set+json' },
+        }),
+      ),
+    );
+    process.env['AGENTGATE_JWKS_URL'] = 'https://gate.example/.well-known/jwks.json';
+
+    const token = await new SignJWT({ typ: 'agent' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
+      .setSubject('agt_99')
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(privateKey);
+
+    const res = await app.request('/api/events', {
+      method: 'POST',
+      headers: { ...auth(), 'X-Agent-Token': token },
+      body: JSON.stringify({ events: [ev()] }),
+    });
+    expect(res.status).toBe(201);
+
+    const t = await store.getSessionTimeline('s1');
+    expect(t[0]!.metadata['verifiedAgentId']).toBe('agt_99');
+    expect(t[0]!.metadata['verifiedAgentMethod']).toBe('agentgate_jwks');
+    expect(verifyChain(t as any).valid).toBe(true);
   });
 
   it('does not stamp when no token is presented', async () => {
