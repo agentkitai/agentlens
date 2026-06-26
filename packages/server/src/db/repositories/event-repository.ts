@@ -345,6 +345,48 @@ export class EventRepository {
   }
 
   /**
+   * Events for ONE verified agent identity across sessions in a time range,
+   * tenant-scoped, ordered (timestamp, id). Drives the cross-product evidence
+   * timeline (#98). Filtering on the server-derived verified_agent_id column
+   * (never null-matched) excludes unattributed events by construction.
+   */
+  getEventsBatchByTenantAgentAndRange(
+    tenantId: string,
+    verifiedAgentId: string,
+    from: string,
+    to: string,
+    offset: number,
+    limit: number,
+  ): { id: string; timestamp: string; sessionId: string; agentId: string; eventType: string; severity: string; payload: string; metadata: string; prevHash: string | null; hash: string }[] {
+    const rows = this.db
+      .select()
+      .from(events)
+      .where(and(
+        eq(events.tenantId, tenantId),
+        eq(events.verifiedAgentId, verifiedAgentId),
+        gte(events.timestamp, from),
+        lte(events.timestamp, to),
+      ))
+      .orderBy(asc(events.timestamp), asc(events.id))
+      .limit(limit)
+      .offset(offset)
+      .all();
+
+    return rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      sessionId: row.sessionId,
+      agentId: row.agentId,
+      eventType: row.eventType,
+      severity: row.severity,
+      payload: row.payload,
+      metadata: row.metadata ?? '{}',
+      prevHash: row.prevHash,
+      hash: row.hash,
+    }));
+  }
+
+  /**
    * Aggregate approval event stats for compliance report.
    */
   getApprovalStats(
