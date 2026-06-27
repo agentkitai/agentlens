@@ -1,6 +1,6 @@
 {
   "name": "@agentkitai/agentlens-server",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "AgentLens API server — event ingestion, querying, dashboard, and alerting for AI agents",
   "type": "module",
   "license": "MIT",

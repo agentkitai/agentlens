@@ -1,5 +1,12 @@
 # @agentkitai/agentlens-mcp
 
+## 0.13.9
+
+### Patch Changes
+
+- Updated dependencies [3fa978c]
+  - @agentkitai/agentlens-core@0.20.0
+
 ## 0.13.8
 
 ### Patch Changes
