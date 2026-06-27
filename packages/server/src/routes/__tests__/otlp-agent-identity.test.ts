@@ -13,7 +13,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { signAccessToken, type AuthConfig } from '@agentkitai/auth';
-import { verifyChain } from '@agentkitai/agentlens-core';
+import { verifyRecords } from '@agentkitai/agentlens-core';
 import { otlpRoutes, resetRateLimiter } from '../otlp.js';
 import { createTestDb, type SqliteDb } from '../../db/index.js';
 import { runMigrations } from '../../db/migrate.js';
@@ -88,7 +88,9 @@ describe('OTLP verification gate (#88)', () => {
       expect(e.metadata['verifiedAgentMethod']).toBe('agentgate_token');
       expect(e.metadata['source']).toBe('otlp_genai'); // metadata stays server-built
     }
-    expect(verifyChain(timeline as any).valid).toBe(true);
+    // OTLP events are unchained (prevHash=null) — per-event record integrity holds.
+    expect(timeline.every((e) => e.prevHash === null)).toBe(true);
+    expect(verifyRecords(timeline as any).valid).toBe(true);
     for (const r of verifiedCol()) expect(r.verified_agent_id).toBe('agt_real');
   });
 
@@ -105,8 +107,9 @@ describe('OTLP verification gate (#88)', () => {
       expect(r.agent_id).toBe('agt_victim');
       expect(r.verified_agent_id).toBeNull();
     }
-    // chain is intact even with no stamp (insert recomputes + verifies the hash)
-    expect(verifyChain(timeline as any).valid).toBe(true);
+    // records are intact even with no stamp (insert recomputes + verifies the hash);
+    // OTLP events are unchained, so this is record-integrity, not linkage.
+    expect(verifyRecords(timeline as any).valid).toBe(true);
   });
 
   it('verified id is server-authoritative: token sub wins over the claimed service.name', async () => {
