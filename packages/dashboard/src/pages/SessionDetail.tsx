@@ -34,7 +34,7 @@ import { DiagnosticPanel } from '../components/DiagnosticPanel';
 
 // ─── Filter definitions ─────────────────────────────────────────────
 
-type FilterKey = 'all' | 'tool_calls' | 'errors' | 'approvals' | 'custom';
+type FilterKey = 'all' | 'tool_calls' | 'errors' | 'approvals' | 'skills' | 'custom';
 
 interface FilterDef {
   key: FilterKey;
@@ -78,6 +78,12 @@ const FILTERS: FilterDef[] = [
       ev.eventType === 'approval_granted' ||
       ev.eventType === 'approval_denied' ||
       ev.eventType === 'approval_expired',
+  },
+  {
+    key: 'skills',
+    label: 'Skills',
+    icon: '🧩',
+    match: (ev) => ev.eventType === 'skill_activated',
   },
   {
     key: 'custom',

@@ -50,6 +50,8 @@ export type EventType =
   | 'error'
   // Eval / compliance scoring (server-emitted, hash-chained into the trace)
   | 'eval_result'
+  // Skill activation (e.g. Claude Code skills/plugins)
+  | 'skill_activated'
   // Custom / extension
   | 'custom';
 
@@ -76,6 +78,7 @@ export const EVENT_TYPES: readonly EventType[] = [
   'alert_resolved',
   'error',
   'eval_result',
+  'skill_activated',
   'custom',
 ] as const;
 
@@ -331,6 +334,13 @@ export interface EvalResultPayload {
   tokenCount?: number;
 }
 
+/** Payload for a `skill_activated` event (e.g. a Claude Code skill/plugin). */
+export interface SkillActivatedPayload {
+  skillName: string;
+  source?: string;
+  pluginName?: string;
+}
+
 /**
  * Discriminated union of all payload types
  */
@@ -351,6 +361,7 @@ export type EventPayload =
   | AlertTriggeredPayload
   | AlertResolvedPayload
   | EvalResultPayload
+  | SkillActivatedPayload
   | CustomPayload;
 
 // ─── Core Event Record ──────────────────────────────────────────────

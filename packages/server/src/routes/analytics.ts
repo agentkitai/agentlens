@@ -626,5 +626,37 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
     });
   });
 
+  // GET /api/analytics/skills — skill usage statistics (skill_activated events)
+  app.get('/skills', async (c) => {
+    const tenantId = getTenantId(c);
+    const from = c.req.query('from') ?? new Date(Date.now() - 86400_000).toISOString();
+    const to = c.req.query('to') ?? new Date().toISOString();
+
+    const rows = await dbAll<{ skillName: string; count: number; lastUsedAt: string }>(db, qdb,
+      sql`
+        SELECT
+          ${jf(isPg, 'skillName')} as ${sql.raw(isPg ? '"skillName"' : 'skillName')},
+          COUNT(*) as count,
+          MAX(timestamp) as ${sql.raw(isPg ? '"lastUsedAt"' : 'lastUsedAt')}
+        FROM events
+        WHERE event_type = 'skill_activated'
+          AND timestamp >= ${from}
+          AND timestamp <= ${to}
+          AND tenant_id = ${tenantId}
+          AND ${jf(isPg, 'skillName')} IS NOT NULL
+        GROUP BY ${sql.raw(isPg ? '"skillName"' : 'skillName')}
+        ORDER BY count DESC
+      `,
+    );
+
+    return c.json({
+      skills: rows.map((r) => ({
+        skillName: r.skillName,
+        count: Number(r.count),
+        lastUsedAt: r.lastUsedAt,
+      })),
+    });
+  });
+
   return app;
 }

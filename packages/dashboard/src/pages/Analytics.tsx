@@ -36,11 +36,13 @@ import {
   getAnalytics,
   getCostAnalytics,
   getToolAnalytics,
+  getSkillAnalytics,
 } from '../api/client';
 import type {
   AnalyticsResult,
   CostAnalyticsResult,
   ToolAnalytics,
+  SkillAnalytics,
 } from '../api/client';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -157,6 +159,15 @@ function AnalyticsOverview(): React.ReactElement {
   const { data: toolsData, loading: toolsLoading } = useApi<{ tools: ToolAnalytics[] }>(
     () => getToolAnalytics({ from, to }),
     [from, to],
+  );
+
+  const { data: skillsData } = useApi<{ skills: SkillAnalytics[] }>(
+    () => getSkillAnalytics({ from, to }),
+    [from, to],
+  );
+  const skillChartData = useMemo(
+    () => (skillsData?.skills ?? []).slice(0, 12).map((s) => ({ name: s.skillName, count: s.count })),
+    [skillsData],
   );
 
   // Chart data
@@ -417,6 +428,31 @@ function AnalyticsOverview(): React.ReactElement {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      {/* Skill Usage */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h3 className="text-base font-semibold text-gray-900">Skill Usage</h3>
+        <p className="text-xs text-gray-500 mb-4">Skills activated by count</p>
+        {isLoading ? (
+          <div className="h-56 animate-pulse rounded bg-gray-100" />
+        ) : skillChartData.length === 0 ? (
+          <div className="h-56 flex items-center justify-center text-gray-400 text-sm">
+            No skills activated in this period
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(160, skillChartData.length * 32)}>
+            <BarChart data={skillChartData} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '13px' }}
+              />
+              <Bar dataKey="count" fill="#c026d3" radius={[0, 4, 4, 0]} name="Activations" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Cost by Agent Table */}

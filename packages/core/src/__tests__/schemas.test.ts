@@ -56,6 +56,8 @@ describe('Story 2.3: Zod Validation Schemas', () => {
       // out of the ingest enum even though they are valid EventType values.
       expect(eventTypeSchema.safeParse('eval_result').success).toBe(false);
       expect(eventTypeSchema.safeParse('error').success).toBe(false);
+      // skill_activated is OTLP/server-ingested telemetry, not a client event.
+      expect(eventTypeSchema.safeParse('skill_activated').success).toBe(false);
     });
   });
 
