@@ -265,7 +265,9 @@ function spanDurationMs(span: OtlpSpan): number {
 function extractSessionId(spanAttrs: OtlpKeyValue[] | undefined, resourceAttrs: OtlpKeyValue[] | undefined): string {
   return getAttrStr(spanAttrs, 'openclaw.sessionId')
     ?? getAttrStr(spanAttrs, 'openclaw.sessionKey')
+    ?? getAttrStr(spanAttrs, 'session.id')          // Claude Code & generic OTel session attr
     ?? getAttrStr(resourceAttrs, 'openclaw.sessionId')
+    ?? getAttrStr(resourceAttrs, 'session.id')
     ?? 'otlp-default';
 }
 
@@ -639,6 +641,77 @@ function mapGenAiSpan(
   }];
 }
 
+// ─── Claude Code Native OTel Mapping ────────────────────────────────
+// Claude Code emits its telemetry as OTLP *metrics + logs* (claude_code.*),
+// not gen_ai.* spans. The richest record is the `claude_code.api_request` log:
+// one per model request, carrying model, all token counts, real cost, and
+// latency together. Map it to a paired llm_call + llm_response — the SAME shape
+// the gen_ai span path and the SDK produce — so the Sessions, LLM Analytics,
+// and Cost views populate.
+//
+// Cost lives on llm_response (the SDK/gen_ai contract); we deliberately do NOT
+// also map the `claude_code.cost.usage` metric to cost_tracked. Both the
+// session aggregate and /api/analytics/costs SUM cost across cost_tracked AND
+// llm_response, so emitting both would double-count. The api_request log is the
+// single source of truth for Claude Code LLM cost/tokens.
+// ponytail: needs the logs signal; a metrics-only exporter won't populate LLM
+// cost/tokens — enable OTel logs (Claude Code emits both together by default).
+function mapClaudeCodeApiRequest(
+  log: OtlpLogRecord,
+  resourceAttrs: OtlpKeyValue[] | undefined,
+): MappedEvent[] | null {
+  if ((log.body?.stringValue ?? '') !== 'claude_code.api_request') return null;
+
+  const attrs = log.attributes;
+  const sessionId = extractSessionId(attrs, resourceAttrs);
+  const agentId = extractAgentId(resourceAttrs);
+  const model = getAttrStr(attrs, 'model') ?? 'unknown';
+  const provider = 'anthropic';
+  const callId =
+    getAttrStr(attrs, 'request_id') ?? getAttrStr(attrs, 'prompt.id') ?? `cc-${log.timeUnixNano ?? ''}`;
+  const inputTokens = getAttrNum(attrs, 'input_tokens');
+  const outputTokens = getAttrNum(attrs, 'output_tokens');
+  const cacheReadTokens = getAttrNum(attrs, 'cache_read_tokens');
+  const cacheWriteTokens = getAttrNum(attrs, 'cache_creation_tokens');
+  const costUsd = getAttrNum(attrs, 'cost_usd');
+  const latencyMs = getAttrNum(attrs, 'duration_ms');
+
+  const endMs = log.timeUnixNano
+    ? Math.floor(Number(BigInt(log.timeUnixNano) / BigInt(1_000_000)))
+    : Date.now();
+  const endTs = new Date(endMs).toISOString();
+  const startTs = new Date(endMs - latencyMs).toISOString();
+  const meta = { source: 'otlp_log_claude_code', callId };
+
+  return [
+    {
+      eventType: 'llm_call', severity: 'info', sessionId, agentId,
+      timestamp: startTs, metadata: meta,
+      payload: {
+        callId, provider, model,
+        messages: [{ role: 'user' as const, content: '(Claude Code request — prompt content not exported)' }],
+        parameters: {},
+      },
+    },
+    {
+      eventType: 'llm_response', severity: 'info', sessionId, agentId,
+      timestamp: endTs, metadata: meta,
+      payload: {
+        callId, provider, model,
+        completion: null,
+        finishReason: 'stop',
+        usage: {
+          inputTokens, outputTokens, totalTokens: inputTokens + outputTokens,
+          ...(cacheReadTokens ? { cacheReadTokens } : {}),
+          ...(cacheWriteTokens ? { cacheWriteTokens } : {}),
+        },
+        costUsd,
+        latencyMs,
+      },
+    },
+  ];
+}
+
 /**
  * Resolve a server-authoritative verified agent id for an OTLP request (#24).
  * Prefer the agent JWT (X-Agent-Token — HS256 shared-secret OR RS256 via
@@ -989,7 +1062,7 @@ export function otlpRoutes(
               mapped.push({
                 eventType: 'cost_tracked',
                 severity: 'info',
-                sessionId: getAttrStr(p.attributes, 'openclaw.sessionId') ?? 'otlp-default',
+                sessionId: getAttrStr(p.attributes, 'openclaw.sessionId') ?? getAttrStr(p.attributes, 'session.id') ?? 'otlp-default',
                 agentId,
                 timestamp: nanoToIso(p.timeUnixNano),
                 metadata: { source: 'otlp_metric', metricName: metric.name },
@@ -1008,7 +1081,7 @@ export function otlpRoutes(
               mapped.push({
                 eventType: 'custom',
                 severity: 'info',
-                sessionId: getAttrStr(p.attributes, 'openclaw.sessionId') ?? 'otlp-default',
+                sessionId: getAttrStr(p.attributes, 'openclaw.sessionId') ?? getAttrStr(p.attributes, 'session.id') ?? 'otlp-default',
                 agentId,
                 timestamp: nanoToIso(p.timeUnixNano),
                 metadata: { source: 'otlp_metric', metricName: metric.name },
@@ -1058,6 +1131,11 @@ export function otlpRoutes(
 
       for (const sl of rl.scopeLogs ?? []) {
         for (const log of sl.logRecords ?? []) {
+          // Claude Code's per-request log → real llm_call/llm_response pair;
+          // every other log still falls through to the generic otlp_log event.
+          const cc = mapClaudeCodeApiRequest(log, resourceAttrs);
+          if (cc) { mapped.push(...cc); continue; }
+
           const severityText = log.severityText?.toLowerCase() ?? 'info';
           let severity: EventSeverity = 'info';
           if (severityText.includes('error') || severityText.includes('fatal')) severity = 'error';
