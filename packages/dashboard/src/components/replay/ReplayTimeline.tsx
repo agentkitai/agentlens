@@ -58,6 +58,7 @@ const EVENT_STYLES: Record<string, EventStyle> = {
   alert_triggered:     { icon: '🚨', label: 'Alert Triggered',    color: 'text-red-700',    bgColor: 'bg-red-50',     borderColor: 'border-red-200' },
   alert_resolved:      { icon: '🔔', label: 'Alert Resolved',     color: 'text-green-700',  bgColor: 'bg-green-50',   borderColor: 'border-green-200' },
   eval_result:         { icon: '⚖️', label: 'Eval Result',        color: 'text-cyan-700',   bgColor: 'bg-cyan-50',    borderColor: 'border-cyan-200' },
+  skill_activated:     { icon: '🧩', label: 'Skill',              color: 'text-fuchsia-700',bgColor: 'bg-fuchsia-50', borderColor: 'border-fuchsia-200' },
   custom:              { icon: '📎', label: 'Custom',             color: 'text-gray-700',   bgColor: 'bg-gray-50',    borderColor: 'border-gray-200' },
 };
 
@@ -222,6 +223,8 @@ function getEventSummary(ev: AgentLensEvent): string {
       return `${p.alertName}: ${p.message}`;
     case 'alert_resolved':
       return `${p.alertName} resolved`;
+    case 'skill_activated':
+      return `${p.skillName ?? 'skill'}${p.source ? ` (${p.source})` : ''}`;
     case 'eval_result': {
       const score = typeof p.score === 'number' ? p.score : 0;
       const violations = (p.violations as unknown[] | undefined)?.length ?? 0;

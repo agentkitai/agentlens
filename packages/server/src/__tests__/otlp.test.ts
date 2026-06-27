@@ -796,6 +796,32 @@ describe('OTLP Logs Endpoint', () => {
     // Tools view aggregation keys on these typed events; sanity: a denied + a failed → 2 tool_error
     expect(byType('tool_error').every((e) => e.severity === 'error')).toBe(true);
   });
+
+  it('maps claude_code skill_activated to a first-class skill_activated event', async () => {
+    const { app, store } = makeApp();
+    const body = {
+      resourceLogs: [{
+        resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+        scopeLogs: [{
+          logRecords: [{
+            body: { stringValue: 'claude_code.skill_activated' }, timeUnixNano: '1700000000000000000',
+            attributes: [
+              { key: 'session.id', value: { stringValue: 'cc-skill' } },
+              { key: 'event.name', value: { stringValue: 'skill_activated' } },
+              { key: 'skill_name', value: { stringValue: 'ponytail' } },
+              { key: 'source', value: { stringValue: 'user' } }],
+          }],
+        }],
+      }],
+    };
+    await app.request('/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const events = (await store.queryEvents({ sessionId: 'cc-skill' })).events;
+    expect(events).toHaveLength(1);
+    expect(events[0]!.eventType).toBe('skill_activated');
+    const p = events[0]!.payload as { skillName: string; source: string };
+    expect(p.skillName).toBe('ponytail');
+    expect(p.source).toBe('user');
+  });
 });
 
 describe('OTLP GenAI semantic conventions', () => {

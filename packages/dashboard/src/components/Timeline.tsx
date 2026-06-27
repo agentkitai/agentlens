@@ -82,6 +82,8 @@ const EVENT_STYLES: Record<string, EventStyle> = {
   // Errors / evals (parity with ReplayTimeline)
   error:       { icon: '❌', color: 'text-red-700', bgColor: 'bg-red-50', borderColor: 'border-red-300' },
   eval_result: { icon: '⚖️', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-300' },
+  // Skills
+  skill_activated: { icon: '🧩', color: 'text-fuchsia-700', bgColor: 'bg-fuchsia-50', borderColor: 'border-fuchsia-300' },
   // Alerts
   alert_triggered: { icon: '🚨', color: 'text-red-700', bgColor: 'bg-red-50', borderColor: 'border-red-300' },
   alert_resolved:  { icon: '✅', color: 'text-green-700', bgColor: 'bg-green-50', borderColor: 'border-green-300' },
@@ -168,6 +170,10 @@ function eventName(event: AgentLensEvent): string {
   if (event.eventType === 'llm_response') {
     const llmPayload = p as LlmResponsePayload;
     return `${llmPayload.provider} / ${llmPayload.model}`;
+  }
+  if (event.eventType === 'skill_activated') {
+    const skill = 'skillName' in p && typeof p.skillName === 'string' ? p.skillName : 'skill';
+    return `Skill: ${skill}`;
   }
   if ('toolName' in p && typeof p.toolName === 'string') return p.toolName;
   if ('action' in p && typeof p.action === 'string') return p.action;

@@ -137,6 +137,20 @@ export async function getToolAnalytics(params: {
   return request<{ tools: ToolAnalytics[] }>(`/api/analytics/tools${qs}`);
 }
 
+export interface SkillAnalytics {
+  skillName: string;
+  count: number;
+  lastUsedAt: string;
+}
+
+export async function getSkillAnalytics(params: {
+  from?: string;
+  to?: string;
+}): Promise<{ skills: SkillAnalytics[] }> {
+  const qs = toQueryString({ from: params.from, to: params.to });
+  return request<{ skills: SkillAnalytics[] }>(`/api/analytics/skills${qs}`);
+}
+
 // ─── LLM Analytics ──────────────────────────────────────────────────
 
 export interface LlmModelBreakdown {

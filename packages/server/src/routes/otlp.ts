@@ -725,18 +725,35 @@ function mapClaudeCodeApiRequest(
 }
 
 // Claude Code's tool lifecycle logs → first-class tool_call/tool_response/
-// tool_error events, so the Tools analytics view, the SessionDetail "Tool Calls"
-// filter, and the paired timeline rendering all light up (those read the
-// `tool_*` event TYPES, not generic custom events). Decision and result arrive
-// as separate log records (possibly separate batches); they're paired in the UI
-// by callId = tool_use_id, so no buffering is needed here. Any other event.name
-// returns null and falls through to the generic otlp_log event (fail-safe).
+// tool_error events, and skill_activated → a first-class skill_activated event,
+// so the Tools/Skills analytics views, the SessionDetail filters, and the
+// timeline all light up (those read the event TYPES, not generic custom events).
+// Decision and result arrive as separate log records (possibly separate
+// batches); they're paired in the UI by callId = tool_use_id, so no buffering is
+// needed here. Any other event.name returns null and falls through to the
+// generic otlp_log event (fail-safe).
 function mapClaudeCodeLog(
   log: OtlpLogRecord,
   resourceAttrs: OtlpKeyValue[] | undefined,
 ): MappedEvent[] | null {
   const attrs = log.attributes;
   const eventName = getAttrStr(attrs, 'event.name');
+
+  if (eventName === 'skill_activated') {
+    return [{
+      eventType: 'skill_activated', severity: 'info',
+      sessionId: extractSessionId(attrs, resourceAttrs),
+      agentId: extractAgentId(resourceAttrs),
+      timestamp: nanoToIso(log.timeUnixNano),
+      metadata: { source: 'otlp_log_claude_code' },
+      payload: {
+        skillName: getAttrStr(attrs, 'skill_name') ?? getAttrStr(attrs, 'name') ?? 'unknown',
+        source: getAttrStr(attrs, 'source'),
+        pluginName: getAttrStr(attrs, 'plugin_name') ?? getAttrStr(attrs, 'plugin.name'),
+      },
+    }];
+  }
+
   if (eventName !== 'tool_decision' && eventName !== 'tool_result') return null;
 
   const sessionId = extractSessionId(attrs, resourceAttrs);
