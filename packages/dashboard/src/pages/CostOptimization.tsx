@@ -158,7 +158,7 @@ export function CostOptimization(): React.ReactElement {
           onChange={(e) => setAgentFilter(e.target.value)}
         >
           <option value="">All Agents</option>
-          {(agents.data ?? []).map((agent) => (
+          {(Array.isArray(agents.data) ? agents.data : []).map((agent) => (
             <option key={agent.id} value={agent.id}>
               {agent.name || agent.id}
             </option>

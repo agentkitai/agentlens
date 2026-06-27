@@ -318,7 +318,7 @@ export const Layout = React.memo(function Layout(): React.ReactElement {
             horizontal scrollbar. min-w-0 lets this flex child shrink below its
             content so the inner wrapper, not main, takes the scroll. */}
         <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-6">
-          <ErrorBoundary><Outlet /></ErrorBoundary>
+          <ErrorBoundary resetKey={location.pathname}><Outlet /></ErrorBoundary>
         </main>
       </div>
     </div>

@@ -413,7 +413,7 @@ export function Alerts(): React.ReactElement {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {(rules.data ?? []).map((rule) => (
+                {(Array.isArray(rules.data) ? rules.data : []).map((rule) => (
                   <RuleRow
                     key={rule.id}
                     rule={rule}
