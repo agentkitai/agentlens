@@ -2,6 +2,9 @@ import React from 'react';
 
 interface Props {
   children: React.ReactNode;
+  /** When this value changes (e.g. the route path), a caught error is cleared
+   *  so client-side navigation recovers without a full page reload. */
+  resetKey?: unknown;
 }
 
 interface State {
@@ -21,6 +24,14 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[AgentLens] Page error:', error, info.componentStack);
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    // Recover on navigation: a transient render error on one route used to wedge
+    // the whole SPA until a hard refresh, because the boundary never reset.
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: null });
+    }
   }
 
   render() {
