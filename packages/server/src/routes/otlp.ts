@@ -676,17 +676,16 @@ function mapClaudeCodeApiRequest(
   const costUsd = getAttrNum(attrs, 'cost_usd');
   const latencyMs = getAttrNum(attrs, 'duration_ms');
 
-  const endMs = log.timeUnixNano
-    ? Math.floor(Number(BigInt(log.timeUnixNano) / BigInt(1_000_000)))
-    : Date.now();
-  const endTs = new Date(endMs).toISOString();
-  const startTs = new Date(endMs - latencyMs).toISOString();
+  // Both events use the log's emit time (request completion). We do not backdate
+  // the call by duration — latency is carried explicitly on the llm_response
+  // (`latencyMs`), and adjacent call/response timestamps keep the timeline clean.
+  const ts = nanoToIso(log.timeUnixNano);
   const meta = { source: 'otlp_log_claude_code', callId };
 
   return [
     {
       eventType: 'llm_call', severity: 'info', sessionId, agentId,
-      timestamp: startTs, metadata: meta,
+      timestamp: ts, metadata: meta,
       payload: {
         callId, provider, model,
         messages: [{ role: 'user' as const, content: '(Claude Code request — prompt content not exported)' }],
@@ -695,7 +694,7 @@ function mapClaudeCodeApiRequest(
     },
     {
       eventType: 'llm_response', severity: 'info', sessionId, agentId,
-      timestamp: endTs, metadata: meta,
+      timestamp: ts, metadata: meta,
       payload: {
         callId, provider, model,
         completion: null,
@@ -740,7 +739,7 @@ async function buildAndInsertEvents(
 ): Promise<AgentLensEvent[]> {
   if (mappedEvents.length === 0) return [];
 
-  // Group by session for hash chain
+  // Group by session for insertion.
   const bySession = new Map<string, MappedEvent[]>();
   for (const ev of mappedEvents) {
     const arr = bySession.get(ev.sessionId) ?? [];
@@ -750,13 +749,18 @@ async function buildAndInsertEvents(
 
   const allEvents: AgentLensEvent[] = [];
 
-  for (const [sessionId, sessionMapped] of bySession) {
-    let prevHash: string | null = await tenantStore.getLastEventHash(sessionId);
+  for (const sessionMapped of bySession.values()) {
     const sessionEvents: AgentLensEvent[] = [];
 
-    // Chain in chronological order (stable) with monotonic ids, so the stored
-    // chain order matches how verification reads events — OTLP batches routinely
-    // share timestamps. See lib/event-id.ts.
+    // OTLP-ingested events are deliberately NOT part of the tamper-evident hash
+    // chain. OTLP is batched, multi-signal (metrics + logs on independent
+    // schedules), out-of-order and unauthenticated at ingest, so a linear
+    // prevHash chain is neither achievable nor meaningful here. Each event still
+    // gets a self-contained integrity hash (prevHash=null) — so record-level
+    // tampering is detectable — but there is no cross-event linkage; that is
+    // reserved for the SDK's in-order, authenticated stream. Verification treats
+    // an all-null-prevHash session as "unchained" and checks record hashes only
+    // (see routes/sessions.ts and lib/audit-verify.ts).
     const ordered = [...sessionMapped].sort((a, b) =>
       a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0);
 
@@ -767,7 +771,7 @@ async function buildAndInsertEvents(
       // is hashed like every other field and the Slice-A verified_agent_id column
       // is derived from it at insert (#88). stampVerifiedAgent also strips the
       // reserved keys, so an OTLP caller can never forge a verified id; an
-      // unverified span (verifiedAgentId=null) keeps its metadata byte-for-byte.
+      // unverified event (verifiedAgentId=null) keeps its metadata byte-for-byte.
       const metadata = stampVerifiedAgent(input.metadata, verifiedAgentId, verifiedAgentMethod);
       const hash = computeEventHash({
         id,
@@ -778,7 +782,7 @@ async function buildAndInsertEvents(
         severity: input.severity,
         payload,
         metadata,
-        prevHash,
+        prevHash: null,
       });
 
       const event: AgentLensEvent = {
@@ -790,14 +794,13 @@ async function buildAndInsertEvents(
         severity: input.severity,
         payload,
         metadata,
-        prevHash,
+        prevHash: null,
         hash,
         tenantId,
       };
 
       sessionEvents.push(event);
       allEvents.push(event);
-      prevHash = hash;
     }
 
     await tenantStore.insertEvents(sessionEvents);

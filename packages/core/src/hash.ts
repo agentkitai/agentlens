@@ -246,6 +246,36 @@ export function verifyChainBatchRaw(
   return { valid: true, failedAtIndex: -1, reason: null };
 }
 
+/**
+ * Verify per-event record integrity only — recompute each event's hash, with NO
+ * cross-event prevHash linkage. Use for "unchained" event sets (events whose
+ * prevHash is null by design — e.g. OTLP-ingested telemetry, which is batched,
+ * multi-signal and out-of-order, so a linear chain is neither achievable nor
+ * meaningful). Detects tampering of any individual stored record; does not
+ * detect insertion/deletion/reordering (the chain's job, reserved for the SDK's
+ * in-order stream). The strict verifyChain* functions are unchanged.
+ */
+export function verifyRecords(events: ChainEvent[]): ChainVerificationResult {
+  for (let i = 0; i < events.length; i++) {
+    const recomputed = computeEventHash(events[i]);
+    if (recomputed !== events[i].hash) {
+      return { valid: false, failedAtIndex: i, reason: `Event ${i} hash mismatch: expected ${recomputed}, got ${events[i].hash}` };
+    }
+  }
+  return { valid: true, failedAtIndex: -1, reason: null };
+}
+
+/** Raw (pre-serialized) counterpart of verifyRecords(). */
+export function verifyRecordsRaw(events: RawChainEvent[]): ChainVerificationResult {
+  for (let i = 0; i < events.length; i++) {
+    const recomputed = computeEventHashRaw(events[i]);
+    if (recomputed !== events[i].hash) {
+      return { valid: false, failedAtIndex: i, reason: `Event ${i} hash mismatch: expected ${recomputed}, got ${events[i].hash}` };
+    }
+  }
+  return { valid: true, failedAtIndex: -1, reason: null };
+}
+
 export function verifyChain(events: ChainEvent[]): ChainVerificationResult {
   if (events.length === 0) {
     return { valid: true, failedAtIndex: -1, reason: null };

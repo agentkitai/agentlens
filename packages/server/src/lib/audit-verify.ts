@@ -6,7 +6,7 @@
  */
 
 import { createHmac } from 'node:crypto';
-import { verifyChainBatchRaw } from '@agentkitai/agentlens-core';
+import { verifyChainBatchRaw, verifyRecordsRaw } from '@agentkitai/agentlens-core';
 import type { RawChainEvent } from '@agentkitai/agentlens-core';
 import type { EventRepository } from '../db/repositories/event-repository.js';
 import { createLogger } from './logger.js';
@@ -88,7 +88,11 @@ function verifySessionChain(
     }
 
     const expectedPrev = offset === 0 ? null : prevHash;
-    const result = verifyChainBatchRaw(batch, expectedPrev);
+    // Unchained (OTLP) batches have prevHash=null on every event — there is no
+    // cross-event chain to verify, only per-record integrity. SDK batches keep
+    // the strict linear-chain check. See routes/otlp.ts.
+    const batchUnchained = batch.every((e) => e.prevHash === null);
+    const result = batchUnchained ? verifyRecordsRaw(batch) : verifyChainBatchRaw(batch, expectedPrev);
 
     if (!result.valid) {
       return {

@@ -52,7 +52,10 @@ export class EventRepository {
         .where(eq(events.id, firstEvent.id))
         .get();
 
-      if (!existingFirst) {
+      // Continuity guard only applies to *chained* events (non-null prevHash).
+      // OTLP-ingested telemetry is unchained (prevHash=null) — see otlp.ts — and
+      // is appended freely; its per-event hash is still validated below.
+      if (!existingFirst && firstEvent.prevHash !== null) {
         const lastStoredEvent = tx
           .select({ hash: events.hash })
           .from(events)
@@ -73,7 +76,8 @@ export class EventRepository {
       for (let i = 0; i < eventList.length; i++) {
         const event = eventList[i]!;
 
-        if (i > 0) {
+        // Linkage enforced only for chained events (non-null prevHash).
+        if (i > 0 && event.prevHash !== null) {
           const prevEvent = eventList[i - 1]!;
           if (event.prevHash !== prevEvent.hash) {
             throw new HashChainError(

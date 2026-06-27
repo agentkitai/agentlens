@@ -7,7 +7,7 @@
  */
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { verifyChain, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentkitai/agentlens-core';
+import { verifyChain, verifyRecords, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentkitai/agentlens-core';
 import type { SessionQuery, SessionStatus } from '@agentkitai/agentlens-core';
 import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
@@ -168,11 +168,17 @@ export function sessionsRoutes(store: IEventStore) {
     }
 
     const timeline = await tenantStore.getSessionTimeline(id);
-    const chainResult = verifyChain(timeline);
+    // OTLP-ingested sessions are "unchained" (every event has prevHash=null — see
+    // routes/otlp.ts): there is no cross-event chain to verify, only per-event
+    // record integrity. SDK sessions keep the strict linear-chain check.
+    const unchained = timeline.length > 0 && timeline.every((e) => e.prevHash === null);
+    const chainResult = unchained ? verifyRecords(timeline) : verifyChain(timeline);
 
     return c.json({
       events: timeline,
       chainValid: chainResult.valid,
+      // null prevHash throughout ⇒ telemetry ingest, not a tamper-evident chain.
+      chained: !unchained,
     } as any);
   });
 

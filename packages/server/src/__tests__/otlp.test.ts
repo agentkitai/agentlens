@@ -9,7 +9,7 @@ import { OTLP_PROTO_DESCRIPTOR } from '../otlp/otlp-proto-descriptor.js';
 import { createTestDb } from '../db/index.js';
 import { runMigrations } from '../db/migrate.js';
 import { SqliteEventStore } from '../db/sqlite-store.js';
-import { verifyChain } from '@agentkitai/agentlens-core';
+import { verifyChain, verifyRecords } from '@agentkitai/agentlens-core';
 import type { ChainEvent } from '@agentkitai/agentlens-core';
 
 function makeApp() {
@@ -770,13 +770,20 @@ describe('OTLP GenAI semantic conventions', () => {
     expect(tp.arguments.q).toBe('capital of France');
   });
 
-  it('produces a valid, tamper-evident hash chain for the GenAI-ingested session', async () => {
+  it('ingests OTLP events as UNCHAINED (record-integrity only, no linear chain)', async () => {
     const events = await ingestGenai();
-    // Chain order = (timestamp, id) ascending, matching how verification reads.
-    const chain = [...events].sort((a, b) =>
-      a.timestamp < b.timestamp ? -1
-        : a.timestamp > b.timestamp ? 1
-        : a.id < b.id ? -1 : a.id > b.id ? 1 : 0) as unknown as ChainEvent[];
-    expect(verifyChain(chain).valid).toBe(true);
+    expect(events.length).toBeGreaterThan(0);
+    // OTLP is batched / multi-signal / out-of-order, so events are NOT part of
+    // the linear hash chain — each is self-hashed with prevHash=null (otlp.ts).
+    expect(events.every((e) => e.prevHash === null)).toBe(true);
+    // Per-event record integrity still holds and is verifiable...
+    expect(verifyRecords(events as unknown as ChainEvent[]).valid).toBe(true);
+    // ...and tampering a stored record is still detected.
+    const tampered = events.map((e, i) =>
+      i === 0 ? { ...e, payload: { ...(e.payload as Record<string, unknown>), injected: true } } : e,
+    ) as unknown as ChainEvent[];
+    expect(verifyRecords(tampered).valid).toBe(false);
+    // A strict linear-chain check would (correctly) reject unchained telemetry.
+    expect(verifyChain(events as unknown as ChainEvent[]).valid).toBe(false);
   });
 });
