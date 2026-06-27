@@ -1,5 +1,12 @@
 # @agentkitai/agentlens-sdk
 
+## 0.14.5
+
+### Patch Changes
+
+- Updated dependencies [26519c6]
+  - @agentkitai/agentlens-core@0.19.0
+
 ## 0.14.4
 
 ### Patch Changes

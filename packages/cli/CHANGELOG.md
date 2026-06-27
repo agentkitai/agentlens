@@ -1,5 +1,11 @@
 # @agentkitai/agentlens-cli
 
+## 0.14.3
+
+### Patch Changes
+
+- @agentkitai/agentlens-sdk@0.14.5
+
 ## 0.14.2
 
 ### Patch Changes

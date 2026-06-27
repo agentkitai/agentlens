@@ -1,5 +1,47 @@
 # @agentkitai/agentlens-server
 
+## 0.20.0
+
+### Minor Changes
+
+- 62d37bb: Display every Claude Code OpenTelemetry event type properly across the dashboard.
+
+  **Server** — the OTLP `/v1/logs` handler now maps Claude Code's tool lifecycle logs to first-class events: `tool_decision` → `tool_call` (a denied decision also emits a `tool_error`), and `tool_result` → `tool_response` (or `tool_error` on failure), correlated by `tool_use_id`. This lights up the Tools analytics view, the SessionDetail "Tool Calls"/"Errors" filters, and paired timeline rendering — which all key off the `tool_*` event types. Cost/token metrics deliberately stay generic custom events (cost is already authoritative on the `api_request` → `llm_response` path; mapping the `cost.usage` metric too would double-count). Also derives `agent.sessionCount` from the sessions table in `listAgents`/`getAgent` (both stores) so OTLP-ingested agents — which never emit `session_started` — no longer show "0 sessions".
+
+  **Dashboard** — a shared OTLP renderer (`lib/otlpEvent.ts`) gives every remaining generic `custom` log/metric a real title, icon, and labeled detail fields derived from the OTLP event/metric name + attributes (e.g. `token.usage = 1,340 (output)`, `user_prompt`, `hook_execution_complete`, `cost.usage = $0.0123`) instead of an identical gray "otlp_log"/"otlp_metric" blob. Wired into the SessionDetail timeline, the Replay timeline, the Events Explorer table, and the event detail panel (readable fields above the raw payload). Also adds missing `error`/`eval_result` styles to the SessionDetail timeline for parity.
+
+  Additive and fail-safe: unrecognized event names fall through to the existing generic event, still rendered legibly by the shared renderer. The SDK ingest path is untouched.
+
+- 9606a0a: Map Claude Code's native OpenTelemetry into rich AgentLens events. Claude Code
+  emits `claude_code.*` metrics + logs (not gen_ai.\* spans), so its data
+  previously fell through to generic `otlp_log`/`otlp_metric` custom events,
+  leaving the Sessions, LLM Analytics, and Cost views empty. The OTLP `/v1/logs`
+  handler now maps each `claude_code.api_request` log to a paired
+  `llm_call` + `llm_response` carrying the model, all four token counts
+  (input/output/cache-read/cache-creation), real `cost_usd`, and `duration_ms`,
+  and resolves the `session.id` attribute so events land on the real session
+  (and Claude Code metrics too). Cost rides on `llm_response` only — matching the
+  SDK/gen_ai contract — so session and cost-view totals are not double-counted.
+  Additive and fail-safe: unrecognized shapes still fall through to generic
+  events.
+- 26519c6: Treat OTLP-ingested events as **unchained** so they no longer falsely report a broken tamper-evident hash chain.
+
+  OTLP telemetry (OpenClaw diagnostics, OTel GenAI spans, Claude Code) is batched, multi-signal (metrics + logs export on independent schedules), out-of-order, and unauthenticated at ingest — so a linear `prevHash` chain is neither achievable nor meaningful for it. The receiver previously chained these events anyway, which surfaced as "chain invalid" on the session view for any real multi-signal source.
+
+  Now OTLP events are stored with `prevHash = null` and a self-contained integrity hash (record-level tampering is still detectable), with **no** cross-event linkage. The strict linear chain is reserved for the SDK's in-order, authenticated stream and is unchanged. Verification detects an all-`null`-prevHash session as "unchained" and checks per-record integrity only (`/sessions/:id/timeline` now also returns `chained: boolean`); `insertEvents` accepts unchained appends without a continuity error.
+
+  `core` adds `verifyRecords()` / `verifyRecordsRaw()` — record-integrity verifiers with no linkage (the strict `verifyChain*` functions are untouched). Also drops the `llm_call` timestamp backdating in the Claude Code mapping (latency is carried explicitly on the response).
+
+### Patch Changes
+
+- 49c9aa0: Two Claude Code follow-ups:
+
+  - **Server** — backfill the LLM detail view's prompt/response text. The OTLP `/v1/logs` handler now correlates `user_prompt` (by `prompt.id`) and `assistant_response` (by `request_id`) with the `api_request` in the same batch, so the `llm_call`/`llm_response` show the real conversation instead of a placeholder. Text is only present when `OTEL_LOG_USER_PROMPTS=1` is set (Claude Code redacts it otherwise); when absent, the placeholder now points to that setting. Correlates within a single OTLP export batch (fail-safe otherwise).
+  - **Dashboard** — add a "Telemetry" filter category to the session Replay timeline so OTLP-ingested custom events (Claude Code metrics/logs) can be isolated, matching the other replay filter chips.
+
+- Updated dependencies [26519c6]
+  - @agentkitai/agentlens-core@0.19.0
+
 ## 0.19.0
 
 ### Minor Changes
