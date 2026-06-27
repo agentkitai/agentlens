@@ -698,7 +698,19 @@ export class PostgresEventStore implements IEventStore {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(agents.lastSeenAt));
 
-    return rows.map(mapAgentRow);
+    // sessionCount derived from the sessions table (source of truth) — the
+    // denormalized agents.sessionCount counter is only bumped by the SDK's
+    // session_started event, so OTLP-ingested agents read 0 despite having
+    // sessions.
+    const sessConds = tenantId ? [eq(sessions.tenantId, tenantId)] : [];
+    const countRows = await this.db
+      .select({ agentId: sessions.agentId, n: drizzleCount() })
+      .from(sessions)
+      .where(sessConds.length > 0 ? and(...sessConds) : undefined)
+      .groupBy(sessions.agentId);
+    const counts = new Map(countRows.map((r) => [r.agentId, Number(r.n)]));
+
+    return rows.map((r) => ({ ...mapAgentRow(r), sessionCount: counts.get(r.id) ?? 0 }));
   }
 
   async getAgent(id: string, tenantId?: string): Promise<Agent | null> {
@@ -711,7 +723,16 @@ export class PostgresEventStore implements IEventStore {
       .where(and(...conditions))
       .limit(1);
 
-    return row ? mapAgentRow(row) : null;
+    if (!row) return null;
+
+    const sessConds = [eq(sessions.agentId, id)];
+    if (tenantId) sessConds.push(eq(sessions.tenantId, tenantId));
+    const [sc] = await this.db
+      .select({ n: drizzleCount() })
+      .from(sessions)
+      .where(and(...sessConds));
+
+    return { ...mapAgentRow(row), sessionCount: Number(sc?.n ?? 0) };
   }
 
   // ─── Alerts ────────────────────────────────────────────────

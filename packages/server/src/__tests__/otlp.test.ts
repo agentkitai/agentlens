@@ -677,6 +677,57 @@ describe('OTLP Logs Endpoint', () => {
     expect(session!.totalInputTokens).toBe(2600);
     expect(session!.totalOutputTokens).toBe(5396);
   });
+
+  it('maps claude_code tool_decision/tool_result logs to tool_call/tool_response/tool_error', async () => {
+    const { app, store } = makeApp();
+    const toolLog = (sid: string, eventName: string, attrs: Array<{ key: string; value: any }>) => ({
+      resourceLogs: [{
+        resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+        scopeLogs: [{
+          logRecords: [{
+            body: { stringValue: `claude_code.${eventName}` },
+            timeUnixNano: '1700000000000000000',
+            attributes: [
+              { key: 'session.id', value: { stringValue: sid } },
+              { key: 'event.name', value: { stringValue: eventName } },
+              ...attrs,
+            ],
+          }],
+        }],
+      }],
+    });
+    const post = (b: unknown) =>
+      app.request('/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+
+    // accepted decision + successful result for tool t1; denied decision for t2; failed result for t3
+    await post(toolLog('cc-tools', 'tool_decision', [
+      { key: 'tool_use_id', value: { stringValue: 't1' } }, { key: 'tool_name', value: { stringValue: 'Bash' } },
+      { key: 'decision', value: { stringValue: 'accept' } }, { key: 'source', value: { stringValue: 'config' } }]));
+    await post(toolLog('cc-tools', 'tool_result', [
+      { key: 'tool_use_id', value: { stringValue: 't1' } }, { key: 'tool_name', value: { stringValue: 'Bash' } },
+      { key: 'success', value: { stringValue: 'true' } }, { key: 'duration_ms', value: { intValue: 250 } }]));
+    await post(toolLog('cc-tools', 'tool_decision', [
+      { key: 'tool_use_id', value: { stringValue: 't2' } }, { key: 'tool_name', value: { stringValue: 'Write' } },
+      { key: 'decision', value: { stringValue: 'deny' } }]));
+    await post(toolLog('cc-tools', 'tool_result', [
+      { key: 'tool_use_id', value: { stringValue: 't3' } }, { key: 'tool_name', value: { stringValue: 'Edit' } },
+      { key: 'success', value: { stringValue: 'false' } }, { key: 'duration_ms', value: { intValue: 10 } }]));
+
+    const events = (await store.queryEvents({ sessionId: 'cc-tools' })).events;
+    const byType = (t: string) => events.filter((e) => e.eventType === t);
+    // t1: tool_call + tool_response; t2: tool_call + tool_error (denied); t3: tool_error (failed)
+    expect(byType('tool_call').length).toBe(2);
+    expect(byType('tool_response').length).toBe(1);
+    expect(byType('tool_error').length).toBe(2);
+
+    const resp = byType('tool_response')[0]!.payload as { callId: string; toolName: string; durationMs: number };
+    expect(resp.callId).toBe('t1');
+    expect(resp.toolName).toBe('Bash');
+    expect(resp.durationMs).toBe(250);
+
+    // Tools view aggregation keys on these typed events; sanity: a denied + a failed → 2 tool_error
+    expect(byType('tool_error').every((e) => e.severity === 'error')).toBe(true);
+  });
 });
 
 describe('OTLP GenAI semantic conventions', () => {

@@ -711,6 +711,71 @@ function mapClaudeCodeApiRequest(
   ];
 }
 
+// Claude Code's tool lifecycle logs → first-class tool_call/tool_response/
+// tool_error events, so the Tools analytics view, the SessionDetail "Tool Calls"
+// filter, and the paired timeline rendering all light up (those read the
+// `tool_*` event TYPES, not generic custom events). Decision and result arrive
+// as separate log records (possibly separate batches); they're paired in the UI
+// by callId = tool_use_id, so no buffering is needed here. Any other event.name
+// returns null and falls through to the generic otlp_log event (fail-safe).
+function mapClaudeCodeLog(
+  log: OtlpLogRecord,
+  resourceAttrs: OtlpKeyValue[] | undefined,
+): MappedEvent[] | null {
+  const attrs = log.attributes;
+  const eventName = getAttrStr(attrs, 'event.name');
+  if (eventName !== 'tool_decision' && eventName !== 'tool_result') return null;
+
+  const sessionId = extractSessionId(attrs, resourceAttrs);
+  const agentId = extractAgentId(resourceAttrs);
+  const toolName = getAttrStr(attrs, 'tool_name') ?? 'tool';
+  const callId = getAttrStr(attrs, 'tool_use_id') ?? `cc-tool-${log.timeUnixNano ?? ''}`;
+  const ts = nanoToIso(log.timeUnixNano);
+  const meta = { source: 'otlp_log_claude_code', callId };
+
+  if (eventName === 'tool_decision') {
+    // The request/authorization point → tool_call. A denial also emits a
+    // tool_error so it counts toward the tool error rate.
+    const decision = getAttrStr(attrs, 'decision') ?? 'unknown';
+    const denied = decision !== 'accept' && decision !== 'allow';
+    const events: MappedEvent[] = [{
+      eventType: 'tool_call', severity: 'info', sessionId, agentId, timestamp: ts, metadata: meta,
+      payload: { callId, toolName, arguments: { decision, source: getAttrStr(attrs, 'source') } },
+    }];
+    if (denied) {
+      events.push({
+        eventType: 'tool_error', severity: 'error', sessionId, agentId, timestamp: ts, metadata: meta,
+        payload: { callId, toolName, error: `denied: ${decision}`, durationMs: 0 },
+      });
+    }
+    return events;
+  }
+
+  // tool_result → tool_response (success) or tool_error (failure).
+  // getAttr maps a bool attr to 1/0; Claude Code sends success as the string
+  // "true"/"false", so check both the string and numeric falsey forms.
+  const successVal = getAttr(attrs, 'success');
+  const failed = successVal === 0 || successVal === 'false';
+  const durationMs = getAttrNum(attrs, 'duration_ms');
+  if (failed) {
+    return [{
+      eventType: 'tool_error', severity: 'error', sessionId, agentId, timestamp: ts, metadata: meta,
+      payload: { callId, toolName, error: 'tool failed', durationMs },
+    }];
+  }
+  return [{
+    eventType: 'tool_response', severity: 'info', sessionId, agentId, timestamp: ts, metadata: meta,
+    payload: {
+      callId, toolName, isError: false, durationMs,
+      result: {
+        success: true,
+        inputSizeBytes: getAttrNum(attrs, 'tool_input_size_bytes'),
+        resultSizeBytes: getAttrNum(attrs, 'tool_result_size_bytes'),
+      },
+    },
+  }];
+}
+
 /**
  * Resolve a server-authoritative verified agent id for an OTLP request (#24).
  * Prefer the agent JWT (X-Agent-Token — HS256 shared-secret OR RS256 via
@@ -1135,9 +1200,12 @@ export function otlpRoutes(
       for (const sl of rl.scopeLogs ?? []) {
         for (const log of sl.logRecords ?? []) {
           // Claude Code's per-request log → real llm_call/llm_response pair;
-          // every other log still falls through to the generic otlp_log event.
+          // its tool lifecycle logs → tool_call/tool_response/tool_error; every
+          // other log still falls through to the generic otlp_log event.
           const cc = mapClaudeCodeApiRequest(log, resourceAttrs);
           if (cc) { mapped.push(...cc); continue; }
+          const ccTool = mapClaudeCodeLog(log, resourceAttrs);
+          if (ccTool) { mapped.push(...ccTool); continue; }
 
           const severityText = log.severityText?.toLowerCase() ?? 'info';
           let severity: EventSeverity = 'info';

@@ -18,6 +18,7 @@ import type {
   LlmResponsePayload,
   LlmMessage,
 } from '@agentkitai/agentlens-core';
+import { otlpDetailFields } from '../lib/otlpEvent';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -386,6 +387,9 @@ export function EventDetailPanel({ event, onClose, allEvents }: EventDetailPanel
   if (!event) return null;
 
   const isLlmEvent = event.eventType === 'llm_call' || event.eventType === 'llm_response';
+  // OTLP-ingested custom events (Claude Code metrics/logs) → readable labeled
+  // fields, instead of only the raw JSON blob.
+  const otlpFields = otlpDetailFields(event);
 
   return (
     <>
@@ -518,11 +522,25 @@ export function EventDetailPanel({ event, onClose, allEvents }: EventDetailPanel
             </section>
           )}
 
+          {/* OTLP custom event — readable labeled fields (Claude Code metrics/logs) */}
+          {otlpFields.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Details
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-2 space-y-1">
+                {otlpFields.map(([k, v]) => (
+                  <MetaRow key={k} label={k} value={v} />
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Payload (raw JSON — for non-LLM events or as fallback) */}
           {!isLlmEvent && (
             <section>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Payload
+                {otlpFields.length > 0 ? 'Raw payload' : 'Payload'}
               </h3>
               <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto">
                 <JsonView
