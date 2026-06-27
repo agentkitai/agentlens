@@ -1,4 +1,10 @@
-node_modules
+# Match nested package node_modules too (a bare `node_modules` only matches the
+# context root). Without this, `COPY packages/x/ packages/x/` drags a dev's
+# host-installed (and, on Windows, Linux-broken) node_modules into the image,
+# clobbering the in-container `pnpm install` — e.g. auth's tsup build fails with
+# "Cannot find module .../tsup/dist/cli-default.js". CI has no host node_modules
+# so it never hit this; local builds did.
+**/node_modules
 .git
 .github
 .changeset
