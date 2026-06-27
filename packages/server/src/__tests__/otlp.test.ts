@@ -606,6 +606,77 @@ describe('OTLP Logs Endpoint', () => {
     const events = (await store.queryEvents({ sessionId: 'otlp-default' })).events;
     expect(events[0]!.severity).toBe('error');
   });
+
+  it('maps a claude_code.api_request log to a paired llm_call + llm_response with real cost/tokens', async () => {
+    const { app, store } = makeApp();
+    const body = {
+      resourceLogs: [{
+        resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+        scopeLogs: [{
+          logRecords: [{
+            body: { stringValue: 'claude_code.api_request' },
+            timeUnixNano: '1700000076000000000',
+            attributes: [
+              { key: 'session.id', value: { stringValue: 'cc-sess-1' } },
+              { key: 'event.name', value: { stringValue: 'api_request' } },
+              { key: 'request_id', value: { stringValue: 'req_abc' } },
+              { key: 'model', value: { stringValue: 'claude-opus-4-8' } },
+              { key: 'input_tokens', value: { intValue: 2600 } },
+              { key: 'output_tokens', value: { intValue: 5396 } },
+              { key: 'cache_read_tokens', value: { intValue: 38700 } },
+              { key: 'cache_creation_tokens', value: { intValue: 21445 } },
+              { key: 'cost_usd', value: { doubleValue: 0.3817 } },
+              { key: 'duration_ms', value: { intValue: 76651 } },
+            ],
+          }],
+        }],
+      }],
+    };
+
+    const res = await app.request('/v1/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+
+    // Lands on the real session.id, not otlp-default.
+    const events = (await store.queryEvents({ sessionId: 'cc-sess-1' })).events;
+    const call = events.find((e) => e.eventType === 'llm_call')!;
+    const resp = events.find((e) => e.eventType === 'llm_response')!;
+    expect(call).toBeDefined();
+    expect(resp).toBeDefined();
+    expect(call.agentId).toBe('claude-code');
+
+    const cp = call.payload as { callId: string; model: string; provider: string };
+    expect(cp.callId).toBe('req_abc');
+    expect(cp.provider).toBe('anthropic');
+    expect(cp.model).toBe('claude-opus-4-8');
+
+    const rp = resp.payload as {
+      callId: string;
+      costUsd: number;
+      latencyMs: number;
+      usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
+    };
+    expect(rp.callId).toBe('req_abc');
+    expect(rp.costUsd).toBeCloseTo(0.3817);
+    expect(rp.latencyMs).toBe(76651);
+    expect(rp.usage.inputTokens).toBe(2600);
+    expect(rp.usage.outputTokens).toBe(5396);
+    expect(rp.usage.cacheReadTokens).toBe(38700);
+    expect(rp.usage.cacheWriteTokens).toBe(21445);
+
+    // No cost_tracked emitted — cost rides on llm_response only (no double-count).
+    expect(events.some((e) => e.eventType === 'cost_tracked')).toBe(false);
+
+    // Session aggregates populate from the pair.
+    const session = await store.getSession('cc-sess-1');
+    expect(session!.llmCallCount).toBe(1);
+    expect(session!.totalCostUsd).toBeCloseTo(0.3817);
+    expect(session!.totalInputTokens).toBe(2600);
+    expect(session!.totalOutputTokens).toBe(5396);
+  });
 });
 
 describe('OTLP GenAI semantic conventions', () => {
