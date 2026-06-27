@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeEventHash, computeEventHashRaw, verifyChain, verifyChainBatch, HASH_VERSION } from '../hash.js';
+import { computeEventHash, computeEventHashRaw, verifyChain, verifyChainBatch, verifyRecords, HASH_VERSION } from '../hash.js';
 import type { HashableEvent, ChainEvent, RawHashableEvent } from '../hash.js';
 
 describe('Story 2.4: Hash Chain Utilities', () => {
@@ -357,6 +357,34 @@ describe('Story 2.4: Hash Chain Utilities', () => {
       expect(result.failedAtIndex).toBe(1);
       expect(result.reason).toContain('Event 1');
       expect(result.reason).toContain('hash mismatch');
+    });
+  });
+
+  describe('verifyRecords() — unchained record integrity', () => {
+    function toChainEvent(event: HashableEvent): ChainEvent {
+      return { ...event, hash: computeEventHash(event) };
+    }
+
+    it('accepts unchained events (all prevHash=null) that a strict chain rejects', () => {
+      const evs = ['a', 'b', 'c'].map((s, i) =>
+        toChainEvent({ ...baseEvent, id: `01HXY000${i}`, prevHash: null, payload: { agentName: s } }),
+      );
+      // No cross-event linkage — every event stands alone.
+      expect(verifyRecords(evs).valid).toBe(true);
+      // The strict chain (correctly) rejects: event 1's prevHash=null ≠ event 0's hash.
+      expect(verifyChain(evs).valid).toBe(false);
+    });
+
+    it('detects a tampered record', () => {
+      const evs = [0, 1].map((i) => toChainEvent({ ...baseEvent, id: `01HXY00${i}`, prevHash: null }));
+      const tampered: ChainEvent = { ...evs[1]!, payload: { agentName: 'mutated' } }; // hash now stale
+      const result = verifyRecords([evs[0]!, tampered]);
+      expect(result.valid).toBe(false);
+      expect(result.failedAtIndex).toBe(1);
+    });
+
+    it('returns valid for an empty set', () => {
+      expect(verifyRecords([]).valid).toBe(true);
     });
   });
 
