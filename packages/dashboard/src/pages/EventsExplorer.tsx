@@ -18,6 +18,7 @@ import type {
   Agent,
 } from '@agentkitai/agentlens-core';
 import { EVENT_TYPES, EVENT_SEVERITIES } from '@agentkitai/agentlens-core';
+import { otlpTitle } from '../lib/otlpEvent';
 import { getEvents, getAgents } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';
@@ -80,6 +81,8 @@ const EMPTY_FILTERS: Filters = {
 // ─── Helpers ────────────────────────────────────────────────
 
 function getEventName(event: AgentLensEvent): string {
+  const ot = otlpTitle(event);
+  if (ot) return ot;
   const p = event.payload as Record<string, unknown>;
   if ('toolName' in p && typeof p.toolName === 'string') return p.toolName;
   if ('action' in p && typeof p.action === 'string') return p.action;

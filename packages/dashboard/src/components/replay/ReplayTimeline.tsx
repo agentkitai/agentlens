@@ -14,6 +14,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentLensEvent, EventType } from '@agentkitai/agentlens-core';
+import { otlpTitle } from '../../lib/otlpEvent';
 import { highlightMatches } from '../../utils/highlight';
 import { useBookmarks } from './BookmarkProvider';
 
@@ -225,6 +226,8 @@ function getEventSummary(ev: AgentLensEvent): string {
       return `${kind} · ${(score * 100).toFixed(0)}%${violations ? ` · ${violations} violation${violations === 1 ? '' : 's'}` : ''}`;
     }
     default: {
+      const ot = otlpTitle(ev);
+      if (ot) return ot;
       const customP = p as { type?: string };
       return customP.type ?? ev.eventType;
     }

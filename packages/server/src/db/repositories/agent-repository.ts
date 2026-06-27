@@ -3,10 +3,10 @@
  * Extracted from SqliteEventStore (Story S-7.4).
  */
 
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, count as drizzleCount } from 'drizzle-orm';
 import type { AgentLensEvent, Agent } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../index.js';
-import { agents } from '../schema.sqlite.js';
+import { agents, sessions } from '../schema.sqlite.js';
 import { mapAgentRow } from '../shared/query-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
@@ -141,7 +141,24 @@ export class AgentRepository {
       .orderBy(desc(agents.lastSeenAt))
       .all();
 
-    return rows.map(mapAgentRow);
+    // sessionCount is derived from the sessions table (the source of truth), not
+    // the denormalized agents.sessionCount counter — that counter is only bumped
+    // by the SDK's session_started event, so OTLP-ingested agents (no
+    // session_started) always read 0 despite having sessions.
+    const counts = this.sessionCountsByAgent(tenantId);
+    return rows.map((r) => ({ ...mapAgentRow(r), sessionCount: counts.get(r.id) ?? 0 }));
+  }
+
+  /** Actual session counts per agent, from the sessions table. */
+  private sessionCountsByAgent(tenantId?: string): Map<string, number> {
+    const conds = tenantId ? [eq(sessions.tenantId, tenantId)] : [];
+    const rows = this.db
+      .select({ agentId: sessions.agentId, n: drizzleCount() })
+      .from(sessions)
+      .where(conds.length > 0 ? and(...conds) : undefined)
+      .groupBy(sessions.agentId)
+      .all();
+    return new Map(rows.map((r) => [r.agentId, Number(r.n)]));
   }
 
   async getAgent(id: string, tenantId?: string): Promise<Agent | null> {
@@ -154,6 +171,16 @@ export class AgentRepository {
       .where(and(...conditions))
       .get();
 
-    return row ? mapAgentRow(row) : null;
+    if (!row) return null;
+
+    const sessConds = [eq(sessions.agentId, id)];
+    if (tenantId) sessConds.push(eq(sessions.tenantId, tenantId));
+    const sc = this.db
+      .select({ n: drizzleCount() })
+      .from(sessions)
+      .where(and(...sessConds))
+      .get();
+
+    return { ...mapAgentRow(row), sessionCount: Number(sc?.n ?? 0) };
   }
 }

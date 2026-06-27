@@ -26,6 +26,7 @@ import type {
   LlmMessage,
 } from '@agentkitai/agentlens-core';
 import { highlightMatches } from '../utils/highlight';
+import { otlpTitle, otlpIcon } from '../lib/otlpEvent';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -78,6 +79,9 @@ const EVENT_STYLES: Record<string, EventStyle> = {
   llm_response: { icon: '💬', color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-300' },
   // Cost
   cost_tracked: { icon: '💰', color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-300' },
+  // Errors / evals (parity with ReplayTimeline)
+  error:       { icon: '❌', color: 'text-red-700', bgColor: 'bg-red-50', borderColor: 'border-red-300' },
+  eval_result: { icon: '⚖️', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-300' },
   // Alerts
   alert_triggered: { icon: '🚨', color: 'text-red-700', bgColor: 'bg-red-50', borderColor: 'border-red-300' },
   alert_resolved:  { icon: '✅', color: 'text-green-700', bgColor: 'bg-green-50', borderColor: 'border-green-300' },
@@ -120,6 +124,10 @@ function formatMs(ms: number): string {
 
 function eventName(event: AgentLensEvent): string {
   const p = event.payload;
+  // OTLP-ingested custom events (Claude Code metrics/logs) — derive a real title
+  // from the metric/event name instead of the bare "otlp_log"/"otlp_metric".
+  const ot = otlpTitle(event);
+  if (ot) return ot;
   // Approval events — show friendly label + action
   if (event.eventType === 'approval_requested') {
     const action = 'action' in p && typeof p.action === 'string' ? p.action : '';
@@ -390,7 +398,10 @@ interface TimelineRowProps {
 function TimelineRow({ node, isSelected, onClick, searchQuery }: TimelineRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const style = getEventStyle(node.event.eventType);
+  const baseStyle = getEventStyle(node.event.eventType);
+  // OTLP custom events get a per-subtype icon (token/cost/hook/skill/…).
+  const otIcon = otlpIcon(node.event);
+  const style = otIcon ? { ...baseStyle, icon: otIcon } : baseStyle;
   const isPaired = node.kind === 'paired';
   const isApprovalPaired = node.kind === 'approval_paired';
   const isFormPaired = node.kind === 'form_paired';
