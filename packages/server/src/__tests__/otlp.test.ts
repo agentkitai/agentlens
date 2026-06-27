@@ -678,6 +678,74 @@ describe('OTLP Logs Endpoint', () => {
     expect(session!.totalOutputTokens).toBe(5396);
   });
 
+  it('backfills llm_call/llm_response text from user_prompt + assistant_response in the same batch', async () => {
+    const { app, store } = makeApp();
+    const rec = (body: string, attrs: Array<{ key: string; value: any }>) => ({
+      body: { stringValue: body }, timeUnixNano: '1700000000000000000',
+      attributes: [{ key: 'session.id', value: { stringValue: 'cc-text' } }, ...attrs],
+    });
+    const payload = {
+      resourceLogs: [{
+        resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+        scopeLogs: [{
+          logRecords: [
+            rec('claude_code.user_prompt', [
+              { key: 'event.name', value: { stringValue: 'user_prompt' } },
+              { key: 'prompt.id', value: { stringValue: 'P1' } },
+              { key: 'prompt', value: { stringValue: 'what is 2+2?' } }]),
+            rec('claude_code.assistant_response', [
+              { key: 'event.name', value: { stringValue: 'assistant_response' } },
+              { key: 'request_id', value: { stringValue: 'R1' } },
+              { key: 'response', value: { stringValue: 'it is 4' } }]),
+            rec('claude_code.api_request', [
+              { key: 'event.name', value: { stringValue: 'api_request' } },
+              { key: 'prompt.id', value: { stringValue: 'P1' } },
+              { key: 'request_id', value: { stringValue: 'R1' } },
+              { key: 'model', value: { stringValue: 'claude-opus-4-8' } },
+              { key: 'input_tokens', value: { intValue: 5 } },
+              { key: 'output_tokens', value: { intValue: 3 } },
+              { key: 'cost_usd', value: { doubleValue: 0.001 } },
+              { key: 'duration_ms', value: { intValue: 100 } }]),
+          ],
+        }],
+      }],
+    };
+    const res = await app.request('/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    expect(res.status).toBe(200);
+
+    const events = (await store.queryEvents({ sessionId: 'cc-text' })).events;
+    const call = events.find((e) => e.eventType === 'llm_call')!;
+    const resp = events.find((e) => e.eventType === 'llm_response')!;
+    const cp = call.payload as { messages: Array<{ content: string }> };
+    const rp = resp.payload as { completion: string | null };
+    expect(cp.messages[0]!.content).toBe('what is 2+2?');   // prompt text backfilled by prompt.id
+    expect(rp.completion).toBe('it is 4');                  // response text backfilled by request_id
+  });
+
+  it('keeps the redaction placeholder when prompt text is absent/redacted', async () => {
+    const { app, store } = makeApp();
+    const payload = {
+      resourceLogs: [{
+        resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+        scopeLogs: [{
+          logRecords: [{
+            body: { stringValue: 'claude_code.api_request' }, timeUnixNano: '1700000000000000000',
+            attributes: [
+              { key: 'session.id', value: { stringValue: 'cc-redacted' } },
+              { key: 'request_id', value: { stringValue: 'R9' } },
+              { key: 'model', value: { stringValue: 'claude-opus-4-8' } },
+              { key: 'input_tokens', value: { intValue: 5 } }, { key: 'output_tokens', value: { intValue: 3 } },
+              { key: 'cost_usd', value: { doubleValue: 0.001 } }, { key: 'duration_ms', value: { intValue: 100 } }],
+          }],
+        }],
+      }],
+    };
+    await app.request('/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const events = (await store.queryEvents({ sessionId: 'cc-redacted' })).events;
+    const cp = (events.find((e) => e.eventType === 'llm_call')!.payload) as { messages: Array<{ content: string }> };
+    expect(cp.messages[0]!.content).toContain('OTEL_LOG_USER_PROMPTS');
+  });
+
   it('maps claude_code tool_decision/tool_result logs to tool_call/tool_response/tool_error', async () => {
     const { app, store } = makeApp();
     const toolLog = (sid: string, eventName: string, attrs: Array<{ key: string; value: any }>) => ({

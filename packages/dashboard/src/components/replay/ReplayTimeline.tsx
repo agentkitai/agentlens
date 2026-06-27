@@ -83,6 +83,9 @@ const FILTER_CATEGORIES: FilterCategory[] = [
   { key: 'lifecycle', label: 'Lifecycle', icon: '🔄', eventTypes: new Set(['session_started', 'session_ended']) },
   { key: 'cost',      label: 'Cost',      icon: '💰', eventTypes: new Set(['cost_tracked']) },
   { key: 'evals',     label: 'Evals',     icon: '⚖️', eventTypes: new Set(['eval_result']) },
+  // Generic OTLP-ingested telemetry (Claude Code metrics/logs: prompts, hooks,
+  // skills, token/cost/active-time metrics, …) — all ingested as eventType=custom.
+  { key: 'telemetry', label: 'Telemetry', icon: '📡', eventTypes: new Set(['custom']) },
 ];
 
 // ─── Pairing helpers ────────────────────────────────────────────────

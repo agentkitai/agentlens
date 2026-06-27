@@ -659,6 +659,10 @@ function mapGenAiSpan(
 function mapClaudeCodeApiRequest(
   log: OtlpLogRecord,
   resourceAttrs: OtlpKeyValue[] | undefined,
+  // Prompt/response text correlated from user_prompt (by prompt.id) and
+  // assistant_response (by request_id) logs in the same OTLP batch (#text-backfill).
+  promptText?: Map<string, string>,
+  responseText?: Map<string, string>,
 ): MappedEvent[] | null {
   if ((log.body?.stringValue ?? '') !== 'claude_code.api_request') return null;
 
@@ -682,13 +686,22 @@ function mapClaudeCodeApiRequest(
   const ts = nanoToIso(log.timeUnixNano);
   const meta = { source: 'otlp_log_claude_code', callId };
 
+  // Actual prompt/response text, when captured (only present if the user enabled
+  // OTEL_LOG_USER_PROMPTS — otherwise Claude Code redacts it). user_prompt is
+  // keyed by prompt.id, assistant_response by request_id (== our callId).
+  const promptId = getAttrStr(attrs, 'prompt.id');
+  const userText = promptId ? promptText?.get(promptId) : undefined;
+  const completionText = responseText?.get(callId);
+  const promptContent = userText
+    ?? '(Claude Code prompt not captured — set OTEL_LOG_USER_PROMPTS=1 to record it)';
+
   return [
     {
       eventType: 'llm_call', severity: 'info', sessionId, agentId,
       timestamp: ts, metadata: meta,
       payload: {
         callId, provider, model,
-        messages: [{ role: 'user' as const, content: '(Claude Code request — prompt content not exported)' }],
+        messages: [{ role: 'user' as const, content: promptContent }],
         parameters: {},
       },
     },
@@ -697,7 +710,7 @@ function mapClaudeCodeApiRequest(
       timestamp: ts, metadata: meta,
       payload: {
         callId, provider, model,
-        completion: null,
+        completion: completionText ?? null,
         finishReason: 'stop',
         usage: {
           inputTokens, outputTokens, totalTokens: inputTokens + outputTokens,
@@ -1193,6 +1206,32 @@ export function otlpRoutes(
 
     const mapped: MappedEvent[] = [];
 
+    // Pre-pass: correlate Claude Code prompt/response TEXT so the api_request
+    // llm_call/llm_response can show the real conversation. user_prompt is keyed
+    // by prompt.id, assistant_response by request_id (== api_request's callId).
+    // Text is only present when OTEL_LOG_USER_PROMPTS is enabled — otherwise it's
+    // "<REDACTED>" and skipped.
+    // ponytail: correlates within a single OTLP batch; a prompt/response that
+    // arrives in a different export than its api_request won't be backfilled.
+    const ccPromptText = new Map<string, string>();
+    const ccResponseText = new Map<string, string>();
+    for (const rl of body.resourceLogs) {
+      for (const sl of rl.scopeLogs ?? []) {
+        for (const log of sl.logRecords ?? []) {
+          const en = getAttrStr(log.attributes, 'event.name');
+          if (en === 'user_prompt') {
+            const id = getAttrStr(log.attributes, 'prompt.id');
+            const t = getAttrStr(log.attributes, 'prompt');
+            if (id && t && t !== '<REDACTED>') ccPromptText.set(id, t);
+          } else if (en === 'assistant_response') {
+            const rid = getAttrStr(log.attributes, 'request_id');
+            const t = getAttrStr(log.attributes, 'response');
+            if (rid && t && t !== '<REDACTED>') ccResponseText.set(rid, t);
+          }
+        }
+      }
+    }
+
     for (const rl of body.resourceLogs) {
       const resourceAttrs = rl.resource?.attributes;
       const agentId = extractAgentId(resourceAttrs);
@@ -1202,7 +1241,7 @@ export function otlpRoutes(
           // Claude Code's per-request log → real llm_call/llm_response pair;
           // its tool lifecycle logs → tool_call/tool_response/tool_error; every
           // other log still falls through to the generic otlp_log event.
-          const cc = mapClaudeCodeApiRequest(log, resourceAttrs);
+          const cc = mapClaudeCodeApiRequest(log, resourceAttrs, ccPromptText, ccResponseText);
           if (cc) { mapped.push(...cc); continue; }
           const ccTool = mapClaudeCodeLog(log, resourceAttrs);
           if (ccTool) { mapped.push(...ccTool); continue; }
