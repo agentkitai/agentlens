@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "jose": "^6.0.11",
-    "openid-client": "^6.4.3"
+    "openid-client": "^6.8.4"
   },
   "peerDependencies": {
     "hono": "^4.0.0"
