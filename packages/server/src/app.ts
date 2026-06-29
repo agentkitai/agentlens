@@ -198,6 +198,8 @@ export async function createApp(
     app.use('/api/llm-connections', manageGuard);
     app.use('/api/playground/*', manageGuard);
     app.use('/api/playground', manageGuard);
+    app.use('/api/orgs/*', manageGuard);
+    app.use('/api/orgs', manageGuard);
     const configGuard = requireCategoryByMethod({ GET: 'read', PUT: 'manage', PATCH: 'manage' });
     app.use('/api/config/*', configGuard);
     app.use('/api/config', configGuard);
