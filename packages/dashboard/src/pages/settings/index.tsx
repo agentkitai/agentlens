@@ -8,14 +8,16 @@ import React, { useState } from 'react';
 import { ApiKeysTab } from './ApiKeysTab';
 import { ConfigTab } from './ConfigTab';
 import { IntegrationsTab } from './IntegrationsTab';
+import { LlmConnectionsTab } from './LlmConnectionsTab';
 
-type SettingsTab = 'keys' | 'config' | 'integrations';
+type SettingsTab = 'keys' | 'connections' | 'config' | 'integrations';
 
 export default function Settings(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<SettingsTab>('keys');
 
   const tabs: Array<{ id: SettingsTab; label: string }> = [
     { id: 'keys', label: 'API Keys' },
+    { id: 'connections', label: 'LLM Connections' },
     { id: 'config', label: 'Configuration' },
     { id: 'integrations', label: 'Integrations' },
   ];
@@ -46,6 +48,7 @@ export default function Settings(): React.ReactElement {
 
       {/* Tab Content */}
       {activeTab === 'keys' && <ApiKeysTab />}
+      {activeTab === 'connections' && <LlmConnectionsTab />}
       {activeTab === 'config' && <ConfigTab />}
       {activeTab === 'integrations' && <IntegrationsTab />}
     </div>
