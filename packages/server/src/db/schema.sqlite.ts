@@ -32,6 +32,10 @@ export const events = sqliteTable(
     // ingest, stamped server-side on cost-bearing events. Lets reconciliation
     // tell whether a stored cost predates a price change. NULL for non-cost events.
     pricingVersion: text('pricing_version'),
+    // org→project scoping (#147). Stamped at insert; isolation is still enforced
+    // by tenant_id (project_id == tenant_id today), so these are additive.
+    orgId: text('org_id').notNull().default('default'),
+    projectId: text('project_id'),
   },
   (table) => [
     index('idx_events_timestamp').on(table.timestamp),

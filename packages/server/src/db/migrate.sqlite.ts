@@ -172,6 +172,19 @@ export function runMigrations(db: SqliteDb): void {
     db.run(sql`ALTER TABLE events ADD COLUMN pricing_version TEXT`);
   }
 
+  // org→project scoping columns (#147 cutover). Additive: stamped at insert; the
+  // existing tenant_id filtering still enforces isolation, so reads are unchanged.
+  // Backfill maps the legacy tenant_id → a project (project_id = tenant_id) under
+  // the default org. project_id == tenant_id keeps isolation identical today.
+  if (!eventColumnNames.has('org_id')) {
+    db.run(sql`ALTER TABLE events ADD COLUMN org_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+  if (!eventColumnNames.has('project_id')) {
+    db.run(sql`ALTER TABLE events ADD COLUMN project_id TEXT`);
+    db.run(sql`UPDATE events SET project_id = tenant_id WHERE project_id IS NULL`);
+  }
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_events_org_project_ts ON events(org_id, project_id, timestamp)`);
+
   // sessions.tenant_id
   if (!sessionColumnNames.has('tenant_id')) {
     db.run(sql`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);

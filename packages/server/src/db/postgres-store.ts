@@ -273,6 +273,9 @@ export class PostgresEventStore implements IEventStore {
             prevHash: event.prevHash,
             hash: event.hash,
             tenantId: evTenantId,
+            // org→project scoping (#147): project_id == tenant_id; default org.
+            orgId: 'default',
+            projectId: evTenantId,
             // Derived projection of the hashed metadata — never hashed itself (#87).
             verifiedAgentId: metadataVerifiedAgentId(event.metadata),
             // Pricing provenance for cost-bearing events only (#89).
