@@ -188,12 +188,15 @@ export async function createApp(
 
     // ── RBAC enforcement per architecture §3.3 ──────────
     const manageGuard = requireCategory('manage');
+    // Audit trail + compliance/evidence are auditor-accessible (read + pull), not
+    // full manage (#147) — admin/owner also have the audit category.
+    const auditGuard = requireCategory('audit');
     app.use('/api/keys/*', manageGuard);
     app.use('/api/keys', manageGuard);
-    app.use('/api/audit/*', manageGuard);
-    app.use('/api/audit', manageGuard);
-    app.use('/api/compliance/*', manageGuard);
-    app.use('/api/compliance', manageGuard);
+    app.use('/api/audit/*', auditGuard);
+    app.use('/api/audit', auditGuard);
+    app.use('/api/compliance/*', auditGuard);
+    app.use('/api/compliance', auditGuard);
     app.use('/api/llm-connections/*', manageGuard);
     app.use('/api/llm-connections', manageGuard);
     app.use('/api/playground/*', manageGuard);

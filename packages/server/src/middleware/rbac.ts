@@ -17,7 +17,7 @@ import { isPublicPath } from './public-paths.js';
 function minRoleForCategory(category: ActionCategory): string {
   const roles = PERMISSION_MATRIX[category];
   // Return the least-privileged role in the list
-  const hierarchy: Role[] = ['viewer', 'member', 'admin', 'owner'];
+  const hierarchy: Role[] = ['viewer', 'auditor', 'member', 'admin', 'owner'];
   for (const r of hierarchy) {
     if (roles.includes(r)) return r;
   }

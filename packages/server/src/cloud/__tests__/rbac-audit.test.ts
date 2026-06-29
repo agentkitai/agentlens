@@ -57,6 +57,16 @@ describe('S-2.5: Permission matrix', () => {
     expect(isRoleAllowed('editor' as never, 'manage')).toBe(false);
   });
 
+  it('audit: auditor + admin + owner; member/viewer blocked (#147)', () => {
+    expect(isRoleAllowed('auditor', 'audit')).toBe(true);
+    expect(isRoleAllowed('admin', 'audit')).toBe(true);
+    expect(isRoleAllowed('owner', 'audit')).toBe(true);
+    expect(isRoleAllowed('member', 'audit')).toBe(false);
+    expect(isRoleAllowed('viewer', 'audit')).toBe(false);
+    // auditor no longer has full manage (API keys / connections / orgs)
+    expect(isRoleAllowed('auditor', 'manage')).toBe(false);
+  });
+
   it('billing: only owner', () => {
     expect(isRoleAllowed('owner', 'billing')).toBe(true);
     expect(isRoleAllowed('admin', 'billing')).toBe(false);
@@ -117,8 +127,9 @@ describe('S-2.5: categorizeAction', () => {
     expect(categorizeAction('member')).toBe('manage');
     expect(categorizeAction('invitation')).toBe('manage');
     expect(categorizeAction('settings')).toBe('manage');
-    expect(categorizeAction('audit')).toBe('manage');
-    expect(categorizeAction('export')).toBe('manage');
+    // audit/export now categorize as the dedicated 'audit' category (#147)
+    expect(categorizeAction('audit')).toBe('audit');
+    expect(categorizeAction('export')).toBe('audit');
   });
 
   it('write routes', () => {

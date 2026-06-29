@@ -20,17 +20,21 @@ import type { Role } from '@agentkitai/auth';
 export type ActionCategory =
   | 'read'           // View dashboard data
   | 'write'          // Create/configure sessions, benchmarks
-  | 'manage'         // API keys, team members, settings, data export, audit log
-  | 'billing';       // Billing, org deletion, ownership transfer
+  | 'manage'         // API keys, team members, settings, connections
+  | 'billing'        // Billing, org deletion, ownership transfer
+  | 'audit';         // Audit trail / compliance / evidence export (#147)
 
 /**
  * Permission matrix: which roles can perform which action categories.
+ * Aligned with @agentkitai/auth ROLE_CATEGORIES (#147) — `auditor` gets a
+ * dedicated `audit` grant (read + pull audit evidence) instead of full `manage`.
  */
 export const PERMISSION_MATRIX: Record<ActionCategory, readonly Role[]> = {
   read:    ['owner', 'admin', 'auditor', 'member', 'viewer'],
   write:   ['owner', 'admin', 'member'],
-  manage:  ['owner', 'admin', 'auditor'],
+  manage:  ['owner', 'admin'],
   billing: ['owner'],
+  audit:   ['owner', 'admin', 'auditor'],
 } as const;
 
 /**
@@ -42,8 +46,11 @@ export function categorizeAction(action: string): ActionCategory {
   if (/billing|invoice|upgrade|downgrade|portal/.test(action)) return 'billing';
   if (/org.*delete|delete.*org|org.*transfer|transfer.*ownership/.test(action)) return 'billing';
 
+  // Audit / compliance / evidence (auditor-accessible, not full manage)
+  if (/audit|compliance|evidence|export/.test(action)) return 'audit';
+
   // Management actions
-  if (/api[_-]?key|member|invitation|invite|settings|audit|export|import|role/.test(action)) return 'manage';
+  if (/api[_-]?key|member|invitation|invite|settings|import|role/.test(action)) return 'manage';
 
   // Write actions
   if (/create|update|patch|post|put|configure/.test(action)) return 'write';
