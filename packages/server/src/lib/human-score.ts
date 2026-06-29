@@ -16,6 +16,7 @@ export interface AnnotatorIdentity {
 export interface HumanScoreInput {
   score?: number;
   verdict?: string;
+  textValue?: string;
   passed?: boolean;
   reasoning?: string;
   labels?: string[];
@@ -53,6 +54,7 @@ export async function recordHumanScore(
     method: 'human',
     ...(d.score !== undefined ? { score: d.score } : {}),
     ...(d.verdict ? { verdict: d.verdict } : {}),
+    ...(d.textValue ? { textValue: d.textValue } : {}),
     ...(passed !== undefined ? { passed } : {}),
     ...(d.reasoning ? { reasoning: d.reasoning } : {}),
     ...(d.labels ? { labels: d.labels } : {}),

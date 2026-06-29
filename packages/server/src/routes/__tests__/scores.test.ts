@@ -86,6 +86,15 @@ describe('Human scores + feedback (#122)', () => {
     expect(hs.payload.annotatorUserId).toBe('apikey:key1'); // server-set, from auth context
   });
 
+  it('accepts a free-form TEXT score (#153) with no numeric/verdict/passed', async () => {
+    const res = await post('/api/sessions/s1/human-score', { textValue: 'The answer was thorough but missed the edge case.' });
+    expect(res.status).toBe(201);
+    const tl = await (await app.request('/api/sessions/s1/timeline', { headers: auth() })).json();
+    const hs = tl.events.find((e: any) => e.eventType === 'human_score');
+    expect(hs.payload.textValue).toBe('The answer was thorough but missed the edge case.');
+    expect(hs.payload.score).toBeUndefined();
+  });
+
   it('rejects a client-forged human_score / feedback via the ingest enum', async () => {
     for (const eventType of ['human_score', 'feedback']) {
       const res = await post('/api/events', { events: [{ sessionId: 's1', agentId: 'agent-1', eventType, payload: {} }] });

@@ -434,6 +434,8 @@ export const humanScoreRequestSchema = z
     verdict: z.string().min(1).max(64).optional(),
     /** Explicit pass/fail; otherwise derived from score (≥0.5) / verdict. */
     passed: z.boolean().optional(),
+    /** Free-form TEXT score value (vs the short categorical `verdict`) — #153. */
+    textValue: z.string().min(1).max(5000).optional(),
     reasoning: z.string().max(5000).optional(),
     labels: z.array(z.string().min(1).max(64)).max(50).optional(),
     /** Catalog evaluator/rubric the human graded against (#55 Phase 4). */
@@ -443,10 +445,10 @@ export const humanScoreRequestSchema = z
     /** Annotation-queue item this review resolves, when submitted via a queue. */
     queueItemId: z.string().min(1).optional(),
   })
-  .refine((v) => v.score !== undefined || v.verdict !== undefined || v.passed !== undefined, {
-    message: 'provide a score, verdict, or passed',
-    path: ['score'],
-  });
+  .refine(
+    (v) => v.score !== undefined || v.verdict !== undefined || v.passed !== undefined || v.textValue !== undefined,
+    { message: 'provide a score, verdict, passed, or textValue', path: ['score'] },
+  );
 
 export type HumanScoreRequest = z.infer<typeof humanScoreRequestSchema>;
 
