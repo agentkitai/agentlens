@@ -678,5 +678,41 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
     });
   });
 
+  // GET /api/analytics/users — per end-user (metadata.userId) cost/usage (#149)
+  app.get('/users', async (c) => {
+    const tenantId = getTenantId(c);
+    const from = c.req.query('from') ?? new Date(Date.now() - 30 * 86400_000).toISOString();
+    const to = c.req.query('to') ?? new Date().toISOString();
+    const userExpr = sql.raw(isPg ? "(metadata->>'userId')" : "json_extract(metadata, '$.userId')");
+    const userId = c.req.query('userId'); // optional drill-down filter
+
+    const rows = await dbAll<{ userId: string; eventCount: number; sessionCount: number; totalCostUsd: number }>(
+      db,
+      qdb,
+      sql`
+        SELECT ${userExpr} as ${sql.raw(isPg ? '"userId"' : 'userId')},
+          COUNT(*) as ${sql.raw(isPg ? '"eventCount"' : 'eventCount')},
+          COUNT(DISTINCT session_id) as ${sql.raw(isPg ? '"sessionCount"' : 'sessionCount')},
+          COALESCE(SUM(CASE WHEN event_type IN ('cost_tracked', 'llm_response') THEN ${jn(isPg, 'costUsd')} ELSE 0 END), 0)
+            as ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')}
+        FROM events
+        WHERE timestamp >= ${from} AND timestamp <= ${to} AND tenant_id = ${tenantId}
+          AND ${userExpr} IS NOT NULL
+          ${userId ? sql`AND ${userExpr} = ${userId}` : sql``}
+        GROUP BY ${userExpr}
+        ORDER BY ${sql.raw(isPg ? '"totalCostUsd"' : 'totalCostUsd')} DESC
+      `,
+    );
+
+    return c.json({
+      users: rows.map((r) => ({
+        userId: r.userId,
+        eventCount: Number(r.eventCount),
+        sessionCount: Number(r.sessionCount),
+        totalCostUsd: Number(r.totalCostUsd),
+      })),
+    });
+  });
+
   return app;
 }
