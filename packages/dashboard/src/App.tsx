@@ -45,6 +45,8 @@ const Evaluators = React.lazy(() => import('./pages/eval/evaluators').then(m => 
 const Compliance = React.lazy(() => import('./pages/Compliance'));
 const BudgetConfig = React.lazy(() => import('./pages/BudgetConfig'));
 const AgentInsights = React.lazy(() => import('./pages/AgentInsights'));
+const AnnotationQueues = React.lazy(() => import('./pages/AnnotationQueues').then(m => ({ default: m.AnnotationQueues })));
+const AnnotationReview = React.lazy(() => import('./pages/AnnotationReview').then(m => ({ default: m.AnnotationReview })));
 
 // Lazy-loaded cloud components (named exports)
 const TeamManagement = React.lazy(() => import('./cloud/TeamManagement').then(m => ({ default: m.TeamManagement })));
@@ -116,6 +118,8 @@ function AppRoutes(): React.ReactElement {
         <Route path="capabilities" element={<Navigate to="/agents" replace />} />
         <Route path="budgets" element={<Suspense fallback={<PageSkeleton />}><BudgetConfig /></Suspense>} />
         <Route path="compliance" element={<Suspense fallback={<PageSkeleton />}><Compliance /></Suspense>} />
+        <Route path="review" element={<Suspense fallback={<PageSkeleton />}><AnnotationQueues /></Suspense>} />
+        <Route path="review/:queueId" element={<Suspense fallback={<PageSkeleton />}><AnnotationReview /></Suspense>} />
         <Route path="eval/datasets" element={<Suspense fallback={<PageSkeleton />}><EvalDatasets /></Suspense>} />
         <Route path="eval/datasets/:id" element={<Suspense fallback={<PageSkeleton />}><EvalDatasetDetail /></Suspense>} />
         <Route path="eval/evaluators" element={<Suspense fallback={<PageSkeleton />}><Evaluators /></Suspense>} />

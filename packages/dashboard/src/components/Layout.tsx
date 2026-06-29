@@ -111,6 +111,11 @@ const navSections: NavSection[] = [
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">⚖️</span>,
       },
       {
+        to: '/review',
+        label: 'Review',
+        icon: <span className="w-5 h-5 flex items-center justify-center text-base">✍️</span>,
+      },
+      {
         to: '/alerts',
         label: 'Alerts',
         icon: (
