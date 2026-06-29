@@ -8,6 +8,23 @@ import type { IEventStore, AnalyticsResult, StorageStats } from '@agentkitai/age
 import type { SqliteDb } from '../index.js';
 import { events, sessions, agents } from '../schema.sqlite.js';
 import { createLogger } from '../../lib/logger.js';
+import { bucketStartHour } from '../../lib/rollup.js';
+
+export interface RollupAnalyticsResult {
+  buckets: Array<{
+    bucket: string;
+    eventCount: number;
+    toolCallCount: number;
+    errorCount: number;
+    llmCallCount: number;
+    costUsd: number;
+    inputTokens: number;
+    outputTokens: number;
+    avgLatencyMs: number;
+  }>;
+  byAgent: Array<{ verifiedAgentId: string; costUsd: number; eventCount: number; inputTokens: number; outputTokens: number }>;
+  totals: { eventCount: number; costUsd: number; inputTokens: number; outputTokens: number; llmCallCount: number };
+}
 
 const log = createLogger('AnalyticsRepository');
 
@@ -192,6 +209,62 @@ export class AnalyticsRepository {
       oldestEvent: oldest?.timestamp,
       newestEvent: newest?.timestamp,
       storageSizeBytes: pageCount * pageSize,
+    };
+  }
+
+  /**
+   * Coarse-grained analytics read from precomputed `cost_rollups` (#124) instead
+   * of scanning raw events — for cost/usage/health over long ranges. Keyed on
+   * `verified_agent_id` (billing-grade attribution) and re-bucketed from the
+   * stored hourly grain to the requested granularity. Survives raw-event purge.
+   * Drill-down / sub-bucket / unique-session queries stay on the raw path.
+   */
+  getRollupAnalytics(params: {
+    tenantId: string;
+    from: string;
+    to: string;
+    granularity?: 'hour' | 'day';
+    verifiedAgentId?: string;
+  }): RollupAnalyticsResult {
+    const fromHour = bucketStartHour(params.from);
+    const bucketExpr =
+      (params.granularity ?? 'day') === 'hour' ? sql`bucket_start` : sql`substr(bucket_start, 1, 10) || 'T00:00:00Z'`;
+    const agentFilter = params.verifiedAgentId ? sql`AND verified_agent_id = ${params.verifiedAgentId}` : sql``;
+    const range = sql`tenant_id = ${params.tenantId} AND granularity = 'hour' AND bucket_start >= ${fromHour} AND bucket_start <= ${params.to}`;
+
+    const buckets = this.db.all<RollupAnalyticsResult['buckets'][number]>(sql`
+      SELECT ${bucketExpr} AS bucket,
+        COALESCE(SUM(event_count), 0) AS eventCount,
+        COALESCE(SUM(tool_call_count), 0) AS toolCallCount,
+        COALESCE(SUM(error_count), 0) AS errorCount,
+        COALESCE(SUM(llm_call_count), 0) AS llmCallCount,
+        COALESCE(SUM(cost_usd), 0) AS costUsd,
+        COALESCE(SUM(input_tokens), 0) AS inputTokens,
+        COALESCE(SUM(output_tokens), 0) AS outputTokens,
+        CASE WHEN SUM(latency_count) > 0 THEN SUM(latency_sum_ms) / SUM(latency_count) ELSE 0 END AS avgLatencyMs
+      FROM cost_rollups WHERE ${range} ${agentFilter}
+      GROUP BY bucket ORDER BY bucket ASC
+    `);
+
+    const byAgent = this.db.all<RollupAnalyticsResult['byAgent'][number]>(sql`
+      SELECT verified_agent_id AS verifiedAgentId, COALESCE(SUM(cost_usd), 0) AS costUsd,
+        COALESCE(SUM(event_count), 0) AS eventCount, COALESCE(SUM(input_tokens), 0) AS inputTokens,
+        COALESCE(SUM(output_tokens), 0) AS outputTokens
+      FROM cost_rollups WHERE ${range}
+      GROUP BY verified_agent_id ORDER BY costUsd DESC
+    `);
+
+    const totals = this.db.get<RollupAnalyticsResult['totals']>(sql`
+      SELECT COALESCE(SUM(event_count), 0) AS eventCount, COALESCE(SUM(cost_usd), 0) AS costUsd,
+        COALESCE(SUM(input_tokens), 0) AS inputTokens, COALESCE(SUM(output_tokens), 0) AS outputTokens,
+        COALESCE(SUM(llm_call_count), 0) AS llmCallCount
+      FROM cost_rollups WHERE ${range}
+    `);
+
+    return {
+      buckets,
+      byAgent,
+      totals: totals ?? { eventCount: 0, costUsd: 0, inputTokens: 0, outputTokens: 0, llmCallCount: 0 },
     };
   }
 }

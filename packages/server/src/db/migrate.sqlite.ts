@@ -1092,6 +1092,60 @@ export function runMigrations(db: SqliteDb): void {
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_annotation_items_queue ON annotation_items(tenant_id, queue_id, status)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_annotation_items_assignee ON annotation_items(tenant_id, assignee)`);
+
+  // ─── Scale & retention: time-bucketed rollups + chain anchors (#124) ───
+  // Aggregate cost/usage/health keyed on verified agent + model + hour bucket,
+  // retaining contributing pricing_versions so per-agent cost reconciliation
+  // survives a raw-event purge.
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS cost_rollups (
+      tenant_id         TEXT NOT NULL,
+      verified_agent_id TEXT NOT NULL DEFAULT '',
+      model             TEXT NOT NULL DEFAULT '',
+      bucket_start      TEXT NOT NULL,
+      granularity       TEXT NOT NULL DEFAULT 'hour',
+      event_count       INTEGER NOT NULL DEFAULT 0,
+      tool_call_count   INTEGER NOT NULL DEFAULT 0,
+      error_count       INTEGER NOT NULL DEFAULT 0,
+      llm_call_count    INTEGER NOT NULL DEFAULT 0,
+      input_tokens      INTEGER NOT NULL DEFAULT 0,
+      output_tokens     INTEGER NOT NULL DEFAULT 0,
+      cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+      cost_usd          REAL NOT NULL DEFAULT 0,
+      latency_sum_ms    REAL NOT NULL DEFAULT 0,
+      latency_count     INTEGER NOT NULL DEFAULT 0,
+      pricing_versions  TEXT NOT NULL DEFAULT '[]',
+      updated_at        TEXT NOT NULL,
+      PRIMARY KEY (tenant_id, verified_agent_id, model, bucket_start, granularity)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_cost_rollups_tenant_bucket ON cost_rollups(tenant_id, bucket_start)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_cost_rollups_tenant_agent_bucket ON cost_rollups(tenant_id, verified_agent_id, bucket_start)`);
+
+  // Signed checkpoints over contiguous chain segments — let cold ranges be
+  // verified (and safely purged) without a full chain walk.
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS chain_anchors (
+      id                 TEXT PRIMARY KEY,
+      tenant_id          TEXT NOT NULL,
+      scope              TEXT NOT NULL DEFAULT 'session',
+      session_id         TEXT NOT NULL,
+      first_prev_hash    TEXT,
+      last_hash          TEXT NOT NULL,
+      event_count        INTEGER NOT NULL,
+      segment_digest     TEXT NOT NULL,
+      chained            INTEGER NOT NULL DEFAULT 1,
+      ts_min             TEXT,
+      ts_max             TEXT,
+      pricing_versions   TEXT NOT NULL DEFAULT '[]',
+      verified_agent_ids TEXT NOT NULL DEFAULT '[]',
+      signature          TEXT,
+      created_at         TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_chain_anchors_tenant_session ON chain_anchors(tenant_id, session_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_chain_anchors_tenant_tsmax ON chain_anchors(tenant_id, ts_max)`);
 }
 
 /**
