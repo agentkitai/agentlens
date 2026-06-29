@@ -12,6 +12,7 @@
 import React, { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
+import { EvalRunCompare } from '../../components/eval/EvalRunCompare';
 import {
   getEvalDataset,
   updateEvalDataset,
@@ -440,6 +441,9 @@ export function EvalDatasetDetail(): React.ReactElement {
           )}
         </div>
       </div>
+
+      {/* Run comparison / regression (#121) */}
+      {id && <EvalRunCompare datasetId={id} />}
     </div>
   );
 }

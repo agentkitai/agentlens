@@ -58,6 +58,10 @@ interface RunRow {
   status: string;
   config: string;
   baseline_run_id: string | null;
+  prompt_version_id: string | null;
+  model_id: string | null;
+  triggered_by: string | null;
+  triggered_by_method: string | null;
   total_cases: number;
   passed_cases: number;
   failed_cases: number;
@@ -118,6 +122,10 @@ export interface CreateRunInput {
   webhookUrl: string;
   config: EvalRunConfig;
   baselineRunId?: string;
+  promptVersionId?: string;
+  modelId?: string;
+  triggeredBy?: string;
+  triggeredByMethod?: string;
 }
 
 export interface ListRunFilters {
@@ -193,6 +201,10 @@ function rowToRun(row: RunRow): EvalRun {
     createdAt: row.created_at,
   };
   if (row.baseline_run_id) run.baselineRunId = row.baseline_run_id;
+  if (row.prompt_version_id) run.promptVersionId = row.prompt_version_id;
+  if (row.model_id) run.modelId = row.model_id;
+  if (row.triggered_by) run.triggeredBy = row.triggered_by;
+  if (row.triggered_by_method) run.triggeredByMethod = row.triggered_by_method;
   if (row.avg_score !== null) run.avgScore = row.avg_score;
   if (row.total_cost_usd !== null) run.totalCostUsd = row.total_cost_usd;
   if (row.total_duration_ms !== null) run.totalDurationMs = row.total_duration_ms;
@@ -481,10 +493,11 @@ export class EvalStore {
     if (!ds) throw new Error(`Dataset ${input.datasetId} not found`);
 
     this.db.run(sql`
-      INSERT INTO eval_runs (id, tenant_id, dataset_id, dataset_version, agent_id, webhook_url, status, config, baseline_run_id, created_at)
+      INSERT INTO eval_runs (id, tenant_id, dataset_id, dataset_version, agent_id, webhook_url, status, config, baseline_run_id, prompt_version_id, model_id, triggered_by, triggered_by_method, created_at)
       VALUES (
         ${id}, ${tenantId}, ${input.datasetId}, ${ds.version}, ${input.agentId}, ${input.webhookUrl},
-        'pending', ${JSON.stringify(input.config)}, ${input.baselineRunId ?? null}, ${now}
+        'pending', ${JSON.stringify(input.config)}, ${input.baselineRunId ?? null},
+        ${input.promptVersionId ?? null}, ${input.modelId ?? null}, ${input.triggeredBy ?? null}, ${input.triggeredByMethod ?? null}, ${now}
       )
     `);
 

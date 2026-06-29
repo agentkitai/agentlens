@@ -28,9 +28,12 @@ import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { EvalStore } from '../db/eval-store.js';
 import { EvaluatorStore } from '../db/evaluator-store.js';
+import { PromptStore } from '../db/prompt-store.js';
 import { EvalRunner } from '../lib/eval/runner.js';
+import { computeRegression } from '../lib/eval/regression.js';
 import { createDefaultRegistry, evaluateCompliance, judgeWithLlm, judgeProviderFromEnv } from '../lib/eval/index.js';
 import { appendEventToSession } from '../lib/append-event.js';
+import { verifyAgentTokenWithMethod } from '../lib/agent-identity.js';
 import type { SqliteDb } from '../db/index.js';
 
 /**
@@ -209,8 +212,8 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
   // ─── Run Routes ────────────────────────────────────────
 
   app.post('/runs', async (c) => {
-    const store = getStore();
-    if (!store) return c.json({ error: 'Database not available' }, 500);
+    const evalStore = getStore();
+    if (!evalStore) return c.json({ error: 'Database not available' }, 500);
 
     const tenantId = getTenantId(c);
     const body = await c.req.json().catch(() => null);
@@ -230,17 +233,33 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
       baselineRunId: body.config?.baselineRunId,
     };
 
+    // Verified actor that triggered the run (#121): agent token, else API key.
+    const verified = await verifyAgentTokenWithMethod(c.req.header('x-agent-token'));
+    const apiKey = c.get('apiKey');
+    const triggeredBy = verified?.id ?? apiKey?.id;
+    const triggeredByMethod = verified?.method ?? (apiKey?.id ? 'api_key' : undefined);
+
     try {
-      const run = store.createRun(tenantId, {
+      const run = evalStore.createRun(tenantId, {
         datasetId: body.datasetId,
         agentId: body.agentId,
         webhookUrl: body.webhookUrl,
         config,
         baselineRunId: body.config?.baselineRunId,
+        promptVersionId: typeof body.promptVersionId === 'string' ? body.promptVersionId : undefined,
+        modelId: typeof body.modelId === 'string' ? body.modelId : undefined,
+        triggeredBy,
+        triggeredByMethod,
       });
 
-      // Spawn async execution
-      const runner = new EvalRunner({ evalStore: store, scorerRegistry: registry });
+      // Spawn async execution. eventStore enables the run-level chained summary;
+      // promptStore resolves the prompt-version content for the webhook (#121).
+      const runner = new EvalRunner({
+        evalStore,
+        scorerRegistry: registry,
+        eventStore: store,
+        promptStore: db ? new PromptStore(db) : undefined,
+      });
       runner.execute(run.id, tenantId).catch((err) => {
         console.error(`[eval] Run ${run.id} failed:`, err);
       });
@@ -308,6 +327,36 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     }
 
     return c.json({ results });
+  });
+
+  // GET /runs/:id/compare?baselineRunId=...&maxFlips=&maxScoreDrop= — regression report (#121)
+  app.get('/runs/:id/compare', async (c) => {
+    const evalStore = getStore();
+    if (!evalStore) return c.json({ error: 'Database not available' }, 500);
+
+    const tenantId = getTenantId(c);
+    const id = c.req.param('id');
+    const current = evalStore.getRun(tenantId, id);
+    if (!current) return c.json({ error: 'Run not found' }, 404);
+
+    const baselineRunId = c.req.query('baselineRunId') || current.baselineRunId;
+    if (!baselineRunId) {
+      return c.json({ error: 'baselineRunId is required (none stored on the run)' }, 400);
+    }
+    const baseline = evalStore.getRun(tenantId, baselineRunId);
+    if (!baseline) return c.json({ error: 'Baseline run not found' }, 404);
+
+    const report = computeRegression(
+      baseline,
+      current,
+      evalStore.getResults(baseline.id),
+      evalStore.getResults(current.id),
+      {
+        maxScoreDrop: c.req.query('maxScoreDrop') ? parseFloat(c.req.query('maxScoreDrop')!) : undefined,
+        maxFlips: c.req.query('maxFlips') ? parseInt(c.req.query('maxFlips')!, 10) : undefined,
+      },
+    );
+    return c.json(report);
   });
 
   // ─── Compliance Eval (#55 — Phase 1) ───────────────────

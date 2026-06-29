@@ -901,6 +901,10 @@ export function runMigrations(db: SqliteDb): void {
       status          TEXT NOT NULL DEFAULT 'pending',
       config          TEXT NOT NULL DEFAULT '{}',
       baseline_run_id TEXT,
+      prompt_version_id TEXT,
+      model_id        TEXT,
+      triggered_by    TEXT,
+      triggered_by_method TEXT,
       total_cases     INTEGER NOT NULL DEFAULT 0,
       passed_cases    INTEGER NOT NULL DEFAULT 0,
       failed_cases    INTEGER NOT NULL DEFAULT 0,
@@ -916,6 +920,22 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_runs_tenant ON eval_runs(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_runs_dataset ON eval_runs(dataset_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_runs_agent ON eval_runs(tenant_id, agent_id)`);
+
+  // Prompt/model variant + triggering actor on runs (#121) — additive columns
+  // for DBs created before this migration.
+  const evalRunCols = db.all<{ name: string }>(sql`PRAGMA table_info(eval_runs)`);
+  if (!evalRunCols.some((c) => c.name === 'prompt_version_id')) {
+    db.run(sql`ALTER TABLE eval_runs ADD COLUMN prompt_version_id TEXT`);
+  }
+  if (!evalRunCols.some((c) => c.name === 'model_id')) {
+    db.run(sql`ALTER TABLE eval_runs ADD COLUMN model_id TEXT`);
+  }
+  if (!evalRunCols.some((c) => c.name === 'triggered_by')) {
+    db.run(sql`ALTER TABLE eval_runs ADD COLUMN triggered_by TEXT`);
+  }
+  if (!evalRunCols.some((c) => c.name === 'triggered_by_method')) {
+    db.run(sql`ALTER TABLE eval_runs ADD COLUMN triggered_by_method TEXT`);
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS eval_results (

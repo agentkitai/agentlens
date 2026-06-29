@@ -11,9 +11,14 @@ import type {
   EvalWebhookResponse,
   EvalTestCase,
   ScoreResult,
+  EvalRun,
+  EvalResultPayload,
+  IEventStore,
 } from '@agentkitai/agentlens-core';
 import type { EvalStore } from '../../db/eval-store.js';
+import type { PromptStore } from '../../db/prompt-store.js';
 import type { ScorerRegistry, ScorerContext } from './scorers/index.js';
+import { appendEventToSession } from '../append-event.js';
 
 // ─── Concurrency Utilities ────────────────────────────────
 
@@ -85,18 +90,26 @@ export interface EvalRunnerDeps {
   evalStore: EvalStore;
   scorerRegistry: ScorerRegistry;
   fetch?: typeof globalThis.fetch;
+  /** Event store for emitting the run-level chained eval_result summary (#121). */
+  eventStore?: IEventStore;
+  /** Prompt registry, to resolve a run's promptVersionId → content for the webhook (#121). */
+  promptStore?: PromptStore;
 }
 
 export class EvalRunner {
   private evalStore: EvalStore;
   private scorerRegistry: ScorerRegistry;
   private fetchFn: typeof globalThis.fetch;
+  private eventStore?: IEventStore;
+  private promptStore?: PromptStore;
   private cancelledRuns = new Set<string>();
 
   constructor(deps: EvalRunnerDeps) {
     this.evalStore = deps.evalStore;
     this.scorerRegistry = deps.scorerRegistry;
     this.fetchFn = deps.fetch ?? globalThis.fetch;
+    this.eventStore = deps.eventStore;
+    this.promptStore = deps.promptStore;
   }
 
   /**
@@ -134,8 +147,14 @@ export class EvalRunner {
     let totalScore = 0;
     let passedCases = 0;
     let failedCases = 0;
-    let totalCost = 0;
+    // Cost split (#121): agent-under-test spend vs the judge's own spend.
+    let agentCost = 0;
+    let judgeCost = 0;
     let totalLatency = 0;
+
+    // Resolve the prompt/model variant once (content from the registry) so each
+    // webhook call runs the exact variant under test (#121).
+    const variant = this.resolveVariant(run, tenantId);
 
     try {
       const promises = testCases.map(async (testCase) => {
@@ -153,7 +172,7 @@ export class EvalRunner {
           // Call webhook with retries
           for (let attempt = 0; attempt <= retries; attempt++) {
             try {
-              webhookResponse = await this.callWebhook(runId, testCase, run.webhookUrl, timeoutMs);
+              webhookResponse = await this.callWebhook(runId, testCase, run.webhookUrl, timeoutMs, variant);
               break;
             } catch (e) {
               if (attempt === retries) {
@@ -203,13 +222,12 @@ export class EvalRunner {
             error,
           });
 
-          // Run total = agent-under-test spend (from webhook) + the judge's own
-          // spend. Per-result columns keep them distinct: costUsd = agent cost,
-          // scorerDetails.costUsd = judge cost.
+          // Keep agent-under-test spend (from webhook) distinct from the judge's
+          // own spend so the run-level summary can attribute each (#121).
           if (webhookResponse?.metadata?.costUsd) {
-            totalCost += webhookResponse.metadata.costUsd as number;
+            agentCost += webhookResponse.metadata.costUsd as number;
           }
-          totalCost += judgeCostOf(finalScore);
+          judgeCost += judgeCostOf(finalScore);
         } finally {
           semaphore.release();
         }
@@ -225,6 +243,7 @@ export class EvalRunner {
       // Complete
       const completedAt = new Date().toISOString();
       const total = testCases.length;
+      const totalCost = agentCost + judgeCost;
       this.evalStore.updateRunStatus(runId, 'completed', {
         totalCases: total,
         passedCases,
@@ -234,6 +253,9 @@ export class EvalRunner {
         totalDurationMs: totalLatency,
         completedAt,
       });
+
+      // Run-level chained eval_result summary as tamper-evident evidence (#121).
+      await this.emitRunSummary(run, tenantId, { total, passedCases, failedCases, agentCost, judgeCost });
     } catch (err) {
       this.evalStore.updateRunStatus(
         runId,
@@ -248,11 +270,90 @@ export class EvalRunner {
     this.cancelledRuns.add(runId);
   }
 
-  private async callWebhook(runId: string, testCase: EvalTestCase, webhookUrl: string, timeoutMs: number): Promise<EvalWebhookResponse> {
+  /** Resolve the prompt/model variant under test, loading content from the registry. */
+  private resolveVariant(run: EvalRun, tenantId: string): EvalWebhookRequest['variant'] | undefined {
+    if (!run.promptVersionId && !run.modelId) return undefined;
+    let promptContent: string | undefined;
+    if (run.promptVersionId && this.promptStore) {
+      promptContent = this.promptStore.getVersion(run.promptVersionId, tenantId)?.content;
+    }
+    return {
+      ...(run.promptVersionId ? { promptVersionId: run.promptVersionId } : {}),
+      ...(promptContent ? { promptContent } : {}),
+      ...(run.modelId ? { model: run.modelId } : {}),
+    };
+  }
+
+  /**
+   * Append a run-level `eval_result` to a synthetic per-run session so the
+   * verdict is hash-chained, tamper-evident evidence (#121). Mirrors
+   * `buildAgentEvalResult`. Best-effort: never fails a completed run.
+   */
+  private async emitRunSummary(
+    run: EvalRun,
+    tenantId: string,
+    agg: { total: number; passedCases: number; failedCases: number; agentCost: number; judgeCost: number },
+  ): Promise<void> {
+    if (!this.eventStore) return;
+    const { total, passedCases, failedCases, agentCost, judgeCost } = agg;
+    const passRate = total > 0 ? passedCases / total : 0;
+    const usesJudge = run.config.scorers.some((s) => s.type === 'llm_judge') || judgeCost > 0;
+    const violations = this.evalStore
+      .getResults(run.id)
+      .filter((r) => !r.passed)
+      .map((r) => ({ ruleId: r.testCaseId, ruleType: 'eval_case', detail: `case failed (score ${r.score.toFixed(2)})` }));
+
+    const payload: EvalResultPayload = {
+      scorerType: 'dataset_run',
+      method: usesJudge ? 'llm_judge' : 'deterministic',
+      score: passRate,
+      // The run passes only if no case failed — the gate of record, not the score.
+      passed: failedCases === 0,
+      ...(violations.length ? { violations } : {}),
+      rulesEvaluated: total,
+      evalRunId: run.id,
+      reasoning:
+        `dataset run: ${passedCases}/${total} cases passed (pass rate ${(passRate * 100).toFixed(0)}%), ` +
+        `agent cost $${agentCost.toFixed(4)}, judge cost $${judgeCost.toFixed(4)}.`,
+      ...(usesJudge ? { costUsd: judgeCost } : {}),
+    };
+
+    try {
+      await appendEventToSession(this.eventStore, {
+        tenantId,
+        sessionId: `eval_run_${run.id}`,
+        agentId: run.agentId,
+        eventType: 'eval_result',
+        severity: failedCases === 0 ? 'info' : 'warn',
+        payload,
+        metadata: {
+          source: 'eval_run',
+          runId: run.id,
+          agentCostUsd: agentCost,
+          judgeCostUsd: judgeCost,
+          ...(run.promptVersionId ? { promptVersionId: run.promptVersionId } : {}),
+          ...(run.modelId ? { modelId: run.modelId } : {}),
+          ...(run.triggeredBy ? { triggeredBy: run.triggeredBy } : {}),
+          ...(run.triggeredByMethod ? { triggeredByMethod: run.triggeredByMethod } : {}),
+        },
+      });
+    } catch {
+      // Best-effort: a chained-summary failure must not fail a completed run.
+    }
+  }
+
+  private async callWebhook(
+    runId: string,
+    testCase: EvalTestCase,
+    webhookUrl: string,
+    timeoutMs: number,
+    variant?: EvalWebhookRequest['variant'],
+  ): Promise<EvalWebhookResponse> {
     const body: EvalWebhookRequest = {
       evalRunId: runId,
       testCaseId: testCase.id,
       input: testCase.input,
+      ...(variant ? { variant } : {}),
     };
 
     const controller = new AbortController();

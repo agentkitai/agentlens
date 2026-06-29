@@ -23,6 +23,13 @@ Mode A — dataset run (needs a live agent webhook):
   --webhook-url <url>      Agent webhook the runner calls per test case
   --timeout-seconds <n>    Max wait for the run to finish (default 1800)
   --poll-interval <n>      Seconds between status polls (default 3)
+  --prompt-version-id <id> Bind the run to a prompt version (variant under test)
+  --model-id <id>          Bind the run to a model variant
+  Regression gate (composes with --min-pass-rate):
+  --baseline-run-id <id>   Gate on regression vs this baseline run, or omit to
+                           auto-resolve the dataset's last fully-passing run
+  --max-flips <n>          Allowed pass→fail flips before failing (default 0)
+  --max-score-drop <0..1>  Allowed avg-score drop before failing (default 0)
 
 Mode B — trace scoring (no webhook; reuses the evaluator catalog):
   --evaluator-id <id>      Catalog evaluator (compliance or llm_judge)
@@ -51,7 +58,23 @@ interface GateResult {
   runId?: string;
   evaluatorId?: string;
   sessions?: Array<{ sessionId: string; passed: boolean; score: number }>;
+  regression?: {
+    baselineRunId: string;
+    passRateDelta: number;
+    avgScoreDelta: number;
+    flips: number;
+    overallRegression: boolean;
+    datasetVersionMismatch: boolean;
+  };
 }
+
+type CompareReport = {
+  passRateDelta: number;
+  avgScoreDelta: number;
+  flippedCases: Array<{ direction: string }>;
+  overallRegression: boolean;
+  datasetVersionMismatch: boolean;
+};
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -83,6 +106,11 @@ export async function runEvalGateCommand(argv: string[]): Promise<void> {
       limit: { type: 'string' },
       'timeout-seconds': { type: 'string' },
       'poll-interval': { type: 'string' },
+      'baseline-run-id': { type: 'string' },
+      'max-flips': { type: 'string' },
+      'max-score-drop': { type: 'string' },
+      'prompt-version-id': { type: 'string' },
+      'model-id': { type: 'string' },
       format: { type: 'string', short: 'f' },
       url: { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
@@ -114,7 +142,17 @@ async function datasetRunGate(base: string, apiKey: string | undefined, v: Recor
   if (!v['agent-id'] || !v['webhook-url']) fail('dataset-run mode needs --agent-id and --webhook-url');
   const created = await api<{ id: string }>(base, apiKey, '/api/eval/runs', {
     method: 'POST',
-    body: JSON.stringify({ datasetId: v['dataset-id'], agentId: v['agent-id'], webhookUrl: v['webhook-url'], config: { passThreshold: threshold } }),
+    body: JSON.stringify({
+      datasetId: v['dataset-id'],
+      agentId: v['agent-id'],
+      webhookUrl: v['webhook-url'],
+      promptVersionId: v['prompt-version-id'],
+      modelId: v['model-id'],
+      config: {
+        passThreshold: threshold,
+        ...(v['baseline-run-id'] ? { baselineRunId: String(v['baseline-run-id']) } : {}),
+      },
+    }),
   });
   const timeoutSec = v['timeout-seconds'] ? Number(v['timeout-seconds']) : 1800;
   const pollSec = v['poll-interval'] ? Number(v['poll-interval']) : 3;
@@ -135,7 +173,55 @@ async function datasetRunGate(base: string, apiKey: string | undefined, v: Recor
   const total = run.totalCases ?? 0;
   const passed = run.passedCases ?? 0;
   const passRate = total > 0 ? passed / total : 0;
-  return { mode: 'dataset-run', runId: created.id, threshold, total, passed, passRate, gate: passRate >= threshold ? 'pass' : 'fail' };
+
+  // Regression gate (#121) — composes with the absolute pass-rate threshold.
+  const wantRegression =
+    v['baseline-run-id'] !== undefined || v['max-flips'] !== undefined || v['max-score-drop'] !== undefined;
+  let regression: GateResult['regression'];
+  if (wantRegression) {
+    const baselineId =
+      (v['baseline-run-id'] ? String(v['baseline-run-id']) : undefined) ??
+      (await resolveLastPassingRun(base, apiKey, String(v['dataset-id']), created.id));
+    if (baselineId) {
+      const maxFlips = v['max-flips'] ? Number(v['max-flips']) : 0;
+      const maxScoreDrop = v['max-score-drop'] ? Number(v['max-score-drop']) : 0;
+      const report = await api<CompareReport>(
+        base,
+        apiKey,
+        `/api/eval/runs/${created.id}/compare?baselineRunId=${encodeURIComponent(baselineId)}&maxFlips=${maxFlips}&maxScoreDrop=${maxScoreDrop}`,
+      );
+      regression = {
+        baselineRunId: baselineId,
+        passRateDelta: report.passRateDelta,
+        avgScoreDelta: report.avgScoreDelta,
+        flips: report.flippedCases.filter((f) => f.direction === 'pass_to_fail').length,
+        overallRegression: report.overallRegression,
+        datasetVersionMismatch: report.datasetVersionMismatch,
+      };
+    } else {
+      console.error('eval-gate: no baseline run found for regression comparison; gating on pass-rate only');
+    }
+  }
+
+  const gate: 'pass' | 'fail' = passRate >= threshold && !(regression?.overallRegression ?? false) ? 'pass' : 'fail';
+  return { mode: 'dataset-run', runId: created.id, threshold, total, passed, passRate, gate, regression };
+}
+
+/** Auto-resolve the dataset's most-recent fully-passing completed run (excluding the current). */
+async function resolveLastPassingRun(
+  base: string,
+  apiKey: string | undefined,
+  datasetId: string,
+  excludeRunId: string,
+): Promise<string | undefined> {
+  const resp = await api<{ runs: Array<{ id: string; status: string; failedCases?: number; createdAt: string }> }>(
+    base,
+    apiKey,
+    `/api/eval/runs?datasetId=${encodeURIComponent(datasetId)}&limit=50`,
+  );
+  return (resp.runs ?? [])
+    .filter((r) => r.id !== excludeRunId && r.status === 'completed' && (r.failedCases ?? 0) === 0)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0]?.id;
 }
 
 async function traceScoringGate(base: string, apiKey: string | undefined, v: Record<string, string | boolean | undefined>, threshold: number): Promise<GateResult> {
@@ -179,5 +265,13 @@ function printGate(r: GateResult): void {
   if (r.runId) console.log(`  run: ${r.runId}`);
   if (r.evaluatorId) console.log(`  evaluator: ${r.evaluatorId}`);
   console.log(`  passed: ${r.passed}/${r.total} (${pct}%)   threshold: ${thr}%`);
+  if (r.regression) {
+    const rg = r.regression;
+    const sign = (n: number) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(1)}%`;
+    console.log(`  baseline: ${rg.baselineRunId}`);
+    console.log(`  Δ pass-rate: ${sign(rg.passRateDelta)}   Δ avg-score: ${sign(rg.avgScoreDelta)}   pass→fail flips: ${rg.flips}`);
+    if (rg.datasetVersionMismatch) console.log('  ⚠ baseline ran on a different dataset version — deltas may be misleading');
+    if (rg.overallRegression) console.log('  ✗ regression detected');
+  }
   console.log(`  → ${r.gate === 'pass' ? 'PASS ✓' : 'FAIL ✗'}\n`);
 }

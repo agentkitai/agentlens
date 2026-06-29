@@ -112,6 +112,14 @@ export interface EvalRun {
   status: EvalRunStatus;
   config: EvalRunConfig;
   baselineRunId?: string;
+  /** Prompt version under test (#121) — binds the run to a registry version. */
+  promptVersionId?: string;
+  /** Model variant under test (#121). */
+  modelId?: string;
+  /** Verified actor / triggering identity that started the run (#121). */
+  triggeredBy?: string;
+  /** How `triggeredBy` was identified (e.g. agentgate_token, api_key). */
+  triggeredByMethod?: string;
   totalCases: number;
   passedCases: number;
   failedCases: number;
@@ -152,6 +160,11 @@ export interface RegressionReport {
   avgScoreSignificant: boolean;
   flippedCases: FlippedCase[];
   overallRegression: boolean;
+  /**
+   * The two runs were over different dataset versions — deltas/flips may be
+   * misleading. Flagged, not silently wrong (#121).
+   */
+  datasetVersionMismatch: boolean;
 }
 
 export interface FlippedCase {
@@ -167,6 +180,15 @@ export interface EvalWebhookRequest {
   evalRunId: string;
   testCaseId: string;
   input: EvalInput;
+  /**
+   * The prompt/model variant under test (#121), so the webhook can run the exact
+   * variant. `promptContent` is resolved server-side from `promptVersionId`.
+   */
+  variant?: {
+    promptVersionId?: string;
+    promptContent?: string;
+    model?: string;
+  };
 }
 
 export interface EvalWebhookResponse {
