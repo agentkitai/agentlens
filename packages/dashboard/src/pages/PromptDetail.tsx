@@ -312,9 +312,17 @@ export function PromptDetail(): React.ReactElement {
         <div className="lg:col-span-2 space-y-6">
           {displayVersion && (
             <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                Version {displayVersion.versionNumber} Content
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Version {displayVersion.versionNumber} Content
+                </h3>
+                <Link
+                  to={`/playground?prompt=${encodeURIComponent(displayVersion.content)}`}
+                  className="text-xs text-indigo-600 hover:underline"
+                >
+                  Open in Playground →
+                </Link>
+              </div>
               <pre className="text-sm font-mono bg-gray-50 rounded-lg p-4 overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap">
                 {displayVersion.content}
               </pre>

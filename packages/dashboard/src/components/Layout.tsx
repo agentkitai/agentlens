@@ -91,6 +91,11 @@ const navSections: NavSection[] = [
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">📝</span>,
       },
       {
+        to: '/playground',
+        label: 'Playground',
+        icon: <span className="w-5 h-5 flex items-center justify-center text-base">🎮</span>,
+      },
+      {
         to: '/guardrails',
         label: 'Guardrails',
         icon: <span className="w-5 h-5 flex items-center justify-center text-base">🛡️</span>,
