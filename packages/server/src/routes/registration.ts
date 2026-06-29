@@ -32,6 +32,8 @@ import { recallRoutes } from './recall.js';
 import { contextRoutes } from './context.js';
 import { optimizeRoutes } from './optimize.js';
 import { healthRoutes } from './health.js';
+import { exportsRoutes } from './exports.js';
+import { getJwks } from '../lib/export-signing.js';
 import { diagnoseRoutes } from './diagnose.js';
 import { registerReplayRoutes } from './replay.js';
 import { benchmarkRoutes } from './benchmarks.js';
@@ -296,6 +298,12 @@ export async function registerRoutes(
       retentionDays: resolvedConfig.retentionDays,
     }));
   }
+
+  // ─── Signed exports + public JWKS (#125) ───────────────
+  // JWKS is mounted OUTSIDE /api so a third party can fetch the public key with
+  // no auth and verify an export without trusting our server.
+  app.get('/.well-known/jwks.json', (c) => c.json(getJwks()));
+  app.route('/api/exports', exportsRoutes(store));
 
   // ─── Cloud org routes with org access validation [F6-fix] ──
   if (config?.pgSql) {

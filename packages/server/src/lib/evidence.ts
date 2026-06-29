@@ -62,9 +62,13 @@ export interface EvidencePackBody {
 }
 
 export interface PackSignature {
-  type: 'hmac' | 'rfc3161';
+  // 'ed25519' = asymmetric, third-party-verifiable via the JWKS endpoint (#125);
+  // 'hmac' = legacy shared-secret; 'rfc3161' = reserved for external anchoring (#99).
+  type: 'hmac' | 'rfc3161' | 'ed25519';
   alg: string;
   value: string;
+  /** JWKS key id — present for asymmetric signatures so a verifier can select the public key. */
+  kid?: string;
 }
 
 export type SignedEvidencePack = EvidencePackBody & { signature: PackSignature | null };
