@@ -72,6 +72,11 @@ const navSections: NavSection[] = [
         ),
       },
       {
+        to: '/users',
+        label: 'Users',
+        icon: <span className="w-5 h-5 flex items-center justify-center text-base">👤</span>,
+      },
+      {
         to: '/benchmarks',
         label: 'Benchmarks',
         icon: (

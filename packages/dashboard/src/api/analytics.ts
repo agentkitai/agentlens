@@ -129,6 +129,23 @@ export async function getAgentAnalytics(params: {
   return request<{ agents: AgentAnalytics[] }>(`/api/analytics/agents${qs}`);
 }
 
+export interface UserAnalytics {
+  userId: string;
+  eventCount: number;
+  sessionCount: number;
+  totalCostUsd: number;
+}
+
+/** Per end-user cost/usage breakdown (#149). Pass `userId` to drill down to one user. */
+export async function getUserAnalytics(params: {
+  from?: string;
+  to?: string;
+  userId?: string;
+}): Promise<{ users: UserAnalytics[] }> {
+  const qs = toQueryString({ from: params.from, to: params.to, userId: params.userId });
+  return request<{ users: UserAnalytics[] }>(`/api/analytics/users${qs}`);
+}
+
 export async function getToolAnalytics(params: {
   from?: string;
   to?: string;
