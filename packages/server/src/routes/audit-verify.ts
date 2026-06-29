@@ -15,6 +15,7 @@ import { EventRepository } from '../db/repositories/event-repository.js';
 import { runVerification } from '../lib/audit-verify.js';
 import { collectAllEvents } from '../lib/compliance-export.js';
 import type { AuthVariables } from '../middleware/auth.js';
+import { hasCategory } from '@agentkitai/auth';
 
 /** Resolve role for the current API key */
 function resolveRole(db: SqliteDb, keyInfo: { id: string } | undefined): string {
@@ -46,7 +47,7 @@ export function auditVerifyRoutes(db: SqliteDb, signingKey?: string) {
     const tenantId = getTenantId(c);
     const role = resolveRole(db, keyInfo);
 
-    if (role !== 'admin' && role !== 'auditor') {
+    if (!hasCategory(role, 'audit')) {
       return c.json({ error: 'Forbidden: admin or auditor role required', status: 403 }, 403);
     }
 
@@ -97,7 +98,7 @@ export function auditVerifyRoutes(db: SqliteDb, signingKey?: string) {
     const tenantId = getTenantId(c);
     const role = resolveRole(db, keyInfo);
 
-    if (role !== 'admin' && role !== 'auditor') {
+    if (!hasCategory(role, 'audit')) {
       return c.json({ error: 'Forbidden: admin or auditor role required', status: 403 }, 403);
     }
 

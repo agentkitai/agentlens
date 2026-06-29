@@ -57,6 +57,20 @@ function buildAndInsertChain(
   }
 }
 
+describe('GET /api/audit/verify — role gate (unified RBAC, #147)', () => {
+  it('allows auditor + admin (audit category), denies viewer/member', async () => {
+    const setRole = (role: string) => ctx.db.update(apiKeys).set({ role }).where(eq(apiKeys.id, 'test-key-id')).run();
+    const call = () => ctx.app.request('/api/audit/verify?from=2026-01-01T00:00:00Z&to=2026-02-01T00:00:00Z', { headers: authHeaders(ctx.apiKey) });
+
+    setRole('auditor');
+    expect((await call()).status).toBe(200);
+    setRole('viewer');
+    expect((await call()).status).toBe(403);
+    setRole('member');
+    expect((await call()).status).toBe(403);
+  });
+});
+
 describe('GET /api/audit/verify', () => {
   it('AC 4.1 — range verification returns valid report', async () => {
     buildAndInsertChain(ctx.db, 20, 'sess_1');
