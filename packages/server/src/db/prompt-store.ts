@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
+import { pickVariant, type AbVariant } from '../lib/prompt-ab.js';
 import type { SqliteDb } from './index.js';
 import type {
   PromptTemplate,
@@ -260,6 +261,44 @@ function toFingerprint(row: FingerprintRow): PromptFingerprint {
     callCount: row.call_count,
     templateId: row.template_id ?? undefined,
     sampleContent: row.sample_content ?? undefined,
+  };
+}
+
+// ─── A/B test types (#150) ─────────────────────────────────
+
+export interface AbTest {
+  id: string;
+  tenantId: string;
+  templateId: string;
+  environment: string;
+  variants: AbVariant[];
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AbTestRow {
+  id: string;
+  tenant_id: string;
+  template_id: string;
+  environment: string;
+  variants: string;
+  status: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function toAbTest(r: AbTestRow): AbTest {
+  return {
+    id: r.id,
+    tenantId: r.tenant_id,
+    templateId: r.template_id,
+    environment: r.environment,
+    variants: JSON.parse(r.variants),
+    status: r.status,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
   };
 }
 
@@ -739,6 +778,70 @@ export class PromptStore {
       if (v) out[env.name] = v;
     }
     return out;
+  }
+
+  // ─── A/B testing (#150) ───────────────────────────────────
+
+  /** Create (or replace) the active A/B test for a (template, environment). */
+  createAbTest(
+    tenantId: string,
+    templateId: string,
+    environment: string,
+    variants: AbVariant[],
+    createdBy?: string,
+  ): AbTest {
+    const now = new Date().toISOString();
+    // One active test per (template, env): stop any existing active one.
+    this.db.run(sql`
+      UPDATE prompt_ab_tests SET status = 'stopped', updated_at = ${now}
+      WHERE tenant_id = ${tenantId} AND template_id = ${templateId} AND environment = ${environment} AND status = 'active'
+    `);
+    const id = `abtest_${randomUUID()}`;
+    this.db.run(sql`
+      INSERT INTO prompt_ab_tests (id, tenant_id, template_id, environment, variants, status, created_by, created_at, updated_at)
+      VALUES (${id}, ${tenantId}, ${templateId}, ${environment}, ${JSON.stringify(variants)}, 'active', ${createdBy ?? null}, ${now}, ${now})
+    `);
+    return { id, tenantId, templateId, environment, variants, status: 'active', createdAt: now, updatedAt: now };
+  }
+
+  getActiveAbTest(tenantId: string, templateId: string, environment: string): AbTest | undefined {
+    const r = this.db.get<AbTestRow>(sql`
+      SELECT * FROM prompt_ab_tests
+      WHERE tenant_id = ${tenantId} AND template_id = ${templateId} AND environment = ${environment} AND status = 'active'
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    return r ? toAbTest(r) : undefined;
+  }
+
+  listAbTests(tenantId: string, templateId: string): AbTest[] {
+    return this.db
+      .all<AbTestRow>(sql`SELECT * FROM prompt_ab_tests WHERE tenant_id = ${tenantId} AND template_id = ${templateId} ORDER BY created_at DESC`)
+      .map(toAbTest);
+  }
+
+  stopAbTest(tenantId: string, id: string): boolean {
+    const existing = this.db.get<{ id: string }>(sql`SELECT id FROM prompt_ab_tests WHERE tenant_id = ${tenantId} AND id = ${id} AND status = 'active'`);
+    this.db.run(sql`UPDATE prompt_ab_tests SET status = 'stopped', updated_at = ${new Date().toISOString()} WHERE tenant_id = ${tenantId} AND id = ${id}`);
+    return existing !== undefined;
+  }
+
+  /**
+   * Resolve the version to serve for (template, environment): an active A/B test's
+   * weighted (sticky-by-key) variant, else the single live version.
+   */
+  resolveVersion(
+    tenantId: string,
+    templateId: string,
+    environment: string,
+    key?: string,
+  ): { versionId: string; label: string; abTestId?: string } | null {
+    const ab = this.getActiveAbTest(tenantId, templateId, environment);
+    if (ab) {
+      const v = pickVariant(ab.variants, key);
+      if (v) return { versionId: v.versionId, label: v.label, abTestId: ab.id };
+    }
+    const live = this.getLiveVersion(tenantId, environment, templateId);
+    return live ? { versionId: live, label: environment } : null;
   }
 
   /** Deploy history (newest first), optionally filtered by template and/or environment. */
