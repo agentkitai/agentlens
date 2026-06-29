@@ -21,11 +21,17 @@ export function registerPromptsTool(server: McpServer, transport: AgentLensTrans
 - \`update\`: Create a new version of an existing template
 - \`analytics\`: Get per-version metrics for a template
 - \`fingerprints\`: List auto-discovered prompt fingerprints
+- \`environments\`: List configured deploy environments
+- \`deploy\`: Deploy a version live in an environment (protected envs need AgentGate approval)
+- \`rollback\`: Roll an environment back to an earlier version
+- \`deployments\`: List the deploy history (ledger) for a template
 
-**Example:** agentlens_prompts({ action: "list", category: "system" })`,
+**Example:** agentlens_prompts({ action: "deploy", templateId: "...", environment: "staging", versionId: "..." })`,
     {
-      action: z.enum(['list', 'get', 'create', 'update', 'analytics', 'fingerprints']).describe('Action to perform'),
-      templateId: z.string().optional().describe('Template ID (for get, update, analytics)'),
+      action: z
+        .enum(['list', 'get', 'create', 'update', 'analytics', 'fingerprints', 'environments', 'deploy', 'rollback', 'deployments'])
+        .describe('Action to perform'),
+      templateId: z.string().optional().describe('Template ID (for get, update, analytics, deploy, rollback, deployments)'),
       name: z.string().optional().describe('Template name (for create)'),
       content: z.string().optional().describe('Prompt content (for create, update)'),
       description: z.string().optional().describe('Template description (for create)'),
@@ -36,6 +42,9 @@ export function registerPromptsTool(server: McpServer, transport: AgentLensTrans
       from: z.string().optional().describe('Start date ISO (for analytics)'),
       to: z.string().optional().describe('End date ISO (for analytics)'),
       agentId: z.string().optional().describe('Agent ID filter (for fingerprints)'),
+      environment: z.string().optional().describe('Environment name (for deploy, rollback, deployments)'),
+      versionId: z.string().optional().describe('Version ID to deploy (for deploy)'),
+      toVersionId: z.string().optional().describe('Version ID to roll back to (for rollback)'),
     },
     async (params) => {
       try {
@@ -100,6 +109,33 @@ export function registerPromptsTool(server: McpServer, transport: AgentLensTrans
             const qp: Record<string, string> = {};
             if (params.agentId) qp.agentId = params.agentId;
             response = await transport.getPromptFingerprints(qp);
+            break;
+          }
+          case 'environments': {
+            response = await transport.listPromptEnvironments();
+            break;
+          }
+          case 'deploy': {
+            if (!params.templateId || !params.environment || !params.versionId) {
+              return { content: [{ type: 'text' as const, text: 'Error: templateId, environment and versionId are required for deploy' }], isError: true };
+            }
+            response = await transport.deployPrompt(params.templateId, { environment: params.environment, versionId: params.versionId });
+            break;
+          }
+          case 'rollback': {
+            if (!params.templateId || !params.environment || !params.toVersionId) {
+              return { content: [{ type: 'text' as const, text: 'Error: templateId, environment and toVersionId are required for rollback' }], isError: true };
+            }
+            response = await transport.rollbackPrompt(params.templateId, { environment: params.environment, toVersionId: params.toVersionId });
+            break;
+          }
+          case 'deployments': {
+            if (!params.templateId) {
+              return { content: [{ type: 'text' as const, text: 'Error: templateId is required for deployments' }], isError: true };
+            }
+            const qp: Record<string, string> = {};
+            if (params.environment) qp.environment = params.environment;
+            response = await transport.listPromptDeployments(params.templateId, qp);
             break;
           }
           default:

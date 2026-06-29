@@ -822,6 +822,29 @@ export class AgentLensTransport {
     return fetch(url, { method: 'GET', headers: this.buildHeaders() });
   }
 
+  // ── Prompt deploy lifecycle (#120) ──
+
+  async listPromptEnvironments(): Promise<Response> {
+    return fetch(`${this.baseUrl}/api/prompts/environments`, { method: 'GET', headers: this.buildHeaders() });
+  }
+
+  async deployPrompt(templateId: string, body: { environment: string; versionId: string }): Promise<Response> {
+    const url = `${this.baseUrl}/api/prompts/${encodeURIComponent(templateId)}/deploy`;
+    return fetch(url, { method: 'POST', headers: this.buildHeaders(), body: JSON.stringify(body) });
+  }
+
+  async rollbackPrompt(templateId: string, body: { environment: string; toVersionId: string }): Promise<Response> {
+    const url = `${this.baseUrl}/api/prompts/${encodeURIComponent(templateId)}/rollback`;
+    return fetch(url, { method: 'POST', headers: this.buildHeaders(), body: JSON.stringify(body) });
+  }
+
+  async listPromptDeployments(templateId: string, params?: Record<string, string>): Promise<Response> {
+    const searchParams = new URLSearchParams(params ?? {});
+    const qs = searchParams.toString();
+    const url = `${this.baseUrl}/api/prompts/${encodeURIComponent(templateId)}/deployments${qs ? `?${qs}` : ''}`;
+    return fetch(url, { method: 'GET', headers: this.buildHeaders() });
+  }
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

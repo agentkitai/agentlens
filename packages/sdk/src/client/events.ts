@@ -66,6 +66,9 @@ export abstract class EventMethods extends BaseClient {
         : {}),
       ...(params.parameters !== undefined ? { parameters: params.parameters } : {}),
       ...(params.tools !== undefined ? { tools: params.tools } : {}),
+      // Prompt linkage (#120): drives per-version / per-agent analytics + cost.
+      ...(params.promptTemplateId ? { promptTemplateId: params.promptTemplateId } : {}),
+      ...(params.promptVersionId ? { promptVersionId: params.promptVersionId } : {}),
       ...(redacted ? { redacted: true } : {}),
     };
 

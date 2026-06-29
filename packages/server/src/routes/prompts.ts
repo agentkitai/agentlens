@@ -13,11 +13,32 @@
  * DELETE /api/prompts/:id                    — Soft delete
  */
 
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantId } from './tenant-helper.js';
-import { PromptStore, type CreateTemplateInput, type CreateVersionInput } from '../db/prompt-store.js';
+import {
+  PromptStore,
+  type CreateTemplateInput,
+  type CreateVersionInput,
+  getPromptEnvironments,
+  isKnownEnvironment,
+  isProtectedEnvironment,
+} from '../db/prompt-store.js';
 import type { SqliteDb } from '../db/index.js';
+import { verifyAgentTokenWithMethod } from '../lib/agent-identity.js';
+import { requestDeployApproval } from '../lib/prompt-deploy-approval.js';
+
+/** Resolve the verified actor for a deploy/rollback: agent token, else API-key identity. */
+async function resolveActor(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<{ id: string | null; method: string }> {
+  const verified = await verifyAgentTokenWithMethod(c.req.header('x-agent-token'));
+  if (verified) return { id: verified.id, method: verified.method };
+  const apiKey = c.get('apiKey');
+  if (apiKey?.id) return { id: apiKey.id, method: 'api_key' };
+  return { id: null, method: 'unknown' };
+}
 
 export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -85,7 +106,22 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
     return c.json({ ok: true });
   });
 
-  // GET /api/prompts/:id — Get template with versions
+  // GET /api/prompts/environments — configured deploy environments (#120)
+  app.get('/environments', (c) => {
+    return c.json({ environments: getPromptEnvironments() });
+  });
+
+  // GET /api/prompts/deployments/verify — verify an env's deploy ledger chain (#120)
+  app.get('/deployments/verify', (c) => {
+    const tenantId = getTenantId(c);
+    const environment = c.req.query('environment');
+    if (!environment || !isKnownEnvironment(environment)) {
+      return c.json({ error: 'valid environment query param is required' }, 400);
+    }
+    return c.json(store.verifyDeployLedger(tenantId, environment));
+  });
+
+  // GET /api/prompts/:id — Get template with versions + live versions per env
   app.get('/:id', (c) => {
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
@@ -94,7 +130,8 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       return c.json({ error: 'Template not found' }, 404);
     }
     const versions = store.listVersions(id, tenantId);
-    return c.json({ template, versions });
+    const liveVersions = store.getLiveVersions(tenantId, id);
+    return c.json({ template, versions, liveVersions });
   });
 
   // POST /api/prompts/:id/versions — Create new version
@@ -143,6 +180,16 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
     return c.json({ analytics });
   });
 
+  // GET /api/prompts/:id/analytics/by-agent — per-agent usage + cost per version (#120)
+  app.get('/:id/analytics/by-agent', (c) => {
+    const tenantId = getTenantId(c);
+    const templateId = c.req.param('id');
+    const from = c.req.query('from');
+    const to = c.req.query('to');
+    const usage = store.getVersionAnalyticsByAgent(templateId, tenantId, from, to);
+    return c.json({ usage });
+  });
+
   // GET /api/prompts/:id/diff — Diff between two versions
   app.get('/:id/diff', (c) => {
     const tenantId = getTenantId(c);
@@ -183,6 +230,76 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       diff: diff.join('\n'),
     });
   });
+
+  // ─── Deploy lifecycle (#120) ──────────────────────────────
+
+  // GET /api/prompts/:id/deployments — deploy history for a template (optionally one env)
+  app.get('/:id/deployments', (c) => {
+    const tenantId = getTenantId(c);
+    const templateId = c.req.param('id');
+    const environment = c.req.query('environment') ?? undefined;
+    const deployments = store.listDeployments(tenantId, { templateId, environment });
+    return c.json({ deployments });
+  });
+
+  // POST /api/prompts/:id/deploy { environment, versionId, note? }
+  // POST /api/prompts/:id/rollback { environment, toVersionId, note? }
+  for (const action of ['deploy', 'rollback'] as const) {
+    app.post(`/:id/${action}`, async (c) => {
+      const tenantId = getTenantId(c);
+      const templateId = c.req.param('id');
+      const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+      const environment = typeof body.environment === 'string' ? body.environment : '';
+      const versionId =
+        action === 'rollback'
+          ? (typeof body.toVersionId === 'string' ? body.toVersionId : (body.versionId as string))
+          : (body.versionId as string);
+      const note = typeof body.note === 'string' ? body.note : undefined;
+
+      if (!environment || !isKnownEnvironment(environment)) {
+        return c.json({ error: 'a valid environment is required' }, 400);
+      }
+      if (!versionId || typeof versionId !== 'string') {
+        return c.json({ error: action === 'rollback' ? 'toVersionId is required' : 'versionId is required' }, 400);
+      }
+
+      // The version must exist and belong to this template+tenant before we gate it.
+      const version = store.getVersion(versionId, tenantId);
+      if (!version || version.templateId !== templateId) {
+        return c.json({ error: 'Version not found for this template' }, 404);
+      }
+
+      const actor = await resolveActor(c);
+      let approverId: string | undefined;
+      let approvalRef: string | undefined;
+
+      if (isProtectedEnvironment(environment)) {
+        const decision = await requestDeployApproval({ templateId, versionId, environment, actorId: actor.id, action });
+        if (decision.notConfigured) {
+          return c.json({ error: decision.reason }, 503);
+        }
+        if (!decision.approved) {
+          // Record the denial in the ledger (audit trail); live version unchanged.
+          const denied = store.appendDeployment(tenantId, {
+            templateId, environment, versionId, action, status: 'denied',
+            actorId: actor.id, actorMethod: actor.method, approvalRef: decision.approvalRef, note: decision.reason ?? note,
+          });
+          return c.json({ error: decision.reason ?? 'Deploy denied by AgentGate', deployment: denied }, 403);
+        }
+        approverId = decision.approverId;
+        approvalRef = decision.approvalRef;
+      }
+
+      const deployment = store.appendDeployment(tenantId, {
+        templateId, environment, versionId, action, status: 'committed',
+        actorId: actor.id, actorMethod: actor.method, approverId, approvalRef, note,
+      });
+      if (!deployment) {
+        return c.json({ error: 'Template or version not found' }, 404);
+      }
+      return c.json({ deployment }, 201);
+    });
+  }
 
   // DELETE /api/prompts/:id — Soft delete
   app.delete('/:id', (c) => {

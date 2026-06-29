@@ -15,6 +15,10 @@ import type {
   PromptVariable,
   PromptFingerprint,
   PromptVersionAnalytics,
+  PromptDeployment,
+  PromptEnvironment,
+  DeployLedgerVerifyResult,
+  PromptAgentUsage,
 } from '@agentkitai/agentlens-core';
 import { costUsdDetailed } from '@agentkitai/agentlens-core';
 
@@ -97,6 +101,117 @@ export function normalizePromptContent(content: string): string {
 export function computePromptHash(content: string): string {
   const normalized = normalizePromptContent(content);
   return createHash('sha256').update(normalized, 'utf8').digest('hex');
+}
+
+// ─── Deploy ledger (#120) ──────────────────────────────────
+
+const DEFAULT_ENVIRONMENTS = ['staging', 'prod'];
+const DEFAULT_PROTECTED = ['prod'];
+
+function parseEnvList(v: string | undefined, fallback: string[]): string[] {
+  if (!v) return fallback;
+  const items = v.split(',').map((s) => s.trim()).filter(Boolean);
+  return items.length ? items : fallback;
+}
+
+/** Configured deploy environments, default `staging` + (protected) `prod`. */
+export function getPromptEnvironments(): PromptEnvironment[] {
+  const names = parseEnvList(process.env.PROMPT_ENVIRONMENTS, DEFAULT_ENVIRONMENTS);
+  const protectedSet = new Set(parseEnvList(process.env.PROMPT_PROTECTED_ENVIRONMENTS, DEFAULT_PROTECTED));
+  return names.map((name) => ({ name, protected: protectedSet.has(name) }));
+}
+
+export function isKnownEnvironment(env: string): boolean {
+  return getPromptEnvironments().some((e) => e.name === env);
+}
+
+export function isProtectedEnvironment(env: string): boolean {
+  return getPromptEnvironments().some((e) => e.name === env && e.protected);
+}
+
+interface DeploymentRow {
+  id: string;
+  tenant_id: string;
+  template_id: string;
+  environment: string;
+  version_id: string;
+  action: string;
+  status: string;
+  actor_id: string | null;
+  actor_method: string | null;
+  approver_id: string | null;
+  approval_ref: string | null;
+  note: string | null;
+  seq: number;
+  prev_hash: string | null;
+  hash: string;
+  created_at: string;
+}
+
+interface DeploymentHashFields {
+  id: string;
+  tenantId: string;
+  templateId: string;
+  environment: string;
+  versionId: string;
+  action: string;
+  status: string;
+  actorId: string | null;
+  actorMethod: string | null;
+  approverId: string | null;
+  approvalRef: string | null;
+  note: string | null;
+  seq: number;
+  createdAt: string;
+  prevHash: string | null;
+}
+
+/**
+ * SHA-256 over the canonical deploy-ledger fields + prevHash. A stable key
+ * order makes the hash reproducible for verification; any edit/reorder changes
+ * a row's hash and breaks the chain (mirrors core `computeEventHash`).
+ */
+export function computeDeploymentHash(f: DeploymentHashFields): string {
+  const canonical = JSON.stringify({
+    v: 1,
+    id: f.id,
+    tenantId: f.tenantId,
+    templateId: f.templateId,
+    environment: f.environment,
+    versionId: f.versionId,
+    action: f.action,
+    status: f.status,
+    actorId: f.actorId,
+    actorMethod: f.actorMethod,
+    approverId: f.approverId,
+    approvalRef: f.approvalRef,
+    note: f.note,
+    seq: f.seq,
+    createdAt: f.createdAt,
+    prevHash: f.prevHash,
+  });
+  return createHash('sha256').update(canonical, 'utf8').digest('hex');
+}
+
+function toDeployment(row: DeploymentRow): PromptDeployment {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    templateId: row.template_id,
+    environment: row.environment,
+    versionId: row.version_id,
+    action: row.action as 'deploy' | 'rollback',
+    status: row.status as 'committed' | 'denied',
+    actorId: row.actor_id ?? undefined,
+    actorMethod: row.actor_method ?? undefined,
+    approverId: row.approver_id ?? undefined,
+    approvalRef: row.approval_ref ?? undefined,
+    note: row.note ?? undefined,
+    seq: row.seq,
+    prevHash: row.prev_hash,
+    hash: row.hash,
+    createdAt: row.created_at,
+  };
 }
 
 function toTemplate(row: TemplateRow, versionNumber?: number): PromptTemplate {
@@ -492,5 +607,246 @@ export class PromptStore {
       if (cacheSavingsUsd > 0) byVersion.set(row.version_id, (byVersion.get(row.version_id) ?? 0) + cacheSavingsUsd);
     }
     return byVersion;
+  }
+
+  // ─── Deploy ledger (#120) ────────────────────────────────
+
+  /**
+   * Append one row to the tamper-evident deploy ledger for (tenant, env).
+   * Validates the version belongs to the template+tenant, then chains the row
+   * to the env's current tail (prevHash + monotonic seq). Append-only: never
+   * mutates prior rows or a "current version" pointer — the live version is
+   * derived from the ledger. Returns null if the env is unknown or the
+   * template/version doesn't exist for the tenant.
+   *
+   * Gating (AgentGate) is decided in the route; this records the outcome,
+   * including denials (status='denied'), so the audit trail is complete.
+   */
+  appendDeployment(
+    tenantId: string,
+    input: {
+      templateId: string;
+      environment: string;
+      versionId: string;
+      action: 'deploy' | 'rollback';
+      status?: 'committed' | 'denied';
+      actorId?: string | null;
+      actorMethod?: string | null;
+      approverId?: string | null;
+      approvalRef?: string | null;
+      note?: string | null;
+    },
+  ): PromptDeployment | null {
+    if (!isKnownEnvironment(input.environment)) return null;
+
+    const version = this.db.get<VersionRow>(sql`
+      SELECT * FROM prompt_versions
+      WHERE id = ${input.versionId} AND template_id = ${input.templateId} AND tenant_id = ${tenantId}
+    `);
+    if (!version) return null;
+
+    // Chain to the env's tail. The UNIQUE(tenant, env, seq) index fails closed
+    // if two writers race the same seq (mirrors append-event's race handling).
+    const tail = this.db.get<{ seq: number; hash: string }>(sql`
+      SELECT seq, hash FROM prompt_deployments
+      WHERE tenant_id = ${tenantId} AND environment = ${input.environment}
+      ORDER BY seq DESC LIMIT 1
+    `);
+    const seq = (tail?.seq ?? 0) + 1;
+    const prevHash = tail?.hash ?? null;
+    const id = randomUUID();
+    const createdAt = new Date().toISOString();
+    const status = input.status ?? 'committed';
+
+    const fields: DeploymentHashFields = {
+      id,
+      tenantId,
+      templateId: input.templateId,
+      environment: input.environment,
+      versionId: input.versionId,
+      action: input.action,
+      status,
+      actorId: input.actorId ?? null,
+      actorMethod: input.actorMethod ?? null,
+      approverId: input.approverId ?? null,
+      approvalRef: input.approvalRef ?? null,
+      note: input.note ?? null,
+      seq,
+      createdAt,
+      prevHash,
+    };
+    const hash = computeDeploymentHash(fields);
+
+    this.db.run(sql`
+      INSERT INTO prompt_deployments
+        (id, tenant_id, template_id, environment, version_id, action, status,
+         actor_id, actor_method, approver_id, approval_ref, note, seq, prev_hash, hash, created_at)
+      VALUES
+        (${id}, ${tenantId}, ${input.templateId}, ${input.environment}, ${input.versionId}, ${input.action}, ${status},
+         ${fields.actorId}, ${fields.actorMethod}, ${fields.approverId}, ${fields.approvalRef}, ${fields.note}, ${seq}, ${prevHash}, ${hash}, ${createdAt})
+    `);
+
+    return toDeployment({
+      id,
+      tenant_id: tenantId,
+      template_id: input.templateId,
+      environment: input.environment,
+      version_id: input.versionId,
+      action: input.action,
+      status,
+      actor_id: fields.actorId,
+      actor_method: fields.actorMethod,
+      approver_id: fields.approverId,
+      approval_ref: fields.approvalRef,
+      note: fields.note,
+      seq,
+      prev_hash: prevHash,
+      hash,
+      created_at: createdAt,
+    });
+  }
+
+  /** The version currently live in an environment for a template (latest committed row), or null. */
+  getLiveVersion(tenantId: string, environment: string, templateId: string): string | null {
+    const row = this.db.get<{ version_id: string }>(sql`
+      SELECT version_id FROM prompt_deployments
+      WHERE tenant_id = ${tenantId} AND environment = ${environment}
+        AND template_id = ${templateId} AND status = 'committed'
+      ORDER BY seq DESC LIMIT 1
+    `);
+    return row?.version_id ?? null;
+  }
+
+  /** Map of environment → live version id for a template (only envs with a live version). */
+  getLiveVersions(tenantId: string, templateId: string): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const env of getPromptEnvironments()) {
+      const v = this.getLiveVersion(tenantId, env.name, templateId);
+      if (v) out[env.name] = v;
+    }
+    return out;
+  }
+
+  /** Deploy history (newest first), optionally filtered by template and/or environment. */
+  listDeployments(
+    tenantId: string,
+    opts: { templateId?: string; environment?: string; limit?: number } = {},
+  ): PromptDeployment[] {
+    const conds = [sql`tenant_id = ${tenantId}`];
+    if (opts.templateId) conds.push(sql`template_id = ${opts.templateId}`);
+    if (opts.environment) conds.push(sql`environment = ${opts.environment}`);
+    const where = sql.join(conds, sql` AND `);
+    const limit = Math.min(opts.limit ?? 200, 1000);
+    const rows = this.db.all<DeploymentRow>(sql`
+      SELECT * FROM prompt_deployments WHERE ${where}
+      ORDER BY created_at DESC, seq DESC LIMIT ${limit}
+    `);
+    return rows.map(toDeployment);
+  }
+
+  /** Verify a (tenant, environment) deploy chain: seq continuity, prev-hash links, and per-row hashes. */
+  verifyDeployLedger(tenantId: string, environment: string): DeployLedgerVerifyResult {
+    const rows = this.db.all<DeploymentRow>(sql`
+      SELECT * FROM prompt_deployments
+      WHERE tenant_id = ${tenantId} AND environment = ${environment}
+      ORDER BY seq ASC
+    `);
+    let prevHash: string | null = null;
+    let expectedSeq = 1;
+    for (const row of rows) {
+      if (row.seq !== expectedSeq) {
+        return { environment, valid: false, count: rows.length, brokenAtSeq: row.seq, reason: `seq gap: expected ${expectedSeq}, got ${row.seq}` };
+      }
+      if ((row.prev_hash ?? null) !== prevHash) {
+        return { environment, valid: false, count: rows.length, brokenAtSeq: row.seq, reason: 'prev_hash link broken' };
+      }
+      const recomputed = computeDeploymentHash({
+        id: row.id,
+        tenantId: row.tenant_id,
+        templateId: row.template_id,
+        environment: row.environment,
+        versionId: row.version_id,
+        action: row.action,
+        status: row.status,
+        actorId: row.actor_id,
+        actorMethod: row.actor_method,
+        approverId: row.approver_id,
+        approvalRef: row.approval_ref,
+        note: row.note,
+        seq: row.seq,
+        createdAt: row.created_at,
+        prevHash: row.prev_hash,
+      });
+      if (recomputed !== row.hash) {
+        return { environment, valid: false, count: rows.length, brokenAtSeq: row.seq, reason: 'hash mismatch (record tampered)' };
+      }
+      prevHash = row.hash;
+      expectedSeq++;
+    }
+    return { environment, valid: true, count: rows.length };
+  }
+
+  /**
+   * Per-agent usage + cost per version (#120). Groups real generations by the
+   * verified agent id (falling back to the event's agent id when unverified),
+   * reusing the same payload.promptVersionId join as getVersionAnalytics.
+   */
+  getVersionAnalyticsByAgent(
+    templateId: string,
+    tenantId: string,
+    from?: string,
+    to?: string,
+  ): PromptAgentUsage[] {
+    const fromDate = from ?? new Date(Date.now() - 30 * 86400000).toISOString();
+    const toDate = to ?? new Date().toISOString();
+
+    const rows = this.db.all<{
+      version_id: string;
+      version_number: number;
+      resolved_agent_id: string | null;
+      verified: number;
+      call_count: number;
+      total_cost_usd: number;
+      avg_latency_ms: number;
+      error_rate: number;
+    }>(sql`
+      SELECT
+        pv.id AS version_id,
+        pv.version_number,
+        COALESCE(json_extract(e.metadata, '$.verifiedAgentId'), e.agent_id) AS resolved_agent_id,
+        CASE WHEN json_extract(e.metadata, '$.verifiedAgentId') IS NOT NULL THEN 1 ELSE 0 END AS verified,
+        COUNT(DISTINCT e.id) AS call_count,
+        COALESCE(SUM(json_extract(r.payload, '$.costUsd')), 0) AS total_cost_usd,
+        COALESCE(AVG(json_extract(r.payload, '$.latencyMs')), 0) AS avg_latency_ms,
+        COALESCE(
+          CAST(SUM(CASE WHEN json_extract(r.payload, '$.finishReason') = 'error' THEN 1 ELSE 0 END) AS REAL)
+          / NULLIF(COUNT(DISTINCT e.id), 0),
+          0
+        ) AS error_rate
+      FROM prompt_versions pv
+      JOIN events e
+        ON json_extract(e.payload, '$.promptVersionId') = pv.id
+        AND e.event_type = 'llm_call'
+        AND e.tenant_id = ${tenantId}
+        AND e.timestamp BETWEEN ${fromDate} AND ${toDate}
+      LEFT JOIN events r
+        ON json_extract(r.payload, '$.callId') = json_extract(e.payload, '$.callId')
+        AND r.event_type = 'llm_response'
+        AND r.tenant_id = ${tenantId}
+      WHERE pv.template_id = ${templateId} AND pv.tenant_id = ${tenantId}
+      GROUP BY pv.id, resolved_agent_id
+      ORDER BY pv.version_number DESC, call_count DESC
+    `);
+
+    return rows.map((r) => ({
+      versionId: r.version_id,
+      versionNumber: r.version_number,
+      agentId: r.resolved_agent_id ?? 'unknown',
+      verified: r.verified === 1,
+      callCount: r.call_count,
+      totalCostUsd: r.total_cost_usd,
+      avgLatencyMs: r.avg_latency_ms,
+      errorRate: r.error_rate,
+    }));
   }
 }

@@ -1013,6 +1013,32 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_fp_tenant ON prompt_fingerprints(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_fp_agent ON prompt_fingerprints(tenant_id, agent_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_fp_template ON prompt_fingerprints(template_id)`);
+
+  // ─── Prompt deploy ledger (#120) ───────────────────────────
+  // Append-only, server-authored hash chain per (tenant_id, environment).
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS prompt_deployments (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      template_id TEXT NOT NULL,
+      environment TEXT NOT NULL,
+      version_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'committed',
+      actor_id TEXT,
+      actor_method TEXT,
+      approver_id TEXT,
+      approval_ref TEXT,
+      note TEXT,
+      seq INTEGER NOT NULL,
+      prev_hash TEXT,
+      hash TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_prompt_deploy_chain_seq ON prompt_deployments(tenant_id, environment, seq)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_deploy_tenant_env ON prompt_deployments(tenant_id, environment)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_deploy_template ON prompt_deployments(tenant_id, template_id, environment)`);
 }
 
 /**

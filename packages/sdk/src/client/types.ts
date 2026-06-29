@@ -101,6 +101,10 @@ export interface LogLlmCallParams {
   tools?: Array<{ name: string; description?: string; parameters?: Record<string, unknown> }>;
   /** If true, prompt/completion content is stripped (redacted) before sending */
   redact?: boolean;
+  /** Link this call to a registered prompt template (#120 — powers per-version/per-agent analytics). */
+  promptTemplateId?: string;
+  /** Link this call to a specific prompt version (#120). */
+  promptVersionId?: string;
 }
 
 export interface LlmAnalyticsParams {

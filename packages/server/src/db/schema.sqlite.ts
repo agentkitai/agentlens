@@ -555,6 +555,39 @@ export const promptFingerprints = sqliteTable(
   ],
 );
 
+// ─── Prompt deploy ledger (#120) ─────────────────────────
+// Append-only, server-authored hash chain per (tenant_id, environment): a
+// tamper-evident record of which version was deployed/rolled-back to which
+// environment, by whom, and (for gated envs) approved by whom. The live
+// version per environment is DERIVED from this ledger (latest committed row),
+// not a mutable pointer.
+export const promptDeployments = sqliteTable(
+  'prompt_deployments',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    templateId: text('template_id').notNull(),
+    environment: text('environment').notNull(),
+    versionId: text('version_id').notNull(),
+    action: text('action').notNull(), // 'deploy' | 'rollback'
+    status: text('status').notNull().default('committed'), // 'committed' | 'denied'
+    actorId: text('actor_id'),
+    actorMethod: text('actor_method'),
+    approverId: text('approver_id'),
+    approvalRef: text('approval_ref'),
+    note: text('note'),
+    seq: integer('seq').notNull(), // monotonic per (tenant, environment) chain
+    prevHash: text('prev_hash'), // null for the first row in a chain
+    hash: text('hash').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_prompt_deploy_chain_seq').on(table.tenantId, table.environment, table.seq),
+    index('idx_prompt_deploy_tenant_env').on(table.tenantId, table.environment),
+    index('idx_prompt_deploy_template').on(table.tenantId, table.templateId, table.environment),
+  ],
+);
+
 // ─── Audit Log Table (SH-2) ──────────────────────────────
 export const auditLog = sqliteTable(
   'audit_log',
