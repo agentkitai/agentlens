@@ -136,6 +136,14 @@ export function runMigrations(db: SqliteDb): void {
   if (!sessionColumnNames.has('total_output_tokens')) {
     db.run(sql`ALTER TABLE sessions ADD COLUMN total_output_tokens INTEGER NOT NULL DEFAULT 0`);
   }
+  // org→project scoping (#147)
+  if (!sessionColumnNames.has('org_id')) {
+    db.run(sql`ALTER TABLE sessions ADD COLUMN org_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+  if (!sessionColumnNames.has('project_id')) {
+    db.run(sql`ALTER TABLE sessions ADD COLUMN project_id TEXT`);
+    db.run(sql`UPDATE sessions SET project_id = tenant_id WHERE project_id IS NULL`);
+  }
 
   // ─── Tenant isolation migration (Epic 1) ──────────────────
   // Add tenant_id to all data tables for multi-tenant support
@@ -195,6 +203,14 @@ export function runMigrations(db: SqliteDb): void {
   const agentColumnNames = new Set(agentColumns.map((c) => c.name));
   if (!agentColumnNames.has('tenant_id')) {
     db.run(sql`ALTER TABLE agents ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+  // org→project scoping (#147)
+  if (!agentColumnNames.has('org_id')) {
+    db.run(sql`ALTER TABLE agents ADD COLUMN org_id TEXT NOT NULL DEFAULT 'default'`);
+  }
+  if (!agentColumnNames.has('project_id')) {
+    db.run(sql`ALTER TABLE agents ADD COLUMN project_id TEXT`);
+    db.run(sql`UPDATE agents SET project_id = tenant_id WHERE project_id IS NULL`);
   }
 
   // alert_rules.tenant_id

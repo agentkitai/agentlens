@@ -312,6 +312,8 @@ export class PostgresEventStore implements IEventStore {
           totalCostUsd: 0,
           tags: tags,
           tenantId,
+          orgId: 'default', // #147
+          projectId: tenantId, // #147
         })
         .onConflictDoUpdate({
           target: [sessions.id, sessions.tenantId],
@@ -339,6 +341,8 @@ export class PostgresEventStore implements IEventStore {
         totalCostUsd: 0,
         tags: [],
         tenantId,
+        orgId: 'default', // #147
+        projectId: tenantId, // #147
       })
       .onConflictDoNothing({ target: [sessions.id, sessions.tenantId] });
 
@@ -401,6 +405,8 @@ export class PostgresEventStore implements IEventStore {
         lastSeenAt: event.timestamp,
         sessionCount: event.eventType === 'session_started' ? 1 : 0,
         tenantId,
+        orgId: 'default', // #147
+        projectId: tenantId, // #147
       })
       .onConflictDoUpdate({
         target: [agents.id, agents.tenantId],
@@ -569,6 +575,8 @@ export class PostgresEventStore implements IEventStore {
         totalOutputTokens: session.totalOutputTokens ?? 0,
         tags: session.tags ?? [],
         tenantId,
+        orgId: 'default', // #147
+        projectId: tenantId, // #147
       });
     }
     });
@@ -661,6 +669,8 @@ export class PostgresEventStore implements IEventStore {
         lastSeenAt: agent.lastSeenAt ?? now,
         sessionCount: agent.sessionCount ?? 0,
         tenantId,
+        orgId: 'default', // #147
+        projectId: tenantId, // #147
       });
     }
   }
