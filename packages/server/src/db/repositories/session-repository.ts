@@ -3,10 +3,10 @@
  * Extracted from SqliteEventStore (Story S-7.4).
  */
 
-import { eq, and, gte, lte, desc, sql, count as drizzleCount } from 'drizzle-orm';
+import { eq, and, gte, desc, sql, count as drizzleCount } from 'drizzle-orm';
 import type { AgentLensEvent, Session, SessionQuery } from '@agentkitai/agentlens-core';
 import type { SqliteDb } from '../index.js';
-import { events, sessions } from '../schema.sqlite.js';
+import { sessions } from '../schema.sqlite.js';
 import { buildSessionConditions, mapSessionRow } from '../shared/query-helpers.js';
 import { createLogger } from '../../lib/logger.js';
 
