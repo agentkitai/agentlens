@@ -65,7 +65,10 @@ describe('[F9-S1] Auditor Role RBAC', () => {
   it('isRoleAllowed works for auditor', async () => {
     const { isRoleAllowed } = await import('../cloud/auth/rbac.js');
     expect(isRoleAllowed('auditor', 'read')).toBe(true);
-    expect(isRoleAllowed('auditor', 'manage')).toBe(true);
+    // #147: auditor gets a dedicated 'audit' grant (audit trail / compliance /
+    // evidence) rather than full 'manage' (no API keys / connections / orgs).
+    expect(isRoleAllowed('auditor', 'audit')).toBe(true);
+    expect(isRoleAllowed('auditor', 'manage')).toBe(false);
     expect(isRoleAllowed('auditor', 'write')).toBe(false);
     expect(isRoleAllowed('auditor', 'billing')).toBe(false);
   });
