@@ -16,7 +16,9 @@ export interface Identity {
   role: Role;
 }
 
-export type Role = 'viewer' | 'editor' | 'admin' | 'owner';
+// Unified role model (#147). Canonical: owner · admin · member · viewer · auditor.
+// 'editor' is a DEPRECATED alias for 'member' (kept so existing tokens/keys work).
+export type Role = 'owner' | 'admin' | 'member' | 'viewer' | 'auditor' | 'editor';
 
 export type Permission =
   | 'events:read' | 'events:write'
@@ -27,7 +29,11 @@ export type Permission =
   | 'users:manage'
   | 'guardrails:read' | 'guardrails:write'
   | 'lessons:read' | 'lessons:write'
+  | 'audit:read' | 'audit:export'
   | '*';
+
+/** Coarse permission categories (the cloud guard model, folded in by #147). */
+export type RoleCategory = 'read' | 'write' | 'manage' | 'billing' | 'audit';
 
 export interface AuthConfig {
   oidc: {
