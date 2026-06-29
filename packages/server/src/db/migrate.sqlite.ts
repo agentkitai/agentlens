@@ -1175,6 +1175,66 @@ export function runMigrations(db: SqliteDb): void {
     )
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_llm_connections_tenant ON llm_connections(tenant_id)`);
+
+  // ─── Org → project → member hierarchy (#147, sub-PR 1) ───
+  // The SQLite mirror of the cloud org model + a new `projects` tier. Additive:
+  // org_id/project_id columns on data tables + TenantScopedStore wiring land in a
+  // follow-up sub-PR. 'auditor' is added to the role set in the role-unification PR.
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS orgs (
+      id         TEXT PRIMARY KEY,
+      name       TEXT NOT NULL,
+      slug       TEXT NOT NULL,
+      plan       TEXT NOT NULL DEFAULT 'free',
+      settings   TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_orgs_slug ON orgs(slug)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS projects (
+      id         TEXT PRIMARY KEY,
+      org_id     TEXT NOT NULL,
+      name       TEXT NOT NULL,
+      slug       TEXT NOT NULL,
+      settings   TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(org_id)`);
+  db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_org_slug ON projects(org_id, slug)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS org_members (
+      org_id     TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      role       TEXT NOT NULL DEFAULT 'member',
+      invited_by TEXT,
+      joined_at  TEXT NOT NULL,
+      PRIMARY KEY (org_id, user_id)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS project_members (
+      project_id TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      role       TEXT NOT NULL,
+      joined_at  TEXT NOT NULL,
+      PRIMARY KEY (project_id, user_id)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id)`);
+
+  // Backfill the default org + project so existing single-tenant ('default') data
+  // has a home once scoping moves to (org_id, project_id).
+  const nowOrg = new Date().toISOString();
+  db.run(sql`INSERT OR IGNORE INTO orgs (id, name, slug, plan, settings, created_at, updated_at) VALUES ('default', 'Default', 'default', 'free', '{}', ${nowOrg}, ${nowOrg})`);
+  db.run(sql`INSERT OR IGNORE INTO projects (id, org_id, name, slug, settings, created_at, updated_at) VALUES ('default', 'default', 'Default', 'default', '{}', ${nowOrg}, ${nowOrg})`);
 }
 
 /**
