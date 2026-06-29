@@ -1,16 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { ROLE_PERMISSIONS, hasPermission } from '../rbac.js';
-import type { Permission, Role } from '../types.js';
+import { ROLE_PERMISSIONS, hasPermission, hasCategory, normalizeRole, categoriesForRole } from '../rbac.js';
+import type { Permission } from '../types.js';
 
 describe('ROLE_PERMISSIONS', () => {
-  it('defines permissions for all four roles', () => {
+  it('defines permissions for the unified role set', () => {
     expect(Object.keys(ROLE_PERMISSIONS).sort()).toEqual([
-      'admin', 'editor', 'owner', 'viewer',
+      'admin', 'auditor', 'editor', 'member', 'owner', 'viewer',
     ]);
   });
 
   it('owner has wildcard only', () => {
     expect(ROLE_PERMISSIONS.owner).toEqual(['*']);
+  });
+});
+
+describe('unified role model (#147)', () => {
+  it("treats 'editor' as a deprecated alias for 'member'", () => {
+    expect(normalizeRole('editor')).toBe('member');
+    expect(ROLE_PERMISSIONS.editor).toEqual(ROLE_PERMISSIONS.member);
+  });
+
+  it('auditor can read + pull audit evidence but not write', () => {
+    expect(hasPermission(ROLE_PERMISSIONS.auditor, 'events:read')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.auditor, 'audit:read')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.auditor, 'audit:export')).toBe(true);
+    expect(hasPermission(ROLE_PERMISSIONS.auditor, 'events:write')).toBe(false);
+  });
+
+  it('maps roles to coarse categories', () => {
+    expect(categoriesForRole('viewer')).toEqual(['read']);
+    expect(hasCategory('member', 'write')).toBe(true);
+    expect(hasCategory('member', 'manage')).toBe(false);
+    expect(hasCategory('admin', 'manage')).toBe(true);
+    expect(hasCategory('auditor', 'audit')).toBe(true);
+    expect(hasCategory('owner', 'billing')).toBe(true);
+  });
+
+  it('normalizes unknown roles to viewer', () => {
+    expect(normalizeRole('nonsense')).toBe('viewer');
+    expect(normalizeRole(undefined)).toBe('viewer');
   });
 });
 

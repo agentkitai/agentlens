@@ -6,9 +6,18 @@ export type {
   IdentityType,
   Permission,
   Role,
+  RoleCategory,
 } from './types.js';
 
-export { ROLE_PERMISSIONS, hasPermission } from './rbac.js';
+export {
+  ROLE_PERMISSIONS,
+  ROLE_CATEGORIES,
+  hasPermission,
+  hasCategory,
+  normalizeRole,
+  permissionsForRole,
+  categoriesForRole,
+} from './rbac.js';
 export { requirePermission, createAuthMiddleware } from './middleware/hono.js';
 export type { ResolvedUser, CreateAuthMiddlewareOptions } from './middleware/hono.js';
 export { getAuthMode } from './config.js';
