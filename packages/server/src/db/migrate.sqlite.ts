@@ -1146,6 +1146,26 @@ export function runMigrations(db: SqliteDb): void {
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_chain_anchors_tenant_session ON chain_anchors(tenant_id, session_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_chain_anchors_tenant_tsmax ON chain_anchors(tenant_id, ts_max)`);
+
+  // ─── LLM connections — bring-your-own provider keys (#143) ───
+  // `encrypted_key` is AES-256-GCM (lib/secret-box); the plaintext key is never
+  // stored or returned by the API (only `key_last4` is shown).
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS llm_connections (
+      id            TEXT PRIMARY KEY,
+      tenant_id     TEXT NOT NULL DEFAULT 'default',
+      provider      TEXT NOT NULL,
+      name          TEXT NOT NULL,
+      base_url      TEXT,
+      default_model TEXT,
+      encrypted_key TEXT NOT NULL,
+      key_last4     TEXT NOT NULL,
+      created_by    TEXT,
+      created_at    TEXT NOT NULL,
+      updated_at    TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_llm_connections_tenant ON llm_connections(tenant_id)`);
 }
 
 /**

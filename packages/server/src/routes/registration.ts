@@ -33,6 +33,7 @@ import { contextRoutes } from './context.js';
 import { optimizeRoutes } from './optimize.js';
 import { healthRoutes } from './health.js';
 import { exportsRoutes } from './exports.js';
+import { llmConnectionsRoutes } from './llm-connections.js';
 import { getJwks } from '../lib/export-signing.js';
 import { diagnoseRoutes } from './diagnose.js';
 import { registerReplayRoutes } from './replay.js';
@@ -304,6 +305,11 @@ export async function registerRoutes(
   // no auth and verify an export without trusting our server.
   app.get('/.well-known/jwks.json', (c) => c.json(getJwks()));
   app.route('/api/exports', exportsRoutes(store));
+
+  // ─── LLM connections — bring-your-own provider keys (#143) ───
+  if (db) {
+    app.route('/api/llm-connections', llmConnectionsRoutes(db));
+  }
 
   // ─── Cloud org routes with org access validation [F6-fix] ──
   if (config?.pgSql) {

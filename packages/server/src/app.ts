@@ -194,6 +194,8 @@ export async function createApp(
     app.use('/api/audit', manageGuard);
     app.use('/api/compliance/*', manageGuard);
     app.use('/api/compliance', manageGuard);
+    app.use('/api/llm-connections/*', manageGuard);
+    app.use('/api/llm-connections', manageGuard);
     const configGuard = requireCategoryByMethod({ GET: 'read', PUT: 'manage', PATCH: 'manage' });
     app.use('/api/config/*', configGuard);
     app.use('/api/config', configGuard);
