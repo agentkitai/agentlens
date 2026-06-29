@@ -184,6 +184,9 @@ importers:
       '@agentkitai/agentlens-core':
         specifier: workspace:*
         version: link:../core
+      '@agentkitai/pricing':
+        specifier: workspace:*
+        version: link:../pricing
 
   packages/sdk-integration-tests:
     devDependencies:

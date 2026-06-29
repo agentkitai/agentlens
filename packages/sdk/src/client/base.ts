@@ -23,10 +23,15 @@ export class BaseClient {
   protected readonly failOpen: boolean;
   protected readonly onError: (error: Error) => void;
   protected readonly logger: { warn: (msg: string) => void };
+  /** AgentGate agent token → server-verified `verifiedAgentId` stamping (#123). */
+  protected readonly agentToken?: string;
+  protected readonly agentIngestKey?: string;
 
   constructor(options: AgentLensClientOptions) {
     this.baseUrl = options.url.replace(/\/+$/, '');
     this.apiKey = options.apiKey;
+    this.agentToken = options.agentToken;
+    this.agentIngestKey = options.agentIngestKey;
     this._fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.timeout = options.timeout ?? 30_000;
     this.retryConfig = {
@@ -79,6 +84,12 @@ export class BaseClient {
 
     if (!skipAuth && this.apiKey) {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+
+    // AgentGate agent credential → server-verified identity stamping (#123).
+    if (!skipAuth) {
+      if (this.agentToken) headers['X-Agent-Token'] = this.agentToken;
+      if (this.agentIngestKey) headers['X-Agent-Ingest-Key'] = this.agentIngestKey;
     }
 
     if (body != null) {

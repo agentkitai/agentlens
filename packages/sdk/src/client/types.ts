@@ -27,6 +27,14 @@ export interface AgentLensClientOptions {
   url: string;
   /** API key for authentication */
   apiKey?: string;
+  /**
+   * AgentGate agent token (JWT). Sent as `X-Agent-Token` so the server stamps a
+   * verified `verifiedAgentId` onto ingested events — a server-verified identity,
+   * not a self-asserted string (#123).
+   */
+  agentToken?: string;
+  /** Longer-lived AgentGate ingest key, sent as `X-Agent-Ingest-Key` (fallback). */
+  agentIngestKey?: string;
   /** Custom fetch implementation (defaults to global fetch) */
   fetch?: typeof globalThis.fetch;
   /** Request timeout in milliseconds (default: 30000) */

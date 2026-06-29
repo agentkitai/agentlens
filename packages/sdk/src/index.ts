@@ -29,6 +29,10 @@ export type {
 export { BatchSender } from './batch-sender.js';
 export type { BatchSenderOptions } from './batch-sender.js';
 
+// Drop-in instrumentation (#123): init() + provider wrappers in ./openai, ./vercel
+export { init, shutdown, getInstrumentation, Instrumentation } from './instrumentation.js';
+export type { InitConfig, LlmCapture } from './instrumentation.js';
+
 // Errors
 export {
   AgentLensError,

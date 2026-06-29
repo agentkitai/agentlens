@@ -83,13 +83,25 @@ class AgentLensClient:
     _BACKOFF_BASE = 1.0  # seconds
     _BACKOFF_MAX = 30.0
 
-    def __init__(self, url: str, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        url: str,
+        api_key: str | None = None,
+        *,
+        agent_token: str | None = None,
+        ingest_key: str | None = None,
+    ) -> None:
         self._base_url = url.rstrip("/")
         self._api_key = api_key
         self._logger = logging.getLogger("agentlensai")
         headers: dict[str, str] = {"Accept": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
+        # AgentGate agent credential → server-verified identity stamping (#123).
+        if agent_token:
+            headers["X-Agent-Token"] = agent_token
+        if ingest_key:
+            headers["X-Agent-Ingest-Key"] = ingest_key
         self._client = httpx.Client(base_url=self._base_url, headers=headers)
 
     def __enter__(self) -> AgentLensClient:

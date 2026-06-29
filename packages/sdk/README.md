@@ -125,6 +125,52 @@ try {
 }
 ```
 
+## Drop-in instrumentation (#123)
+
+Capture every model call with **one `init()`** — no manual `logLlmCall`. Each
+capture computes per-call cost at capture time (`@agentkitai/pricing`), is
+hash-chained via `/api/events`, and — when an AgentGate `agentToken` is supplied
+— carries a **server-verified** `verifiedAgentId`. Captures are fail-safe: a
+capture error never breaks your provider call.
+
+```ts
+import { init, shutdown } from '@agentkitai/agentlens-sdk';
+
+init({
+  url: 'http://localhost:3400',
+  apiKey: process.env.AGENTLENS_API_KEY,
+  agentId: 'my-agent',
+  agentToken: process.env.AGENTLENS_AGENT_TOKEN, // → verified identity
+});
+// ... run your agent ...
+await shutdown(); // flush in-flight captures before exit
+```
+
+### OpenAI Node SDK
+
+```ts
+import OpenAI from 'openai';
+import { instrumentOpenAI } from '@agentkitai/agentlens-sdk/openai';
+
+const openai = instrumentOpenAI(new OpenAI());
+await openai.chat.completions.create({ model: 'gpt-4o', messages: [...] });
+// streaming is captured too (set stream_options: { include_usage: true } for token cost)
+```
+
+### Vercel AI SDK
+
+```ts
+import { wrapLanguageModel } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { agentlensMiddleware } from '@agentkitai/agentlens-sdk/vercel';
+
+const model = wrapLanguageModel({ model: openai('gpt-4o'), middleware: agentlensMiddleware() });
+// generateText / streamText against `model` are captured (cost + identity)
+```
+
+> Wrappers are duck-typed — no `openai`/`ai` peer dependency. `generateText`,
+> `streamText`, and tool calls are captured; streams pass through unchanged.
+
 ## API Reference
 
 ### Events

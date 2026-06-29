@@ -14,6 +14,7 @@ from typing import Any
 
 from agentlensai._sender import LlmCallData
 from agentlensai.integrations.base_llm import BaseLLMInstrumentation, PatchTarget
+from agentlensai.integrations.pricing import cost_for
 from agentlensai.integrations.registry import register
 
 logger = logging.getLogger("agentlensai")
@@ -105,7 +106,12 @@ def _build_call_data(
         input_tokens=response.usage.input_tokens,
         output_tokens=response.usage.output_tokens,
         total_tokens=response.usage.input_tokens + response.usage.output_tokens,
-        cost_usd=0.0,
+        cost_usd=cost_for(
+            "anthropic",
+            response.model or str(model_hint),
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+        ),
         latency_ms=latency_ms,
         parameters=params,
     )
