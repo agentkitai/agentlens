@@ -52,6 +52,9 @@ export const events = pgTable(
     // ingest, stamped server-side on cost-bearing events. Lets reconciliation
     // tell whether a stored cost predates a price change. NULL for non-cost events.
     pricingVersion: text('pricing_version'),
+    // org→project scoping (#147) — parity with SQLite.
+    orgId: text('org_id').notNull().default('default'),
+    projectId: text('project_id'),
   },
   (table) => [
     index('idx_events_timestamp').on(table.timestamp),

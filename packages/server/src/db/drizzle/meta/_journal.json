@@ -36,6 +36,13 @@
       "when": 1740220800000,
       "tag": "0004_pricing_version",
       "breakpoints": false
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1740307200000,
+      "tag": "0005_org_project",
+      "breakpoints": false
     }
   ]
 }

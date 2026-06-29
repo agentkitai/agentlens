@@ -122,6 +122,10 @@ export class EventRepository {
             prevHash: event.prevHash,
             hash: event.hash,
             tenantId,
+            // org→project scoping (#147): a project IS the unit of isolation, so
+            // project_id == tenant_id; org_id groups projects (default org today).
+            orgId: 'default',
+            projectId: tenantId,
             // Derived projection of the hashed metadata — never hashed itself (#87).
             verifiedAgentId: metadataVerifiedAgentId(event.metadata),
             // Pricing provenance for cost-bearing events only (#89).

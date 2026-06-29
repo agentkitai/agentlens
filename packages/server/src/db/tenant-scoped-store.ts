@@ -23,10 +23,18 @@ import type { SqliteEventStore } from './sqlite-store.js';
 import type { PostgresEventStore } from './postgres-store.js';
 
 export class TenantScopedStore implements IEventStore {
+  /** Org/project scope (#147). project_id == tenant_id today; org groups projects. */
+  public readonly orgId: string;
+  public readonly projectId: string;
+
   constructor(
     private readonly inner: SqliteEventStore | PostgresEventStore,
     public readonly tenantId: string,
-  ) {}
+    scope?: { orgId?: string; projectId?: string },
+  ) {
+    this.orgId = scope?.orgId ?? 'default';
+    this.projectId = scope?.projectId ?? tenantId;
+  }
 
   // ─── Events ──────────────────────────────────────────────
 
