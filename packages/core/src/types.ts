@@ -1466,8 +1466,13 @@ export interface PromptVersion {
   id: string;
   templateId: string;
   versionNumber: number;
+  /** Text template, or (when promptType='chat') a JSON-encoded ChatMessage[]. */
   content: string;
   variables: PromptVariable[];
+  /** Per-prompt model/runtime config (#145) — see PromptConfig in prompt-compile. */
+  config?: Record<string, unknown>;
+  /** 'text' (default) or 'chat' (content is a JSON message array). */
+  promptType?: 'text' | 'chat';
   contentHash: string;
   changelog?: string;
   createdBy?: string;

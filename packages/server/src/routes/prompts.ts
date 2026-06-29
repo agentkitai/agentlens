@@ -26,6 +26,7 @@ import {
   isProtectedEnvironment,
 } from '../db/prompt-store.js';
 import type { SqliteDb } from '../db/index.js';
+import { compilePrompt, type PromptConfig, type VariableValues } from '@agentkitai/agentlens-core';
 import { verifyAgentTokenWithMethod } from '../lib/agent-identity.js';
 import { requestDeployApproval } from '../lib/prompt-deploy-approval.js';
 
@@ -62,6 +63,8 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       category: body.category,
       content: body.content,
       variables: body.variables,
+      config: body.config,
+      promptType: body.promptType === 'chat' ? 'chat' : undefined,
       createdBy: body.createdBy,
     };
 
@@ -147,6 +150,8 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
     const input: CreateVersionInput = {
       content: body.content,
       variables: body.variables,
+      config: body.config,
+      promptType: body.promptType === 'chat' ? 'chat' : undefined,
       changelog: body.changelog,
       createdBy: body.createdBy,
     };
@@ -167,6 +172,24 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       return c.json({ error: 'Version not found' }, 404);
     }
     return c.json({ version });
+  });
+
+  // POST /api/prompts/:id/compile — compile a version's {{variables}} + config (#145)
+  app.post('/:id/compile', async (c) => {
+    const tenantId = getTenantId(c);
+    const id = c.req.param('id');
+    const body = (await c.req.json().catch(() => ({}))) as { variables?: VariableValues; versionId?: string };
+    let version = body.versionId ? store.getVersion(body.versionId, tenantId) : null;
+    if (!version) {
+      const template = store.getTemplate(id, tenantId);
+      if (template?.currentVersionId) version = store.getVersion(template.currentVersionId, tenantId);
+    }
+    if (!version) return c.json({ error: 'Prompt version not found' }, 404);
+    const compiled = compilePrompt(
+      { type: version.promptType, content: version.content, variables: version.variables, config: version.config as PromptConfig | undefined },
+      body.variables ?? {},
+    );
+    return c.json({ compiled, versionId: version.id, versionNumber: version.versionNumber });
   });
 
   // GET /api/prompts/:id/analytics — Per-version analytics
