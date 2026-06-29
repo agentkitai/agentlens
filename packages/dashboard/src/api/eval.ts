@@ -1,8 +1,16 @@
 import { request, toQueryString, ApiError } from './core';
-import type { EvalDataset, EvalTestCase, EvalInput, ScorerConfig, EvaluatorDefinition, ScorerType } from '@agentkitai/agentlens-core';
+import type {
+  EvalDataset,
+  EvalTestCase,
+  EvalInput,
+  EvaluatorDefinition,
+  ScorerType,
+  EvalRun,
+  RegressionReport,
+} from '@agentkitai/agentlens-core';
 
 // Re-export for convenience
-export type { EvalDataset, EvalTestCase, EvaluatorDefinition, ScorerType };
+export type { EvalDataset, EvalTestCase, EvaluatorDefinition, ScorerType, EvalRun, RegressionReport };
 
 export interface EvalDatasetListResponse {
   datasets: EvalDataset[];
@@ -162,4 +170,36 @@ export async function deleteEvaluator(id: string): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
   });
   if (!res.ok) throw new ApiError(res.status, (await res.text().catch(() => '')) || `HTTP ${res.status}`);
+}
+
+// ─── Runs + regression comparison (#121) ────────────────────────
+
+export interface EvalRunListResponse {
+  runs: EvalRun[];
+  total: number;
+  hasMore: boolean;
+}
+
+export async function getEvalRuns(params?: {
+  datasetId?: string;
+  agentId?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<EvalRunListResponse> {
+  const qs = toQueryString({
+    datasetId: params?.datasetId,
+    agentId: params?.agentId,
+    limit: params?.limit,
+    offset: params?.offset,
+  });
+  return request<EvalRunListResponse>(`/api/eval/runs${qs}`);
+}
+
+export async function getEvalRun(id: string): Promise<EvalRun> {
+  return request<EvalRun>(`/api/eval/runs/${encodeURIComponent(id)}`);
+}
+
+export async function getRunComparison(runId: string, baselineRunId: string): Promise<RegressionReport> {
+  const qs = toQueryString({ baselineRunId });
+  return request<RegressionReport>(`/api/eval/runs/${encodeURIComponent(runId)}/compare${qs}`);
 }
