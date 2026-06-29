@@ -27,6 +27,13 @@ export interface AppendEventInput {
   severity: EventSeverity;
   payload: EventPayload;
   metadata?: Record<string, unknown>;
+  /**
+   * Record-integrity only (#122): emit with prevHash=null instead of linking to
+   * the session tail. For OTLP/unchained sessions, where synthesizing a chain
+   * link would be misleading (and would flip the session's `chained` flag).
+   * Default false ⇒ extend the session's hash chain.
+   */
+  unchained?: boolean;
 }
 
 export async function appendEventToSession(
@@ -37,7 +44,7 @@ export async function appendEventToSession(
   const timestamp = new Date().toISOString();
   const metadata = input.metadata ?? {};
   const payload = truncatePayload(input.payload) as EventPayload;
-  const prevHash = await store.getLastEventHash(input.sessionId);
+  const prevHash = input.unchained ? null : await store.getLastEventHash(input.sessionId);
 
   const hash = computeEventHash({
     id,

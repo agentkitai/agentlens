@@ -50,6 +50,9 @@ export type EventType =
   | 'error'
   // Eval / compliance scoring (server-emitted, hash-chained into the trace)
   | 'eval_result'
+  // Human review + end-user feedback (server-emitted, identity-stamped, chained) (#122)
+  | 'human_score'
+  | 'feedback'
   // Skill activation (e.g. Claude Code skills/plugins)
   | 'skill_activated'
   // Custom / extension
@@ -78,6 +81,8 @@ export const EVENT_TYPES: readonly EventType[] = [
   'alert_resolved',
   'error',
   'eval_result',
+  'human_score',
+  'feedback',
   'skill_activated',
   'custom',
 ] as const;
@@ -289,6 +294,62 @@ export interface CustomPayload {
 }
 
 /**
+ * Payload for a `human_score` event (#122) — a human (or agent) reviewer's
+ * judgment of a session/trace. The human counterpart to `eval_result`:
+ * server-emitted and chained, so the verdict is tamper-evident. Annotator
+ * identity is SERVER-SET (never client-trusted) — the request schema cannot
+ * carry these fields.
+ */
+export interface HumanScorePayload {
+  /** Evidence class — a human judgment (vs deterministic / llm_judge). */
+  method: 'human';
+  /** Normalized score in [0, 1] (optional when a categorical verdict is given). */
+  score?: number;
+  /** Categorical verdict (e.g. 'pass' | 'fail' | 'needs_review' or a custom label). */
+  verdict?: string;
+  /** Whether the reviewer marked the session/trace as passing. */
+  passed?: boolean;
+  /** The reviewer's free-text rationale. */
+  reasoning?: string;
+  /** Label tags applied by the reviewer. */
+  labels?: string[];
+  /** Catalog evaluator/rubric graded against (reuses the #55 evaluator catalog). */
+  evaluatorId?: string;
+  /** Trace/span scope within the session, when narrower than the whole session. */
+  traceId?: string;
+  /** Annotation-queue item this score resolved, when submitted via a queue. */
+  queueItemId?: string;
+  /** Server-set: OIDC/JWT human reviewer identity. */
+  annotatorUserId?: string;
+  annotatorRole?: string;
+  /** Server-set: AgentGate-verified agent reviewer identity. */
+  annotatorAgentId?: string;
+  annotatorMethod?: string;
+}
+
+/**
+ * Payload for a `feedback` event (#122) — end-user feedback bound to a session.
+ * Server-emitted; the session's verified agent id and (optional) end-user
+ * subject are SERVER-SET, never client-trusted.
+ */
+export interface FeedbackPayload {
+  /** Feedback shape: a numeric/star rating or a thumbs sentiment. */
+  kind: 'rating' | 'thumbs';
+  /** Numeric rating (e.g. 1–5) when kind='rating'. */
+  rating?: number;
+  /** Thumbs sentiment when kind='thumbs'. */
+  sentiment?: 'up' | 'down';
+  /** Optional free-text comment from the end user. */
+  comment?: string;
+  /** Server-set: the session's verified agent id (inherited from the session). */
+  verifiedAgentId?: string;
+  /** Server-set from a verified subject token — the end-user subject. Never client-trusted. */
+  subjectId?: string;
+  /** How the subject was verified. */
+  subjectMethod?: string;
+}
+
+/**
  * Payload for an `eval_result` event — the outcome of scoring a session (or a
  * dataset test case) against a scorer. Emitted server-side and hash-chained
  * into the session's audit trail so eval results are themselves tamper-evident
@@ -361,6 +422,8 @@ export type EventPayload =
   | AlertTriggeredPayload
   | AlertResolvedPayload
   | EvalResultPayload
+  | HumanScorePayload
+  | FeedbackPayload
   | SkillActivatedPayload
   | CustomPayload;
 

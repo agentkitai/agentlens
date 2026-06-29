@@ -416,6 +416,63 @@ export const evalRunRequestSchema = z.object({
 
 export type EvalRunRequest = z.infer<typeof evalRunRequestSchema>;
 
+// ─── Human scores + feedback (#122) ─────────────────────────────────
+// Client→server request bodies. They DELIBERATELY carry no identity fields:
+// the annotator/subject identity is resolved server-side from the authenticated
+// context (or a verified token) and stamped onto the server-emitted event, so a
+// caller cannot self-report or spoof "who scored this".
+
+/**
+ * Record a human review of a session/trace. Identity (userId+role for humans,
+ * verifiedAgentId for agent reviewers) is server-set, not in this body.
+ */
+export const humanScoreRequestSchema = z
+  .object({
+    /** Normalized score in [0, 1] (optional when a categorical verdict is given). */
+    score: z.number().min(0).max(1).optional(),
+    /** Categorical verdict, e.g. 'pass' | 'fail' | 'needs_review' or a custom label. */
+    verdict: z.string().min(1).max(64).optional(),
+    /** Explicit pass/fail; otherwise derived from score (≥0.5) / verdict. */
+    passed: z.boolean().optional(),
+    reasoning: z.string().max(5000).optional(),
+    labels: z.array(z.string().min(1).max(64)).max(50).optional(),
+    /** Catalog evaluator/rubric the human graded against (#55 Phase 4). */
+    evaluatorId: z.string().min(1).optional(),
+    /** Trace/span scope within the session. */
+    traceId: z.string().min(1).optional(),
+    /** Annotation-queue item this review resolves, when submitted via a queue. */
+    queueItemId: z.string().min(1).optional(),
+  })
+  .refine((v) => v.score !== undefined || v.verdict !== undefined || v.passed !== undefined, {
+    message: 'provide a score, verdict, or passed',
+    path: ['score'],
+  });
+
+export type HumanScoreRequest = z.infer<typeof humanScoreRequestSchema>;
+
+/**
+ * End-user feedback on a session. The session's verified agent id is inherited
+ * server-side; an optional `subjectToken` (verified server-side) identifies the
+ * end user — the raw subject id is never client-trusted.
+ */
+export const feedbackRequestSchema = z
+  .object({
+    kind: z.enum(['rating', 'thumbs']).optional(),
+    /** Numeric rating (e.g. 1–5) when kind='rating'. */
+    rating: z.number().optional(),
+    /** Thumbs sentiment when kind='thumbs'. */
+    sentiment: z.enum(['up', 'down']).optional(),
+    comment: z.string().max(5000).optional(),
+    /** Verified end-user subject token; server verifies + sets the subject id. */
+    subjectToken: z.string().min(1).optional(),
+  })
+  .refine((v) => v.rating !== undefined || v.sentiment !== undefined || (v.comment?.trim().length ?? 0) > 0, {
+    message: 'provide a rating, sentiment, or comment',
+    path: ['rating'],
+  });
+
+export type FeedbackRequest = z.infer<typeof feedbackRequestSchema>;
+
 // ─── Evaluator Catalog (#55 Phase 4) ────────────────────────────────
 
 const scorerTypeSchema = z.enum([
