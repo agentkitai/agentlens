@@ -17,12 +17,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { SessionStatus } from '@agentkitai/agentlens-core';
-import { getSessionReplay } from '../api/client';
-import type { SessionReplayData } from '../api/client';
+import { getSessionReplay, getSessionTrace } from '../api/client';
+import type { SessionReplayData, SessionTrace } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import { ReplayControls } from '../components/replay/ReplayControls';
 import { ReplayScrubber } from '../components/replay/ReplayScrubber';
 import { ReplayTimeline } from '../components/replay/ReplayTimeline';
+import { TraceTree, hasTraceData } from '../components/TraceTree';
 import { ContextPanel } from '../components/replay/ContextPanel';
 import { BookmarkProvider, useBookmarks } from '../components/replay/BookmarkProvider';
 import { SearchBar } from '../components/search/SearchBar';
@@ -111,6 +112,7 @@ export function SessionReplay(): React.ReactElement | null {
 
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
 
   // Fetch replay data
   const {
@@ -118,6 +120,12 @@ export function SessionReplay(): React.ReactElement | null {
     loading,
     error,
   } = useApi<SessionReplayData>(() => getSessionReplay(sessionId!), [sessionId]);
+
+  // Server-assembled execution tree (#119) — fetched only when Tree view is open.
+  const { data: trace, loading: traceLoading } = useApi<SessionTrace | null>(
+    () => (viewMode === 'tree' && sessionId ? getSessionTrace(sessionId) : Promise.resolve(null)),
+    [sessionId, viewMode],
+  );
 
   // Clamp step to valid range when data loads
   const totalSteps = replay?.events.length ?? 0;
@@ -237,6 +245,7 @@ export function SessionReplay(): React.ReactElement | null {
   if (!replay) return null;
 
   const { session, events } = replay;
+  const hasTrace = hasTraceData(events);
 
   // [F11-S1] Search-filtered events for count display
   const searchFilteredCount = useMemo(() => {
@@ -305,6 +314,21 @@ export function SessionReplay(): React.ReactElement | null {
           currentIndex={clampedStep}
           onNavigate={handleErrorNavigate}
         />
+        {hasTrace && (
+          <div className="inline-flex rounded-full border border-gray-300 bg-white p-0.5 text-sm">
+            {(['list', 'tree'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-3 py-1 rounded-full transition-colors ${
+                  viewMode === mode ? 'bg-blue-100 text-blue-800 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {mode === 'list' ? '≣ List' : '🌳 Tree'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Replay controls */}
@@ -325,15 +349,36 @@ export function SessionReplay(): React.ReactElement | null {
 
       {/* Timeline + Context Panel */}
       <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" style={{ height: 'calc(100vh - 340px)', minHeight: 400 }}>
-        {/* Left: ReplayTimeline */}
+        {/* Left: ReplayTimeline (list) or TraceTree (tree/waterfall, #119) */}
         <div className="flex-1 min-w-0 overflow-hidden">
-          <ReplayTimeline
-            events={events}
-            currentStep={clampedStep}
-            onStepChange={handleStepChange}
-            sessionStartTime={session.startedAt}
-            searchQuery={searchQuery}
-          />
+          {viewMode === 'tree' && hasTrace ? (
+            <div className="h-full overflow-auto p-3">
+              {traceLoading && !trace ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                </div>
+              ) : trace ? (
+                <TraceTree
+                  tree={trace.tree}
+                  events={events}
+                  chained={trace.chained}
+                  selectedEventId={events[clampedStep]?.id}
+                  onSelectEvent={(ev) => {
+                    const idx = events.findIndex((e) => e.id === ev.id);
+                    if (idx >= 0) handleStepChange(idx);
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : (
+            <ReplayTimeline
+              events={events}
+              currentStep={clampedStep}
+              onStepChange={handleStepChange}
+              sessionStartTime={session.startedAt}
+              searchQuery={searchQuery}
+            />
+          )}
         </div>
 
         {/* Right: ContextPanel */}

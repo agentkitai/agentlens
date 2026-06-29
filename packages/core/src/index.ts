@@ -14,6 +14,9 @@ export * from './schemas.js';
 // Re-export hash chain utilities
 export * from './hash.js';
 
+// Re-export trace-tree assembly (#119 — nested execution traces)
+export * from './trace-tree.js';
+
 // Re-export event creation helpers
 export * from './events.js';
 

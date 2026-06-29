@@ -7,7 +7,7 @@
  */
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { verifyChain, verifyRecords, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentkitai/agentlens-core';
+import { verifyChain, verifyRecords, assembleTrace, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@agentkitai/agentlens-core';
 import type { SessionQuery, SessionStatus } from '@agentkitai/agentlens-core';
 import type { IEventStore } from '@agentkitai/agentlens-core';
 import type { AuthVariables } from '../middleware/auth.js';
@@ -16,10 +16,10 @@ import { ErrorResponseSchema } from '../schemas/common.js';
 import {
   SessionQuerySchema,
   SessionListResponseSchema,
-  SessionCountResponseSchema,
   SessionIdParamSchema,
   SessionSchema,
   SessionTimelineResponseSchema,
+  SessionTraceResponseSchema,
 } from '../schemas/sessions.js';
 
 // ─── Route definitions ──────────────────────────────────
@@ -81,6 +81,30 @@ const getSessionTimelineRoute = createRoute({
     200: {
       description: 'Session timeline with chain verification',
       content: { 'application/json': { schema: SessionTimelineResponseSchema } },
+    },
+    404: {
+      description: 'Session not found',
+      content: { 'application/json': { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+const getSessionTraceRoute = createRoute({
+  operationId: 'getSessionTrace',
+  method: 'get',
+  path: '/{id}/trace',
+  tags: ['Sessions'],
+  summary: 'Get session execution trace tree',
+  description:
+    'Reconstructs the parent/child span hierarchy from already-stored events into a collapsible execution tree with per-subtree latency + cost rollups and verified-agent delegation flags (#119). No span table — assembled on read.',
+  security: [{ Bearer: [] }],
+  request: {
+    params: SessionIdParamSchema,
+  },
+  responses: {
+    200: {
+      description: 'Execution trace tree with integrity status',
+      content: { 'application/json': { schema: SessionTraceResponseSchema } },
     },
     404: {
       description: 'Session not found',
@@ -178,6 +202,29 @@ export function sessionsRoutes(store: IEventStore) {
       events: timeline,
       chainValid: chainResult.valid,
       // null prevHash throughout ⇒ telemetry ingest, not a tamper-evident chain.
+      chained: !unchained,
+    } as any);
+  });
+
+  // GET /:id/trace — execution trace tree (#119)
+  app.openapi(getSessionTraceRoute, async (c) => {
+    const tenantStore = getTenantStore(store, c as any);
+    const { id } = c.req.valid('param');
+
+    const session = await tenantStore.getSession(id);
+    if (!session) {
+      return c.json({ error: 'Session not found', status: 404 } as any, 404);
+    }
+
+    const timeline = await tenantStore.getSessionTimeline(id);
+    // Same integrity semantics as /timeline: OTLP sessions are unchained
+    // (record-integrity only), SDK sessions keep the linear-chain check.
+    const unchained = timeline.length > 0 && timeline.every((e) => e.prevHash === null);
+    const chainResult = unchained ? verifyRecords(timeline) : verifyChain(timeline);
+
+    return c.json({
+      tree: assembleTrace(timeline),
+      chainValid: chainResult.valid,
       chained: !unchained,
     } as any);
   });
