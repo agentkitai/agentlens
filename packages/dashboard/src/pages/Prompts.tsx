@@ -9,7 +9,7 @@
  *  - Create Template button
  *  - Row click → /prompts/:id
  */
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import {
@@ -203,10 +203,14 @@ export function Prompts(): React.ReactElement {
     data: fingerprints,
     loading: fpLoading,
     error: fpError,
+    refetch: refetchFp,
   } = useApi<PromptFingerprint[]>(
     () => (tab === 'discovered' ? getPromptFingerprints() : Promise.resolve([])),
     [tab],
   );
+
+  // Fingerprint being linked to a template (#120 — replaces window.prompt).
+  const [linkFp, setLinkFp] = useState<PromptFingerprint | null>(null);
 
   const templates = data?.templates ?? [];
   const total = data?.total ?? 0;
@@ -444,16 +448,7 @@ export function Prompts(): React.ReactElement {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => {
-                          const templateId = prompt('Enter template ID to link:');
-                          if (templateId) {
-                            linkFingerprintToTemplate(fp.contentHash, templateId).then(() => {
-                              // Refetch by switching tabs
-                              setTab('templates');
-                              setTimeout(() => setTab('discovered'), 100);
-                            });
-                          }
-                        }}
+                        onClick={() => setLinkFp(fp)}
                         className="text-xs text-brand-600 hover:text-brand-800 font-medium whitespace-nowrap"
                       >
                         Link to Template
@@ -474,6 +469,88 @@ export function Prompts(): React.ReactElement {
           onCreated={() => refetch()}
         />
       )}
+
+      {linkFp && (
+        <LinkFingerprintModal
+          fp={linkFp}
+          templates={templates}
+          onClose={() => setLinkFp(null)}
+          onLinked={() => {
+            setLinkFp(null);
+            refetchFp();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function LinkFingerprintModal({
+  fp,
+  templates,
+  onClose,
+  onLinked,
+}: {
+  fp: PromptFingerprint;
+  templates: PromptTemplate[];
+  onClose: () => void;
+  onLinked: () => void;
+}) {
+  const [templateId, setTemplateId] = useState(templates[0]?.id ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function link() {
+    if (!templateId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await linkFingerprintToTemplate(fp.contentHash, templateId);
+      onLinked();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Link to Template</h2>
+        <p className="text-xs text-gray-400 mb-4 font-mono break-all">{fp.contentHash.slice(0, 24)}…</p>
+        {templates.length === 0 ? (
+          <p className="text-sm text-gray-600">No templates on this page — create one or adjust the filter first.</p>
+        ) : (
+          <label className="block text-sm text-gray-700">
+            Template
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="block w-full mt-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {error && <div className="mt-3 text-sm text-red-700">{error}</div>}
+        <div className="flex justify-end gap-3 mt-5">
+          <button onClick={onClose} className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded">
+            Cancel
+          </button>
+          <button
+            onClick={link}
+            disabled={busy || !templateId}
+            className="px-3 py-1.5 text-sm rounded bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50"
+          >
+            Link
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

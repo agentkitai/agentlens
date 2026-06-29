@@ -3,10 +3,22 @@ import type {
   PromptTemplate,
   PromptVersion,
   PromptVersionAnalytics,
+  PromptDeployment,
+  PromptEnvironment,
+  PromptAgentUsage,
+  DeployLedgerVerifyResult,
 } from '@agentkitai/agentlens-core';
 
 // Re-export core types for convenience
-export type { PromptTemplate, PromptVersion, PromptVersionAnalytics };
+export type {
+  PromptTemplate,
+  PromptVersion,
+  PromptVersionAnalytics,
+  PromptDeployment,
+  PromptEnvironment,
+  PromptAgentUsage,
+  DeployLedgerVerifyResult,
+};
 
 // ─── Response types ─────────────────────────────────────────────
 
@@ -52,6 +64,8 @@ export async function getPrompts(params?: {
 export async function getPrompt(id: string): Promise<{
   template: PromptTemplate;
   versions: PromptVersion[];
+  /** environment → live version id (#120). */
+  liveVersions?: Record<string, string>;
 }> {
   return request(`/api/prompts/${encodeURIComponent(id)}`);
 }
@@ -128,4 +142,60 @@ export async function linkFingerprintToTemplate(
     method: 'POST',
     body: JSON.stringify({ templateId }),
   });
+}
+
+// ─── Deploy lifecycle (#120) ────────────────────────────────────
+
+export async function getPromptEnvironments(): Promise<PromptEnvironment[]> {
+  const r = await request<{ environments: PromptEnvironment[] }>('/api/prompts/environments');
+  return r.environments;
+}
+
+export async function getPromptDeployments(
+  templateId: string,
+  environment?: string,
+): Promise<PromptDeployment[]> {
+  const qs = toQueryString({ environment });
+  const r = await request<{ deployments: PromptDeployment[] }>(
+    `/api/prompts/${encodeURIComponent(templateId)}/deployments${qs}`,
+  );
+  return r.deployments;
+}
+
+export async function deployPromptVersion(
+  templateId: string,
+  data: { environment: string; versionId: string; note?: string },
+): Promise<PromptDeployment> {
+  const r = await request<{ deployment: PromptDeployment }>(
+    `/api/prompts/${encodeURIComponent(templateId)}/deploy`,
+    { method: 'POST', body: JSON.stringify(data) },
+  );
+  return r.deployment;
+}
+
+export async function rollbackPromptVersion(
+  templateId: string,
+  data: { environment: string; toVersionId: string; note?: string },
+): Promise<PromptDeployment> {
+  const r = await request<{ deployment: PromptDeployment }>(
+    `/api/prompts/${encodeURIComponent(templateId)}/rollback`,
+    { method: 'POST', body: JSON.stringify(data) },
+  );
+  return r.deployment;
+}
+
+export async function verifyDeployLedger(environment: string): Promise<DeployLedgerVerifyResult> {
+  const qs = toQueryString({ environment });
+  return request<DeployLedgerVerifyResult>(`/api/prompts/deployments/verify${qs}`);
+}
+
+export async function getPromptAgentUsage(
+  templateId: string,
+  params?: { from?: string; to?: string },
+): Promise<PromptAgentUsage[]> {
+  const qs = toQueryString({ from: params?.from, to: params?.to });
+  const r = await request<{ usage: PromptAgentUsage[] }>(
+    `/api/prompts/${encodeURIComponent(templateId)}/analytics/by-agent${qs}`,
+  );
+  return r.usage;
 }

@@ -558,6 +558,37 @@ export const promptFingerprints = pgTable(
   ],
 );
 
+// ─── Prompt deploy ledger (#120) ─────────────────────────
+// Parity with SQLite (prompt management is SQLite-backed today; defined here so
+// the Postgres schema stays complete). Append-only hash chain per
+// (tenant_id, environment); live version per env is derived from the ledger.
+export const promptDeployments = pgTable(
+  'prompt_deployments',
+  {
+    id: text('id').primaryKey(),
+    tenantId: text('tenant_id').notNull(),
+    templateId: text('template_id').notNull(),
+    environment: text('environment').notNull(),
+    versionId: text('version_id').notNull(),
+    action: text('action').notNull(),
+    status: text('status').notNull().default('committed'),
+    actorId: text('actor_id'),
+    actorMethod: text('actor_method'),
+    approverId: text('approver_id'),
+    approvalRef: text('approval_ref'),
+    note: text('note'),
+    seq: integer('seq').notNull(),
+    prevHash: text('prev_hash'),
+    hash: text('hash').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_pg_prompt_deploy_chain_seq').on(table.tenantId, table.environment, table.seq),
+    index('idx_pg_prompt_deploy_tenant_env').on(table.tenantId, table.environment),
+    index('idx_pg_prompt_deploy_template').on(table.tenantId, table.templateId, table.environment),
+  ],
+);
+
 // ─── Notification Channels (Feature 12) ──────────────────
 export const notificationChannels = pgTable(
   'notification_channels',

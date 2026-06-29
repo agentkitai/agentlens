@@ -557,6 +557,13 @@ function mapGenAiSpan(
       getAttrNum(attrs, 'gen_ai.usage.cache_read_input_tokens') ||
       getAttrNum(attrs, 'gen_ai.usage.cached_input_tokens');
     const cacheWriteTokens = getAttrNum(attrs, 'gen_ai.usage.cache_creation_input_tokens');
+    // Prompt linkage (#120): map the version/template id onto the payload so
+    // per-version + per-agent analytics/cost are populated for OTLP producers,
+    // not just SDK callers.
+    const promptVersionId =
+      getAttrStr(attrs, 'gen_ai.prompt.version_id') ?? getAttrStr(attrs, 'agentlens.prompt.version_id');
+    const promptTemplateId =
+      getAttrStr(attrs, 'gen_ai.prompt.template_id') ?? getAttrStr(attrs, 'agentlens.prompt.template_id');
 
     // One LLM span → a paired llm_call (request, at span start) and llm_response
     // (response + token usage, at span end). The dashboard pairs them by callId.
@@ -573,6 +580,8 @@ function mapGenAiSpan(
             ...(typeof temperature === 'number' ? { temperature } : {}),
             ...(typeof maxTokens === 'number' ? { maxTokens } : {}),
           },
+          ...(promptTemplateId ? { promptTemplateId } : {}),
+          ...(promptVersionId ? { promptVersionId } : {}),
         },
       },
       {

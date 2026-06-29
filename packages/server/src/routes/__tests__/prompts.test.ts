@@ -1,7 +1,7 @@
 /**
  * F19-S4: Prompt Management route integration tests
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { promptRoutes } from '../prompts.js';
 import { authMiddleware, hashApiKey, type AuthVariables } from '../../middleware/auth.js';
@@ -372,6 +372,111 @@ describe('Prompt Routes (F19-S4)', () => {
         headers: auth(keyB),
       });
       expect(res.status).toBe(404);
+    });
+  });
+
+  // ── Deploy lifecycle (#120) ──
+  describe('Deploy lifecycle', () => {
+    async function template2versions() {
+      const { body } = await createTemplate();
+      const templateId = body.template.id;
+      const v1 = body.version.id;
+      const r2 = await app.request(`/api/prompts/${templateId}/versions`, json({ content: 'v2 body' }));
+      const v2 = (await r2.json()).version.id;
+      return { templateId, v1, v2 };
+    }
+
+    it('GET /environments lists configured environments', async () => {
+      const res = await app.request('/api/prompts/environments', { headers: auth() });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.environments.map((e: any) => e.name)).toEqual(['staging', 'prod']);
+    });
+
+    it('deploys to a non-protected env (no gate) and exposes liveVersions', async () => {
+      const { templateId, v1 } = await template2versions();
+      const dep = await app.request(`/api/prompts/${templateId}/deploy`, json({ environment: 'staging', versionId: v1 }));
+      expect(dep.status).toBe(201);
+      expect((await dep.json()).deployment.status).toBe('committed');
+      const got = await (await app.request(`/api/prompts/${templateId}`, { headers: auth() })).json();
+      expect(got.liveVersions.staging).toBe(v1);
+    });
+
+    it('404s when deploying a version that is not on the template', async () => {
+      const { templateId } = await template2versions();
+      const res = await app.request(`/api/prompts/${templateId}/deploy`, json({ environment: 'staging', versionId: 'nope' }));
+      expect(res.status).toBe(404);
+    });
+
+    it('fails closed (503) to a protected env when AgentGate is not configured', async () => {
+      const prev = process.env.AGENTGATE_URL;
+      delete process.env.AGENTGATE_URL;
+      try {
+        const { templateId, v1 } = await template2versions();
+        const res = await app.request(`/api/prompts/${templateId}/deploy`, json({ environment: 'prod', versionId: v1 }));
+        expect(res.status).toBe(503);
+      } finally {
+        if (prev !== undefined) process.env.AGENTGATE_URL = prev;
+      }
+    });
+
+    it('commits a protected-env deploy with approver when AgentGate approves', async () => {
+      process.env.AGENTGATE_URL = 'https://gate.example';
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify({ approved: true, approvalRef: 'apr_1', approver: 'alice' }), { status: 200 })),
+      );
+      try {
+        const { templateId, v1 } = await template2versions();
+        const res = await app.request(`/api/prompts/${templateId}/deploy`, json({ environment: 'prod', versionId: v1 }));
+        expect(res.status).toBe(201);
+        const dep = (await res.json()).deployment;
+        expect(dep.status).toBe('committed');
+        expect(dep.approverId).toBe('alice');
+        expect(dep.approvalRef).toBe('apr_1');
+      } finally {
+        vi.unstubAllGlobals();
+        delete process.env.AGENTGATE_URL;
+      }
+    });
+
+    it('records a denial (403) and leaves the live version unchanged when AgentGate denies', async () => {
+      process.env.AGENTGATE_URL = 'https://gate.example';
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify({ approved: false, reason: 'needs review' }), { status: 200 })),
+      );
+      try {
+        const { templateId, v1 } = await template2versions();
+        const res = await app.request(`/api/prompts/${templateId}/deploy`, json({ environment: 'prod', versionId: v1 }));
+        expect(res.status).toBe(403);
+        expect((await res.json()).deployment.status).toBe('denied');
+        const got = await (await app.request(`/api/prompts/${templateId}`, { headers: auth() })).json();
+        expect(got.liveVersions.prod).toBeUndefined();
+      } finally {
+        vi.unstubAllGlobals();
+        delete process.env.AGENTGATE_URL;
+      }
+    });
+
+    it('lists deploy history and verifies the ledger chain', async () => {
+      const { templateId, v1, v2 } = await template2versions();
+      await app.request(`/api/prompts/${templateId}/deploy`, json({ environment: 'staging', versionId: v1 }));
+      await app.request(`/api/prompts/${templateId}/deploy`, json({ environment: 'staging', versionId: v2 }));
+      const hist = await (await app.request(`/api/prompts/${templateId}/deployments?environment=staging`, { headers: auth() })).json();
+      expect(hist.deployments).toHaveLength(2);
+      const verify = await (await app.request(`/api/prompts/deployments/verify?environment=staging`, { headers: auth() })).json();
+      expect(verify.valid).toBe(true);
+      expect(verify.count).toBe(2);
+    });
+
+    it('rollback makes an earlier version live again', async () => {
+      const { templateId, v1, v2 } = await template2versions();
+      await app.request(`/api/prompts/${templateId}/deploy`, json({ environment: 'staging', versionId: v2 }));
+      const rb = await app.request(`/api/prompts/${templateId}/rollback`, json({ environment: 'staging', toVersionId: v1 }));
+      expect(rb.status).toBe(201);
+      const got = await (await app.request(`/api/prompts/${templateId}`, { headers: auth() })).json();
+      expect(got.liveVersions.staging).toBe(v1);
     });
   });
 });

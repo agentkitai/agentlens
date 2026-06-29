@@ -1441,3 +1441,67 @@ export interface PromptVersionAnalytics {
   /** Estimated USD saved by cache reads vs. full input price (0 when unknown). */
   estimatedCacheSavingsUsd: number;
 }
+
+// ─── Prompt deployment lifecycle (#120) ──────────────────────
+
+/** A configurable deployment environment for prompts. */
+export interface PromptEnvironment {
+  /** Environment name, e.g. 'staging' | 'prod'. */
+  name: string;
+  /** Promotion to a protected environment requires AgentGate approval. */
+  protected: boolean;
+}
+
+/**
+ * One append-only row in the tamper-evident prompt deploy ledger. Records who
+ * deployed / rolled back which version to which environment, and (for gated
+ * environments) who approved it. Chained per (tenantId, environment).
+ */
+export interface PromptDeployment {
+  id: string;
+  tenantId: string;
+  templateId: string;
+  environment: string;
+  versionId: string;
+  action: 'deploy' | 'rollback';
+  /** 'committed' = took effect; 'denied' = AgentGate refused, live version unchanged. */
+  status: 'committed' | 'denied';
+  /** Verified actor who performed the deploy (agent id or API-key identity). */
+  actorId?: string;
+  /** How the actor was identified (e.g. agentgate_token, api_key). */
+  actorMethod?: string;
+  /** Approver identity for AgentGate-gated promotions. */
+  approverId?: string;
+  /** AgentGate approval/decision reference. */
+  approvalRef?: string;
+  note?: string;
+  /** Monotonic position within the (tenant, environment) chain. */
+  seq: number;
+  prevHash?: string | null;
+  hash: string;
+  createdAt: string;
+}
+
+/** Result of verifying a deploy ledger chain for integrity (#120). */
+export interface DeployLedgerVerifyResult {
+  environment: string;
+  valid: boolean;
+  count: number;
+  /** seq of the first row whose hash/link/order is broken, when invalid. */
+  brokenAtSeq?: number;
+  reason?: string;
+}
+
+/** Per-agent usage + cost for a prompt version (#120). */
+export interface PromptAgentUsage {
+  versionId: string;
+  versionNumber: number;
+  /** Verified agent id (falls back to the event's agent id when unverified). */
+  agentId: string;
+  /** Whether agentId came from a server-verified identity. */
+  verified: boolean;
+  callCount: number;
+  totalCostUsd: number;
+  avgLatencyMs: number;
+  errorRate: number;
+}

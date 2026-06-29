@@ -21,12 +21,12 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
+import { PromptDeployments } from '../components/PromptDeployments';
 import {
   getPrompt,
   getPromptAnalytics,
   getPromptDiff,
   createPromptVersion,
-  deletePrompt,
 } from '../api/prompts';
 import type {
   PromptTemplate,
@@ -171,6 +171,7 @@ export function PromptDetail(): React.ReactElement {
   const { data, loading, error, refetch } = useApi<{
     template: PromptTemplate;
     versions: PromptVersion[];
+    liveVersions?: Record<string, string>;
   }>(() => getPrompt(id!), [id]);
 
   // Fetch analytics
@@ -181,6 +182,7 @@ export function PromptDetail(): React.ReactElement {
 
   const template = data?.template;
   const versions = data?.versions ?? [];
+  const liveVersions = data?.liveVersions ?? {};
 
   // Auto-select current version
   const displayVersion = selectedVersion ?? versions[0] ?? null;
@@ -331,6 +333,9 @@ export function PromptDetail(): React.ReactElement {
               )}
             </div>
           )}
+
+          {/* Deploy lifecycle (#120) */}
+          <PromptDeployments templateId={id!} versions={versions} liveVersions={liveVersions} onChange={refetch} />
 
           {/* Diff viewer */}
           {versions.length >= 2 && (
