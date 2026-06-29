@@ -43,6 +43,13 @@
       "when": 1740307200000,
       "tag": "0005_org_project",
       "breakpoints": false
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1740393600000,
+      "tag": "0006_org_project_sessions_agents",
+      "breakpoints": false
     }
   ]
 }

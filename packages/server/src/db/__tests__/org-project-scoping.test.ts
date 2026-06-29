@@ -36,6 +36,15 @@ describe('org/project scoping (#147)', () => {
     expect(explicit.projectId).toBe('proj_9');
   });
 
+  it('stamps org_id + project_id on the sessions + agents projections too (#147)', async () => {
+    const e = createEvent({ sessionId: 'sess9', agentId: 'agent9', tenantId: 'acme', prevHash: null, eventType: 'session_started', payload: { agentName: 'A' } as never, metadata: {} });
+    await store.insertEvents([e]);
+    const s = db.get<{ org_id: string; project_id: string }>(sql`SELECT org_id, project_id FROM sessions WHERE id = 'sess9'`);
+    expect(s).toMatchObject({ org_id: 'default', project_id: 'acme' });
+    const a = db.get<{ org_id: string; project_id: string }>(sql`SELECT org_id, project_id FROM agents WHERE id = 'agent9' AND tenant_id = 'acme'`);
+    expect(a).toMatchObject({ org_id: 'default', project_id: 'acme' });
+  });
+
   it('keeps cross-tenant (cross-project) isolation', async () => {
     await store.insertEvents([createEvent({ sessionId: 's1', agentId: 'a', tenantId: 't1', prevHash: null, eventType: 'custom', payload: { type: 'x', data: {} } as never, metadata: {} })]);
     const t2 = await store.queryEvents({ tenantId: 't2' });

@@ -40,6 +40,8 @@ export class AgentRepository {
         lastSeenAt: event.timestamp,
         sessionCount: event.eventType === 'session_started' ? 1 : 0,
         tenantId,
+        orgId: 'default', // #147
+        projectId: tenantId, // #147
       })
       .onConflictDoUpdate({
         target: [agents.id, agents.tenantId],
@@ -88,6 +90,8 @@ export class AgentRepository {
           lastSeenAt: agent.lastSeenAt ?? now,
           sessionCount: agent.sessionCount ?? 0,
           tenantId,
+          orgId: 'default', // #147
+          projectId: tenantId, // #147
         })
         .run();
     }

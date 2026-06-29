@@ -77,6 +77,8 @@ export const sessions = sqliteTable(
     totalOutputTokens: integer('total_output_tokens').notNull().default(0),
     tags: text('tags').notNull().default('[]'), // JSON array
     tenantId: text('tenant_id').notNull().default('default'),
+    orgId: text('org_id').notNull().default('default'), // #147
+    projectId: text('project_id'), // #147 (== tenant_id today)
   },
   (table) => [
     primaryKey({ columns: [table.id, table.tenantId] }),
@@ -101,6 +103,8 @@ export const agents = sqliteTable(
     lastSeenAt: text('last_seen_at').notNull(),
     sessionCount: integer('session_count').notNull().default(0),
     tenantId: text('tenant_id').notNull().default('default'),
+    orgId: text('org_id').notNull().default('default'), // #147
+    projectId: text('project_id'), // #147 (== tenant_id today)
     /** Model override set by guardrail downgrade_model action (B1) */
     modelOverride: text('model_override'),
     /** ISO timestamp when agent was paused by a guardrail (B1) */

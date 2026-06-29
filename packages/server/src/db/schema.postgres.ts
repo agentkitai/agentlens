@@ -94,6 +94,8 @@ export const sessions = pgTable(
     totalOutputTokens: integer('total_output_tokens').notNull().default(0),
     tags: jsonb('tags').notNull().default([]), // JSON array → jsonb
     tenantId: text('tenant_id').notNull().default('default'),
+    orgId: text('org_id').notNull().default('default'), // #147
+    projectId: text('project_id'), // #147 (== tenant_id today)
   },
   (table) => [
     primaryKey({ columns: [table.id, table.tenantId] }),
@@ -121,6 +123,8 @@ export const agents = pgTable(
     lastSeenAt: text('last_seen_at').notNull(),
     sessionCount: integer('session_count').notNull().default(0),
     tenantId: text('tenant_id').notNull().default('default'),
+    orgId: text('org_id').notNull().default('default'), // #147
+    projectId: text('project_id'), // #147 (== tenant_id today)
     modelOverride: text('model_override'),
     pausedAt: text('paused_at'),
     pauseReason: text('pause_reason'),

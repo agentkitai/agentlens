@@ -47,6 +47,8 @@ export class SessionRepository {
           totalCostUsd: 0,
           tags: JSON.stringify(tags),
           tenantId,
+          orgId: 'default', // #147
+          projectId: tenantId, // #147
         })
         .onConflictDoUpdate({
           target: [sessions.id, sessions.tenantId],
@@ -74,6 +76,8 @@ export class SessionRepository {
         totalCostUsd: 0,
         tags: '[]',
         tenantId,
+        orgId: 'default', // #147
+        projectId: tenantId, // #147
       })
       .onConflictDoNothing({ target: [sessions.id, sessions.tenantId] })
       .run();
@@ -191,6 +195,8 @@ export class SessionRepository {
           totalOutputTokens: session.totalOutputTokens ?? 0,
           tags: JSON.stringify(session.tags ?? []),
           tenantId,
+          orgId: 'default', // #147
+          projectId: tenantId, // #147
         })
         .run();
     }
