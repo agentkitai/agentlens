@@ -1,11 +1,35 @@
 /**
- * Retention service — data cleanup and retention policy enforcement.
- * Extracted from SqliteEventStore (Story S-7.4).
+ * Retention service — rollup-and-anchor-aware data cleanup (#124).
+ *
+ * Raw events are aggregated into `cost_rollups` on ingest, so purging them keeps
+ * cost/usage queryable. Before deleting a session's expired prefix this service
+ * VERIFIES the segment's chain and writes a SIGNED `chain_anchors` checkpoint —
+ * so a cold range stays tamper-evident after the raw rows are gone, and a
+ * broken/tampered segment is never silently purged.
  */
-
-import { eq, and, lte, sql, count as drizzleCount } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import type { SqliteDb } from '../index.js';
-import { events, sessions } from '../schema.sqlite.js';
+import { safeJsonParse } from '../shared/query-helpers.js';
+import { buildAnchor, signAnchorBody, type AnchorEventRow } from '../../lib/anchors.js';
+import { createLogger } from '../../lib/logger.js';
+
+const log = createLogger('RetentionService');
+
+interface EventRow {
+  id: string;
+  timestamp: string;
+  session_id: string;
+  agent_id: string;
+  event_type: string;
+  severity: string;
+  payload: string;
+  metadata: string;
+  prev_hash: string | null;
+  hash: string;
+  verified_agent_id: string | null;
+  pricing_version: string | null;
+}
 
 export class RetentionService {
   constructor(private db: SqliteDb) {}
@@ -13,42 +37,82 @@ export class RetentionService {
   async applyRetention(
     olderThan: string,
     tenantId?: string,
-  ): Promise<{ deletedCount: number }> {
-    const countConditions = [lte(events.timestamp, olderThan)];
-    if (tenantId) countConditions.push(eq(events.tenantId, tenantId));
+  ): Promise<{ deletedCount: number; anchoredSegments: number; skippedSegments: number }> {
+    const signingKey = process.env.AUDIT_SIGNING_KEY?.trim() || undefined;
 
-    const countResult = this.db
-      .select({ count: drizzleCount() })
-      .from(events)
-      .where(and(...countConditions))
-      .get();
-    const deletedCount = countResult?.count ?? 0;
+    const targetSessions = this.db.all<{ session_id: string; tenant_id: string }>(
+      tenantId
+        ? sql`SELECT DISTINCT session_id, tenant_id FROM events WHERE timestamp <= ${olderThan} AND tenant_id = ${tenantId}`
+        : sql`SELECT DISTINCT session_id, tenant_id FROM events WHERE timestamp <= ${olderThan}`,
+    );
 
-    if (deletedCount === 0) return { deletedCount: 0 };
+    let deletedCount = 0;
+    let anchoredSegments = 0;
+    let skippedSegments = 0;
 
-    this.db.transaction((tx) => {
-      if (tenantId) {
-        tx.delete(events)
-          .where(and(lte(events.timestamp, olderThan), eq(events.tenantId, tenantId)))
-          .run();
+    for (const s of targetSessions) {
+      const rows = this.db.all<EventRow>(sql`
+        SELECT * FROM events
+        WHERE session_id = ${s.session_id} AND tenant_id = ${s.tenant_id} AND timestamp <= ${olderThan}
+        ORDER BY timestamp ASC, id ASC
+      `);
+      if (rows.length === 0) continue;
 
-        tx.run(sql`
-          DELETE FROM sessions
-          WHERE tenant_id = ${tenantId}
-            AND id NOT IN (
-              SELECT DISTINCT session_id FROM events WHERE tenant_id = ${tenantId}
-            )
-        `);
-      } else {
-        tx.delete(events).where(lte(events.timestamp, olderThan)).run();
+      const anchorRows: AnchorEventRow[] = rows.map((r) => ({
+        id: r.id,
+        hash: r.hash,
+        prevHash: r.prev_hash,
+        timestamp: r.timestamp,
+        sessionId: r.session_id,
+        agentId: r.agent_id,
+        eventType: r.event_type,
+        severity: r.severity,
+        payload: safeJsonParse(r.payload, {}),
+        metadata: safeJsonParse(r.metadata, {}) as Record<string, unknown>,
+        verifiedAgentId: r.verified_agent_id,
+        pricingVersion: r.pricing_version,
+      }));
 
-        tx.run(sql`
-          DELETE FROM sessions
-          WHERE id NOT IN (SELECT DISTINCT session_id FROM events)
-        `);
+      const { body, valid, reason } = buildAnchor(s.tenant_id, s.session_id, anchorRows);
+      if (!valid) {
+        // Never silently purge a segment that fails verification (possible tamper).
+        log.warn(`retention: skipping session ${s.session_id} — segment failed verification: ${reason ?? 'unknown'}`);
+        skippedSegments++;
+        continue;
       }
-    });
 
-    return { deletedCount };
+      const signature = signAnchorBody(body, signingKey);
+      const now = new Date().toISOString();
+      // Anchor first, then delete — never delete without a covering anchor.
+      this.db.transaction((tx) => {
+        tx.run(sql`
+          INSERT INTO chain_anchors
+            (id, tenant_id, scope, session_id, first_prev_hash, last_hash, event_count, segment_digest,
+             chained, ts_min, ts_max, pricing_versions, verified_agent_ids, signature, created_at)
+          VALUES
+            (${randomUUID()}, ${body.tenantId}, 'session', ${body.sessionId}, ${body.firstPrevHash}, ${body.lastHash},
+             ${body.eventCount}, ${body.segmentDigest}, ${body.chained ? 1 : 0}, ${body.tsMin}, ${body.tsMax},
+             ${JSON.stringify(body.pricingVersions)}, ${JSON.stringify(body.verifiedAgentIds)}, ${signature ?? null}, ${now})
+        `);
+        tx.run(sql`
+          DELETE FROM events
+          WHERE session_id = ${s.session_id} AND tenant_id = ${s.tenant_id} AND timestamp <= ${olderThan}
+        `);
+      });
+      deletedCount += rows.length;
+      anchoredSegments++;
+    }
+
+    // Orphan-session cleanup (sessions whose every event was purged).
+    if (tenantId) {
+      this.db.run(sql`
+        DELETE FROM sessions WHERE tenant_id = ${tenantId}
+          AND id NOT IN (SELECT DISTINCT session_id FROM events WHERE tenant_id = ${tenantId})
+      `);
+    } else {
+      this.db.run(sql`DELETE FROM sessions WHERE id NOT IN (SELECT DISTINCT session_id FROM events)`);
+    }
+
+    return { deletedCount, anchoredSegments, skippedSegments };
   }
 }

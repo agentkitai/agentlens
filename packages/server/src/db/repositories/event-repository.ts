@@ -11,6 +11,7 @@ import { events, sessions, agents } from '../schema.sqlite.js';
 import { HashChainError } from '../errors.js';
 import { buildEventConditions, mapEventRow, safeJsonParse } from '../shared/query-helpers.js';
 import { metadataVerifiedAgentId } from '../../lib/agent-identity.js';
+import { applyRollupBatch } from '../../lib/rollup.js';
 import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('EventRepository');
@@ -131,6 +132,16 @@ export class EventRepository {
 
         handleSessionUpdate(tx, event, tenantId);
         handleAgentUpsert(tx, event, tenantId);
+      }
+
+      // Incremental rollup (#124) — best-effort: a rollup failure must never
+      // break ingest (events above are already inserted in this tx). Backfill /
+      // retention reconciles any gap.
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        applyRollupBatch(tx as any, eventList, pv);
+      } catch (err) {
+        log.warn(`rollup skipped: ${err instanceof Error ? err.message : String(err)}`);
       }
     });
   }
