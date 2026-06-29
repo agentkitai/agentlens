@@ -307,6 +307,8 @@ export interface HumanScorePayload {
   score?: number;
   /** Categorical verdict (e.g. 'pass' | 'fail' | 'needs_review' or a custom label). */
   verdict?: string;
+  /** Free-form TEXT score value (vs the short categorical `verdict`) — #153. */
+  textValue?: string;
   /** Whether the reviewer marked the session/trace as passing. */
   passed?: boolean;
   /** The reviewer's free-text rationale. */
