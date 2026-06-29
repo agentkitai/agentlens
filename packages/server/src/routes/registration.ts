@@ -34,6 +34,7 @@ import { optimizeRoutes } from './optimize.js';
 import { healthRoutes } from './health.js';
 import { exportsRoutes } from './exports.js';
 import { llmConnectionsRoutes } from './llm-connections.js';
+import { playgroundRoutes } from './playground.js';
 import { getJwks } from '../lib/export-signing.js';
 import { diagnoseRoutes } from './diagnose.js';
 import { registerReplayRoutes } from './replay.js';
@@ -309,6 +310,7 @@ export async function registerRoutes(
   // ─── LLM connections — bring-your-own provider keys (#143) ───
   if (db) {
     app.route('/api/llm-connections', llmConnectionsRoutes(db));
+    app.route('/api/playground', playgroundRoutes(db));
   }
 
   // ─── Cloud org routes with org access validation [F6-fix] ──
