@@ -2,7 +2,7 @@
  * Orgs / projects / members API (#147, sub-PR 1).
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { createTestApp, authHeaders, type TestContext } from '../../__tests__/test-helpers.js';
 import { apiKeys } from '../../db/schema.sqlite.js';
 
@@ -39,5 +39,19 @@ describe('orgs API', () => {
   it('validates input', async () => {
     expect((await ctx.app.request('/api/orgs', { method: 'POST', headers: h(), body: JSON.stringify({}) })).status).toBe(400);
     expect((await ctx.app.request('/api/orgs/nope', { headers: h() })).status).toBe(404);
+  });
+
+  it('writes an append-only audit-log entry for each org/project/member mutation (#147)', async () => {
+    const org = (await (await ctx.app.request('/api/orgs', { method: 'POST', headers: h(), body: JSON.stringify({ name: 'Acme' }) })).json()) as any;
+    await ctx.app.request(`/api/orgs/${org.org.id}/projects`, { method: 'POST', headers: h(), body: JSON.stringify({ name: 'Web' }) });
+    await ctx.app.request(`/api/orgs/${org.org.id}/members`, { method: 'POST', headers: h(), body: JSON.stringify({ userId: 'u1', role: 'owner' }) });
+
+    const entries = ctx.db.all<{ action: string; resource_type: string }>(
+      sql`SELECT action, resource_type FROM audit_log ORDER BY timestamp`,
+    );
+    const actions = entries.map((e) => e.action);
+    expect(actions).toContain('org_created');
+    expect(actions).toContain('project_created');
+    expect(actions).toContain('member_added');
   });
 });
