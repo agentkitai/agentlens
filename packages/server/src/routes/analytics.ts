@@ -89,7 +89,7 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
     const range = c.req.query('range');
     const now = Date.now();
     let from: string;
-    let to: string = c.req.query('to') ?? new Date(now).toISOString();
+    const to: string = c.req.query('to') ?? new Date(now).toISOString();
 
     if (range && !c.req.query('from')) {
       const rangeMs: Record<string, number> = {
