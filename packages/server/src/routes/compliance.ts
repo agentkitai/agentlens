@@ -16,6 +16,7 @@ import { GuardrailStore } from '../db/guardrail-store.js';
 import { ComplianceReportBuilder } from '../lib/compliance-report.js';
 import { CsvEventTransform, collectAllEvents } from '../lib/compliance-export.js';
 import { runVerification } from '../lib/audit-verify.js';
+import { toNdjson } from '../lib/scheduled-export.js';
 import type { AuditVariables } from '../middleware/audit.js';
 
 const REPORT_TIMEOUT_MS = 30_000;
@@ -124,8 +125,8 @@ export function complianceRoutes(
     const { from, to } = validation;
     const format = c.req.query('format') ?? 'json';
 
-    if (format !== 'json' && format !== 'csv') {
-      return c.json({ error: 'Invalid format. Use "json" or "csv"', status: 400 }, 400);
+    if (!['json', 'csv', 'ndjson'].includes(format)) {
+      return c.json({ error: 'Invalid format. Use "json", "csv", or "ndjson"', status: 400 }, 400);
     }
 
     // Audit log
@@ -176,6 +177,14 @@ export function complianceRoutes(
         transform.end();
         await done;
       });
+    }
+
+    if (format === 'ndjson') {
+      // Newline-delimited JSON (fine-tuning / streaming friendly), one event per line.
+      const ndEvents = collectAllEvents(eventRepo, tenantId, from, to);
+      c.header('Content-Type', 'application/x-ndjson; charset=utf-8');
+      c.header('Content-Disposition', `attachment; filename="agentlens-events-${from}-${to}.ndjson"`);
+      return c.body(toNdjson(ndEvents));
     }
 
     // JSON format
