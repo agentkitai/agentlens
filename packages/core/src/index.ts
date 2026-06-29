@@ -17,6 +17,9 @@ export * from './hash.js';
 // Re-export trace-tree assembly (#119 — nested execution traces)
 export * from './trace-tree.js';
 
+// Prompt runtime primitives (#145 — variables, chat type, config)
+export * from './prompt-compile.js';
+
 // Re-export event creation helpers
 export * from './events.js';
 

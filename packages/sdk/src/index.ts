@@ -33,6 +33,10 @@ export type { BatchSenderOptions } from './batch-sender.js';
 export { init, shutdown, getInstrumentation, Instrumentation } from './instrumentation.js';
 export type { InitConfig, LlmCapture } from './instrumentation.js';
 
+// Prompt runtime primitives (#145): compile {{variables}} + config client-side
+export { compilePrompt, compileText, compileChat, extractVariables } from '@agentkitai/agentlens-core';
+export type { PromptType, PromptConfig, ChatMessage, CompiledPrompt, CompilablePrompt, VariableValues } from '@agentkitai/agentlens-core';
+
 // Errors
 export {
   AgentLensError,

@@ -1007,6 +1007,8 @@ export function runMigrations(db: SqliteDb): void {
       version_number INTEGER NOT NULL,
       content TEXT NOT NULL,
       variables TEXT,
+      config TEXT,
+      prompt_type TEXT NOT NULL DEFAULT 'text',
       content_hash TEXT NOT NULL,
       changelog TEXT,
       created_by TEXT,
@@ -1016,6 +1018,13 @@ export function runMigrations(db: SqliteDb): void {
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_versions_tenant ON prompt_versions(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_versions_hash ON prompt_versions(content_hash)`);
+  // Prompt runtime primitives (#145): config + chat type on existing tables.
+  {
+    const pvCols = db.all<{ name: string }>(sql`PRAGMA table_info(prompt_versions)`);
+    const pvNames = new Set(pvCols.map((c) => c.name));
+    if (!pvNames.has('config')) db.run(sql`ALTER TABLE prompt_versions ADD COLUMN config TEXT`);
+    if (!pvNames.has('prompt_type')) db.run(sql`ALTER TABLE prompt_versions ADD COLUMN prompt_type TEXT NOT NULL DEFAULT 'text'`);
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS prompt_fingerprints (

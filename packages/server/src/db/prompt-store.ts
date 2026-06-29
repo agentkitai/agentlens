@@ -43,6 +43,8 @@ interface VersionRow {
   version_number: number;
   content: string;
   variables: string | null;
+  config: string | null;
+  prompt_type: string | null;
   content_hash: string;
   changelog: string | null;
   created_by: string | null;
@@ -68,12 +70,16 @@ export interface CreateTemplateInput {
   category?: string;
   content: string;
   variables?: PromptVariable[];
+  config?: Record<string, unknown>;
+  promptType?: 'text' | 'chat';
   createdBy?: string;
 }
 
 export interface CreateVersionInput {
   content: string;
   variables?: PromptVariable[];
+  config?: Record<string, unknown>;
+  promptType?: 'text' | 'chat';
   changelog?: string;
   createdBy?: string;
 }
@@ -235,6 +241,8 @@ function toVersion(row: VersionRow): PromptVersion {
     versionNumber: row.version_number,
     content: row.content,
     variables: row.variables ? JSON.parse(row.variables) : [],
+    config: row.config ? JSON.parse(row.config) : undefined,
+    promptType: row.prompt_type === 'chat' ? 'chat' : 'text',
     contentHash: row.content_hash,
     changelog: row.changelog ?? undefined,
     createdBy: row.created_by ?? undefined,
@@ -271,6 +279,8 @@ export class PromptStore {
     const now = new Date().toISOString();
     const contentHash = computePromptHash(input.content);
     const variables = input.variables ? JSON.stringify(input.variables) : null;
+    const config = input.config ? JSON.stringify(input.config) : null;
+    const promptType = input.promptType ?? 'text';
 
     // Atomic: insert template + version 1
     this.db.run(sql`
@@ -279,8 +289,8 @@ export class PromptStore {
     `);
 
     this.db.run(sql`
-      INSERT INTO prompt_versions (id, template_id, tenant_id, version_number, content, variables, content_hash, changelog, created_by, created_at)
-      VALUES (${versionId}, ${templateId}, ${tenantId}, ${1}, ${input.content}, ${variables}, ${contentHash}, ${'Initial version'}, ${input.createdBy ?? null}, ${now})
+      INSERT INTO prompt_versions (id, template_id, tenant_id, version_number, content, variables, config, prompt_type, content_hash, changelog, created_by, created_at)
+      VALUES (${versionId}, ${templateId}, ${tenantId}, ${1}, ${input.content}, ${variables}, ${config}, ${promptType}, ${contentHash}, ${'Initial version'}, ${input.createdBy ?? null}, ${now})
     `);
 
     const template: PromptTemplate = {
@@ -405,10 +415,12 @@ export class PromptStore {
     const versionId = randomUUID();
     const now = new Date().toISOString();
     const variables = input.variables ? JSON.stringify(input.variables) : null;
+    const config = input.config ? JSON.stringify(input.config) : null;
+    const promptType = input.promptType ?? 'text';
 
     this.db.run(sql`
-      INSERT INTO prompt_versions (id, template_id, tenant_id, version_number, content, variables, content_hash, changelog, created_by, created_at)
-      VALUES (${versionId}, ${templateId}, ${tenantId}, ${nextVersion}, ${input.content}, ${variables}, ${contentHash}, ${input.changelog ?? null}, ${input.createdBy ?? null}, ${now})
+      INSERT INTO prompt_versions (id, template_id, tenant_id, version_number, content, variables, config, prompt_type, content_hash, changelog, created_by, created_at)
+      VALUES (${versionId}, ${templateId}, ${tenantId}, ${nextVersion}, ${input.content}, ${variables}, ${config}, ${promptType}, ${contentHash}, ${input.changelog ?? null}, ${input.createdBy ?? null}, ${now})
     `);
 
     this.db.run(sql`
@@ -422,6 +434,8 @@ export class PromptStore {
       versionNumber: nextVersion,
       content: input.content,
       variables: input.variables ?? [],
+      config: input.config,
+      promptType,
       contentHash,
       changelog: input.changelog,
       createdBy: input.createdBy,
