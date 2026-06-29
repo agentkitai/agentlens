@@ -51,6 +51,12 @@ describe('S-2.5: Permission matrix', () => {
     expect(isRoleAllowed('viewer', 'manage')).toBe(false);
   });
 
+  it("resolves the deprecated 'editor' alias to member (#147)", () => {
+    expect(isRoleAllowed('editor' as never, 'write')).toBe(true);
+    expect(isRoleAllowed('editor' as never, 'read')).toBe(true);
+    expect(isRoleAllowed('editor' as never, 'manage')).toBe(false);
+  });
+
   it('billing: only owner', () => {
     expect(isRoleAllowed('owner', 'billing')).toBe(true);
     expect(isRoleAllowed('admin', 'billing')).toBe(false);

@@ -10,8 +10,12 @@
  */
 
 import type { AuditLogService } from './audit-log.js';
+import { normalizeRole } from '@agentkitai/auth';
 
-export type Role = 'owner' | 'admin' | 'auditor' | 'member' | 'viewer';
+// The single role enum now lives in @agentkitai/auth (#147). Re-exported here so
+// existing cloud imports keep working; `editor` resolves to `member` via normalizeRole.
+export type { Role } from '@agentkitai/auth';
+import type { Role } from '@agentkitai/auth';
 
 export type ActionCategory =
   | 'read'           // View dashboard data
@@ -66,7 +70,8 @@ export interface RbacResult {
  * Check if a role is allowed to perform an action category.
  */
 export function isRoleAllowed(role: Role, category: ActionCategory): boolean {
-  return (PERMISSION_MATRIX[category] as readonly string[]).includes(role);
+  // Resolve aliases (editor → member) against the unified role model (#147).
+  return (PERMISSION_MATRIX[category] as readonly string[]).includes(normalizeRole(role));
 }
 
 /**
