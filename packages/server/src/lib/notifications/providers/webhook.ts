@@ -4,6 +4,7 @@
  * Backward-compatible with existing webhook delivery + retry with exponential backoff.
  */
 
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { NotificationPayload, DeliveryResult, NotificationChannel, WebhookChannelConfig } from '@agentkitai/agentlens-core';
 import type { NotificationProvider } from '../provider.js';
 import { validateExternalUrl } from '../ssrf.js';
@@ -11,6 +12,26 @@ import { createLogger } from '../../logger.js';
 
 const log = createLogger('WebhookProvider');
 const RETRY_DELAYS = [1000, 5000, 30000]; // 1s, 5s, 30s
+
+/**
+ * HMAC-sign a webhook body so a receiver can authenticate it (#125). Signs
+ * `timestamp.body` to bind the timestamp (replay resistance); header value is
+ * `sha256=<hex>`. Returns {} when no secret is configured.
+ */
+export function webhookSignatureHeaders(bodyStr: string, timestamp: string): Record<string, string> {
+  const secret = process.env.AGENTLENS_WEBHOOK_SIGNING_SECRET?.trim();
+  if (!secret) return {};
+  const sig = createHmac('sha256', secret).update(`${timestamp}.${bodyStr}`).digest('hex');
+  return { 'X-AgentLens-Timestamp': timestamp, 'X-AgentLens-Signature': `sha256=${sig}` };
+}
+
+/** Verify a webhook HMAC signature (constant-time). */
+export function verifyWebhookSignature(bodyStr: string, header: string, timestamp: string, secret: string): boolean {
+  const expected = `sha256=${createHmac('sha256', secret).update(`${timestamp}.${bodyStr}`).digest('hex')}`;
+  const got = Buffer.from(header ?? '');
+  const exp = Buffer.from(expected);
+  return got.length === exp.length && timingSafeEqual(got, exp);
+}
 
 export class WebhookProvider implements NotificationProvider {
   readonly type = 'webhook';
@@ -51,8 +72,10 @@ export class WebhookProvider implements NotificationProvider {
     }
 
     const method = config.method ?? 'POST';
+    const bodyStr = JSON.stringify(payload);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      ...webhookSignatureHeaders(bodyStr, new Date().toISOString()),
       ...(config.headers ?? {}),
     };
 
@@ -61,7 +84,7 @@ export class WebhookProvider implements NotificationProvider {
         const res = await fetch(config.url, {
           method,
           headers,
-          body: JSON.stringify(payload),
+          body: bodyStr,
           signal: AbortSignal.timeout(10_000),
         });
 
