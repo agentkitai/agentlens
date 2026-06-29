@@ -16,11 +16,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { AgentLensEvent, Session, SessionStatus, CostTrackedPayload } from '@agentkitai/agentlens-core';
-import { getSession, getSessionTimeline } from '../api/client';
-import type { SessionTimeline } from '../api/client';
+import { getSession, getSessionTimeline, getSessionTrace } from '../api/client';
+import type { SessionTimeline, SessionTrace } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import { useSSE } from '../hooks/useSSE';
 import { Timeline } from '../components/Timeline';
+import { TraceTree, hasTraceData } from '../components/TraceTree';
 import { EventDetailPanel } from '../components/EventDetailPanel';
 import { SearchBar } from '../components/search/SearchBar';
 import { BudgetStatusBadge } from '../components/BudgetStatusBadge';
@@ -152,6 +153,7 @@ function StatCard({ label, value, className = '' }: { label: string; value: stri
 export function SessionDetail(): React.ReactElement | null {
   const { id } = useParams<{ id: string }>();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
   const [selectedEvent, setSelectedEvent] = useState<AgentLensEvent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   // Diagnostics state (Story 18.10)
@@ -179,6 +181,13 @@ export function SessionDetail(): React.ReactElement | null {
     error: timelineError,
     refetch: refetchTimeline,
   } = useApi<SessionTimeline>(() => getSessionTimeline(id!), [id]);
+
+  // Server-assembled execution tree (#119) — fetched lazily, only when the
+  // Tree view is open, so the List view costs nothing extra.
+  const { data: trace, loading: traceLoading } = useApi<SessionTrace | null>(
+    () => (viewMode === 'tree' && id ? getSessionTrace(id) : Promise.resolve(null)),
+    [id, viewMode],
+  );
 
   // Load session budget status (Story 8)
   React.useEffect(() => {
@@ -230,6 +239,9 @@ export function SessionDetail(): React.ReactElement | null {
     const newEvents = liveEvents.filter((e) => !existingIds.has(e.id));
     return [...timeline.events, ...newEvents];
   }, [timeline?.events, liveEvents]);
+
+  // Tree/Waterfall view is only meaningful when events carry span context (#119).
+  const hasTrace = useMemo(() => hasTraceData(allEvents), [allEvents]);
 
   // Filter events client-side
   const currentFilter = useMemo(
@@ -623,13 +635,47 @@ export function SessionDetail(): React.ReactElement | null {
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
         </div>
       ) : timeline ? (
-        <Timeline
-          events={filteredEvents}
-          chainValid={timeline.chainValid}
-          onEventClick={handleEventClick}
-          selectedEventId={selectedEvent?.id}
-          searchQuery={searchQuery}
-        />
+        <div className="space-y-3">
+          {hasTrace && (
+            <div className="inline-flex rounded-full border border-gray-300 bg-white p-0.5 text-sm">
+              {(['list', 'tree'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-3 py-1 rounded-full transition-colors ${
+                    viewMode === mode ? 'bg-blue-100 text-blue-800 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {mode === 'list' ? '≣ List' : '🌳 Tree / Waterfall'}
+                </button>
+              ))}
+            </div>
+          )}
+          {viewMode === 'tree' && hasTrace ? (
+            traceLoading && !trace ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+              </div>
+            ) : trace ? (
+              <TraceTree
+                tree={trace.tree}
+                events={allEvents}
+                chained={trace.chained}
+                selectedEventId={selectedEvent?.id}
+                onSelectEvent={handleEventClick}
+              />
+            ) : null
+          ) : (
+            <Timeline
+              events={filteredEvents}
+              chainValid={timeline.chainValid}
+              chained={timeline.chained}
+              onEventClick={handleEventClick}
+              selectedEventId={selectedEvent?.id}
+              searchQuery={searchQuery}
+            />
+          )}
+        </div>
       ) : null}
 
       {/* Event detail side panel */}

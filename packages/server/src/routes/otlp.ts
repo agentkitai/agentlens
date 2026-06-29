@@ -14,6 +14,7 @@ import { timingSafeEqual, createHash } from 'node:crypto';
 import protobuf from 'protobufjs';
 import { computeEventHash, truncatePayload, costUsdDetailed } from '@agentkitai/agentlens-core';
 import { OTLP_PROTO_DESCRIPTOR } from '../otlp/otlp-proto-descriptor.js';
+import { spanContextMeta } from '../otlp/span-context.js';
 import { nextEventId } from '../lib/event-id.js';
 import type { AgentLensEvent, EventType, EventPayload, EventSeverity } from '@agentkitai/agentlens-core';
 import type { IEventStore } from '@agentkitai/agentlens-core';
@@ -120,6 +121,8 @@ interface OtlpSpan {
   name: string;
   traceId: string;
   spanId: string;
+  /** parent_span_id (proto field 4); empty/absent for root spans. (#119) */
+  parentSpanId?: string;
   startTimeUnixNano: string;
   endTimeUnixNano: string;
   attributes?: OtlpKeyValue[];
@@ -1061,11 +1064,16 @@ export function otlpRoutes(
           const style = detectSemconvStyle(span.attributes);
           if (style) semconvMeta.semconvStyle = style;
 
+          // Span context (normalized hex ids + parent link + timing) for the
+          // execution tree / waterfall (#119). Stamped into hashed metadata so
+          // tree edges are covered by record integrity.
+          const spanCtx = spanContextMeta(span);
+
           // OTel GenAI spans (gen_ai.*) → real llm_call/llm_response/tool_call
           // events; everything else keeps the existing OpenClaw/default mapping.
           const genai = mapGenAiSpan(span, resourceAttrs);
           if (genai) {
-            for (const e of genai) Object.assign(e.metadata, semconvMeta);
+            for (const e of genai) Object.assign(e.metadata, spanCtx, semconvMeta);
             mapped.push(...genai);
             continue;
           }
@@ -1073,7 +1081,7 @@ export function otlpRoutes(
           mapped.push({
             ...result,
             timestamp: nanoToIso(span.startTimeUnixNano),
-            metadata: { source: 'otlp', traceId: span.traceId, spanId: span.spanId, ...semconvMeta },
+            metadata: { source: 'otlp', ...spanCtx, ...semconvMeta },
           });
         }
       }

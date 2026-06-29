@@ -1,5 +1,6 @@
 import { request, toQueryString } from './core';
 import type { AgentLensEvent, Session, SessionQuery, SessionQueryResult } from './core';
+import type { TraceTree } from '@agentkitai/agentlens-core';
 
 export async function getSessions(query: SessionQuery = {}): Promise<SessionQueryResult & { hasMore: boolean }> {
   const qs = toQueryString({
@@ -21,6 +22,8 @@ export async function getSession(id: string): Promise<Session> {
 export interface SessionTimeline {
   events: AgentLensEvent[];
   chainValid: boolean;
+  /** false ⇒ OTLP/unchained telemetry (record-integrity only, no hash chain). (#119) */
+  chained?: boolean;
 }
 
 export async function getSessionTimeline(id: string): Promise<SessionTimeline> {
@@ -35,4 +38,16 @@ export interface SessionReplayData {
 
 export async function getSessionReplay(id: string): Promise<SessionReplayData> {
   return request<SessionReplayData>(`/api/sessions/${encodeURIComponent(id)}/replay`);
+}
+
+export interface SessionTrace {
+  /** Server-assembled execution tree (#119). */
+  tree: TraceTree;
+  chainValid: boolean;
+  /** false ⇒ OTLP/unchained telemetry (record-integrity only). */
+  chained: boolean;
+}
+
+export async function getSessionTrace(id: string): Promise<SessionTrace> {
+  return request<SessionTrace>(`/api/sessions/${encodeURIComponent(id)}/trace`);
 }

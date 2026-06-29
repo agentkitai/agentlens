@@ -33,6 +33,8 @@ import { otlpTitle, otlpIcon } from '../lib/otlpEvent';
 export interface TimelineProps {
   events: AgentLensEvent[];
   chainValid: boolean;
+  /** false ⇒ OTLP/unchained telemetry; the badge shows record-integrity, not "Chain Valid". (#119) */
+  chained?: boolean;
   onEventClick: (event: AgentLensEvent) => void;
   selectedEventId?: string;
   /** [F11-S1] Search query for text highlighting */
@@ -91,7 +93,7 @@ const EVENT_STYLES: Record<string, EventStyle> = {
   custom: { icon: '🔹', color: 'text-gray-700', bgColor: 'bg-gray-50', borderColor: 'border-gray-300' },
 };
 
-function getEventStyle(eventType: EventType): EventStyle {
+export function getEventStyle(eventType: EventType): EventStyle {
   return EVENT_STYLES[eventType] ?? EVENT_STYLES.custom;
 }
 
@@ -118,7 +120,7 @@ function formatTime(ts: string): string {
   return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
 }
 
-function formatMs(ms: number): string {
+export function formatMs(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;
@@ -358,7 +360,7 @@ function formatTokenCount(n: number): string {
   return String(n);
 }
 
-function formatCost(usd: number): string {
+export function formatCost(usd: number): string {
   if (usd < 0.01) return `$${usd.toFixed(4)}`;
   return `$${usd.toFixed(2)}`;
 }
@@ -378,16 +380,33 @@ const LLM_CONTENT_TRUNCATE = 300;
 
 // ─── Chain validity badge ───────────────────────────────────────────
 
-function ChainBadge({ valid }: { valid: boolean }) {
+export function ChainBadge({ valid, chained = true }: { valid: boolean; chained?: boolean }) {
+  // OTLP-ingested traces are unchained by design (every event has prevHash=null):
+  // there is no cross-event hash chain to verify, only per-record integrity. Don't
+  // claim a (misleading) "Chain Valid" for them — say exactly what was verified,
+  // consistent with the server's verifyRecords vs verifyChain split (#119).
+  const label = chained
+    ? valid
+      ? 'Chain Valid'
+      : 'Chain Invalid'
+    : valid
+      ? 'Records Verified'
+      : 'Record Integrity Failed';
+  const tone = !valid
+    ? 'bg-red-100 text-red-800 border-red-300'
+    : chained
+      ? 'bg-green-100 text-green-800 border-green-300'
+      : 'bg-amber-100 text-amber-800 border-amber-300';
+  const title = chained
+    ? 'Linear hash chain: each event links to the previous (tamper-evident ordering).'
+    : 'Unchained telemetry (OTLP): per-record integrity only, no cross-event chain.';
   return (
     <div
-      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-        valid
-          ? 'bg-green-100 text-green-800 border border-green-300'
-          : 'bg-red-100 text-red-800 border border-red-300'
-      }`}
+      title={title}
+      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border ${tone}`}
     >
-      {valid ? '✓' : '✗'} Chain {valid ? 'Valid' : 'Invalid'}
+      {valid ? '✓' : '✗'} {label}
+      {!chained && valid && <span className="ml-1 text-xs font-normal opacity-75">· unchained</span>}
     </div>
   );
 }
@@ -655,7 +674,7 @@ function TimelineRow({ node, isSelected, onClick, searchQuery }: TimelineRowProp
 
 const ESTIMATED_ROW_HEIGHT = 64;
 
-export function Timeline({ events, chainValid, onEventClick, selectedEventId, searchQuery }: TimelineProps) {
+export function Timeline({ events, chainValid, chained, onEventClick, selectedEventId, searchQuery }: TimelineProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const nodes = useMemo(() => buildTimelineNodes(events), [events]);
@@ -679,7 +698,7 @@ export function Timeline({ events, chainValid, onEventClick, selectedEventId, se
     <div className="space-y-3">
       {/* Chain validity */}
       <div className="flex items-center gap-3">
-        <ChainBadge valid={chainValid} />
+        <ChainBadge valid={chainValid} chained={chained} />
         <span className="text-sm text-gray-500">
           {events.length} event{events.length !== 1 ? 's' : ''} · {nodes.length} timeline node{nodes.length !== 1 ? 's' : ''}
         </span>

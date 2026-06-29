@@ -151,4 +151,62 @@ describe('Sessions Routes (F7-S2.2)', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  // ── GET /api/sessions/:id/trace (#119) ──
+
+  describe('GET /api/sessions/:id/trace', () => {
+    async function ingestSpanEvents(sessionId: string) {
+      await app.request('/api/events', {
+        method: 'POST',
+        headers: { ...auth(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          events: [
+            {
+              sessionId,
+              agentId: 'agent-1',
+              eventType: 'tool_call',
+              payload: { toolName: 'parent', callId: 'c1', arguments: {} },
+              metadata: { spanId: 'span-root', traceId: 'trace-1' },
+            },
+            {
+              sessionId,
+              agentId: 'agent-1',
+              eventType: 'tool_call',
+              payload: { toolName: 'child', callId: 'c2', arguments: {} },
+              metadata: { spanId: 'span-child', parentSpanId: 'span-root', traceId: 'trace-1' },
+            },
+          ],
+        }),
+      });
+    }
+
+    it('assembles a nested span tree from stored events', async () => {
+      await ingestSpanEvents('sess-trace');
+
+      const res = await app.request('/api/sessions/sess-trace/trace', { headers: auth() });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.tree.hasSpanData).toBe(true);
+      expect(body.tree.roots).toHaveLength(1);
+      expect(body.tree.roots[0].spanId).toBe('span-root');
+      expect(body.tree.roots[0].descendantCount).toBe(1);
+      expect(body.tree.roots[0].children[0].spanId).toBe('span-child');
+      expect(body.chained).toBe(true); // SDK events are hash-chained
+    });
+
+    it('falls back (hasSpanData=false) for sessions without span metadata', async () => {
+      await ingestSessionEvents('sess-nospan');
+
+      const res = await app.request('/api/sessions/sess-nospan/trace', { headers: auth() });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.tree.hasSpanData).toBe(false);
+      expect(body.tree.roots).toHaveLength(0);
+    });
+
+    it('returns 404 for nonexistent session', async () => {
+      const res = await app.request('/api/sessions/no-session/trace', { headers: auth() });
+      expect(res.status).toBe(404);
+    });
+  });
 });

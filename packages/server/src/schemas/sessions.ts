@@ -62,3 +62,44 @@ export const SessionTimelineResponseSchema = z.object({
   events: z.array(TimelineEventSchema),
   chainValid: z.boolean(),
 }).openapi('SessionTimelineResponse');
+
+// ─── Execution trace tree (#119) ───────────────────────────────────────
+// Loose, like TimelineEventSchema: enumerate the headline fields, pass the
+// rest through. `children` is typed as an unknown array to avoid a recursive
+// OpenAPI schema; the real nested TraceNode objects pass through at runtime.
+export const TraceNodeSchema = z.object({
+  spanId: z.string(),
+  parentSpanId: z.string().nullable(),
+  traceId: z.string().nullable(),
+  name: z.string(),
+  eventType: z.string(),
+  eventIds: z.array(z.string()),
+  depth: z.number().int(),
+  startMs: z.number().nullable(),
+  endMs: z.number().nullable(),
+  selfDurationMs: z.number().nullable(),
+  totalDurationMs: z.number().nullable(),
+  descendantCount: z.number().int(),
+  selfCostUsd: z.number(),
+  subtreeCostUsd: z.number(),
+  agentId: z.string().nullable(),
+  verifiedAgentId: z.string().nullable(),
+  verifiedAgentMethod: z.string().nullable(),
+  isDelegationBoundary: z.boolean(),
+  children: z.array(z.unknown()),
+}).passthrough().openapi('TraceNode');
+
+export const SessionTraceResponseSchema = z.object({
+  tree: z.object({
+    roots: z.array(TraceNodeSchema),
+    spanCount: z.number().int(),
+    eventCount: z.number().int(),
+    startMs: z.number().nullable(),
+    endMs: z.number().nullable(),
+    totalCostUsd: z.number(),
+    hasSpanData: z.boolean(),
+  }).openapi('TraceTreeData'),
+  chainValid: z.boolean(),
+  // false ⇒ OTLP/unchained telemetry (record-integrity only, no hash chain).
+  chained: z.boolean(),
+}).openapi('SessionTraceResponse');
