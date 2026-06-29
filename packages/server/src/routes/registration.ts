@@ -41,6 +41,8 @@ import { EvaluatorStore } from '../db/evaluator-store.js';
 import { BUILTIN_EVALUATORS } from '../lib/eval/builtin-evaluators.js';
 import { guardrailRoutes } from './guardrails.js';
 import { evalRoutes } from './eval.js';
+import { scoresRoutes } from './scores.js';
+import { annotationRoutes } from './annotations.js';
 import { capabilityRoutes } from './capabilities.js';
 import { capabilityTopRoutes } from './capabilities-top.js';
 import { discoveryRoutes } from './discovery.js';
@@ -224,11 +226,15 @@ export async function registerRoutes(
   // ─── Optimization Advisor (Feature 10) ─────────────────
   app.route('/api', optimizationAdvisorRoutes(store));
 
+  // ─── Human scores + end-user feedback + unified scores read (#122) ──
+  app.route('/api', scoresRoutes(store));
+
   // ─── Benchmarks / A/B Testing ─────────────────────────
   if (db) {
     app.route('/api/benchmarks', benchmarkRoutes(store, db));
     app.route('/api/prompts', promptRoutes(db));
     app.route('/api/eval', evalRoutes(db, store));
+    app.route('/api/annotations', annotationRoutes(db, store));
     // Seed the read-only built-in evaluator catalog (#55 Phase 4), idempotent.
     try {
       new EvaluatorStore(db).seedBuiltins(BUILTIN_EVALUATORS);

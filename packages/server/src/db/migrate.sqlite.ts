@@ -1059,6 +1059,39 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_prompt_deploy_chain_seq ON prompt_deployments(tenant_id, environment, seq)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_deploy_tenant_env ON prompt_deployments(tenant_id, environment)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_deploy_template ON prompt_deployments(tenant_id, template_id, environment)`);
+
+  // ─── Annotation queues (#122) ──────────────────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS annotation_queues (
+      id          TEXT PRIMARY KEY,
+      tenant_id   TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      description TEXT,
+      config      TEXT NOT NULL DEFAULT '{}',
+      created_by  TEXT,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_annotation_queues_tenant ON annotation_queues(tenant_id)`);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS annotation_items (
+      id             TEXT PRIMARY KEY,
+      queue_id       TEXT NOT NULL REFERENCES annotation_queues(id) ON DELETE CASCADE,
+      tenant_id      TEXT NOT NULL,
+      session_id     TEXT NOT NULL,
+      trace_id       TEXT,
+      status         TEXT NOT NULL DEFAULT 'pending',
+      assignee       TEXT,
+      due_at         TEXT,
+      score_event_id TEXT,
+      created_at     TEXT NOT NULL,
+      updated_at     TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_annotation_items_queue ON annotation_items(tenant_id, queue_id, status)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_annotation_items_assignee ON annotation_items(tenant_id, assignee)`);
 }
 
 /**

@@ -55,6 +55,8 @@ const TYPE_LABELS: Record<EventType, string> = {
   alert_resolved: 'Alert Resolved',
   error: 'Error',
   eval_result: 'Eval Result',
+  human_score: 'Human Score',
+  feedback: 'Feedback',
   skill_activated: 'Skill Activated',
   custom: 'Custom',
 };

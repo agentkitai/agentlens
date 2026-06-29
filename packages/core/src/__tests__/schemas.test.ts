@@ -58,6 +58,10 @@ describe('Story 2.3: Zod Validation Schemas', () => {
       expect(eventTypeSchema.safeParse('error').success).toBe(false);
       // skill_activated is OTLP/server-ingested telemetry, not a client event.
       expect(eventTypeSchema.safeParse('skill_activated').success).toBe(false);
+      // human_score / feedback are identity-stamped, server-emitted scoring
+      // evidence (#122) — a client must not be able to POST a forged one.
+      expect(eventTypeSchema.safeParse('human_score').success).toBe(false);
+      expect(eventTypeSchema.safeParse('feedback').success).toBe(false);
     });
   });
 
