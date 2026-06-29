@@ -27,6 +27,7 @@ import {
 } from '../db/prompt-store.js';
 import type { SqliteDb } from '../db/index.js';
 import { compilePrompt, type PromptConfig, type VariableValues } from '@agentkitai/agentlens-core';
+import { normalizeVariants } from '../lib/prompt-ab.js';
 import { verifyAgentTokenWithMethod } from '../lib/agent-identity.js';
 import { requestDeployApproval } from '../lib/prompt-deploy-approval.js';
 
@@ -190,6 +191,41 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       body.variables ?? {},
     );
     return c.json({ compiled, versionId: version.id, versionNumber: version.versionNumber });
+  });
+
+  // ─── A/B testing (#150) ───
+  // POST /api/prompts/:id/ab — start/replace a weighted A/B test for an environment
+  app.post('/:id/ab', async (c) => {
+    const tenantId = getTenantId(c);
+    const templateId = c.req.param('id');
+    const body = (await c.req.json().catch(() => ({}))) as { environment?: string; variants?: unknown };
+    if (!body.environment || !isKnownEnvironment(body.environment)) {
+      return c.json({ error: 'a valid environment is required' }, 400);
+    }
+    const variants = normalizeVariants(body.variants);
+    if (!variants) return c.json({ error: 'variants must be [{ versionId, label?, weight }] with at least one positive weight' }, 400);
+    if (!store.getTemplate(templateId, tenantId)) return c.json({ error: 'Template not found' }, 404);
+    const abTest = store.createAbTest(tenantId, templateId, body.environment, variants, c.get('apiKey')?.id);
+    return c.json({ abTest }, 201);
+  });
+
+  // GET /api/prompts/:id/ab — list A/B tests for a template
+  app.get('/:id/ab', (c) => {
+    return c.json({ abTests: store.listAbTests(getTenantId(c), c.req.param('id')) });
+  });
+
+  // DELETE /api/prompts/:id/ab/:abId — stop an active A/B test
+  app.delete('/:id/ab/:abId', (c) => {
+    const ok = store.stopAbTest(getTenantId(c), c.req.param('abId'));
+    return ok ? c.json({ ok: true }) : c.json({ error: 'Active A/B test not found' }, 404);
+  });
+
+  // GET /api/prompts/:id/resolve?environment=&key= — resolve the version to serve
+  // (A/B-aware, sticky by key) — what an SDK calls at runtime.
+  app.get('/:id/resolve', (c) => {
+    const environment = c.req.query('environment') ?? 'production';
+    const resolved = store.resolveVersion(getTenantId(c), c.req.param('id'), environment, c.req.query('key'));
+    return resolved ? c.json(resolved) : c.json({ error: 'No live version for this environment' }, 404);
   });
 
   // GET /api/prompts/:id/analytics — Per-version analytics

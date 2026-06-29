@@ -22,6 +22,7 @@ import {
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import { PromptDeployments } from '../components/PromptDeployments';
+import { PromptAbTests } from '../components/PromptAbTests';
 import {
   getPrompt,
   getPromptAnalytics,
@@ -344,6 +345,9 @@ export function PromptDetail(): React.ReactElement {
 
           {/* Deploy lifecycle (#120) */}
           <PromptDeployments templateId={id!} versions={versions} liveVersions={liveVersions} onChange={refetch} />
+
+          {/* A/B tests (#150) */}
+          <PromptAbTests templateId={id!} />
 
           {/* Diff viewer */}
           {versions.length >= 2 && (

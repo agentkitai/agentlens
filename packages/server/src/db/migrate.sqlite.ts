@@ -1235,6 +1235,24 @@ export function runMigrations(db: SqliteDb): void {
   const nowOrg = new Date().toISOString();
   db.run(sql`INSERT OR IGNORE INTO orgs (id, name, slug, plan, settings, created_at, updated_at) VALUES ('default', 'Default', 'default', 'free', '{}', ${nowOrg}, ${nowOrg})`);
   db.run(sql`INSERT OR IGNORE INTO projects (id, org_id, name, slug, settings, created_at, updated_at) VALUES ('default', 'default', 'Default', 'default', '{}', ${nowOrg}, ${nowOrg})`);
+
+  // ─── Prompt A/B testing (#150) ───
+  // A weighted set of versions live concurrently in one environment; the resolver
+  // picks a variant (sticky by key). One active test per (template, environment).
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS prompt_ab_tests (
+      id          TEXT PRIMARY KEY,
+      tenant_id   TEXT NOT NULL,
+      template_id TEXT NOT NULL,
+      environment TEXT NOT NULL,
+      variants    TEXT NOT NULL,
+      status      TEXT NOT NULL DEFAULT 'active',
+      created_by  TEXT,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_ab_tests_lookup ON prompt_ab_tests(tenant_id, template_id, environment, status)`);
 }
 
 /**
