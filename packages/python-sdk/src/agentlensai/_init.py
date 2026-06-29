@@ -62,6 +62,8 @@ def init(
     pii_filter: Callable[[str], str] | None = None,
     sync_mode: bool = False,
     integrations: str | list[str] | None = None,
+    agent_token: str | None = None,
+    ingest_key: str | None = None,
 ) -> str:
     """Initialize AgentLens auto-instrumentation.
 
@@ -101,8 +103,17 @@ def init(
     if resolved_key:
         logger.debug("AgentLens: using API key %s", _mask_key(resolved_key))
 
-    # Create client
-    client = AgentLensClient(resolved_url, api_key=resolved_key)
+    # Create client. An AgentGate agent token (or ingest key) → server-verified
+    # `verifiedAgentId` stamping on auto-instrumented events (#123). Only passed
+    # when set, so the default call shape is unchanged.
+    cred: dict[str, str] = {}
+    resolved_token = agent_token or os.environ.get("AGENTLENS_AGENT_TOKEN")
+    resolved_ingest = ingest_key or os.environ.get("AGENTLENS_INGEST_KEY")
+    if resolved_token:
+        cred["agent_token"] = resolved_token
+    if resolved_ingest:
+        cred["ingest_key"] = resolved_ingest
+    client = AgentLensClient(resolved_url, api_key=resolved_key, **cred)
 
     # Generate session ID if not provided
     sid = session_id or str(uuid.uuid4())

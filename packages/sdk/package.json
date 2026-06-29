@@ -27,6 +27,14 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./openai": {
+      "import": "./dist/openai.js",
+      "types": "./dist/openai.d.ts"
+    },
+    "./vercel": {
+      "import": "./dist/vercel.js",
+      "types": "./dist/vercel.d.ts"
     }
   },
   "main": "./dist/index.js",
@@ -42,6 +50,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentkitai/agentlens-core": "workspace:*"
+    "@agentkitai/agentlens-core": "workspace:*",
+    "@agentkitai/pricing": "workspace:*"
   }
 }

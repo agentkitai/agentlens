@@ -20,6 +20,7 @@ from typing import Any
 
 from agentlensai._sender import LlmCallData
 from agentlensai.integrations.base_llm import BaseLLMInstrumentation, PatchTarget
+from agentlensai.integrations.pricing import cost_for
 from agentlensai.integrations.registry import register
 
 logger = logging.getLogger("agentlensai")
@@ -212,7 +213,7 @@ def _build_call_data(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         total_tokens=total_tokens,
-        cost_usd=0.0,
+        cost_usd=cost_for("openai", response.model or str(model_hint), input_tokens, output_tokens),
         latency_ms=latency_ms,
         parameters=combined_params,
     )
