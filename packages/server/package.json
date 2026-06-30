@@ -55,7 +55,7 @@
     "@agentkitai/auth": "workspace:*",
     "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.12.25",
+    "hono": "^4.12.27",
     "hono-rate-limiter": "^0.5.3",
     "jose": "^6.0.11",
     "postgres": "^3.4.8",

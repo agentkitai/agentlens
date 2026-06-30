@@ -80,8 +80,8 @@ importers:
         version: 6.8.4
     devDependencies:
       hono:
-        specifier: ^4.12.25
-        version: 4.12.26
+        specifier: ^4.12.27
+        version: 4.12.27
       tsup:
         specifier: ^8.5.0
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.8.2)
@@ -216,13 +216,13 @@ importers:
         version: link:../auth
       '@hono/node-server':
         specifier: ^1.19.10
-        version: 1.19.14(hono@4.12.26)
+        version: 1.19.14(hono@4.12.27)
       '@hono/zod-openapi':
         specifier: ^1.4.0
-        version: 1.4.0(hono@4.12.26)(zod@4.4.3)
+        version: 1.4.0(hono@4.12.27)(zod@4.4.3)
       '@scalar/hono-api-reference':
         specifier: ^0.11.6
-        version: 0.11.6(hono@4.12.26)
+        version: 0.11.6(hono@4.12.27)
       better-sqlite3:
         specifier: ^12.11.1
         version: 12.11.1
@@ -230,11 +230,11 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@cloudflare/workers-types@4.20260120.0)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.11.1)(bun-types@1.3.6)(pg@8.22.0)(postgres@3.4.8)
       hono:
-        specifier: ^4.12.25
-        version: 4.12.26
+        specifier: ^4.12.27
+        version: 4.12.27
       hono-rate-limiter:
         specifier: ^0.5.3
-        version: 0.5.3(hono@4.12.26)
+        version: 0.5.3(hono@4.12.27)
       jose:
         specifier: ^6.0.11
         version: 6.1.3
@@ -2909,10 +2909,6 @@ packages:
       unstorage:
         optional: true
 
-  hono@4.12.26:
-    resolution: {integrity: sha512-uyZtpnYxM9CmQ7QsQknM4zN8EftNqhON1qYeIKM0Se67CCEe2c44xyGURwB0axX2fBDu1dqHrHAc1hmNT8ITkw==}
-    engines: {node: '>=16.9.0'}
-
   hono@4.12.27:
     resolution: {integrity: sha512-1yrb/+w6HWQJrUCLkJ2IF5jNIPvvFkblV5RNOYl6bV+OA6p9GLcMpHFFGTosSvHvcAUibuUukRqhlYI4z32C7Q==}
     engines: {node: '>=16.9.0'}
@@ -5230,25 +5226,21 @@ snapshots:
 
   '@exodus/bytes@1.12.0': {}
 
-  '@hono/node-server@1.19.14(hono@4.12.26)':
-    dependencies:
-      hono: 4.12.26
-
   '@hono/node-server@1.19.14(hono@4.12.27)':
     dependencies:
       hono: 4.12.27
 
-  '@hono/zod-openapi@1.4.0(hono@4.12.26)(zod@4.4.3)':
+  '@hono/zod-openapi@1.4.0(hono@4.12.27)(zod@4.4.3)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 8.5.0(zod@4.4.3)
-      '@hono/zod-validator': 0.8.0(hono@4.12.26)(zod@4.4.3)
-      hono: 4.12.26
+      '@hono/zod-validator': 0.8.0(hono@4.12.27)(zod@4.4.3)
+      hono: 4.12.27
       openapi3-ts: 4.5.0
       zod: 4.4.3
 
-  '@hono/zod-validator@0.8.0(hono@4.12.26)(zod@4.4.3)':
+  '@hono/zod-validator@0.8.0(hono@4.12.27)(zod@4.4.3)':
     dependencies:
-      hono: 4.12.26
+      hono: 4.12.27
       zod: 4.4.3
 
   '@humanfs/core@0.19.1': {}
@@ -5492,10 +5484,10 @@ snapshots:
 
   '@scalar/helpers@0.9.0': {}
 
-  '@scalar/hono-api-reference@0.11.6(hono@4.12.26)':
+  '@scalar/hono-api-reference@0.11.6(hono@4.12.27)':
     dependencies:
       '@scalar/client-side-rendering': 0.2.6
-      hono: 4.12.26
+      hono: 4.12.27
 
   '@scalar/schemas@0.7.0':
     dependencies:
@@ -6911,11 +6903,9 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.4
 
-  hono-rate-limiter@0.5.3(hono@4.12.26):
+  hono-rate-limiter@0.5.3(hono@4.12.27):
     dependencies:
-      hono: 4.12.26
-
-  hono@4.12.26: {}
+      hono: 4.12.27
 
   hono@4.12.27: {}
 
