@@ -37,6 +37,7 @@ import { llmConnectionsRoutes } from './llm-connections.js';
 import { playgroundRoutes } from './playground.js';
 import { orgRoutes } from './orgs.js';
 import { scimRoutes } from './scim.js';
+import { samlRoutes } from './sso-saml.js';
 import { getJwks } from '../lib/export-signing.js';
 import { diagnoseRoutes } from './diagnose.js';
 import { registerReplayRoutes } from './replay.js';
@@ -321,6 +322,17 @@ export async function registerRoutes(
       app.route(
         '/scim/v2',
         scimRoutes(config?.pgDb ?? db, { token: resolvedConfig.scimToken, tenantId: resolvedConfig.scimTenantId }),
+      );
+    }
+
+    // ─── Enterprise SAML 2.0 SSO (#148) — gated by the enterprise flag ──
+    if (resolvedConfig.enterpriseEnabled && resolvedConfig.ssoSessionSecret) {
+      app.route(
+        '/sso/saml',
+        samlRoutes(config?.pgDb ?? db, {
+          baseUrl: resolvedConfig.publicBaseUrl ?? resolvedConfig.corsOrigin,
+          sessionSecret: resolvedConfig.ssoSessionSecret,
+        }),
       );
     }
   }

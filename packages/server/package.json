@@ -49,10 +49,11 @@
   },
   "dependencies": {
     "@agentkitai/agentlens-core": "workspace:*",
+    "@agentkitai/auth": "workspace:*",
     "@hono/node-server": "^1.19.10",
     "@hono/zod-openapi": "^1.4.0",
+    "@node-saml/node-saml": "^5.1.0",
     "@scalar/hono-api-reference": "^0.11.6",
-    "@agentkitai/auth": "workspace:*",
     "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.27",

@@ -77,6 +77,11 @@ export interface ServerConfig {
   scimToken?: string;
   /** Tenant that SCIM provisions users into (default: 'default'). */
   scimTenantId: string;
+  /** Public base URL used to build SAML callback/metadata URLs (default: corsOrigin). */
+  publicBaseUrl?: string;
+  /** Secret for signing SSO session JWTs. When set (with enterpriseEnabled),
+   *  /sso/saml mounts. */
+  ssoSessionSecret?: string;
 }
 
 /**
@@ -144,6 +149,8 @@ export function getConfig(): ServerConfig {
     enterpriseEnabled: process.env['ENTERPRISE_ENABLED'] === 'true',
     scimToken: process.env['SCIM_TOKEN'] || undefined,
     scimTenantId: process.env['SCIM_TENANT_ID'] ?? 'default',
+    publicBaseUrl: process.env['PUBLIC_BASE_URL'] || undefined,
+    ssoSessionSecret: process.env['SSO_SESSION_SECRET'] || undefined,
   };
 }
 
