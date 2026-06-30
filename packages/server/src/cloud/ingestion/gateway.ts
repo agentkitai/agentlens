@@ -126,6 +126,9 @@ function enrichEvent(
     session_id: event.session_id,
     data: event.data ?? {},
     org_id: auth.orgId,
+    // Project scope (#233): cloud is single-project-per-org until keys carry a
+    // project binding, so the project defaults to the org.
+    project_id: auth.orgId,
     api_key_id: auth.keyId,
     received_at: new Date().toISOString(),
     request_id: requestId,
