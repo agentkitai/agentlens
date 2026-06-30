@@ -264,6 +264,9 @@ describePg('Postgres integration tests', () => {
         // #172 feature 2 (schema step): prompt-management tables on the pg path
         'prompt_templates', 'prompt_versions', 'prompt_fingerprints',
         'prompt_deployments', 'prompt_ab_tests',
+        // #172 feature 3 (schema step): evaluation tables on the pg path
+        'eval_datasets', 'eval_test_cases', 'eval_runs', 'eval_results',
+        'evaluator_definitions',
       ];
 
       for (const table of expectedTables) {
@@ -282,6 +285,21 @@ describePg('Postgres integration tests', () => {
         VALUES (${ver}, ${tpl}, 'default', 1, 'hello', '{}', 'chat', 'abc', '2026-06-30T00:00:00Z')`);
       const rows = await db.execute(sql`SELECT prompt_type FROM prompt_versions WHERE id = ${ver}`);
       expect(rows.rows[0].prompt_type).toBe('chat');
+    });
+
+    it('eval tables accept the store columns (float score, integer passed)', async () => {
+      // Smoke-test the 0009 schema for the dialect-agnostic EvalStore (next PR).
+      const ds = `ds_${randomUUID()}`;
+      const run = `run_${randomUUID()}`;
+      await db.execute(sql`INSERT INTO eval_datasets (id, tenant_id, name, version, immutable, created_at, updated_at)
+        VALUES (${ds}, 'default', 'DS', 1, 0, '2026-06-30T00:00:00Z', '2026-06-30T00:00:00Z')`);
+      await db.execute(sql`INSERT INTO eval_runs (id, tenant_id, dataset_id, dataset_version, agent_id, webhook_url, status, created_at)
+        VALUES (${run}, 'default', ${ds}, 1, 'agt', 'https://x', 'pending', '2026-06-30T00:00:00Z')`);
+      await db.execute(sql`INSERT INTO eval_results (id, run_id, test_case_id, tenant_id, score, passed, scorer_type, created_at)
+        VALUES (${`res_${randomUUID()}`}, ${run}, 'tc1', 'default', 0.875, 1, 'exact_match', '2026-06-30T00:00:00Z')`);
+      const r = await db.execute(sql`SELECT score, passed FROM eval_results WHERE run_id = ${run}`);
+      expect(Number(r.rows[0].score)).toBeCloseTo(0.875, 6);
+      expect(Number(r.rows[0].passed)).toBe(1);
     });
   });
 
