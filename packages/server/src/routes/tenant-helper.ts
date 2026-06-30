@@ -61,9 +61,13 @@ export function getOrgId(
  * Use this when the tenant comes from somewhere other than the user auth context
  * — e.g. service-to-service internal routes that take tenantId from the body.
  */
-export function tenantScopedStore(store: IEventStore, tenantId: string): IEventStore {
+export function tenantScopedStore(
+  store: IEventStore,
+  tenantId: string,
+  scope?: { orgId?: string; projectId?: string },
+): IEventStore {
   if (store instanceof SqliteEventStore || store instanceof PostgresEventStore) {
-    return new TenantScopedStore(store, tenantId);
+    return new TenantScopedStore(store, tenantId, scope);
   }
   // Test mocks / other IEventStore implementations — return as-is
   return store;
@@ -77,5 +81,10 @@ export function getTenantStore(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   c: Context<any, any, any>,
 ): IEventStore {
+  // The project is the isolation key (getTenantId == projectId, ADR 0002). Reads
+  // filter by project; org_id is a grouping-only column, so it is NOT passed as a
+  // read scope (filtering by org would exclude data stamped under a different
+  // org_id). Stamping the real org on writes (grouping rollups) is tracked
+  // separately — it needs stamp-without-filter in TenantScopedStore.
   return tenantScopedStore(store, getTenantId(c));
 }
