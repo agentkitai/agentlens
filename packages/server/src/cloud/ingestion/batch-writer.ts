@@ -251,11 +251,12 @@ export class BatchWriter {
 
       for (const event of events) {
         placeholders.push(
-          `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`,
+          `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`,
         );
         values.push(
           event.id,
           orgId,
+          event.project_id ?? orgId, // #256: project scope (defaults to org)
           event.session_id,
           event.data.agent_id ?? 'unknown',
           event.type,
@@ -268,7 +269,7 @@ export class BatchWriter {
       }
 
       await client.query(
-        `INSERT INTO events (id, org_id, session_id, agent_id, event_type, severity, timestamp, payload, prev_hash, hash)
+        `INSERT INTO events (id, org_id, project_id, session_id, agent_id, event_type, severity, timestamp, payload, prev_hash, hash)
          VALUES ${placeholders.join(', ')}
          ON CONFLICT (id, timestamp) DO NOTHING`,
         values,

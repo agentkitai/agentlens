@@ -167,13 +167,13 @@ describe('S-1.4: Table Partitioning', () => {
       // Create an org first
       const orgId = '00000000-0000-0000-0000-000000000001';
       await pool!.query('BEGIN');
-      await pool!.query(`SET LOCAL app.current_org = $1`, [orgId]);
+      await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [orgId]);
       await pool!.query(`INSERT INTO orgs (id, name, slug) VALUES ($1, 'Test', 'test')`, [orgId]);
       await pool!.query('COMMIT');
 
       // Insert event into current partition
       await pool!.query('BEGIN');
-      await pool!.query(`SET LOCAL app.current_org = $1`, [orgId]);
+      await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [orgId]);
       await pool!.query(
         `INSERT INTO events (org_id, timestamp, session_id, agent_id, event_type, payload, hash)
          VALUES ($1, now(), 'sess1', 'agent1', 'test', '{}', 'hash1')`,
@@ -183,7 +183,7 @@ describe('S-1.4: Table Partitioning', () => {
 
       // Query should find it
       await pool!.query('BEGIN');
-      await pool!.query(`SET LOCAL app.current_org = $1`, [orgId]);
+      await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [orgId]);
       const res = await pool!.query('SELECT * FROM events');
       await pool!.query('COMMIT');
 
@@ -268,7 +268,7 @@ describe('S-1.5: Connection Pool with Tenant Context', () => {
 
       // Insert org
       await pool!.query('BEGIN');
-      await pool!.query(`SET LOCAL app.current_org = $1`, [orgId]);
+      await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [orgId]);
       await pool!.query(`INSERT INTO orgs (id, name, slug) VALUES ($1, 'Test', 'test')`, [orgId]);
       await pool!.query('COMMIT');
 
@@ -303,7 +303,7 @@ describe('S-1.5: Connection Pool with Tenant Context', () => {
       // Setup orgs
       for (const [id, name, slug] of [[orgA, 'Org A', 'org-a'], [orgB, 'Org B', 'org-b']] as const) {
         await pool!.query('BEGIN');
-        await pool!.query(`SET LOCAL app.current_org = $1`, [id]);
+        await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [id]);
         await pool!.query(`INSERT INTO orgs (id, name, slug) VALUES ($1, $2, $3)`, [id, name, slug]);
         await pool!.query('COMMIT');
       }
@@ -330,7 +330,7 @@ describe('S-1.5: Connection Pool with Tenant Context', () => {
       const orgId = '00000000-0000-0000-0000-000000000001';
 
       await pool!.query('BEGIN');
-      await pool!.query(`SET LOCAL app.current_org = $1`, [orgId]);
+      await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [orgId]);
       await pool!.query(`INSERT INTO orgs (id, name, slug) VALUES ($1, 'Test', 'test')`, [orgId]);
       await pool!.query('COMMIT');
 
@@ -423,7 +423,7 @@ describe('S-1.6: pgvector Extension & Embedding Tables', () => {
       // Create orgs
       for (const [id, slug] of [[orgA, 'org-a'], [orgB, 'org-b']]) {
         await pool!.query('BEGIN');
-        await pool!.query(`SET LOCAL app.current_org = $1`, [id]);
+        await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [id]);
         await pool!.query(`INSERT INTO orgs (id, name, slug) VALUES ($1, $2, $3)`, [id, slug, slug]);
         await pool!.query('COMMIT');
       }
@@ -434,7 +434,7 @@ describe('S-1.6: pgvector Extension & Embedding Tables', () => {
 
       // Insert embedding for org A
       await pool!.query('BEGIN');
-      await pool!.query(`SET LOCAL app.current_org = $1`, [orgA]);
+      await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [orgA]);
       await pool!.query(
         `INSERT INTO embeddings (org_id, source_type, source_id, content_hash, text_content, embedding, embedding_model, dimensions, embedding_vector)
          VALUES ($1, 'lesson', 'l1', 'h1', 'org A lesson', '\\x00', 'ada-002', 1536, $2::vector)`,
@@ -444,7 +444,7 @@ describe('S-1.6: pgvector Extension & Embedding Tables', () => {
 
       // Insert embedding for org B
       await pool!.query('BEGIN');
-      await pool!.query(`SET LOCAL app.current_org = $1`, [orgB]);
+      await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [orgB]);
       await pool!.query(
         `INSERT INTO embeddings (org_id, source_type, source_id, content_hash, text_content, embedding, embedding_model, dimensions, embedding_vector)
          VALUES ($1, 'lesson', 'l2', 'h2', 'org B lesson', '\\x00', 'ada-002', 1536, $2::vector)`,
@@ -454,7 +454,7 @@ describe('S-1.6: pgvector Extension & Embedding Tables', () => {
 
       // Semantic search as org A — should only see org A's embedding
       await pool!.query('BEGIN');
-      await pool!.query(`SET LOCAL app.current_org = $1`, [orgA]);
+      await pool!.query(`SELECT set_config('app.current_org', $1, true)`, [orgA]);
       const res = await pool!.query(
         `SELECT text_content, 1 - (embedding_vector <=> $1::vector) AS similarity
          FROM embeddings
@@ -480,9 +480,9 @@ describe('Migration Runner (updated for B2A)', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('finds exactly 6 migration files', () => {
+  it('finds all migration files', () => {
     const files = getMigrationFiles(MIGRATIONS_DIR);
-    expect(files).toHaveLength(9);
+    expect(files).toHaveLength(10); // 001..010 (010 = #256 project_id)
   });
 
   it('new migrations are in correct order', () => {

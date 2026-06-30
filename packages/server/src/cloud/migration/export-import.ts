@@ -304,10 +304,10 @@ async function importRecord(
     case 'agent': {
       const { id, name, description, created_at, updated_at } = data as Record<string, unknown>;
       const res = await client.query(
-        `INSERT INTO agents (id, org_id, name, description, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO agents (id, org_id, project_id, name, description, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (id) DO NOTHING`,
-        [id, orgId, name ?? null, description ?? null, created_at, updated_at ?? created_at],
+        [id, orgId, orgId, name ?? null, description ?? null, created_at, updated_at ?? created_at],
       );
       return (res.rowCount ?? 0) > 0;
     }
@@ -315,11 +315,11 @@ async function importRecord(
       const { id, agent_id, status, metadata, created_at, updated_at, ended_at } =
         data as Record<string, unknown>;
       const res = await client.query(
-        `INSERT INTO sessions (id, org_id, agent_id, status, metadata, created_at, updated_at, ended_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO sessions (id, org_id, project_id, agent_id, status, metadata, created_at, updated_at, ended_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (id) DO NOTHING`,
         [
-          id, orgId, agent_id, status ?? 'completed',
+          id, orgId, orgId, agent_id, status ?? 'completed',
           typeof metadata === 'object' ? JSON.stringify(metadata) : metadata ?? '{}',
           created_at, updated_at ?? created_at, ended_at ?? null,
         ],
@@ -332,11 +332,11 @@ async function importRecord(
       const resolvedType = event_type ?? type;
       const resolvedPayload = payload ?? eventData;
       const res = await client.query(
-        `INSERT INTO events (id, org_id, session_id, event_type, timestamp, payload)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO events (id, org_id, project_id, session_id, event_type, timestamp, payload)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (id) DO NOTHING`,
         [
-          id, orgId, session_id, resolvedType, timestamp,
+          id, orgId, orgId, session_id, resolvedType, timestamp,
           typeof resolvedPayload === 'object' ? JSON.stringify(resolvedPayload) : resolvedPayload ?? '{}',
         ],
       );

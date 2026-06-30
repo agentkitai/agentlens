@@ -37,14 +37,19 @@ export async function withTenantTransaction<T>(
   pool: Pool,
   orgId: string,
   fn: (client: PoolClient) => Promise<T>,
+  projectId?: string,
 ): Promise<T> {
   if (!orgId || typeof orgId !== 'string') {
     throw new Error('orgId is required for tenant-scoped transactions');
   }
 
   // Basic UUID format validation
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orgId)) {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID.test(orgId)) {
     throw new Error('orgId must be a valid UUID');
+  }
+  if (projectId !== undefined && !UUID.test(projectId)) {
+    throw new Error('projectId must be a valid UUID');
   }
 
   const client = await pool.connect();
@@ -54,6 +59,11 @@ export async function withTenantTransaction<T>(
     // params in a bare SET). Transaction-scoped: auto-clears on COMMIT/ROLLBACK,
     // safe for PgBouncer transaction mode.
     await client.query(`SELECT set_config('app.current_org', $1, true)`, [orgId]);
+    // #256: scope to a project when given; otherwise the RLS project predicate is
+    // tolerant (org-only) so existing callers are unaffected.
+    if (projectId !== undefined) {
+      await client.query(`SELECT set_config('app.current_project', $1, true)`, [projectId]);
+    }
     const result = await fn(client);
     await client.query('COMMIT');
     return result;

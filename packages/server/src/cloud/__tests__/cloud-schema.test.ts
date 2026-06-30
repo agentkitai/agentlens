@@ -434,7 +434,8 @@ describe('Integration: Full migration run', () => {
 
   it.skipIf(!pgAvailable)('runs all migrations successfully', async () => {
     const result = await runMigrations(client!, MIGRATIONS_DIR);
-    expect(result.applied).toHaveLength(3);
+    // tolerant of new migrations (e.g. #256's 010); a fresh db applies all, skips none.
+    expect(result.applied.length).toBeGreaterThanOrEqual(3);
     expect(result.skipped).toHaveLength(0);
   });
 
@@ -442,7 +443,7 @@ describe('Integration: Full migration run', () => {
     await runMigrations(client!, MIGRATIONS_DIR);
     const result = await runMigrations(client!, MIGRATIONS_DIR);
     expect(result.applied).toHaveLength(0);
-    expect(result.skipped).toHaveLength(3);
+    expect(result.skipped.length).toBeGreaterThanOrEqual(3);
   });
 
   it.skipIf(!pgAvailable)('creates all cloud tables', async () => {
