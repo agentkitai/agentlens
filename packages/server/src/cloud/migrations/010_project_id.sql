@@ -19,24 +19,20 @@ CREATE INDEX IF NOT EXISTS idx_sessions_org_project ON sessions(org_id, project_
 CREATE INDEX IF NOT EXISTS idx_agents_org_project   ON agents(org_id, project_id);
 
 -- Replace the org-only isolation policy (from 003) with org + (tolerant) project
--- for the three data tables. current_setting(..., true) returns NULL when the GUC
--- is unset → the project clause is skipped (org-only). When set, it is enforced.
+-- for the three data tables. NULLIF(current_setting(..., true), '') is NULL when
+-- the GUC is unset OR empty — a custom GUC that was set then reverted on a pooled
+-- connection reads back as '' (not NULL) — so the project clause is skipped
+-- (org-only) unless a project is actually in scope. When set, it is enforced.
 DO $$
-DECLARE tbl TEXT;
+DECLARE
+  tbl TEXT;
+  proj TEXT := 'NULLIF(current_setting(''app.current_project'', true), '''')';
+  pred TEXT;
 BEGIN
   FOREACH tbl IN ARRAY ARRAY['events', 'sessions', 'agents'] LOOP
+    pred := 'org_id = current_setting(''app.current_org'')::uuid AND ' ||
+            '(' || proj || ' IS NULL OR project_id = ' || proj || '::uuid)';
     EXECUTE format('DROP POLICY IF EXISTS %I ON %I', tbl || '_tenant_isolation', tbl);
-    EXECUTE format(
-      'CREATE POLICY %I ON %I USING (' ||
-        'org_id = current_setting(''app.current_org'')::uuid AND ' ||
-        '(current_setting(''app.current_project'', true) IS NULL OR ' ||
-         'project_id = current_setting(''app.current_project'', true)::uuid)' ||
-      ') WITH CHECK (' ||
-        'org_id = current_setting(''app.current_org'')::uuid AND ' ||
-        '(current_setting(''app.current_project'', true) IS NULL OR ' ||
-         'project_id = current_setting(''app.current_project'', true)::uuid)' ||
-      ')',
-      tbl || '_tenant_isolation', tbl
-    );
+    EXECUTE format('CREATE POLICY %I ON %I USING (%s) WITH CHECK (%s)', tbl || '_tenant_isolation', tbl, pred, pred);
   END LOOP;
 END $$;
