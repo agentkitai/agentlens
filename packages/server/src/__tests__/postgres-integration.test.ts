@@ -460,8 +460,36 @@ describePg('Postgres integration tests', () => {
       const ab = await store.createAbTest(tid, template.id, 'staging', [{ versionId: version.id, label: 'a', weight: 1 }]);
       expect((await store.getActiveAbTest(tid, template.id, 'staging'))?.id).toBe(ab.id);
 
-      // events-joining version analytics are deferred on Postgres (#175)
-      await expect(store.getVersionAnalytics(template.id, tid)).rejects.toThrow(/Postgres/);
+      // events-joining version analytics now work on Postgres (#175).
+      const pgStore = new PostgresEventStore(db);
+      const scoped = new TenantScopedStore(pgStore, tid);
+      const mkEvent = (over: Record<string, unknown>) => {
+        const base = {
+          id: `e_${randomUUID()}`, timestamp: '2026-06-15T10:00:00Z',
+          sessionId: `s_${randomUUID().slice(0, 6)}`, agentId: 'agt-x',
+          eventType: 'custom', severity: 'info', payload: {}, metadata: {}, prevHash: null,
+          ...over,
+        };
+        return { ...base, hash: computeEventHash(base), tenantId: tid };
+      };
+      await scoped.insertEvents([
+        mkEvent({ eventType: 'llm_call', payload: { promptVersionId: version.id, callId: 'c1' }, metadata: { verifiedAgentId: 'agt-x' } }) as never,
+        mkEvent({ eventType: 'llm_response', payload: { callId: 'c1', costUsd: 0.02, latencyMs: 120, finishReason: 'stop', usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 } } }) as never,
+      ]);
+
+      const analytics = await store.getVersionAnalytics(template.id, tid);
+      const vRow = analytics.find((a) => a.versionId === version.id);
+      expect(vRow?.callCount).toBe(1);
+      expect(vRow?.totalCostUsd).toBeCloseTo(0.02, 6);
+      expect(vRow?.avgLatencyMs).toBeCloseTo(120, 6);
+      expect(vRow?.avgInputTokens).toBeCloseTo(10, 6);
+
+      const byAgent = await store.getVersionAnalyticsByAgent(template.id, tid);
+      const aRow = byAgent.find((a) => a.versionId === version.id);
+      expect(aRow?.agentId).toBe('agt-x');
+      expect(aRow?.verified).toBe(true);
+      expect(aRow?.callCount).toBe(1);
+      expect(aRow?.totalCostUsd).toBeCloseTo(0.02, 6);
 
       await store.softDeleteTemplate(template.id, tid);
       expect(await store.getTemplate(template.id, tid)).toBeNull();
