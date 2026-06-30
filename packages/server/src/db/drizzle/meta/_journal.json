@@ -64,6 +64,13 @@
       "when": 1740566400000,
       "tag": "0008_prompt_tables",
       "breakpoints": false
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1740652800000,
+      "tag": "0009_eval_tables",
+      "breakpoints": false
     }
   ]
 }
