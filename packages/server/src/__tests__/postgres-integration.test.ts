@@ -404,6 +404,24 @@ describePg('Postgres integration tests', () => {
       await store.addProjectMember(proj.id, 'user-pg-1', 'viewer');
       expect(await store.listProjectMembers(proj.id)).toHaveLength(1);
     });
+
+    it('resolves user-centric membership + override-wins effective role on pg (#147)', async () => {
+      const store = new OrgProjectStore(db);
+      const u = `u_${randomUUID().slice(0, 8)}`;
+      const orgA = await store.createOrg({ name: 'OA', slug: `oa-${randomUUID().slice(0, 8)}` });
+      const orgB = await store.createOrg({ name: 'OB', slug: `ob-${randomUUID().slice(0, 8)}` });
+      const projA = await store.createProject(orgA.id, { name: 'PA', slug: `pa-${randomUUID().slice(0, 8)}` });
+      await store.addOrgMember(orgA.id, u, 'member');
+      await store.addOrgMember(orgB.id, u, 'admin');
+
+      const orgs = (await store.listUserOrgs(u)).map((o) => o.org.id);
+      expect(orgs).toContain(orgA.id);
+      expect(orgs).toContain(orgB.id);
+      expect(await store.getEffectiveRole(projA.id, u)).toBe('member'); // inherits org role
+      await store.addProjectMember(projA.id, u, 'viewer');
+      expect(await store.getEffectiveRole(projA.id, u)).toBe('viewer'); // override wins
+      expect(await store.getEffectiveRole(projA.id, 'nobody')).toBeNull();
+    });
   });
 
   // ─── #172 feature 2: prompt management via the dialect-agnostic store ──

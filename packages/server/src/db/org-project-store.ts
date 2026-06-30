@@ -140,4 +140,52 @@ export class OrgProjectStore {
   async listProjectMembers(projectId: string): Promise<ProjectMember[]> {
     return (await dbAll<ProjectMemberRow>(this.db, sql`SELECT * FROM project_members WHERE project_id = ${projectId} ORDER BY joined_at ASC`)).map(toProjectMember);
   }
+
+  // ─── User-centric membership (#147) — a user may belong to many orgs/projects ──
+
+  /** Orgs the user is a member of, with their org-level role. */
+  async listUserOrgs(userId: string): Promise<Array<{ org: Org; role: string }>> {
+    const rows = await dbAll<OrgRow & { member_role: string }>(this.db, sql`
+      SELECT o.id, o.name, o.slug, o.plan, o.settings, o.created_at, o.updated_at, m.role as member_role
+      FROM org_members m JOIN orgs o ON o.id = m.org_id
+      WHERE m.user_id = ${userId}
+      ORDER BY m.joined_at ASC`);
+    return rows.map((r) => ({ org: toOrg(r), role: r.member_role }));
+  }
+
+  /** A user's org-level role for an org, or null if they are not a member. */
+  async getOrgRole(orgId: string, userId: string): Promise<string | null> {
+    const row = await dbGet<{ role: string }>(this.db, sql`
+      SELECT role FROM org_members WHERE org_id = ${orgId} AND user_id = ${userId}`);
+    return row?.role ?? null;
+  }
+
+  /**
+   * Effective role for a user on a project: the per-project override wins, else
+   * the user's org-level role for the project's org, else null (no access).
+   */
+  async getEffectiveRole(projectId: string, userId: string): Promise<string | null> {
+    const proj = await dbGet<{ org_id: string }>(this.db, sql`SELECT org_id FROM projects WHERE id = ${projectId}`);
+    if (!proj) return null;
+    const override = await dbGet<{ role: string }>(this.db, sql`
+      SELECT role FROM project_members WHERE project_id = ${projectId} AND user_id = ${userId}`);
+    if (override) return override.role;
+    return this.getOrgRole(proj.org_id, userId);
+  }
+
+  /** Projects the user can access (a direct project membership, or via their org). */
+  async listUserProjects(userId: string): Promise<Array<{ project: Project; role: string }>> {
+    const rows = await dbAll<ProjectRow>(this.db, sql`
+      SELECT DISTINCT p.id, p.org_id, p.name, p.slug, p.settings, p.created_at, p.updated_at
+      FROM projects p
+      WHERE p.org_id IN (SELECT org_id FROM org_members WHERE user_id = ${userId})
+         OR p.id IN (SELECT project_id FROM project_members WHERE user_id = ${userId})
+      ORDER BY p.created_at ASC`);
+    const out: Array<{ project: Project; role: string }> = [];
+    for (const r of rows) {
+      const role = await this.getEffectiveRole(r.id, userId);
+      if (role) out.push({ project: toProject(r), role });
+    }
+    return out;
+  }
 }

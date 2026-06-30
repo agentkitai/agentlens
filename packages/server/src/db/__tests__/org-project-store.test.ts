@@ -44,4 +44,32 @@ describe('OrgProjectStore', () => {
     await store.addProjectMember(proj.id, 'user-2', 'admin');
     expect(await store.listProjectMembers(proj.id)).toHaveLength(1);
   });
+
+  it('lets a user belong to multiple orgs/projects with override-wins roles (#147)', async () => {
+    const orgA = await store.createOrg({ name: 'Org A' });
+    const orgB = await store.createOrg({ name: 'Org B' });
+    const projA = await store.createProject(orgA.id, { name: 'Proj A' });
+    const projB = await store.createProject(orgB.id, { name: 'Proj B' });
+
+    // u1 belongs to BOTH orgs (member of A, admin of B)
+    await store.addOrgMember(orgA.id, 'u1', 'member');
+    await store.addOrgMember(orgB.id, 'u1', 'admin');
+
+    const userOrgs = await store.listUserOrgs('u1');
+    expect(userOrgs.map((o) => o.org.id).sort()).toEqual([orgA.id, orgB.id].sort());
+    expect(userOrgs.find((o) => o.org.id === orgA.id)?.role).toBe('member');
+    expect(userOrgs.find((o) => o.org.id === orgB.id)?.role).toBe('admin');
+
+    // effective role inherits the org role by default…
+    expect(await store.getEffectiveRole(projA.id, 'u1')).toBe('member');
+    expect(await store.getEffectiveRole(projB.id, 'u1')).toBe('admin');
+    // …but a per-project override wins
+    await store.addProjectMember(projA.id, 'u1', 'viewer');
+    expect(await store.getEffectiveRole(projA.id, 'u1')).toBe('viewer');
+    // a non-member gets null (no access)
+    expect(await store.getEffectiveRole(projA.id, 'stranger')).toBeNull();
+
+    // user can see projects across both orgs
+    expect((await store.listUserProjects('u1')).map((p) => p.project.id).sort()).toEqual([projA.id, projB.id].sort());
+  });
 });
