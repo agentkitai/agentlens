@@ -154,7 +154,7 @@ export class EvalRunner {
 
     // Resolve the prompt/model variant once (content from the registry) so each
     // webhook call runs the exact variant under test (#121).
-    const variant = this.resolveVariant(run, tenantId);
+    const variant = await this.resolveVariant(run, tenantId);
 
     try {
       const promises = testCases.map(async (testCase) => {
@@ -271,11 +271,11 @@ export class EvalRunner {
   }
 
   /** Resolve the prompt/model variant under test, loading content from the registry. */
-  private resolveVariant(run: EvalRun, tenantId: string): EvalWebhookRequest['variant'] | undefined {
+  private async resolveVariant(run: EvalRun, tenantId: string): Promise<EvalWebhookRequest['variant'] | undefined> {
     if (!run.promptVersionId && !run.modelId) return undefined;
     let promptContent: string | undefined;
     if (run.promptVersionId && this.promptStore) {
-      promptContent = this.promptStore.getVersion(run.promptVersionId, tenantId)?.content;
+      promptContent = (await this.promptStore.getVersion(run.promptVersionId, tenantId))?.content;
     }
     return {
       ...(run.promptVersionId ? { promptVersionId: run.promptVersionId } : {}),

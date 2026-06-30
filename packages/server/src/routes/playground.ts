@@ -42,9 +42,9 @@ export function playgroundRoutes(db: SqliteDb) {
     // Resolve messages: explicit messages, a stored prompt (compiled), or a raw string.
     let messages: InvokeMessage[];
     if (body.promptId) {
-      const template = prompts.getTemplate(body.promptId, tenantId);
+      const template = await prompts.getTemplate(body.promptId, tenantId);
       const versionId = body.versionId ?? template?.currentVersionId;
-      const version = versionId ? prompts.getVersion(versionId, tenantId) : null;
+      const version = versionId ? await prompts.getVersion(versionId, tenantId) : null;
       if (!version) return c.json({ error: 'Prompt version not found' }, 404);
       const compiled = compilePrompt(
         { type: version.promptType, content: version.content, variables: version.variables, config: version.config },

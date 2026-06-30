@@ -33,7 +33,7 @@ function llmCallEvent(systemPrompt?: string) {
   };
 }
 
-describe('POST /api/events → prompt fingerprint auto-discovery', () => {
+describe('POST /api/events → prompt fingerprint auto-discovery', async () => {
   let db: any;
   let store: SqliteEventStore;
   let promptStore: PromptStore;
@@ -58,13 +58,13 @@ describe('POST /api/events → prompt fingerprint auto-discovery', () => {
     });
     expect(res.status).toBe(201);
 
-    const fps = promptStore.getFingerprints('default');
+    const fps = await promptStore.getFingerprints('default');
     expect(fps).toHaveLength(1);
     expect(fps[0]!.contentHash).toBe(computePromptHash(SYS));
     expect(fps[0]!.agentId).toBe('agt_a');
 
     // Fingerprinting is a side table — the event hash chain is untouched.
-    const timeline = await store.getSessionTimeline('s1');
+    const timeline = await await store.getSessionTimeline('s1');
     expect(verifyChain(timeline as any).valid).toBe(true);
   });
 
@@ -73,6 +73,6 @@ describe('POST /api/events → prompt fingerprint auto-discovery', () => {
       method: 'POST', headers: auth(), body: JSON.stringify({ events: [llmCallEvent(undefined)] }),
     });
     expect(res.status).toBe(201);
-    expect(promptStore.getFingerprints('default')).toHaveLength(0);
+    expect(await promptStore.getFingerprints('default')).toHaveLength(0);
   });
 });

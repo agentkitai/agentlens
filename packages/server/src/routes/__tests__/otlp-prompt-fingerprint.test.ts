@@ -36,7 +36,7 @@ const genaiPayload = {
   }],
 };
 
-describe('OTLP /v1/traces → prompt fingerprint auto-discovery', () => {
+describe('OTLP /v1/traces → prompt fingerprint auto-discovery', async () => {
   let store: SqliteEventStore;
   let promptStore: PromptStore;
   let app: any;
@@ -57,7 +57,7 @@ describe('OTLP /v1/traces → prompt fingerprint auto-discovery', () => {
     });
     expect(res.status).toBe(200);
 
-    const fps = promptStore.getFingerprints('default');
+    const fps = await promptStore.getFingerprints('default');
     expect(fps).toHaveLength(1);
     expect(fps[0]!.contentHash).toBe(computePromptHash(SYS));
   });

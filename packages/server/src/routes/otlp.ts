@@ -1110,7 +1110,7 @@ export function otlpRoutes(
     const verified = await resolveOtlpVerified(c.req.header('x-agent-token'), c.req.header('x-agent-ingest-key'));
     const inserted = await buildAndInsertEvents(tenantStore, mapped, otlpTenantId, verified.id, verified.method);
     // Auto-discover prompt templates from ingested llm_call events (best-effort).
-    recordPromptFingerprints(promptStore ?? null, inserted);
+    await recordPromptFingerprints(promptStore ?? null, inserted);
     return c.json({ partialSuccess: {} }, 200);
   });
 
@@ -1226,7 +1226,7 @@ export function otlpRoutes(
       const inserted = await buildAndInsertEvents(tenantStore, mapped, metricTenantId, verified.id, verified.method);
       // Symmetry with the traces path; metrics don't emit llm_call today, so this
       // no-ops, but keeps fingerprinting wired if that ever changes.
-      recordPromptFingerprints(promptStore ?? null, inserted);
+      await recordPromptFingerprints(promptStore ?? null, inserted);
     }
     return c.json({ partialSuccess: {} }, 200);
   });
@@ -1315,7 +1315,7 @@ export function otlpRoutes(
       }
       const verified = await resolveOtlpVerified(c.req.header('x-agent-token'), c.req.header('x-agent-ingest-key'));
       const inserted = await buildAndInsertEvents(tenantStore, mapped, logTenantId, verified.id, verified.method);
-      recordPromptFingerprints(promptStore ?? null, inserted);
+      await recordPromptFingerprints(promptStore ?? null, inserted);
     }
     return c.json({ partialSuccess: {} }, 200);
   });

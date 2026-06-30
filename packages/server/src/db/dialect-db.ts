@@ -46,3 +46,13 @@ export async function dbAll<T>(db: AnyDb, query: SQL): Promise<T[]> {
 export async function dbGet<T>(db: AnyDb, query: SQL): Promise<T | undefined> {
   return (await dbAll<T>(db, query))[0];
 }
+
+/** Execute a write, returning the number of affected rows. */
+export async function dbRunCount(db: AnyDb, query: SQL): Promise<number> {
+  if (isSqliteDb(db)) {
+    return db.run(query).changes;
+  }
+  // postgres-js exposes `.count`; node-postgres exposes `.rowCount`.
+  const res = (await db.execute(query)) as { count?: number; rowCount?: number };
+  return res.count ?? res.rowCount ?? 0;
+}
