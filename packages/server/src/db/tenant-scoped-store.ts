@@ -84,11 +84,11 @@ export class TenantScopedStore implements IEventStore {
   }
 
   async querySessions(query: SessionQuery): Promise<{ sessions: Session[]; total: number }> {
-    return this.inner.querySessions({ ...query, tenantId: this.tenantId });
+    return this.inner.querySessions({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
   }
 
   async getSession(id: string): Promise<Session | null> {
-    return this.inner.getSession(id, this.tenantId);
+    return this.inner.getSession(id, this.tenantId, this.orgId, this.projectId);
   }
 
   // ─── Agents ──────────────────────────────────────────────

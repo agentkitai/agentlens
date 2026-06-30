@@ -95,8 +95,8 @@ export class SqliteEventStore implements IEventStore {
     return this.sessionRepo.querySessions(query);
   }
 
-  async getSession(id: string, tenantId?: string): Promise<Session | null> {
-    return this.sessionRepo.getSession(id, tenantId);
+  async getSession(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<Session | null> {
+    return this.sessionRepo.getSession(id, tenantId, orgId, projectId);
   }
 
   async sumSessionCost(

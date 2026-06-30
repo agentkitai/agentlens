@@ -564,6 +564,10 @@ export interface SessionQuery {
   tags?: string[];
   /** Tenant ID for multi-tenant isolation */
   tenantId?: string;
+  /** Org ID for org→project isolation (#147) — filtered only when provided */
+  orgId?: string;
+  /** Project ID for org→project isolation (#147) — filtered only when provided */
+  projectId?: string;
 }
 
 export interface SessionQueryResult {

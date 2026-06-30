@@ -47,8 +47,8 @@ export class SessionRepository {
           totalCostUsd: 0,
           tags: JSON.stringify(tags),
           tenantId,
-          orgId: 'default', // #147
-          projectId: tenantId, // #147
+          orgId: event.orgId ?? 'default', // #147
+          projectId: event.projectId ?? tenantId, // #147
         })
         .onConflictDoUpdate({
           target: [sessions.id, sessions.tenantId],
@@ -76,8 +76,8 @@ export class SessionRepository {
         totalCostUsd: 0,
         tags: '[]',
         tenantId,
-        orgId: 'default', // #147
-        projectId: tenantId, // #147
+        orgId: event.orgId ?? 'default', // #147
+        projectId: event.projectId ?? tenantId, // #147
       })
       .onConflictDoNothing({ target: [sessions.id, sessions.tenantId] })
       .run();
@@ -230,9 +230,11 @@ export class SessionRepository {
     };
   }
 
-  async getSession(id: string, tenantId?: string): Promise<Session | null> {
+  async getSession(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<Session | null> {
     const conditions = [eq(sessions.id, id)];
     if (tenantId) conditions.push(eq(sessions.tenantId, tenantId));
+    if (orgId) conditions.push(eq(sessions.orgId, orgId));
+    if (projectId) conditions.push(eq(sessions.projectId, projectId));
 
     const row = this.db
       .select()

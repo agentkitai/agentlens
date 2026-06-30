@@ -793,6 +793,13 @@ describePg('Postgres integration tests', () => {
       expect(idsA).not.toContain(eb.id); // same tenant, different project → isolated
       expect(await projA.getEvent(eb.id)).toBeNull();
       expect(await projA.getEvent(ea.id)).not.toBeNull();
+
+      // sessions are project-isolated too (stamped from the event's project)
+      const sessA = (await projA.querySessions({})).sessions.map((s) => s.id);
+      expect(sessA).toContain(ea.sessionId);
+      expect(sessA).not.toContain(eb.sessionId);
+      expect(await projA.getSession(eb.sessionId)).toBeNull();
+      expect(await projA.getSession(ea.sessionId)).not.toBeNull();
     });
   });
 });

@@ -99,6 +99,13 @@ export function buildSessionConditions(query: SessionQuery) {
   if (query.tenantId) {
     conditions.push(eq(sessions.tenantId, query.tenantId));
   }
+  // org→project isolation (#147) — filtered only when the scope provides them.
+  if (query.orgId) {
+    conditions.push(eq(sessions.orgId, query.orgId));
+  }
+  if (query.projectId) {
+    conditions.push(eq(sessions.projectId, query.projectId));
+  }
   if (query.agentId) {
     conditions.push(eq(sessions.agentId, query.agentId));
   }
