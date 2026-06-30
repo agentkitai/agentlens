@@ -621,21 +621,26 @@ describePg('Postgres integration tests', () => {
   // ─── #172 feature 8: llm_connections via the dialect-agnostic store ──
   describe('LLM connections (dialect-agnostic LlmConnectionStore on Postgres)', () => {
     it('CRUDs connections + masks the key + decrypts internally on pg', async () => {
-      const store = new LlmConnectionStore(db);
-      const tid = `t_${randomUUID().slice(0, 8)}`;
-      const conn = await store.create(tid, { provider: 'openai', name: 'C', apiKey: 'sk-secret-1234', createdBy: 'u1' } as never);
-      expect(conn.keyLast4).toBe('1234');
-      expect((conn as Record<string, unknown>).apiKey).toBeUndefined(); // never exposed
+      process.env.AGENTLENS_ENCRYPTION_KEY = 'pg-test-key'; // required by lib/secret-box
+      try {
+        const store = new LlmConnectionStore(db);
+        const tid = `t_${randomUUID().slice(0, 8)}`;
+        const conn = await store.create(tid, { provider: 'openai', name: 'C', apiKey: 'sk-secret-1234', createdBy: 'u1' } as never);
+        expect(conn.keyLast4).toBe('1234');
+        expect((conn as Record<string, unknown>).apiKey).toBeUndefined(); // never exposed
 
-      expect((await store.list(tid)).length).toBe(1);
-      expect((await store.get(tid, conn.id))?.name).toBe('C');
+        expect((await store.list(tid)).length).toBe(1);
+        expect((await store.get(tid, conn.id))?.name).toBe('C');
 
-      // internal getWithKey decrypts the AES-256-GCM ciphertext round-trip
-      expect((await store.getWithKey(tid, conn.id))?.apiKey).toBe('sk-secret-1234');
+        // internal getWithKey decrypts the AES-256-GCM ciphertext round-trip
+        expect((await store.getWithKey(tid, conn.id))?.apiKey).toBe('sk-secret-1234');
 
-      expect(await store.get('other-tenant', conn.id)).toBeUndefined(); // tenant isolation
-      expect(await store.delete(tid, conn.id)).toBe(true);
-      expect(await store.get(tid, conn.id)).toBeUndefined();
+        expect(await store.get('other-tenant', conn.id)).toBeUndefined(); // tenant isolation
+        expect(await store.delete(tid, conn.id)).toBe(true);
+        expect(await store.get(tid, conn.id)).toBeUndefined();
+      } finally {
+        delete process.env.AGENTLENS_ENCRYPTION_KEY;
+      }
     });
   });
 });
