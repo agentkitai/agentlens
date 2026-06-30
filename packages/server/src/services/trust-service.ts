@@ -72,8 +72,8 @@ export class TrustService {
   /**
    * Compute the health component (average of last 30 days of health scores).
    */
-  computeHealthComponent(tenantId: string, agentId: string): number {
-    const history = this.healthStore.getHistory(tenantId, agentId, HEALTH_HISTORY_DAYS);
+  async computeHealthComponent(tenantId: string, agentId: string): Promise<number> {
+    const history = await this.healthStore.getHistory(tenantId, agentId, HEALTH_HISTORY_DAYS);
     if (history.length === 0) return DEFAULT_HEALTH_SCORE;
     const sum = history.reduce((acc, s) => acc + s.overallScore, 0);
     return sum / history.length;
@@ -90,8 +90,8 @@ export class TrustService {
   /**
    * Compute the raw trust score for an agent.
    */
-  computeRawTrustScore(tenantId: string, agentId: string): number {
-    const healthComponent = this.computeHealthComponent(tenantId, agentId);
+  async computeRawTrustScore(tenantId: string, agentId: string): Promise<number> {
+    const healthComponent = await this.computeHealthComponent(tenantId, agentId);
     const stats = this.getDelegationStats(tenantId, agentId);
     const delegationComponent = this.computeDelegationComponent(stats);
     return HEALTH_WEIGHT * healthComponent + DELEGATION_WEIGHT * delegationComponent;
@@ -100,7 +100,7 @@ export class TrustService {
   /**
    * Compute percentile rank of an agent's trust score among all agents in the tenant.
    */
-  computePercentile(tenantId: string, agentId: string): number {
+  async computePercentile(tenantId: string, agentId: string): Promise<number> {
     // Get all unique agent IDs in the tenant (from delegation_log + capability_registry)
     const agentRows = this.db.all<{ agent_id: string }>(sql`
       SELECT DISTINCT agent_id FROM capability_registry WHERE tenant_id = ${tenantId}
@@ -112,10 +112,10 @@ export class TrustService {
     if (agentIds.length <= 1) return 100; // Only agent → 100th percentile
 
     // Compute scores for all agents
-    const scores = agentIds.map((id) => ({
+    const scores = await Promise.all(agentIds.map(async (id) => ({
       agentId: id,
-      score: this.computeRawTrustScore(tenantId, id),
-    }));
+      score: await this.computeRawTrustScore(tenantId, id),
+    })));
 
     scores.sort((a, b) => a.score - b.score);
 
@@ -127,12 +127,12 @@ export class TrustService {
   /**
    * Get the full trust score for an agent.
    */
-  getTrustScore(tenantId: string, agentId: string): TrustScore {
-    const healthComponent = this.computeHealthComponent(tenantId, agentId);
+  async getTrustScore(tenantId: string, agentId: string): Promise<TrustScore> {
+    const healthComponent = await this.computeHealthComponent(tenantId, agentId);
     const stats = this.getDelegationStats(tenantId, agentId);
     const delegationComponent = this.computeDelegationComponent(stats);
     const rawScore = HEALTH_WEIGHT * healthComponent + DELEGATION_WEIGHT * delegationComponent;
-    const percentile = this.computePercentile(tenantId, agentId);
+    const percentile = await this.computePercentile(tenantId, agentId);
     const provisional = stats.total < PROVISIONAL_THRESHOLD;
 
     return {
@@ -152,8 +152,8 @@ export class TrustService {
    * Update trust-related quality metrics on the capability registry after a delegation outcome.
    * Called after delegation success/failure/timeout to keep trust score percentile fresh.
    */
-  updateAfterDelegation(tenantId: string, agentId: string): void {
-    const score = this.getTrustScore(tenantId, agentId);
+  async updateAfterDelegation(tenantId: string, agentId: string): Promise<void> {
+    const score = await this.getTrustScore(tenantId, agentId);
 
     // Update all capability_registry entries for this agent with the new trust percentile
     this.db.run(sql`

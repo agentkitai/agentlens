@@ -213,11 +213,11 @@ export function healthRoutes(
       if (snapshotStore) {
         const tenantId = getTenantId(c as any);
         const today = new Date().toISOString().slice(0, 10);
-        const existing = snapshotStore.get(tenantId, agentId, today);
+        const existing = await snapshotStore.get(tenantId, agentId, today);
         if (!existing) {
           const dim = (name: string) =>
             score.dimensions.find((d) => d.name === name)?.score ?? 0;
-          snapshotStore.save(tenantId, {
+          await snapshotStore.save(tenantId, {
             agentId,
             date: today,
             overallScore: score.overallScore,
@@ -278,7 +278,7 @@ export function healthRoutes(
     }
 
     const tenantId = getTenantId(c as any);
-    const snapshots = snapshotStore.getHistory(tenantId, agentId, days);
+    const snapshots = await snapshotStore.getHistory(tenantId, agentId, days);
     return c.json({ snapshots, agentId, days } as any);
   });
 
