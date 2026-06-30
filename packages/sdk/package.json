@@ -39,6 +39,10 @@
     "./langchain": {
       "import": "./dist/langchain.js",
       "types": "./dist/langchain.d.ts"
+    },
+    "./llamaindex": {
+      "import": "./dist/llamaindex.js",
+      "types": "./dist/llamaindex.d.ts"
     }
   },
   "main": "./dist/index.js",
