@@ -497,10 +497,12 @@ export class EventRepository {
   }
 
   async countEventsBatch(
-    query: { agentId: string; from: string; to: string; tenantId?: string },
+    query: { agentId: string; from: string; to: string; tenantId?: string; orgId?: string; projectId?: string },
   ): Promise<{ total: number; error: number; critical: number; toolError: number }> {
     const conditions = [];
     if (query.tenantId) conditions.push(eq(events.tenantId, query.tenantId));
+    if (query.orgId) conditions.push(eq(events.orgId, query.orgId));
+    if (query.projectId) conditions.push(eq(events.projectId, query.projectId));
     conditions.push(eq(events.agentId, query.agentId));
     conditions.push(gte(events.timestamp, query.from));
     conditions.push(lte(events.timestamp, query.to));

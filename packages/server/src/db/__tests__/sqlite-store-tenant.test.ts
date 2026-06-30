@@ -649,5 +649,13 @@ describe('Org/project stamping (#147)', () => {
     expect((await projB.listAgents()).map((a) => a.id)).toEqual(['agent-b']);
     expect(await projA.getAgent('agent-b')).toBeNull();
     expect(await projA.getAgent('agent-a')).not.toBeNull();
+
+    // countEventsBatch + analytics are project-scoped
+    const from = '2000-01-01T00:00:00Z';
+    const to = '2100-01-01T00:00:00Z';
+    expect((await projA.countEventsBatch({ agentId: 'agent-a', from, to })).total).toBe(1);
+    expect((await projB.countEventsBatch({ agentId: 'agent-a', from, to })).total).toBe(0);
+    expect((await projA.getAnalytics({ from, to, granularity: 'day', agentId: 'agent-a' })).totals.eventCount).toBe(1);
+    expect((await projB.getAnalytics({ from, to, granularity: 'day', agentId: 'agent-a' })).totals.eventCount).toBe(0);
   });
 });

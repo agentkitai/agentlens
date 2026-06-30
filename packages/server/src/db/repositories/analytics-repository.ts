@@ -46,6 +46,8 @@ export class AnalyticsRepository {
     agentId?: string;
     granularity: 'hour' | 'day' | 'week';
     tenantId?: string;
+    orgId?: string;
+    projectId?: string;
   }): Promise<AnalyticsResult> {
     this.warnIfNoTenant('getAnalytics', params.tenantId);
     const formatStr =
@@ -79,6 +81,8 @@ export class AnalyticsRepository {
             AND timestamp <= ${params.to}
             ${params.agentId ? sql`AND agent_id = ${params.agentId}` : sql``}
             ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
+          ${params.orgId ? sql`AND org_id = ${params.orgId}` : sql``}
+          ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
           GROUP BY bucket
           ORDER BY bucket ASC
         `,
@@ -107,6 +111,8 @@ export class AnalyticsRepository {
           AND timestamp <= ${params.to}
           ${params.agentId ? sql`AND agent_id = ${params.agentId}` : sql``}
           ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
+          ${params.orgId ? sql`AND org_id = ${params.orgId}` : sql``}
+          ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
       `,
     );
 
