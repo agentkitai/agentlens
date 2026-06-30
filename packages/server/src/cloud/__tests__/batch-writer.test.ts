@@ -132,6 +132,13 @@ describe('S-3.3: InMemoryBatchWriter', () => {
     expect(writer.getStats().processed).toBe(2);
   });
 
+  it('preserves project_id through the batch write (#246)', async () => {
+    deps.pendingEvents = [{ streamId: 's1', event: makeQueuedEvent({ id: 'e1', project_id: 'proj-xyz' }) }];
+    const writer = new InMemoryBatchWriter(deps);
+    await writer.processBatch();
+    expect(deps.insertedEvents.get('org-aaa')![0]!.project_id).toBe('proj-xyz');
+  });
+
   it('enriches LLM events with cost', async () => {
     deps.pendingEvents = [
       { streamId: 's1', event: makeQueuedEvent({
