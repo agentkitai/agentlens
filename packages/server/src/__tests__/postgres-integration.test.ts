@@ -17,6 +17,8 @@ import { GuardrailStore } from '../db/guardrail-store.js';
 import { BenchmarkStore } from '../db/benchmark-store.js';
 import { AnnotationStore } from '../db/annotation-store.js';
 import { LlmConnectionStore } from '../db/llm-connection-store.js';
+import { RetentionService } from '../db/services/retention-service.js';
+import { computeEventHash } from '@agentkitai/agentlens-core';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -281,6 +283,8 @@ describePg('Postgres integration tests', () => {
         'guardrail_rules', 'guardrail_state', 'guardrail_trigger_history',
         // #172 feature 6 (schema step): benchmark tables on the pg path
         'benchmarks', 'benchmark_variants', 'benchmark_results',
+        // #172 features 7-9: annotations, llm connections, chain anchors
+        'annotation_queues', 'annotation_items', 'llm_connections', 'chain_anchors',
       ];
 
       for (const table of expectedTables) {
@@ -641,6 +645,41 @@ describePg('Postgres integration tests', () => {
       } finally {
         delete process.env.AGENTLENS_ENCRYPTION_KEY;
       }
+    });
+  });
+
+  // ─── #172 feature 9: chain_anchors via the dialect-agnostic RetentionService ──
+  describe('Chain anchors / retention (dialect-agnostic RetentionService on Postgres)', () => {
+    it('verifies a segment, writes a signed chain_anchor, then purges on pg', async () => {
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const sid = `s_${randomUUID().slice(0, 8)}`;
+      // Build a valid 2-event hash chain (old enough to be eligible for retention).
+      let prev: string | null = null;
+      for (let i = 0; i < 2; i++) {
+        const base = {
+          id: `e_${randomUUID()}`,
+          timestamp: `2020-01-0${i + 1}T00:00:00Z`,
+          sessionId: sid, agentId: 'agt', eventType: 'custom', severity: 'info',
+          payload: { i }, metadata: {}, prevHash: prev,
+        };
+        const hash = computeEventHash(base);
+        await db.execute(sql`INSERT INTO events
+          (id, timestamp, session_id, agent_id, event_type, severity, payload, metadata, prev_hash, hash, tenant_id)
+          VALUES (${base.id}, ${base.timestamp}, ${sid}, ${'agt'}, ${'custom'}, ${'info'},
+                  ${JSON.stringify(base.payload)}::jsonb, ${JSON.stringify(base.metadata)}::jsonb, ${prev}, ${hash}, ${tid})`);
+        prev = hash;
+      }
+
+      const result = await new RetentionService(db).applyRetention('2020-12-31T00:00:00Z', tid);
+      expect(result.deletedCount).toBe(2);
+      expect((result as { anchoredSegments: number }).anchoredSegments).toBe(1);
+
+      // a tamper-evident anchor was written, and the raw events are purged
+      const anchors = await db.execute(sql`SELECT * FROM chain_anchors WHERE tenant_id = ${tid} AND session_id = ${sid}`);
+      expect(anchors.rows).toHaveLength(1);
+      expect(Number(anchors.rows[0].event_count)).toBe(2);
+      const left = await db.execute(sql`SELECT COUNT(*) as c FROM events WHERE session_id = ${sid}`);
+      expect(Number(left.rows[0].c)).toBe(0);
     });
   });
 });

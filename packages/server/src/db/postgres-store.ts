@@ -1041,40 +1041,10 @@ export class PostgresEventStore implements IEventStore {
     olderThan: string,
     tenantId?: string,
   ): Promise<{ deletedCount: number }> {
-    const countConditions = [lte(events.timestamp, olderThan)];
-    if (tenantId) countConditions.push(eq(events.tenantId, tenantId));
-
-    const [countResult] = await this.db
-      .select({ count: drizzleCount() })
-      .from(events)
-      .where(and(...countConditions));
-
-    const deletedCount = countResult?.count ?? 0;
-    if (deletedCount === 0) return { deletedCount: 0 };
-
-    await this.db.transaction(async (tx) => {
-      if (tenantId) {
-        await tx
-          .delete(events)
-          .where(and(lte(events.timestamp, olderThan), eq(events.tenantId, tenantId)));
-
-        await tx.execute(sql`
-          DELETE FROM sessions
-          WHERE tenant_id = ${tenantId}
-            AND id NOT IN (
-              SELECT DISTINCT session_id FROM events WHERE tenant_id = ${tenantId}
-            )
-        `);
-      } else {
-        await tx.delete(events).where(lte(events.timestamp, olderThan));
-
-        await tx.execute(sql`
-          DELETE FROM sessions
-          WHERE id NOT IN (SELECT DISTINCT session_id FROM events)
-        `);
-      }
-    });
-
-    return { deletedCount };
+    // #172: delegate to the dialect-agnostic RetentionService so the Postgres path
+    // also verifies each segment and writes a signed chain_anchors checkpoint
+    // before purging — tamper-evidence parity with the SQLite path.
+    const { RetentionService } = await import('./services/retention-service.js');
+    return new RetentionService(this.db).applyRetention(olderThan, tenantId);
   }
 }
