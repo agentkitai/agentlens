@@ -13,6 +13,7 @@ import { EvalStore } from '../db/eval-store.js';
 import { EvaluatorStore } from '../db/evaluator-store.js';
 import { BUILTIN_EVALUATORS } from '../lib/eval/builtin-evaluators.js';
 import { CostBudgetStore } from '../db/cost-budget-store.js';
+import { GuardrailStore } from '../db/guardrail-store.js';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -489,6 +490,47 @@ describePg('Postgres integration tests', () => {
 
       expect(await store.deleteBudget(tid, id)).toBe(true);
       expect(await store.getBudget(tid, id)).toBeNull();
+    });
+  });
+
+  // ─── #172 feature 5: guardrails via the dialect-agnostic store ──
+  describe('Guardrails (dialect-agnostic GuardrailStore on Postgres)', () => {
+    it('CRUDs rules + upserts state + records triggers on pg', async () => {
+      const store = new GuardrailStore(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const rid = `r_${randomUUID()}`;
+      const now = '2026-06-30T00:00:00Z';
+      await store.createRule({
+        id: rid, tenantId: tid, name: 'R', enabled: true,
+        conditionType: 'cost_threshold', conditionConfig: { threshold: 10 },
+        actionType: 'alert', actionConfig: { channel: 'x' },
+        cooldownMinutes: 15, dryRun: false, createdAt: now, updatedAt: now,
+      } as never);
+      expect((await store.getRule(tid, rid))?.name).toBe('R');
+      expect((await store.listEnabledRules(tid)).length).toBe(1);
+
+      expect(await store.updateRule(tid, rid, { enabled: false })).toBe(true);
+      expect((await store.getRule(tid, rid))?.enabled).toBe(false);
+
+      // state upsert (2-col PK, params-only ON CONFLICT)
+      await store.upsertState({ ruleId: rid, tenantId: tid, triggerCount: 1, currentValue: 4.5 } as never);
+      await store.upsertState({ ruleId: rid, tenantId: tid, triggerCount: 2, currentValue: 9.5 } as never);
+      const state = await store.getState(tid, rid);
+      expect(state?.triggerCount).toBe(2);
+      expect(state?.currentValue).toBeCloseTo(9.5, 6);
+
+      // trigger history + stats
+      await store.insertTrigger({
+        id: `h_${randomUUID()}`, ruleId: rid, tenantId: tid, triggeredAt: now,
+        conditionValue: 12.5, conditionThreshold: 10, actionExecuted: true, metadata: {},
+      } as never);
+      expect((await store.getRecentTriggers(tid, rid)).length).toBe(1);
+      expect((await store.getTriggerStats(tid, '2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z')).total).toBe(1);
+
+      // delete cascades state + history
+      expect(await store.deleteRule(tid, rid)).toBe(true);
+      expect(await store.getRule(tid, rid)).toBeNull();
+      expect(await store.getState(tid, rid)).toBeNull();
     });
   });
 });

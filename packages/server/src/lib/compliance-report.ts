@@ -110,7 +110,7 @@ export class ComplianceReportBuilder {
 
     // 2. Human oversight
     const approvalStats = this.eventRepo.getApprovalStats(tenantId, from, to);
-    const guardrailTriggers = this.guardrailStore.getTriggerStats(tenantId, from, to);
+    const guardrailTriggers = await this.guardrailStore.getTriggerStats(tenantId, from, to);
 
     // 3. Incidents
     const incidentRows = this.eventRepo.getIncidentEvents(tenantId, from, to, this.maxIncidentItems);

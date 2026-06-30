@@ -35,7 +35,7 @@ function makeRule(overrides: Partial<GuardrailRule> = {}): GuardrailRule {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   db = createTestDb();
   runMigrations(db);
   store = new GuardrailStore(db);
@@ -47,7 +47,7 @@ afterEach(() => {
   invalidateAllScanners();
 });
 
-describe('ContentGuardrailEngine', () => {
+describe('ContentGuardrailEngine', async () => {
   it('returns allow for empty content', async () => {
     const result = await engine.evaluateContentSync('', {
       tenantId: 'tenant-1', agentId: 'a1', toolName: 'test', direction: 'input',
@@ -65,7 +65,7 @@ describe('ContentGuardrailEngine', () => {
 
   it('blocks content matching PII rule', async () => {
     const rule = makeRule({ actionType: 'block' });
-    store.createRule(rule);
+    await store.createRule(rule);
 
     const result = await engine.evaluateContentSync('SSN: 123-45-6789', {
       tenantId: 'tenant-1', agentId: 'a1', toolName: 'test', direction: 'input',
@@ -77,7 +77,7 @@ describe('ContentGuardrailEngine', () => {
 
   it('redacts content matching PII rule', async () => {
     const rule = makeRule({ actionType: 'redact' });
-    store.createRule(rule);
+    await store.createRule(rule);
 
     const result = await engine.evaluateContentSync('SSN: 123-45-6789 end', {
       tenantId: 'tenant-1', agentId: 'a1', toolName: 'test', direction: 'input',
@@ -99,8 +99,8 @@ describe('ContentGuardrailEngine', () => {
       priority: 10,
       conditionConfig: { patterns: ['ssn'] },
     });
-    store.createRule(rule1);
-    store.createRule(rule2);
+    await store.createRule(rule1);
+    await store.createRule(rule2);
 
     const result = await engine.evaluateContentSync(
       'SSN: 123-45-6789 Email: test@example.com',
@@ -113,7 +113,7 @@ describe('ContentGuardrailEngine', () => {
 
   it('respects direction filter', async () => {
     const rule = makeRule({ direction: 'output' });
-    store.createRule(rule);
+    await store.createRule(rule);
 
     const result = await engine.evaluateContentSync('SSN: 123-45-6789', {
       tenantId: 'tenant-1', agentId: 'a1', toolName: 'test', direction: 'input',
@@ -123,7 +123,7 @@ describe('ContentGuardrailEngine', () => {
 
   it('respects toolNames filter', async () => {
     const rule = makeRule({ toolNames: ['other_tool'] });
-    store.createRule(rule);
+    await store.createRule(rule);
 
     const result = await engine.evaluateContentSync('SSN: 123-45-6789', {
       tenantId: 'tenant-1', agentId: 'a1', toolName: 'test', direction: 'input',
@@ -133,20 +133,20 @@ describe('ContentGuardrailEngine', () => {
 
   it('dryRun rules match but do not affect decision', async () => {
     const rule = makeRule({ dryRun: true, actionType: 'block' });
-    store.createRule(rule);
+    await store.createRule(rule);
 
     const result = await engine.evaluateContentSync('SSN: 123-45-6789', {
       tenantId: 'tenant-1', agentId: 'a1', toolName: 'test', direction: 'input',
     });
     expect(result.decision).toBe('allow');
     // Trigger should still be recorded
-    const { triggers } = store.listTriggerHistory('tenant-1', { ruleId: rule.id });
+    const { triggers } = await store.listTriggerHistory('tenant-1', { ruleId: rule.id });
     expect(triggers).toHaveLength(1);
   });
 
   it('returns allow for oversized content (> 1MB)', async () => {
     const rule = makeRule();
-    store.createRule(rule);
+    await store.createRule(rule);
 
     const result = await engine.evaluateContentSync('x'.repeat(1024 * 1024 + 1), {
       tenantId: 'tenant-1', agentId: 'a1', toolName: 'test', direction: 'input',
@@ -157,8 +157,8 @@ describe('ContentGuardrailEngine', () => {
   it('action conflict resolution: block > redact', async () => {
     const redactRule = makeRule({ actionType: 'redact', priority: 0, conditionConfig: { patterns: ['ssn'] } });
     const blockRule = makeRule({ actionType: 'block', priority: 10, conditionConfig: { patterns: ['ssn'] } });
-    store.createRule(redactRule);
-    store.createRule(blockRule);
+    await store.createRule(redactRule);
+    await store.createRule(blockRule);
 
     const result = await engine.evaluateContentSync('SSN: 123-45-6789', {
       tenantId: 'tenant-1', agentId: 'a1', toolName: 'test', direction: 'input',

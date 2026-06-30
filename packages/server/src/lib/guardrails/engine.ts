@@ -87,7 +87,7 @@ export class GuardrailEngine {
   }
 
   async evaluateEvent(event: AgentLensEvent): Promise<void> {
-    const rules = this.store.listEnabledRules(event.tenantId, event.agentId);
+    const rules = await this.store.listEnabledRules(event.tenantId, event.agentId);
     if (rules.length === 0) return;
 
     for (const rule of rules) {
@@ -106,13 +106,13 @@ export class GuardrailEngine {
     if (!rule.enabled) return;
 
     // 1. Check cooldown
-    if (this.isInCooldown(rule, now)) return;
+    if (await this.isInCooldown(rule, now)) return;
 
     // 2. Evaluate condition
     const conditionResult = await evaluateCondition(this.eventStore, rule, event.agentId, event.sessionId);
 
     // 3. Update state
-    const existingState = this.store.getState(rule.tenantId, rule.id);
+    const existingState = await this.store.getState(rule.tenantId, rule.id);
     const newState: GuardrailState = {
       ruleId: rule.id,
       tenantId: rule.tenantId,
@@ -123,7 +123,7 @@ export class GuardrailEngine {
     };
 
     if (!conditionResult.triggered) {
-      this.store.upsertState(newState);
+      await this.store.upsertState(newState);
       return;
     }
 
@@ -138,7 +138,7 @@ export class GuardrailEngine {
     }
 
     // 5. Record trigger history
-    this.store.insertTrigger({
+    await this.store.insertTrigger({
       id: ulid(),
       ruleId: rule.id,
       tenantId: rule.tenantId,
@@ -159,12 +159,12 @@ export class GuardrailEngine {
     // 6. Update state
     newState.triggerCount = (existingState?.triggerCount ?? 0) + 1;
     newState.lastTriggeredAt = now.toISOString();
-    this.store.upsertState(newState);
+    await this.store.upsertState(newState);
   }
 
-  private isInCooldown(rule: GuardrailRule, now: Date): boolean {
+  private async isInCooldown(rule: GuardrailRule, now: Date): Promise<boolean> {
     if (rule.cooldownMinutes <= 0) return false;
-    const state = this.store.getState(rule.tenantId, rule.id);
+    const state = await this.store.getState(rule.tenantId, rule.id);
     if (!state?.lastTriggeredAt) return false;
     const lastTriggered = new Date(state.lastTriggeredAt);
     return now.getTime() - lastTriggered.getTime() < rule.cooldownMinutes * 60 * 1000;
