@@ -276,6 +276,8 @@ describePg('Postgres integration tests', () => {
         'cost_budgets', 'cost_budget_state', 'cost_anomaly_config', 'cost_rollups',
         // #172 feature 5 (schema step): guardrail tables on the pg path
         'guardrail_rules', 'guardrail_state', 'guardrail_trigger_history',
+        // #172 feature 6 (schema step): benchmark tables on the pg path
+        'benchmarks', 'benchmark_variants', 'benchmark_results',
       ];
 
       for (const table of expectedTables) {
@@ -345,6 +347,23 @@ describePg('Postgres integration tests', () => {
       const r = await db.execute(sql`SELECT trigger_count, current_value FROM guardrail_state WHERE rule_id = ${rid}`);
       expect(Number(r.rows[0].trigger_count)).toBe(2);
       expect(Number(r.rows[0].current_value)).toBeCloseTo(9.5, 6);
+    });
+
+    it('benchmark tables accept the store columns (variants + results + COUNT)', async () => {
+      // Smoke-test the 0012 schema for the dialect-agnostic BenchmarkStore (next PR).
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const bid = `bm_${randomUUID()}`;
+      await db.execute(sql`INSERT INTO benchmarks (id, tenant_id, name, status, metrics, min_sessions_per_variant, created_at, updated_at)
+        VALUES (${bid}, ${tid}, 'B', 'draft', '[]', 10, '2026-06-30T00:00:00Z', '2026-06-30T00:00:00Z')`);
+      await db.execute(sql`INSERT INTO benchmark_variants (id, benchmark_id, tenant_id, name, tag, sort_order)
+        VALUES (${`v_${randomUUID()}`}, ${bid}, ${tid}, 'V1', 'control', 0)`);
+      await db.execute(sql`INSERT INTO benchmark_variants (id, benchmark_id, tenant_id, name, tag, sort_order)
+        VALUES (${`v_${randomUUID()}`}, ${bid}, ${tid}, 'V2', 'treatment', 1)`);
+      await db.execute(sql`INSERT INTO benchmark_results (id, benchmark_id, tenant_id, variant_metrics, comparisons, computed_at)
+        VALUES (${`res_${randomUUID()}`}, ${bid}, ${tid}, '[]', '[]', '2026-06-30T00:00:00Z')`);
+      // pg returns COUNT(*) as a string — the store must Number()-coerce
+      const c = await db.execute(sql`SELECT COUNT(*) as cnt FROM benchmark_variants WHERE benchmark_id = ${bid}`);
+      expect(Number(c.rows[0].cnt)).toBe(2);
     });
   });
 
