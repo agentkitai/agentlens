@@ -34,8 +34,8 @@ function scimUser(u: SsoUser): Record<string, unknown> {
     roles: [{ value: u.role, primary: true }],
     meta: {
       resourceType: 'User',
-      created: new Date(u.createdAt).toISOString(),
-      lastModified: new Date(u.updatedAt).toISOString(),
+      created: new Date(u.createdAt * 1000).toISOString(),
+      lastModified: new Date(u.updatedAt * 1000).toISOString(),
       location: `/scim/v2/Users/${u.id}`,
     },
   };

@@ -9,6 +9,9 @@ import { sql, type SQL } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { type AnyDb, dbRun, dbAll, dbGet, dbRunCount } from './dialect-db.js';
 
+/** users.* timestamps are unix-epoch SECONDS (integer/int4) on both dialects. */
+const nowSec = (): number => Math.floor(Date.now() / 1000);
+
 export interface SsoUser {
   id: string;
   tenantId: string;
@@ -47,7 +50,7 @@ export class UserStore {
 
   async create(input: { tenantId?: string; email: string; displayName?: string; role?: string }): Promise<SsoUser> {
     const id = `usr_${randomUUID()}`;
-    const now = Date.now();
+    const now = nowSec();
     await dbRun(this.db, sql`
       INSERT INTO users (id, tenant_id, email, display_name, role, created_at, updated_at)
       VALUES (${id}, ${input.tenantId ?? 'default'}, ${input.email}, ${input.displayName ?? null}, ${input.role ?? 'viewer'}, ${now}, ${now})`);
@@ -75,10 +78,10 @@ export class UserStore {
   }
 
   async update(id: string, patch: { displayName?: string | null; role?: string; active?: boolean }): Promise<SsoUser | undefined> {
-    const sets: SQL[] = [sql`updated_at = ${Date.now()}`];
+    const sets: SQL[] = [sql`updated_at = ${nowSec()}`];
     if (patch.displayName !== undefined) sets.push(sql`display_name = ${patch.displayName}`);
     if (patch.role !== undefined) sets.push(sql`role = ${patch.role}`);
-    if (patch.active !== undefined) sets.push(sql`disabled_at = ${patch.active ? null : Date.now()}`);
+    if (patch.active !== undefined) sets.push(sql`disabled_at = ${patch.active ? null : nowSec()}`);
     if (!(await this.getById(id))) return undefined;
     await dbRun(this.db, sql`UPDATE users SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
     return this.getById(id);
