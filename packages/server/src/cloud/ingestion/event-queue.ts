@@ -26,6 +26,12 @@ export interface QueuedEvent {
   session_id: string;
   /** Enrichment fields */
   org_id: string;
+  /**
+   * Project scope within the org (#233). Defaults to org_id until cloud API keys
+   * carry a project binding; the batch-writer persist + RLS predicate are a
+   * follow-up (the cloud sublayer is its own sub-epic).
+   */
+  project_id?: string;
   api_key_id: string;
   received_at: string;
   request_id: string;

@@ -188,6 +188,7 @@ describe('S-3.2: IngestionGateway — single event', () => {
     await gateway.ingestSingle(makeEvent(), makeAuth());
     const queued = queue.getEvents()[0];
     expect(queued.org_id).toBe('org-111');
+    expect(queued.project_id).toBe('org-111'); // #233: project defaults to org
     expect(queued.api_key_id).toBe('key-222');
     expect(queued.received_at).toBeTruthy();
     expect(queued.request_id).toBeTruthy();
