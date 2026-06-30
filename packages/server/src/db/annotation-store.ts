@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { SqliteDb } from './index.js';
+import { type AnyDb, dbRun, dbAll, dbGet } from './dialect-db.js';
 
 export interface AnnotationQueue {
   id: string;
@@ -102,83 +102,82 @@ function toItem(row: ItemRow): AnnotationItem {
 }
 
 export class AnnotationStore {
-  constructor(private readonly db: SqliteDb) {}
+  constructor(private readonly db: AnyDb) {}
 
-  createQueue(tenantId: string, input: CreateQueueInput): AnnotationQueue {
+  async createQueue(tenantId: string, input: CreateQueueInput): Promise<AnnotationQueue> {
     const id = randomUUID();
     const now = new Date().toISOString();
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO annotation_queues (id, tenant_id, name, description, config, created_by, created_at, updated_at)
       VALUES (${id}, ${tenantId}, ${input.name}, ${input.description ?? null}, ${JSON.stringify(input.config ?? {})}, ${input.createdBy ?? null}, ${now}, ${now})
     `);
-    return this.getQueue(tenantId, id)!;
+    return (await this.getQueue(tenantId, id))!;
   }
 
-  getQueue(tenantId: string, id: string): AnnotationQueue | undefined {
-    const row = this.db.get<QueueRow>(sql`SELECT * FROM annotation_queues WHERE id = ${id} AND tenant_id = ${tenantId}`);
+  async getQueue(tenantId: string, id: string): Promise<AnnotationQueue | undefined> {
+    const row = await dbGet<QueueRow>(this.db, sql`SELECT * FROM annotation_queues WHERE id = ${id} AND tenant_id = ${tenantId}`);
     return row ? toQueue(row) : undefined;
   }
 
-  listQueues(tenantId: string): AnnotationQueue[] {
-    return this.db
-      .all<QueueRow>(sql`SELECT * FROM annotation_queues WHERE tenant_id = ${tenantId} ORDER BY created_at DESC`)
+  async listQueues(tenantId: string): Promise<AnnotationQueue[]> {
+    return (await dbAll<QueueRow>(this.db, sql`SELECT * FROM annotation_queues WHERE tenant_id = ${tenantId} ORDER BY created_at DESC`))
       .map(toQueue);
   }
 
   /** Add items to a queue; returns [] if the queue doesn't exist for this tenant. */
-  addItems(tenantId: string, queueId: string, items: AddItemInput[]): AnnotationItem[] {
-    if (!this.getQueue(tenantId, queueId)) return [];
+  async addItems(tenantId: string, queueId: string, items: AddItemInput[]): Promise<AnnotationItem[]> {
+    if (!await this.getQueue(tenantId, queueId)) return [];
     const out: AnnotationItem[] = [];
     const now = new Date().toISOString();
     for (const it of items) {
       const id = randomUUID();
-      this.db.run(sql`
+      await dbRun(this.db, sql`
         INSERT INTO annotation_items (id, queue_id, tenant_id, session_id, trace_id, status, due_at, created_at, updated_at)
         VALUES (${id}, ${queueId}, ${tenantId}, ${it.sessionId}, ${it.traceId ?? null}, 'pending', ${it.dueAt ?? null}, ${now}, ${now})
       `);
-      out.push(this.getItem(tenantId, id)!);
+      out.push((await this.getItem(tenantId, id))!);
     }
     return out;
   }
 
-  getItem(tenantId: string, id: string): AnnotationItem | undefined {
-    const row = this.db.get<ItemRow>(sql`SELECT * FROM annotation_items WHERE id = ${id} AND tenant_id = ${tenantId}`);
+  async getItem(tenantId: string, id: string): Promise<AnnotationItem | undefined> {
+    const row = await dbGet<ItemRow>(this.db, sql`SELECT * FROM annotation_items WHERE id = ${id} AND tenant_id = ${tenantId}`);
     return row ? toItem(row) : undefined;
   }
 
-  listItems(tenantId: string, queueId: string, filters: { status?: AnnotationItemStatus; assignee?: string } = {}): AnnotationItem[] {
+  async listItems(tenantId: string, queueId: string, filters: { status?: AnnotationItemStatus; assignee?: string } = {}): Promise<AnnotationItem[]> {
     let where = sql`tenant_id = ${tenantId} AND queue_id = ${queueId}`;
     if (filters.status) where = sql`${where} AND status = ${filters.status}`;
     if (filters.assignee) where = sql`${where} AND assignee = ${filters.assignee}`;
-    return this.db.all<ItemRow>(sql`SELECT * FROM annotation_items WHERE ${where} ORDER BY created_at ASC`).map(toItem);
+    return (await dbAll<ItemRow>(this.db, sql`SELECT * FROM annotation_items WHERE ${where} ORDER BY created_at ASC`)).map(toItem);
   }
 
   /** Claim a pending item for review. Idempotent-safe: only transitions from 'pending'. */
-  claimItem(tenantId: string, id: string, assignee: string): { ok: boolean; item?: AnnotationItem; reason?: string } {
-    const item = this.getItem(tenantId, id);
+  async claimItem(tenantId: string, id: string, assignee: string): Promise<{ ok: boolean; item?: AnnotationItem; reason?: string }> {
+    const item = await this.getItem(tenantId, id);
     if (!item) return { ok: false, reason: 'not_found' };
     if (item.status !== 'pending') return { ok: false, item, reason: `cannot claim from status '${item.status}'` };
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE annotation_items SET status = 'in_review', assignee = ${assignee}, updated_at = ${new Date().toISOString()}
       WHERE id = ${id} AND tenant_id = ${tenantId} AND status = 'pending'
     `);
-    return { ok: true, item: this.getItem(tenantId, id) };
+    return { ok: true, item: await this.getItem(tenantId, id) };
   }
 
   /** Mark an in-review item scored, linking the human_score event. */
-  markScored(tenantId: string, id: string, scoreEventId: string): AnnotationItem | undefined {
-    this.db.run(sql`
+  async markScored(tenantId: string, id: string, scoreEventId: string): Promise<AnnotationItem | undefined> {
+    await dbRun(this.db, sql`
       UPDATE annotation_items SET status = 'scored', score_event_id = ${scoreEventId}, updated_at = ${new Date().toISOString()}
       WHERE id = ${id} AND tenant_id = ${tenantId}
     `);
-    return this.getItem(tenantId, id);
+    return await this.getItem(tenantId, id);
   }
 
-  skipItem(tenantId: string, id: string): AnnotationItem | undefined {
-    this.db.run(sql`
+  async skipItem(tenantId: string, id: string): Promise<AnnotationItem | undefined> {
+    await dbRun(this.db, sql`
       UPDATE annotation_items SET status = 'skipped', updated_at = ${new Date().toISOString()}
       WHERE id = ${id} AND tenant_id = ${tenantId}
     `);
-    return this.getItem(tenantId, id);
+    return await this.getItem(tenantId, id);
   }
 }

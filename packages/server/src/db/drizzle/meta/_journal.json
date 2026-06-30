@@ -92,6 +92,13 @@
       "when": 1740912000000,
       "tag": "0012_benchmark_tables",
       "breakpoints": false
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1740998400000,
+      "tag": "0013_annotation_tables",
+      "breakpoints": false
     }
   ]
 }

@@ -25,7 +25,7 @@ export function annotationRoutes(db?: SqliteDb, store?: IEventStore) {
     const body = await c.req.json().catch(() => null);
     if (!body?.name || typeof body.name !== 'string') return c.json({ error: 'name is required' }, 400);
     const annotator = await resolveAnnotator(c);
-    const queue = qs.createQueue(tenantId, {
+    const queue = await qs.createQueue(tenantId, {
       name: body.name,
       description: typeof body.description === 'string' ? body.description : undefined,
       config: typeof body.config === 'object' && body.config ? body.config : undefined,
@@ -35,20 +35,20 @@ export function annotationRoutes(db?: SqliteDb, store?: IEventStore) {
   });
 
   // GET /api/annotations/queues
-  app.get('/queues', (c) => {
+  app.get('/queues', async (c) => {
     const qs = getStore();
     if (!qs) return c.json({ error: 'Database not available' }, 500);
-    return c.json({ queues: qs.listQueues(getTenantId(c)) });
+    return c.json({ queues: await qs.listQueues(getTenantId(c)) });
   });
 
   // GET /api/annotations/queues/:id
-  app.get('/queues/:id', (c) => {
+  app.get('/queues/:id', async (c) => {
     const qs = getStore();
     if (!qs) return c.json({ error: 'Database not available' }, 500);
     const tenantId = getTenantId(c);
-    const queue = qs.getQueue(tenantId, c.req.param('id'));
+    const queue = await qs.getQueue(tenantId, c.req.param('id'));
     if (!queue) return c.json({ error: 'Queue not found' }, 404);
-    return c.json({ queue, items: qs.listItems(tenantId, queue.id) });
+    return c.json({ queue, items: await qs.listItems(tenantId, queue.id) });
   });
 
   // POST /api/annotations/queues/:id/items  — body: { items: [{sessionId, traceId?, dueAt?}] } or a single item
@@ -62,19 +62,19 @@ export function annotationRoutes(db?: SqliteDb, store?: IEventStore) {
       .filter((i): i is { sessionId: string; traceId?: string; dueAt?: string } => typeof (i as { sessionId?: unknown })?.sessionId === 'string')
       .map((i) => ({ sessionId: i.sessionId, traceId: i.traceId, dueAt: i.dueAt }));
     if (inputs.length === 0) return c.json({ error: 'items (each with a sessionId) are required' }, 400);
-    const items = qs.addItems(tenantId, c.req.param('id'), inputs);
+    const items = await qs.addItems(tenantId, c.req.param('id'), inputs);
     if (items.length === 0) return c.json({ error: 'Queue not found' }, 404);
     return c.json({ items }, 201);
   });
 
   // GET /api/annotations/queues/:id/items?status=&assignee=
-  app.get('/queues/:id/items', (c) => {
+  app.get('/queues/:id/items', async (c) => {
     const qs = getStore();
     if (!qs) return c.json({ error: 'Database not available' }, 500);
     const tenantId = getTenantId(c);
     const status = c.req.query('status') as AnnotationItemStatus | undefined;
     const assignee = c.req.query('assignee') || undefined;
-    return c.json({ items: qs.listItems(tenantId, c.req.param('id'), { status, assignee }) });
+    return c.json({ items: await qs.listItems(tenantId, c.req.param('id'), { status, assignee }) });
   });
 
   // POST /api/annotations/items/:id/claim
@@ -84,7 +84,7 @@ export function annotationRoutes(db?: SqliteDb, store?: IEventStore) {
     const tenantId = getTenantId(c);
     const me = submitterId(await resolveAnnotator(c));
     if (!me) return c.json({ error: 'an identified reviewer is required to claim items' }, 403);
-    const res = qs.claimItem(tenantId, c.req.param('id'), me);
+    const res = await qs.claimItem(tenantId, c.req.param('id'), me);
     if (!res.ok) return c.json({ error: res.reason ?? 'cannot claim', item: res.item }, res.reason === 'not_found' ? 404 : 409);
     return c.json({ item: res.item });
   });
@@ -95,7 +95,7 @@ export function annotationRoutes(db?: SqliteDb, store?: IEventStore) {
     if (!qs) return c.json({ error: 'Database not available' }, 500);
     if (!store) return c.json({ error: 'Event store not available' }, 500);
     const tenantId = getTenantId(c);
-    const item = qs.getItem(tenantId, c.req.param('id'));
+    const item = await qs.getItem(tenantId, c.req.param('id'));
     if (!item) return c.json({ error: 'Item not found' }, 404);
     if (item.status === 'scored') return c.json({ error: 'Item already scored', item }, 409);
 
@@ -122,18 +122,18 @@ export function annotationRoutes(db?: SqliteDb, store?: IEventStore) {
       annotator,
       input: { ...parsed.data, traceId: parsed.data.traceId ?? item.traceId, queueItemId: item.id },
     });
-    const updated = qs.markScored(tenantId, item.id, event.id);
+    const updated = await qs.markScored(tenantId, item.id, event.id);
     return c.json({ item: updated, event: { id: event.id, hash: event.hash, prevHash: event.prevHash } }, 201);
   });
 
   // POST /api/annotations/items/:id/skip
-  app.post('/items/:id/skip', (c) => {
+  app.post('/items/:id/skip', async (c) => {
     const qs = getStore();
     if (!qs) return c.json({ error: 'Database not available' }, 500);
     const tenantId = getTenantId(c);
-    const item = qs.getItem(tenantId, c.req.param('id'));
+    const item = await qs.getItem(tenantId, c.req.param('id'));
     if (!item) return c.json({ error: 'Item not found' }, 404);
-    return c.json({ item: qs.skipItem(tenantId, item.id) });
+    return c.json({ item: await qs.skipItem(tenantId, item.id) });
   });
 
   return app;

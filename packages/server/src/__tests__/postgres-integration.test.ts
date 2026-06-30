@@ -15,6 +15,7 @@ import { BUILTIN_EVALUATORS } from '../lib/eval/builtin-evaluators.js';
 import { CostBudgetStore } from '../db/cost-budget-store.js';
 import { GuardrailStore } from '../db/guardrail-store.js';
 import { BenchmarkStore } from '../db/benchmark-store.js';
+import { AnnotationStore } from '../db/annotation-store.js';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -584,6 +585,35 @@ describePg('Postgres integration tests', () => {
       } as never);
       expect(await store.delete(tid, bm2.id)).toBe(true);
       expect(await store.getById(tid, bm2.id)).toBeNull();
+    });
+  });
+
+  // ─── #172 feature 7: annotations via the dialect-agnostic store ──
+  describe('Annotations (dialect-agnostic AnnotationStore on Postgres)', () => {
+    it('CRUDs queues + items + claim/score/skip lifecycle on pg', async () => {
+      const store = new AnnotationStore(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const queue = await store.createQueue(tid, { name: 'Q', config: { foo: 1 } });
+      expect((await store.getQueue(tid, queue.id))?.name).toBe('Q');
+      expect((await store.listQueues(tid)).length).toBe(1);
+
+      const items = await store.addItems(tid, queue.id, [{ sessionId: 's1' }, { sessionId: 's2' }]);
+      expect(items).toHaveLength(2);
+      expect((await store.listItems(tid, queue.id)).length).toBe(2);
+      expect((await store.listItems(tid, queue.id, { status: 'pending' })).length).toBe(2);
+
+      const claim = await store.claimItem(tid, items[0].id, 'reviewer-1');
+      expect(claim.ok).toBe(true);
+      expect((await store.getItem(tid, items[0].id))?.status).toBe('in_review');
+      // a second claim on the same item must fail (only transitions from pending)
+      expect((await store.claimItem(tid, items[0].id, 'reviewer-2')).ok).toBe(false);
+
+      expect((await store.markScored(tid, items[0].id, 'evt-1'))?.status).toBe('scored');
+      expect((await store.skipItem(tid, items[1].id))?.status).toBe('skipped');
+
+      // FK ON DELETE CASCADE: deleting the queue removes its items
+      await db.execute(sql`DELETE FROM annotation_queues WHERE id = ${queue.id}`);
+      expect(await store.listItems(tid, queue.id)).toHaveLength(0);
     });
   });
 });
