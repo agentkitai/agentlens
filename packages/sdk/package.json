@@ -35,6 +35,10 @@
     "./vercel": {
       "import": "./dist/vercel.js",
       "types": "./dist/vercel.d.ts"
+    },
+    "./langchain": {
+      "import": "./dist/langchain.js",
+      "types": "./dist/langchain.d.ts"
     }
   },
   "main": "./dist/index.js",
@@ -52,5 +56,16 @@
   "dependencies": {
     "@agentkitai/agentlens-core": "workspace:*",
     "@agentkitai/pricing": "workspace:*"
+  },
+  "devDependencies": {
+    "@langchain/core": "^1.2.1"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": {
+      "optional": true
+    }
   }
 }
