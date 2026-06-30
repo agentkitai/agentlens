@@ -20,6 +20,7 @@ import { LlmConnectionStore } from '../db/llm-connection-store.js';
 import { RetentionService } from '../db/services/retention-service.js';
 import { HealthSnapshotStore } from '../db/health-snapshot-store.js';
 import { NotificationChannelRepository } from '../db/repositories/notification-channel-repository.js';
+import { UserStore } from '../db/user-store.js';
 import { PostgresEventStore } from '../db/postgres-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { computeEventHash } from '@agentkitai/agentlens-core';
@@ -766,6 +767,28 @@ describePg('Postgres integration tests', () => {
       await repo.deleteChannel(cid, tid);
       expect(await repo.getChannel(cid, tid)).toBeNull();
       await expect(repo.deleteChannel(cid, tid)).rejects.toThrow(); // NotFoundError
+    });
+  });
+
+  // ─── #148 (Phase 7): dialect-agnostic UserStore (SCIM provisioning) on pg ──
+  describe('UserStore (SCIM provisioning) on Postgres (#148)', () => {
+    it('provisions + lists/filters + deactivates + deletes users on pg', async () => {
+      const store = new UserStore(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const u = await store.create({ tenantId: tid, email: 'scim@pg.com', displayName: 'SCIM PG' });
+      expect(u.active).toBe(true);
+      expect((await store.getByEmail(tid, 'scim@pg.com'))?.id).toBe(u.id);
+
+      const listed = await store.list(tid, { email: 'scim@pg.com' });
+      expect(listed.total).toBe(1);
+      expect(typeof listed.total).toBe('number'); // COUNT coercion
+
+      // deactivate (SCIM active:false → disabled_at)
+      expect((await store.update(u.id, { active: false }))?.active).toBe(false);
+      expect((await store.update(u.id, { active: true }))?.active).toBe(true);
+
+      expect(await store.delete(u.id)).toBe(true);
+      expect(await store.getById(u.id)).toBeUndefined();
     });
   });
 

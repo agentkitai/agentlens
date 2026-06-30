@@ -68,6 +68,15 @@ export interface ServerConfig {
   /** Default |drift| fraction at which POST /api/internal/reconcile flags an agent
    *  (#89). 0.01 = 1%. Overridable per-request via the `threshold` body field. */
   reconcileDriftThreshold: number;
+
+  // ─── Enterprise SSO (#148) ──────────────────────────────
+  /** Enterprise feature flag — gates SCIM provisioning + SSO enforcement
+   *  (default: false / OSS build). */
+  enterpriseEnabled: boolean;
+  /** SCIM 2.0 bearer token. When set (with enterpriseEnabled), /scim/v2 mounts. */
+  scimToken?: string;
+  /** Tenant that SCIM provisions users into (default: 'default'). */
+  scimTenantId: string;
 }
 
 /**
@@ -130,6 +139,11 @@ export function getConfig(): ServerConfig {
       const parsed = parseFloat(process.env['RECONCILE_DRIFT_THRESHOLD'] ?? '0.01');
       return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0.01;
     })(),
+
+    // Enterprise SSO (#148) — default OFF (OSS build)
+    enterpriseEnabled: process.env['ENTERPRISE_ENABLED'] === 'true',
+    scimToken: process.env['SCIM_TOKEN'] || undefined,
+    scimTenantId: process.env['SCIM_TENANT_ID'] ?? 'default',
   };
 }
 
