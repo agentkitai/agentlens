@@ -176,7 +176,7 @@ export class GuardrailStore {
         SELECT COUNT(*) as count FROM guardrail_trigger_history
         WHERE tenant_id = ${tenantId} AND rule_id = ${opts.ruleId}
       `);
-      total = countRow?.count ?? 0;
+      total = Number(countRow?.count ?? 0);
     } else {
       triggers = (await dbAll<Record<string, unknown>>(this.db, sql`
           SELECT * FROM guardrail_trigger_history
@@ -190,7 +190,7 @@ export class GuardrailStore {
         SELECT COUNT(*) as count FROM guardrail_trigger_history
         WHERE tenant_id = ${tenantId}
       `);
-      total = countRow?.count ?? 0;
+      total = Number(countRow?.count ?? 0);
     }
 
     return { triggers, total };
@@ -222,7 +222,7 @@ export class GuardrailStore {
         AND triggered_at >= ${from}
         AND triggered_at <= ${to}
     `);
-    const total = totalRow?.count ?? 0;
+    const total = Number(totalRow?.count ?? 0);
 
     // Get breakdown by condition_type (via JOIN with rules)
     const conditionRows = await dbAll<{ condition_type: string; count: number }>(this.db, sql`
