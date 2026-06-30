@@ -24,8 +24,12 @@ export function getTenantId(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   c: Context<any, any, any>,
 ): string {
-  // F2 unified auth context (preferred)
-  const auth = (c as any).get('auth') as { orgId?: string } | undefined;
+  // Reframe (ADR 0002): the data isolation key is the PROJECT id, carried as
+  // projectId on the auth context. For API keys projectId == the key's project
+  // (its legacy tenant_id), so this is behavior-preserving until project routing
+  // lands. Fall back to orgId for any pre-projectId context, then the legacy key.
+  const auth = (c as any).get('auth') as { projectId?: string; orgId?: string } | undefined;
+  if (auth?.projectId) return auth.projectId;
   if (auth?.orgId) return auth.orgId;
 
   // Legacy API key context (backward compat)
@@ -34,6 +38,18 @@ export function getTenantId(
 
   // No auth context — fail closed
   throw new HTTPException(401, { message: 'No tenant context available' });
+}
+
+/**
+ * The caller's organization id — the grouping/billing tier above projects
+ * (ADR 0002). Distinct from getTenantId, which returns the project (isolation key).
+ */
+export function getOrgId(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  c: Context<any, any, any>,
+): string {
+  const auth = (c as any).get('auth') as { orgId?: string } | undefined;
+  return auth?.orgId ?? 'default';
 }
 
 /**
