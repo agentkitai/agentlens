@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { hasCategory } from '@agentkitai/auth';
 import {
   requireRole,
   requireActionCategory,
@@ -31,6 +32,22 @@ const MIGRATIONS_DIR = join(import.meta.dirname ?? __dirname, '..', 'migrations'
 // ═══════════════════════════════════════════
 
 describe('S-2.5: Permission matrix', () => {
+  it('is derived from @agentkitai/auth — single source of truth (#147)', () => {
+    // Every (category, role) cell must agree with the unified hasCategory; the
+    // matrix carries no independent permission data.
+    const cats: ActionCategory[] = ['read', 'write', 'manage', 'billing', 'audit'];
+    const roles: Role[] = ['owner', 'admin', 'auditor', 'member', 'viewer'];
+    for (const cat of cats) {
+      for (const role of roles) {
+        expect(PERMISSION_MATRIX[cat].includes(role)).toBe(hasCategory(role, cat));
+        expect(isRoleAllowed(role, cat)).toBe(hasCategory(role, cat));
+      }
+    }
+    // exact expected shape (locks the auditor=audit grant)
+    expect(PERMISSION_MATRIX.audit).toEqual(['owner', 'admin', 'auditor']);
+    expect(PERMISSION_MATRIX.billing).toEqual(['owner']);
+  });
+
   it('read: all roles allowed', () => {
     for (const role of ['owner', 'admin', 'member', 'viewer'] as Role[]) {
       expect(isRoleAllowed(role, 'read')).toBe(true);

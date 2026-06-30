@@ -10,32 +10,32 @@
  */
 
 import type { AuditLogService } from './audit-log.js';
-import { normalizeRole } from '@agentkitai/auth';
+import { hasCategory, type RoleCategory } from '@agentkitai/auth';
 
 // The single role enum now lives in @agentkitai/auth (#147). Re-exported here so
 // existing cloud imports keep working; `editor` resolves to `member` via normalizeRole.
 export type { Role } from '@agentkitai/auth';
 import type { Role } from '@agentkitai/auth';
 
-export type ActionCategory =
-  | 'read'           // View dashboard data
-  | 'write'          // Create/configure sessions, benchmarks
-  | 'manage'         // API keys, team members, settings, connections
-  | 'billing'        // Billing, org deletion, ownership transfer
-  | 'audit';         // Audit trail / compliance / evidence export (#147)
+// ActionCategory IS @agentkitai/auth's RoleCategory — one permission vocabulary
+// (read · write · manage · billing · audit). (#147)
+export type ActionCategory = RoleCategory;
+
+// Canonical roles, highest privilege first (preserves the matrix row order).
+const CANONICAL_ROLES: Role[] = ['owner', 'admin', 'auditor', 'member', 'viewer'];
 
 /**
- * Permission matrix: which roles can perform which action categories.
- * Aligned with @agentkitai/auth ROLE_CATEGORIES (#147) — `auditor` gets a
- * dedicated `audit` grant (read + pull audit evidence) instead of full `manage`.
+ * Permission matrix (category → allowed roles), DERIVED from @agentkitai/auth
+ * ROLE_CATEGORIES via hasCategory — no duplicated mapping. ROLE_CATEGORIES is the
+ * single source of truth for role→permission (#147).
  */
 export const PERMISSION_MATRIX: Record<ActionCategory, readonly Role[]> = {
-  read:    ['owner', 'admin', 'auditor', 'member', 'viewer'],
-  write:   ['owner', 'admin', 'member'],
-  manage:  ['owner', 'admin'],
-  billing: ['owner'],
-  audit:   ['owner', 'admin', 'auditor'],
-} as const;
+  read: CANONICAL_ROLES.filter((r) => hasCategory(r, 'read')),
+  write: CANONICAL_ROLES.filter((r) => hasCategory(r, 'write')),
+  manage: CANONICAL_ROLES.filter((r) => hasCategory(r, 'manage')),
+  billing: CANONICAL_ROLES.filter((r) => hasCategory(r, 'billing')),
+  audit: CANONICAL_ROLES.filter((r) => hasCategory(r, 'audit')),
+};
 
 /**
  * Map a route/action description to an action category.
@@ -77,8 +77,9 @@ export interface RbacResult {
  * Check if a role is allowed to perform an action category.
  */
 export function isRoleAllowed(role: Role, category: ActionCategory): boolean {
-  // Resolve aliases (editor → member) against the unified role model (#147).
-  return (PERMISSION_MATRIX[category] as readonly string[]).includes(normalizeRole(role));
+  // Delegate to the unified role model (#147) — hasCategory resolves aliases
+  // (editor → member) and reads the single ROLE_CATEGORIES source of truth.
+  return hasCategory(role, category);
 }
 
 /**
