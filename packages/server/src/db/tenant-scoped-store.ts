@@ -50,31 +50,31 @@ export class TenantScopedStore implements IEventStore {
   }
 
   async queryEvents(query: EventQuery): Promise<EventQueryResult> {
-    return this.inner.queryEvents({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
+    return this.inner.queryEvents({ ...query, tenantId: this.tenantId, projectId: this.projectId});
   }
 
   async getEvent(id: string): Promise<AgentLensEvent | null> {
-    return this.inner.getEvent(id, this.tenantId, this.orgId, this.projectId);
+    return this.inner.getEvent(id, this.tenantId, undefined, this.projectId);
   }
 
   async getSessionTimeline(sessionId: string): Promise<AgentLensEvent[]> {
-    return this.inner.getSessionTimeline(sessionId, this.tenantId, this.orgId, this.projectId);
+    return this.inner.getSessionTimeline(sessionId, this.tenantId, undefined, this.projectId);
   }
 
   async getLastEventHash(sessionId: string): Promise<string | null> {
-    return this.inner.getLastEventHash(sessionId, this.tenantId, this.orgId, this.projectId);
+    return this.inner.getLastEventHash(sessionId, this.tenantId, undefined, this.projectId);
   }
 
   async countEvents(query: Omit<EventQuery, 'limit' | 'offset'>): Promise<number> {
-    return this.inner.countEvents({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
+    return this.inner.countEvents({ ...query, tenantId: this.tenantId, projectId: this.projectId});
   }
 
   async countEventsBatch(query: { agentId: string; from: string; to: string; tenantId?: string }): Promise<{ total: number; error: number; critical: number; toolError: number }> {
-    return this.inner.countEventsBatch({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
+    return this.inner.countEventsBatch({ ...query, tenantId: this.tenantId, projectId: this.projectId});
   }
 
   async sumSessionCost(query: { agentId: string; from: string; tenantId?: string }): Promise<number> {
-    return this.inner.sumSessionCost({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
+    return this.inner.sumSessionCost({ ...query, tenantId: this.tenantId, projectId: this.projectId});
   }
 
   // ─── Sessions ────────────────────────────────────────────
@@ -84,11 +84,11 @@ export class TenantScopedStore implements IEventStore {
   }
 
   async querySessions(query: SessionQuery): Promise<{ sessions: Session[]; total: number }> {
-    return this.inner.querySessions({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
+    return this.inner.querySessions({ ...query, tenantId: this.tenantId, projectId: this.projectId});
   }
 
   async getSession(id: string): Promise<Session | null> {
-    return this.inner.getSession(id, this.tenantId, this.orgId, this.projectId);
+    return this.inner.getSession(id, this.tenantId, undefined, this.projectId);
   }
 
   // ─── Agents ──────────────────────────────────────────────
@@ -98,11 +98,11 @@ export class TenantScopedStore implements IEventStore {
   }
 
   async listAgents(): Promise<Agent[]> {
-    return this.inner.listAgents(this.tenantId, this.orgId, this.projectId);
+    return this.inner.listAgents(this.tenantId, undefined, this.projectId);
   }
 
   async getAgent(id: string): Promise<Agent | null> {
-    return this.inner.getAgent(id, this.tenantId, this.orgId, this.projectId);
+    return this.inner.getAgent(id, this.tenantId, undefined, this.projectId);
   }
 
   async unpauseAgent(agentId: string, clearModelOverride: boolean): Promise<boolean> {
@@ -117,7 +117,7 @@ export class TenantScopedStore implements IEventStore {
     agentId?: string;
     granularity: 'hour' | 'day' | 'week';
   }): Promise<AnalyticsResult> {
-    return this.inner.getAnalytics({ ...params, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
+    return this.inner.getAnalytics({ ...params, tenantId: this.tenantId, projectId: this.projectId});
   }
 
   // ─── Alert Rules ─────────────────────────────────────────

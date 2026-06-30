@@ -81,10 +81,10 @@ export function getTenantStore(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   c: Context<any, any, any>,
 ): IEventStore {
-  // The project is the isolation key (getTenantId == projectId, ADR 0002). Reads
-  // filter by project; org_id is a grouping-only column, so it is NOT passed as a
-  // read scope (filtering by org would exclude data stamped under a different
-  // org_id). Stamping the real org on writes (grouping rollups) is tracked
-  // separately — it needs stamp-without-filter in TenantScopedStore.
-  return tenantScopedStore(store, getTenantId(c));
+  // The project is the isolation key (getTenantId == projectId, ADR 0002). Pass the
+  // resolved org as the write-scope: TenantScopedStore stamps org_id on writes (for
+  // org-level rollups) but reads filter by project only (#242) — org_id is never a
+  // read filter (that would exclude data stamped under a different org_id).
+  const tenantId = getTenantId(c);
+  return tenantScopedStore(store, tenantId, { orgId: getOrgId(c), projectId: tenantId });
 }
