@@ -1304,6 +1304,27 @@ export function runMigrations(db: SqliteDb): void {
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_sso_connections_org ON sso_connections(org_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_sso_connections_domain ON sso_connections(domain)`);
+
+  // ─── SCIM 2.0 groups (#148) ─────────────────────────────
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS scim_groups (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
+      display_name TEXT NOT NULL,
+      external_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_scim_groups_tenant ON scim_groups(tenant_id)`);
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS scim_group_members (
+      group_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      PRIMARY KEY (group_id, user_id)
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_scim_group_members_user ON scim_group_members(user_id)`);
 }
 
 /**

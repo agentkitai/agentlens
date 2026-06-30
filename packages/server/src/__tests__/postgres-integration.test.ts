@@ -22,6 +22,7 @@ import { HealthSnapshotStore } from '../db/health-snapshot-store.js';
 import { NotificationChannelRepository } from '../db/repositories/notification-channel-repository.js';
 import { UserStore } from '../db/user-store.js';
 import { SsoConnectionStore } from '../db/sso-connection-store.js';
+import { ScimGroupStore } from '../db/scim-group-store.js';
 import { PostgresEventStore } from '../db/postgres-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { computeEventHash } from '@agentkitai/agentlens-core';
@@ -292,8 +293,8 @@ describePg('Postgres integration tests', () => {
         // #172 features 7-11: annotations, llm connections, chain anchors, health, notifications
         'annotation_queues', 'annotation_items', 'llm_connections', 'chain_anchors',
         'health_snapshots', 'notification_channels', 'notification_log',
-        // #148: enterprise SSO connections
-        'sso_connections',
+        // #148: enterprise SSO connections + SCIM groups
+        'sso_connections', 'scim_groups', 'scim_group_members',
       ];
 
       for (const table of expectedTables) {
@@ -817,6 +818,32 @@ describePg('Postgres integration tests', () => {
 
       expect(await store.delete(conn.id)).toBe(true);
       expect(await store.getById(conn.id)).toBeUndefined();
+    });
+  });
+
+  // ─── #148 (Phase 7): dialect-agnostic ScimGroupStore (SCIM groups) on pg ──
+  describe('ScimGroupStore on Postgres (#148)', () => {
+    it('CRUDs groups + members (ON CONFLICT add) on pg', async () => {
+      const store = new ScimGroupStore(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const g = await store.create({ tenantId: tid, displayName: 'Eng', memberIds: ['u1'] });
+      expect(g.memberIds).toEqual(['u1']);
+      expect((await store.getById(g.id))?.displayName).toBe('Eng');
+
+      const listed = await store.list(tid, { displayName: 'Eng' });
+      expect(listed.total).toBe(1);
+      expect(typeof listed.total).toBe('number'); // COUNT coercion
+
+      await store.addMember(g.id, 'u2');
+      await store.addMember(g.id, 'u2'); // idempotent via ON CONFLICT
+      expect((await store.getById(g.id))?.memberIds.sort()).toEqual(['u1', 'u2']);
+      await store.removeMember(g.id, 'u1');
+      expect((await store.getById(g.id))?.memberIds).toEqual(['u2']);
+      await store.setMembers(g.id, ['u3', 'u4']);
+      expect((await store.getById(g.id))?.memberIds.sort()).toEqual(['u3', 'u4']);
+
+      expect(await store.delete(g.id)).toBe(true);
+      expect(await store.getById(g.id)).toBeUndefined();
     });
   });
 
