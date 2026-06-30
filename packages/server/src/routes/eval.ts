@@ -84,6 +84,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
         name: body.name,
         description: body.description,
         agentId: body.agentId,
+        folder: body.folder,
         testCases: body.testCases,
       });
       return c.json(dataset, 201);
@@ -119,10 +120,11 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
 
     const tenantId = getTenantId(c);
     const agentId = c.req.query('agentId') || undefined;
+    const folder = c.req.query('folder') ?? undefined;
     const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!, 10) : undefined;
     const offset = c.req.query('offset') ? parseInt(c.req.query('offset')!, 10) : undefined;
 
-    const { datasets, total } = await store.listDatasets(tenantId, { agentId, limit, offset });
+    const { datasets, total } = await store.listDatasets(tenantId, { agentId, folder, limit, offset });
     return c.json({ datasets, total, hasMore: (offset ?? 0) + datasets.length < total });
   });
 

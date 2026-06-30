@@ -896,12 +896,20 @@ export function runMigrations(db: SqliteDb): void {
       description   TEXT,
       version       INTEGER NOT NULL DEFAULT 1,
       parent_id     TEXT,
+      folder        TEXT,
       immutable     INTEGER NOT NULL DEFAULT 0,
       created_at    TEXT NOT NULL,
       updated_at    TEXT NOT NULL
     )
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_eval_datasets_tenant ON eval_datasets(tenant_id)`);
+  // #224: dataset folders — additive column for existing dbs.
+  {
+    const cols = db.all<{ name: string }>(sql`PRAGMA table_info(eval_datasets)`);
+    if (!new Set(cols.map((c) => c.name)).has('folder')) {
+      db.run(sql`ALTER TABLE eval_datasets ADD COLUMN folder TEXT`);
+    }
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS eval_test_cases (
