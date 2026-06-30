@@ -13,6 +13,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestApp, createApiKey, authHeaders } from './test-helpers.js';
 import { OrgProjectStore } from '../db/org-project-store.js';
 import { signJwt } from '../cloud/auth/jwt.js';
+import { events } from '../db/schema.sqlite.js';
+import { eq } from 'drizzle-orm';
 import type { Hono } from 'hono';
 import type { SqliteDb } from '../db/index.js';
 
@@ -78,6 +80,13 @@ describe('Project isolation via HTTP (#228 / #232)', () => {
   it('two projects under one org are isolated by API key (no cross-project leak)', async () => {
     expect((await listEvents(authHeaders(keyA))).agents).toEqual(['agt-a']);
     expect((await listEvents(authHeaders(keyB))).agents).toEqual(['agt-b']);
+  });
+
+  it('stamps the real org_id (not "default") on ingested events (#242)', async () => {
+    const rows = db.select({ orgId: events.orgId, projectId: events.projectId }).from(events).where(eq(events.agentId, 'agt-a')).all();
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]!.orgId).toBe(orgId); // the real org (projA belongs to it), not 'default'
+    expect(rows[0]!.projectId).toBe(projA);
   });
 
   it('a JWT member of project A reads A (via X-Project-Id) but is 403 on B', async () => {
