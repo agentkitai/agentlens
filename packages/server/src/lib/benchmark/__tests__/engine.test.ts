@@ -107,7 +107,7 @@ function makeMockBenchmarkStore(cachedResults?: BenchmarkResults): BenchmarkStor
 
 // ─── Tests ─────────────────────────────────────────────────
 
-describe('BenchmarkEngine — computeResults', () => {
+describe('BenchmarkEngine — computeResults', async () => {
   it('produces results for 2-variant benchmark end-to-end', async () => {
     // Variant A: higher cost, Variant B: lower cost
     const sessionsA = makeSessions('config:variant-a', 40, 0.10, 0.10);
@@ -196,7 +196,7 @@ describe('BenchmarkEngine — computeResults', () => {
     const results = await engine.computeResults(benchmark, store, benchmarkStore);
 
     expect(results.summary).toBe('Cached summary');
-    expect(benchmarkStore.getResults).toHaveBeenCalledWith('tenant-1', 'bench-1');
+    expect(await benchmarkStore.getResults).toHaveBeenCalledWith('tenant-1', 'bench-1');
     // Event store should NOT have been called because results were cached
     expect(store.querySessions).not.toHaveBeenCalled();
   });
@@ -218,7 +218,7 @@ describe('BenchmarkEngine — computeResults', () => {
     // Should compute results
     expect(results.variants).toHaveLength(2);
     // Should NOT cache for running benchmarks
-    expect(benchmarkStore.saveResults).not.toHaveBeenCalled();
+    expect(await benchmarkStore.saveResults).not.toHaveBeenCalled();
   });
 
   it('caches results for completed benchmarks when not already cached', async () => {
@@ -232,14 +232,14 @@ describe('BenchmarkEngine — computeResults', () => {
 
     const benchmarkStore = makeMockBenchmarkStore(null as any);
     // getResults returns null (no cache)
-    (benchmarkStore.getResults as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (await benchmarkStore.getResults as ReturnType<typeof vi.fn>).mockReturnValue(null);
 
     const benchmark = makeBenchmark({ status: 'completed' });
 
     const results = await engine.computeResults(benchmark, store, benchmarkStore);
 
     expect(results.variants).toHaveLength(2);
-    expect(benchmarkStore.saveResults).toHaveBeenCalledWith(
+    expect(await benchmarkStore.saveResults).toHaveBeenCalledWith(
       'tenant-1',
       'bench-1',
       expect.objectContaining({
@@ -252,7 +252,7 @@ describe('BenchmarkEngine — computeResults', () => {
 
 // ─── formatSummary ─────────────────────────────────────────
 
-describe('BenchmarkEngine — formatSummary', () => {
+describe('BenchmarkEngine — formatSummary', async () => {
   const baseStats: MetricStats = {
     mean: 0.10,
     median: 0.09,
@@ -291,7 +291,7 @@ describe('BenchmarkEngine — formatSummary', () => {
     };
   }
 
-  it('generates summary with significant differences', () => {
+  it('generates summary with significant differences', async () => {
     const comparisons = [
       makeComparison({
         metric: 'avg_cost',
@@ -315,7 +315,7 @@ describe('BenchmarkEngine — formatSummary', () => {
     expect(summary).toContain('★★★');
   });
 
-  it('warns about insufficient data when variant has < 30 sessions', () => {
+  it('warns about insufficient data when variant has < 30 sessions', async () => {
     const comparisons = [makeComparison()];
     const variants = [
       makeVariantMetrics({ variantId: 'var-a', variantName: 'Variant A', sessionCount: 15 }),
@@ -328,7 +328,7 @@ describe('BenchmarkEngine — formatSummary', () => {
     expect(summary).toContain('Variant A: 15 sessions');
   });
 
-  it('reports no significant differences when none found', () => {
+  it('reports no significant differences when none found', async () => {
     const comparisons = [
       makeComparison({
         significant: false,
@@ -347,7 +347,7 @@ describe('BenchmarkEngine — formatSummary', () => {
     expect(summary).toContain('No significant difference');
   });
 
-  it('handles multiple metrics in summary', () => {
+  it('handles multiple metrics in summary', async () => {
     const comparisons = [
       makeComparison({
         metric: 'avg_cost',

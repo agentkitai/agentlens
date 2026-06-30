@@ -138,7 +138,7 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     }
 
     try {
-      const benchmark = benchmarkStore.create(tenantId, input);
+      const benchmark = await benchmarkStore.create(tenantId, input);
       return c.json(benchmark, 201);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create benchmark';
@@ -201,7 +201,7 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     }
 
     const filters: ListBenchmarkFilters = { status, agentId, limit, offset };
-    const { benchmarks, total } = benchmarkStore.list(tenantId, filters);
+    const { benchmarks, total } = await benchmarkStore.list(tenantId, filters);
 
     return c.json({
       benchmarks,
@@ -227,7 +227,7 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
 
-    const benchmark = benchmarkStore.getById(tenantId, id);
+    const benchmark = await benchmarkStore.getById(tenantId, id);
     if (!benchmark) {
       return c.json({ error: 'Benchmark not found', status: 404 }, 404);
     }
@@ -292,7 +292,7 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     const newStatus = body.status as BenchmarkStatus;
 
     // Get current benchmark
-    const current = benchmarkStore.getById(tenantId, id);
+    const current = await benchmarkStore.getById(tenantId, id);
     if (!current) {
       return c.json({ error: 'Benchmark not found', status: 404 }, 404);
     }
@@ -322,7 +322,7 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     }
 
     try {
-      const updated = benchmarkStore.updateStatus(tenantId, id, newStatus);
+      const updated = await benchmarkStore.updateStatus(tenantId, id, newStatus);
 
       // When transitioning to "completed": compute and cache results
       if (newStatus === 'completed') {
@@ -360,7 +360,7 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
 
-    const benchmark = benchmarkStore.getById(tenantId, id);
+    const benchmark = await benchmarkStore.getById(tenantId, id);
     if (!benchmark) {
       return c.json({ error: 'Benchmark not found', status: 404 }, 404);
     }
@@ -411,7 +411,7 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
 
-    const benchmark = benchmarkStore.getById(tenantId, id);
+    const benchmark = await benchmarkStore.getById(tenantId, id);
     if (!benchmark) {
       return c.json({ error: 'Benchmark not found', status: 404 }, 404);
     }
@@ -423,7 +423,7 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
       );
     }
 
-    benchmarkStore.delete(tenantId, id);
+    await benchmarkStore.delete(tenantId, id);
     return c.body(null, 204);
   });
 
