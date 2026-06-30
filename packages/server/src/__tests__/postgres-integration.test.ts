@@ -273,6 +273,8 @@ describePg('Postgres integration tests', () => {
         'evaluator_definitions',
         // #172 feature 4 (schema step): cost-management tables on the pg path
         'cost_budgets', 'cost_budget_state', 'cost_anomaly_config', 'cost_rollups',
+        // #172 feature 5 (schema step): guardrail tables on the pg path
+        'guardrail_rules', 'guardrail_state', 'guardrail_trigger_history',
       ];
 
       for (const table of expectedTables) {
@@ -324,6 +326,24 @@ describePg('Postgres integration tests', () => {
         DO UPDATE SET cost_usd = cost_rollups.cost_usd + 0.75`);
       const r = await db.execute(sql`SELECT cost_usd FROM cost_rollups WHERE tenant_id = ${tid}`);
       expect(Number(r.rows[0].cost_usd)).toBeCloseTo(2.0, 6); // 1.25 + 0.75 (upsert)
+    });
+
+    it('guardrail tables accept the store columns (state ON CONFLICT, double value)', async () => {
+      // Smoke-test the 0011 schema for the dialect-agnostic GuardrailStore (next PR).
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const rid = `r_${randomUUID()}`;
+      await db.execute(sql`INSERT INTO guardrail_rules (id, tenant_id, name, enabled, condition_type, action_type, created_at, updated_at)
+        VALUES (${rid}, ${tid}, 'rule', 1, 'cost_threshold', 'alert', '2026-06-30T00:00:00Z', '2026-06-30T00:00:00Z')`);
+      // guardrail_state has a 2-column PK — upsert sets columns from params (no self-ref)
+      await db.execute(sql`INSERT INTO guardrail_state (rule_id, tenant_id, trigger_count, current_value)
+        VALUES (${rid}, ${tid}, 1, 4.5)
+        ON CONFLICT (rule_id, tenant_id) DO UPDATE SET trigger_count = 2, current_value = 9.5`);
+      await db.execute(sql`INSERT INTO guardrail_state (rule_id, tenant_id, trigger_count, current_value)
+        VALUES (${rid}, ${tid}, 1, 4.5)
+        ON CONFLICT (rule_id, tenant_id) DO UPDATE SET trigger_count = 2, current_value = 9.5`);
+      const r = await db.execute(sql`SELECT trigger_count, current_value FROM guardrail_state WHERE rule_id = ${rid}`);
+      expect(Number(r.rows[0].trigger_count)).toBe(2);
+      expect(Number(r.rows[0].current_value)).toBeCloseTo(9.5, 6);
     });
   });
 
