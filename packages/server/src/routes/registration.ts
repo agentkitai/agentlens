@@ -321,7 +321,7 @@ export async function registerRoutes(
     app.route('/api/playground', playgroundRoutes(db));
     // #172: org/project model is dialect-agnostic — use the pg db when active.
     app.route('/api/orgs', orgRoutes(config?.pgDb ?? db));
-    app.route('/api/projects', projectRoutes(config?.pgDb ?? db));
+    app.route('/api/projects', projectRoutes(config?.pgDb ?? db, db));
 
     // ─── Enterprise SCIM 2.0 provisioning (#148) — gated by the enterprise flag ──
     if (resolvedConfig.enterpriseEnabled && resolvedConfig.scimToken) {
