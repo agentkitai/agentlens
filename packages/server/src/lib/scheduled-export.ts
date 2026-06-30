@@ -70,7 +70,7 @@ export interface ScheduledExportOptions {
   to: string;
   format?: ExportFormat;
   /** Tenant+range event fetcher (decoupled for testability). */
-  fetchEvents: (tenantId: string, from: string, to: string) => unknown[];
+  fetchEvents: (tenantId: string, from: string, to: string) => unknown[] | Promise<unknown[]>;
   /** ISO timestamp stamped into the manifest + filenames (caller-supplied). */
   generatedAt: string;
   /** Filename prefix (default 'agentlens-events'). */
@@ -84,7 +84,7 @@ export interface ScheduledExportOptions {
 /** Run one export: write the artifact + a signed manifest to the sink. */
 export async function runScheduledExport(opts: ScheduledExportOptions): Promise<ScheduledExportResult> {
   const format = opts.format ?? 'ndjson';
-  const events = opts.fetchEvents(opts.tenantId, opts.from, opts.to);
+  const events = await opts.fetchEvents(opts.tenantId, opts.from, opts.to);
   const content =
     format === 'ndjson'
       ? toNdjson(events)

@@ -196,6 +196,33 @@ export async function startServer() {
     }
   }
 
+  // Scheduled blob-storage exports (#151) — driven by SCHEDULED_EXPORTS config.
+  {
+    try {
+      const { parseScheduledExports, sinkFromConfig } = await import('./lib/export-config.js');
+      const { startExportScheduler } = await import('./lib/export-scheduler.js');
+      const exportsConfig = parseScheduledExports(process.env['SCHEDULED_EXPORTS']);
+      if (exportsConfig) {
+        const sink = sinkFromConfig(exportsConfig.sink);
+        const fetchEvents = async (tenantId: string, from: string, to: string): Promise<unknown[]> => {
+          const out: unknown[] = [];
+          let offset = 0;
+          for (;;) {
+            const page = await store.queryEvents({ tenantId, from, to, limit: 500, offset });
+            out.push(...page.events);
+            if (!page.hasMore || page.events.length === 0) break;
+            offset += page.events.length;
+          }
+          return out;
+        };
+        startExportScheduler(exportsConfig.jobs, { sink, fetchEvents });
+        log.info(`Scheduled exports: ${exportsConfig.jobs.length} job(s) → ${exportsConfig.sink.type} sink`);
+      }
+    } catch (err) {
+      log.warn(`Scheduled exports setup failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   // Start alert evaluation engine
   const notifRepoForEngine = db ? new NotificationChannelRepository(db) : null;
   const notifRouterForEngine = notifRepoForEngine ? new NotificationRouter(notifRepoForEngine) : null;
