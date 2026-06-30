@@ -937,6 +937,8 @@ export class PromptStore {
     const fromDate = from ?? new Date(Date.now() - 30 * 86400000).toISOString();
     const toDate = to ?? new Date().toISOString();
     const verifiedId = jText(isPg, 'e.metadata', 'verifiedAgentId');
+    const resolvedExpr = `COALESCE(${verifiedId}, e.agent_id)`;
+    const verifiedExpr = `CASE WHEN ${verifiedId} IS NOT NULL THEN 1 ELSE 0 END`;
 
     const rows = await dbAll<{
       version_id: string;
@@ -951,8 +953,8 @@ export class PromptStore {
       SELECT
         pv.id AS version_id,
         pv.version_number,
-        COALESCE(${sql.raw(verifiedId)}, e.agent_id) AS resolved_agent_id,
-        CASE WHEN ${sql.raw(verifiedId)} IS NOT NULL THEN 1 ELSE 0 END AS verified,
+        ${sql.raw(resolvedExpr)} AS resolved_agent_id,
+        ${sql.raw(verifiedExpr)} AS verified,
         COUNT(DISTINCT e.id) AS call_count,
         COALESCE(SUM(${sql.raw(jNum(isPg, 'r.payload', 'costUsd'))}), 0) AS total_cost_usd,
         COALESCE(AVG(${sql.raw(jNum(isPg, 'r.payload', 'latencyMs'))}), 0) AS avg_latency_ms,
@@ -972,7 +974,7 @@ export class PromptStore {
         AND r.event_type = 'llm_response'
         AND r.tenant_id = ${tenantId}
       WHERE pv.template_id = ${templateId} AND pv.tenant_id = ${tenantId}
-      GROUP BY pv.id, resolved_agent_id
+      GROUP BY pv.id, ${sql.raw(resolvedExpr)}, ${sql.raw(verifiedExpr)}
       ORDER BY pv.version_number DESC, call_count DESC
     `);
 
