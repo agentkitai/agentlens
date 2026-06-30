@@ -37,6 +37,7 @@ import { exportsRoutes } from './exports.js';
 import { llmConnectionsRoutes } from './llm-connections.js';
 import { playgroundRoutes } from './playground.js';
 import { orgRoutes } from './orgs.js';
+import { projectRoutes } from './projects.js';
 import { scimRoutes } from './scim.js';
 import { samlRoutes } from './sso-saml.js';
 import { ssoAdminRoutes } from './sso-admin.js';
@@ -320,6 +321,7 @@ export async function registerRoutes(
     app.route('/api/playground', playgroundRoutes(db));
     // #172: org/project model is dialect-agnostic — use the pg db when active.
     app.route('/api/orgs', orgRoutes(config?.pgDb ?? db));
+    app.route('/api/projects', projectRoutes(config?.pgDb ?? db));
 
     // ─── Enterprise SCIM 2.0 provisioning (#148) — gated by the enterprise flag ──
     if (resolvedConfig.enterpriseEnabled && resolvedConfig.scimToken) {
