@@ -6,6 +6,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { resolve } from 'path';
+import { randomUUID } from 'node:crypto';
+import { OrgProjectStore } from '../db/org-project-store.js';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -256,11 +258,40 @@ describePg('Postgres integration tests', () => {
       const expectedTables = [
         'events', 'sessions', 'agents', 'alert_rules', 'alert_history',
         'users', 'api_keys', 'lessons', 'embeddings', 'session_summaries',
+        // #172 feature 1: org/project model created on the pg path
+        'orgs', 'projects', 'org_members', 'project_members',
       ];
 
       for (const table of expectedTables) {
         expect(tableNames, `Missing table: ${table}`).toContain(table);
       }
+    });
+  });
+
+  // ─── #172 feature 1: org/project model via the dialect-agnostic store ──
+  describe('Org/project model (dialect-agnostic OrgProjectStore on Postgres)', () => {
+    it('migration backfilled the default org + project', async () => {
+      const store = new OrgProjectStore(db);
+      expect((await store.getOrg('default'))?.slug).toBe('default');
+      expect((await store.getProject('default'))?.orgId).toBe('default');
+    });
+
+    it('CRUDs orgs/projects/members and upserts membership via ON CONFLICT', async () => {
+      const store = new OrgProjectStore(db);
+      const org = await store.createOrg({ name: 'Acme PG', slug: `acme-${randomUUID().slice(0, 8)}` });
+      expect((await store.listOrgs()).some((o) => o.id === org.id)).toBe(true);
+
+      const proj = await store.createProject(org.id, { name: 'Web', slug: `web-${randomUUID().slice(0, 8)}` });
+      expect((await store.listProjects(org.id)).map((p) => p.id)).toContain(proj.id);
+
+      await store.addOrgMember(org.id, 'user-pg-1', 'owner');
+      await store.addOrgMember(org.id, 'user-pg-1', 'admin'); // upsert, not duplicate
+      const members = await store.listOrgMembers(org.id);
+      expect(members).toHaveLength(1);
+      expect(members[0].role).toBe('admin');
+
+      await store.addProjectMember(proj.id, 'user-pg-1', 'viewer');
+      expect(await store.listProjectMembers(proj.id)).toHaveLength(1);
     });
   });
 });
