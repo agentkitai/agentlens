@@ -16,7 +16,7 @@ import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import type { PostgresDb } from '../db/connection.postgres.js';
 import { getTenantStore } from './tenant-helper.js';
-import { AnalyticsRepository } from '../db/repositories/analytics-repository.js';
+import { getRollupAnalyticsAsync } from '../db/repositories/analytics-repository.js';
 
 // ─── SQL dialect helpers ─────────────────────────────────
 // These return sql.raw() fragments for structural SQL differences.
@@ -116,14 +116,13 @@ export function analyticsRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgre
 
   // GET /api/analytics/rollup — coarse cost/usage from precomputed rollups (#124).
   // Reads cost_rollups (keyed on verified agent) instead of scanning raw events;
-  // survives a retention purge. SQLite-backed; Postgres rollups are a follow-up.
-  app.get('/rollup', (c) => {
-    if (isPg) return c.json({ error: 'Rollup analytics not available on this backend', status: 501 }, 501);
+  // survives a retention purge. Dialect-agnostic (#220) — sqlite + postgres.
+  app.get('/rollup', async (c) => {
     const granularity = (c.req.query('granularity') ?? 'day') as 'hour' | 'day';
     if (!['hour', 'day'].includes(granularity)) {
       return c.json({ error: 'Invalid granularity. Use: hour, day', status: 400 }, 400);
     }
-    const result = new AnalyticsRepository(db).getRollupAnalytics({
+    const result = await getRollupAnalyticsAsync(pgDb ?? db, {
       tenantId: getTenantId(c),
       from: c.req.query('from') ?? new Date(Date.now() - 30 * 86_400_000).toISOString(),
       to: c.req.query('to') ?? new Date().toISOString(),
