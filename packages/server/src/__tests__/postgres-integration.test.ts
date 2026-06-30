@@ -260,11 +260,27 @@ describePg('Postgres integration tests', () => {
         'users', 'api_keys', 'lessons', 'embeddings', 'session_summaries',
         // #172 feature 1: org/project model created on the pg path
         'orgs', 'projects', 'org_members', 'project_members',
+        // #172 feature 2 (schema step): prompt-management tables on the pg path
+        'prompt_templates', 'prompt_versions', 'prompt_fingerprints',
+        'prompt_deployments', 'prompt_ab_tests',
       ];
 
       for (const table of expectedTables) {
         expect(tableNames, `Missing table: ${table}`).toContain(table);
       }
+    });
+
+    it('prompt tables accept the columns the store writes (incl. config/prompt_type)', async () => {
+      // Smoke-test the 0008 schema: the dialect-agnostic PromptStore conversion
+      // (next PR) relies on these exact columns existing on Postgres.
+      const tpl = `tpl_${randomUUID()}`;
+      const ver = `ver_${randomUUID()}`;
+      await db.execute(sql`INSERT INTO prompt_templates (id, tenant_id, name, category, current_version_id, created_at, updated_at)
+        VALUES (${tpl}, 'default', 'PG Tmpl', 'general', ${ver}, '2026-06-30T00:00:00Z', '2026-06-30T00:00:00Z')`);
+      await db.execute(sql`INSERT INTO prompt_versions (id, template_id, tenant_id, version_number, content, config, prompt_type, content_hash, created_at)
+        VALUES (${ver}, ${tpl}, 'default', 1, 'hello', '{}', 'chat', 'abc', '2026-06-30T00:00:00Z')`);
+      const rows = await db.execute(sql`SELECT prompt_type FROM prompt_versions WHERE id = ${ver}`);
+      expect(rows.rows[0].prompt_type).toBe('chat');
     });
   });
 

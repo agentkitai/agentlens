@@ -57,6 +57,13 @@
       "when": 1740480000000,
       "tag": "0007_org_project_model",
       "breakpoints": false
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1740566400000,
+      "tag": "0008_prompt_tables",
+      "breakpoints": false
     }
   ]
 }
