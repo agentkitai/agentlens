@@ -152,6 +152,19 @@ export interface CreateResultInput {
   error?: string;
 }
 
+/** Parse an events.payload value dialect-safely (text JSON on sqlite, object on pg). */
+function parsePayload(p: unknown): Record<string, unknown> {
+  if (p == null) return {};
+  if (typeof p === 'string') {
+    try {
+      return JSON.parse(p) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+  return p as Record<string, unknown>;
+}
+
 // ─── Row Converters ────────────────────────────────────────
 
 function rowToDataset(row: DatasetRow): EvalDataset {
@@ -272,6 +285,59 @@ export class EvalStore {
     await runInTransaction(this.db, queries);
 
     return (await this.getDataset(tenantId, id))!;
+  }
+
+  /**
+   * Create dataset test cases from a production trace (#214): pair the session's
+   * llm_call (request) and llm_response (completion) events by callId, turning each
+   * into a test case (prompt + messages context → expected completion, with trace
+   * provenance). Adds to an existing dataset (opts.datasetId) or creates a new one.
+   */
+  async createItemsFromTrace(
+    tenantId: string,
+    sessionId: string,
+    opts: { datasetId?: string; name?: string } = {},
+  ): Promise<{ datasetId: string; created: number }> {
+    const rows = await dbAll<{ id: string; event_type: string; payload: unknown }>(this.db, sql`
+      SELECT id, event_type, payload FROM events
+      WHERE tenant_id = ${tenantId} AND session_id = ${sessionId}
+        AND event_type IN ('llm_call', 'llm_response')
+      ORDER BY timestamp ASC
+    `);
+
+    const calls = new Map<string, { eventId: string; payload: Record<string, unknown> }>();
+    const responses = new Map<string, Record<string, unknown>>();
+    for (const r of rows) {
+      const p = parsePayload(r.payload);
+      const callId = String(p.callId ?? '');
+      if (!callId) continue;
+      if (r.event_type === 'llm_call') calls.set(callId, { eventId: r.id, payload: p });
+      else responses.set(callId, p);
+    }
+
+    const cases: CreateTestCaseInput[] = [];
+    for (const [callId, call] of calls) {
+      const resp = responses.get(callId);
+      if (!resp) continue;
+      const messages = Array.isArray(call.payload.messages)
+        ? (call.payload.messages as Array<Record<string, unknown>>)
+        : [];
+      const lastUser = [...messages].reverse().find((m) => String(m.role) === 'user');
+      const prompt = lastUser ? String(lastUser.content ?? '') : JSON.stringify(messages);
+      cases.push({
+        input: { prompt, context: { messages, model: call.payload.model, systemPrompt: call.payload.systemPrompt } },
+        expectedOutput: resp.completion ?? null,
+        metadata: { source: 'trace', sessionId, callId, sourceEventId: call.eventId },
+      });
+    }
+
+    if (opts.datasetId) {
+      if (!(await this.getDataset(tenantId, opts.datasetId))) throw new Error('dataset not found');
+      if (cases.length > 0) await this.addTestCases(opts.datasetId, tenantId, cases);
+      return { datasetId: opts.datasetId, created: cases.length };
+    }
+    const ds = await this.createDataset(tenantId, { name: opts.name ?? `trace-${sessionId}`, testCases: cases });
+    return { datasetId: ds.id, created: cases.length };
   }
 
   async getDataset(tenantId: string, id: string): Promise<EvalDataset | undefined> {
