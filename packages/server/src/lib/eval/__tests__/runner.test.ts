@@ -14,7 +14,7 @@ import { ContainsScorer } from '../scorers/contains.js';
 let db: SqliteDb;
 let evalStore: EvalStore;
 
-beforeEach(() => {
+beforeEach(async () => {
   db = createTestDb();
   runMigrations(db);
   evalStore = new EvalStore(db);
@@ -27,8 +27,8 @@ function createRegistry(): ScorerRegistry {
   return registry;
 }
 
-function createDatasetAndRun(webhookUrl = 'http://localhost/eval') {
-  const ds = evalStore.createDataset('t1', {
+async function createDatasetAndRun(webhookUrl = 'http://localhost/eval') {
+  const ds = await evalStore.createDataset('t1', {
     name: 'Test',
     testCases: [
       { input: { prompt: 'Q1' }, expectedOutput: 'A1' },
@@ -36,7 +36,7 @@ function createDatasetAndRun(webhookUrl = 'http://localhost/eval') {
     ],
   });
 
-  const run = evalStore.createRun('t1', {
+  const run = await evalStore.createRun('t1', {
     datasetId: ds.id,
     agentId: 'agent-1',
     webhookUrl,
@@ -50,9 +50,9 @@ function createDatasetAndRun(webhookUrl = 'http://localhost/eval') {
   return { ds, run };
 }
 
-describe('EvalRunner', () => {
+describe('EvalRunner', async () => {
   it('executes a successful run', async () => {
-    const { run } = createDatasetAndRun();
+    const { run } = await createDatasetAndRun();
 
     const mockFetch = vi.fn()
       .mockResolvedValueOnce({
@@ -72,20 +72,20 @@ describe('EvalRunner', () => {
 
     await runner.execute(run.id, 't1');
 
-    const completed = evalStore.getRun('t1', run.id);
+    const completed = await evalStore.getRun('t1', run.id);
     expect(completed!.status).toBe('completed');
     expect(completed!.totalCases).toBe(2);
     expect(completed!.passedCases).toBe(2);
     expect(completed!.failedCases).toBe(0);
     expect(completed!.avgScore).toBe(1.0);
 
-    const results = evalStore.getResults(run.id);
+    const results = await evalStore.getResults(run.id);
     expect(results).toHaveLength(2);
     expect(results.every((r) => r.passed)).toBe(true);
   });
 
   it('handles partial failures', async () => {
-    const { run } = createDatasetAndRun();
+    const { run } = await createDatasetAndRun();
 
     const mockFetch = vi.fn()
       .mockResolvedValueOnce({
@@ -105,14 +105,14 @@ describe('EvalRunner', () => {
 
     await runner.execute(run.id, 't1');
 
-    const completed = evalStore.getRun('t1', run.id);
+    const completed = await evalStore.getRun('t1', run.id);
     expect(completed!.status).toBe('completed');
     expect(completed!.passedCases).toBe(1);
     expect(completed!.failedCases).toBe(1);
   });
 
   it('handles webhook timeout', async () => {
-    const { run } = createDatasetAndRun();
+    const { run } = await createDatasetAndRun();
 
     const mockFetch = vi.fn()
       .mockRejectedValueOnce(new Error('Aborted'))
@@ -129,18 +129,18 @@ describe('EvalRunner', () => {
 
     await runner.execute(run.id, 't1');
 
-    const completed = evalStore.getRun('t1', run.id);
+    const completed = await evalStore.getRun('t1', run.id);
     expect(completed!.status).toBe('completed');
     // One failed (timeout), one passed
     expect(completed!.failedCases).toBe(1);
 
-    const results = evalStore.getResults(run.id);
+    const results = await evalStore.getResults(run.id);
     const failed = results.find((r) => !r.passed);
     expect(failed!.error).toContain('Webhook error');
   });
 
   it('handles all cases failing — run still completes', async () => {
-    const { run } = createDatasetAndRun();
+    const { run } = await createDatasetAndRun();
 
     const mockFetch = vi.fn().mockRejectedValue(new Error('Server down'));
 
@@ -152,15 +152,15 @@ describe('EvalRunner', () => {
 
     await runner.execute(run.id, 't1');
 
-    const completed = evalStore.getRun('t1', run.id);
+    const completed = await evalStore.getRun('t1', run.id);
     expect(completed!.status).toBe('completed');
     expect(completed!.passedCases).toBe(0);
     expect(completed!.failedCases).toBe(2);
   });
 
   it('handles empty dataset', async () => {
-    const ds = evalStore.createDataset('t1', { name: 'Empty', testCases: [] });
-    const run = evalStore.createRun('t1', {
+    const ds = await evalStore.createDataset('t1', { name: 'Empty', testCases: [] });
+    const run = await evalStore.createRun('t1', {
       datasetId: ds.id,
       agentId: 'agent-1',
       webhookUrl: 'http://localhost/eval',
@@ -175,13 +175,13 @@ describe('EvalRunner', () => {
 
     await runner.execute(run.id, 't1');
 
-    const completed = evalStore.getRun('t1', run.id);
+    const completed = await evalStore.getRun('t1', run.id);
     expect(completed!.status).toBe('completed');
     expect(completed!.totalCases).toBe(0);
   });
 
   it('includes sessionId from webhook response', async () => {
-    const { run } = createDatasetAndRun();
+    const { run } = await createDatasetAndRun();
 
     const mockFetch = vi.fn()
       .mockResolvedValueOnce({
@@ -201,17 +201,17 @@ describe('EvalRunner', () => {
 
     await runner.execute(run.id, 't1');
 
-    const results = evalStore.getResults(run.id);
+    const results = await evalStore.getResults(run.id);
     const withSession = results.find((r) => r.sessionId === 'sess-123');
     expect(withSession).toBeDefined();
   });
 
   it('retries webhook failures', async () => {
-    const ds = evalStore.createDataset('t1', {
+    const ds = await evalStore.createDataset('t1', {
       name: 'Test',
       testCases: [{ input: { prompt: 'Q1' }, expectedOutput: 'A1' }],
     });
-    const run = evalStore.createRun('t1', {
+    const run = await evalStore.createRun('t1', {
       datasetId: ds.id,
       agentId: 'agent-1',
       webhookUrl: 'http://localhost/eval',
@@ -233,7 +233,7 @@ describe('EvalRunner', () => {
 
     await runner.execute(run.id, 't1');
 
-    const completed = evalStore.getRun('t1', run.id);
+    const completed = await evalStore.getRun('t1', run.id);
     expect(completed!.passedCases).toBe(1);
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });

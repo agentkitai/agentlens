@@ -14,7 +14,7 @@ let db: SqliteDb;
 let evalStore: EvalStore;
 let eventStore: SqliteEventStore;
 
-beforeEach(() => {
+beforeEach(async () => {
   db = createTestDb();
   runMigrations(db);
   evalStore = new EvalStore(db);
@@ -31,16 +31,16 @@ async function eventsFor(runId: string) {
   return (await eventStore.queryEvents({ sessionId: `eval_run_${runId}` })).events;
 }
 
-describe('EvalRunner run-level chained summary (#121)', () => {
+describe('EvalRunner run-level chained summary (#121)', async () => {
   it('appends a hash-chained eval_result with per-agent cost split + variant attribution', async () => {
-    const ds = evalStore.createDataset('t1', {
+    const ds = await evalStore.createDataset('t1', {
       name: 'D',
       testCases: [
         { input: { prompt: 'Q1' }, expectedOutput: 'A1' },
         { input: { prompt: 'Q2' }, expectedOutput: 'A2' },
       ],
     });
-    const run = evalStore.createRun('t1', {
+    const run = await evalStore.createRun('t1', {
       datasetId: ds.id,
       agentId: 'agent-1',
       webhookUrl: 'http://x',
@@ -86,8 +86,8 @@ describe('EvalRunner run-level chained summary (#121)', () => {
   });
 
   it('emits no summary when no event store is wired', async () => {
-    const ds = evalStore.createDataset('t1', { name: 'D', testCases: [{ input: { prompt: 'Q1' }, expectedOutput: 'A1' }] });
-    const run = evalStore.createRun('t1', {
+    const ds = await evalStore.createDataset('t1', { name: 'D', testCases: [{ input: { prompt: 'Q1' }, expectedOutput: 'A1' }] });
+    const run = await evalStore.createRun('t1', {
       datasetId: ds.id,
       agentId: 'a',
       webhookUrl: 'http://x',

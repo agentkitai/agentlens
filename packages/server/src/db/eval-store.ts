@@ -6,8 +6,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
-import type { SqliteDb } from './index.js';
+import { sql, type SQL } from 'drizzle-orm';
+import { type AnyDb, dbRun, dbAll, dbGet, runInTransaction } from './dialect-db.js';
 import type {
   EvalDataset,
   EvalTestCase,
@@ -236,53 +236,51 @@ function rowToResult(row: ResultRow): EvalResult {
 // ─── Store Class ───────────────────────────────────────────
 
 export class EvalStore {
-  constructor(private readonly db: SqliteDb) {}
+  constructor(private readonly db: AnyDb) {}
 
   // ─── Dataset CRUD ──────────────────────────────────────
 
-  createDataset(tenantId: string, input: CreateDatasetInput): EvalDataset {
+  async createDataset(tenantId: string, input: CreateDatasetInput): Promise<EvalDataset> {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    const client = (this.db as any).$client;
-    const txn = client.transaction(() => {
-      this.db.run(sql`
+    const queries: SQL[] = [
+      sql`
         INSERT INTO eval_datasets (id, tenant_id, agent_id, name, description, version, created_at, updated_at)
         VALUES (${id}, ${tenantId}, ${input.agentId ?? null}, ${input.name}, ${input.description ?? null}, 1, ${now}, ${now})
-      `);
-
-      if (input.testCases && input.testCases.length > 0) {
-        for (let i = 0; i < input.testCases.length; i++) {
-          const tc = input.testCases[i]!;
-          const caseId = randomUUID();
-          this.db.run(sql`
-            INSERT INTO eval_test_cases (id, dataset_id, tenant_id, input, expected_output, tags, metadata, scoring_criteria, sort_order, created_at)
-            VALUES (
-              ${caseId}, ${id}, ${tenantId},
-              ${JSON.stringify(tc.input)},
-              ${tc.expectedOutput !== undefined ? JSON.stringify(tc.expectedOutput) : null},
-              ${JSON.stringify(tc.tags ?? [])},
-              ${JSON.stringify(tc.metadata ?? {})},
-              ${tc.scoringCriteria ?? null},
-              ${tc.sortOrder ?? i},
-              ${now}
-            )
-          `);
-        }
+      `,
+    ];
+    if (input.testCases && input.testCases.length > 0) {
+      for (let i = 0; i < input.testCases.length; i++) {
+        const tc = input.testCases[i]!;
+        const caseId = randomUUID();
+        queries.push(sql`
+          INSERT INTO eval_test_cases (id, dataset_id, tenant_id, input, expected_output, tags, metadata, scoring_criteria, sort_order, created_at)
+          VALUES (
+            ${caseId}, ${id}, ${tenantId},
+            ${JSON.stringify(tc.input)},
+            ${tc.expectedOutput !== undefined ? JSON.stringify(tc.expectedOutput) : null},
+            ${JSON.stringify(tc.tags ?? [])},
+            ${JSON.stringify(tc.metadata ?? {})},
+            ${tc.scoringCriteria ?? null},
+            ${tc.sortOrder ?? i},
+            ${now}
+          )
+        `);
       }
-    });
-    txn();
+    }
+    await runInTransaction(this.db, queries);
 
-    return this.getDataset(tenantId, id)!;
+    return (await this.getDataset(tenantId, id))!;
   }
 
-  getDataset(tenantId: string, id: string): EvalDataset | undefined {
-    const row = this.db.get<DatasetRow>(sql`
+  async getDataset(tenantId: string, id: string): Promise<EvalDataset | undefined> {
+    const row = await dbGet<DatasetRow>(this.db, sql`
       SELECT * FROM eval_datasets WHERE id = ${id} AND tenant_id = ${tenantId}
     `);
     if (!row) return undefined;
 
-    const countRow = this.db.get<{ cnt: number }>(sql`
+    const countRow = await dbGet<{ cnt: number }>(this.db, sql`
       SELECT COUNT(*) as cnt FROM eval_test_cases WHERE dataset_id = ${id}
     `);
 
@@ -291,7 +289,7 @@ export class EvalStore {
     return ds;
   }
 
-  listDatasets(tenantId: string, filters: ListDatasetFilters = {}): { datasets: EvalDataset[]; total: number } {
+  async listDatasets(tenantId: string, filters: ListDatasetFilters = {}): Promise<{ datasets: EvalDataset[]; total: number }> {
     const { agentId, limit = 20, offset = 0 } = filters;
 
     let whereClause = sql`WHERE tenant_id = ${tenantId}`;
@@ -299,35 +297,35 @@ export class EvalStore {
       whereClause = sql`${whereClause} AND agent_id = ${agentId}`;
     }
 
-    const countRow = this.db.get<{ cnt: number }>(sql`
+    const countRow = await dbGet<{ cnt: number }>(this.db, sql`
       SELECT COUNT(*) as cnt FROM eval_datasets ${whereClause}
     `);
     const total = countRow?.cnt ?? 0;
 
-    const rows = this.db.all<DatasetRow>(sql`
+    const rows = await dbAll<DatasetRow>(this.db, sql`
       SELECT * FROM eval_datasets ${whereClause}
       ORDER BY created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
 
-    const datasets = rows.map((row) => {
+    const datasets = await Promise.all(rows.map(async (row) => {
       const ds = rowToDataset(row);
-      const countRow2 = this.db.get<{ cnt: number }>(sql`
+      const countRow2 = await dbGet<{ cnt: number }>(this.db, sql`
         SELECT COUNT(*) as cnt FROM eval_test_cases WHERE dataset_id = ${row.id}
       `);
       ds.testCaseCount = countRow2?.cnt ?? 0;
       return ds;
-    });
+    }));
 
     return { datasets, total };
   }
 
-  updateDataset(tenantId: string, id: string, updates: { name?: string; description?: string; agentId?: string }): EvalDataset | undefined {
-    const existing = this.getDataset(tenantId, id);
+  async updateDataset(tenantId: string, id: string, updates: { name?: string; description?: string; agentId?: string }): Promise<EvalDataset | undefined> {
+    const existing = await this.getDataset(tenantId, id);
     if (!existing) return undefined;
 
     const now = new Date().toISOString();
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE eval_datasets SET
         name = ${updates.name ?? existing.name},
         description = ${updates.description !== undefined ? updates.description : existing.description ?? null},
@@ -341,16 +339,16 @@ export class EvalStore {
 
   // ─── Test Case CRUD ────────────────────────────────────
 
-  getTestCases(datasetId: string): EvalTestCase[] {
-    const rows = this.db.all<TestCaseRow>(sql`
+  async getTestCases(datasetId: string): Promise<EvalTestCase[]> {
+    const rows = await dbAll<TestCaseRow>(this.db, sql`
       SELECT * FROM eval_test_cases WHERE dataset_id = ${datasetId} ORDER BY sort_order ASC
     `);
     return rows.map(rowToTestCase);
   }
 
-  addTestCases(datasetId: string, tenantId: string, cases: CreateTestCaseInput[]): EvalTestCase[] {
+  async addTestCases(datasetId: string, tenantId: string, cases: CreateTestCaseInput[]): Promise<EvalTestCase[]> {
     // Check immutability
-    const ds = this.db.get<DatasetRow>(sql`
+    const ds = await dbGet<DatasetRow>(this.db, sql`
       SELECT * FROM eval_datasets WHERE id = ${datasetId} AND tenant_id = ${tenantId}
     `);
     if (!ds) throw new Error(`Dataset ${datasetId} not found`);
@@ -363,7 +361,7 @@ export class EvalStore {
       const tc = cases[i]!;
       const caseId = randomUUID();
       ids.push(caseId);
-      this.db.run(sql`
+      await dbRun(this.db, sql`
         INSERT INTO eval_test_cases (id, dataset_id, tenant_id, input, expected_output, tags, metadata, scoring_criteria, sort_order, created_at)
         VALUES (
           ${caseId}, ${datasetId}, ${tenantId},
@@ -379,28 +377,28 @@ export class EvalStore {
     }
 
     // Update dataset's updated_at
-    this.db.run(sql`UPDATE eval_datasets SET updated_at = ${now} WHERE id = ${datasetId}`);
+    await dbRun(this.db, sql`UPDATE eval_datasets SET updated_at = ${now} WHERE id = ${datasetId}`);
 
-    return ids.map(id => {
-      const row = this.db.get<TestCaseRow>(sql`SELECT * FROM eval_test_cases WHERE id = ${id}`);
+    return Promise.all(ids.map(async id => {
+      const row = await dbGet<TestCaseRow>(this.db, sql`SELECT * FROM eval_test_cases WHERE id = ${id}`);
       return rowToTestCase(row!);
-    });
+    }));
   }
 
-  updateTestCase(tenantId: string, caseId: string, changes: Partial<CreateTestCaseInput>): EvalTestCase | undefined {
-    const row = this.db.get<TestCaseRow>(sql`
+  async updateTestCase(tenantId: string, caseId: string, changes: Partial<CreateTestCaseInput>): Promise<EvalTestCase | undefined> {
+    const row = await dbGet<TestCaseRow>(this.db, sql`
       SELECT * FROM eval_test_cases WHERE id = ${caseId} AND tenant_id = ${tenantId}
     `);
     if (!row) return undefined;
 
     // Check immutability
-    const ds = this.db.get<DatasetRow>(sql`SELECT * FROM eval_datasets WHERE id = ${row.dataset_id}`);
+    const ds = await dbGet<DatasetRow>(this.db, sql`SELECT * FROM eval_datasets WHERE id = ${row.dataset_id}`);
     if (ds && ds.immutable === 1) throw new Error('Cannot modify an immutable (versioned) dataset');
 
     const now = new Date().toISOString();
     const existing = rowToTestCase(row);
 
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE eval_test_cases SET
         input = ${changes.input ? JSON.stringify(changes.input) : row.input},
         expected_output = ${changes.expectedOutput !== undefined ? JSON.stringify(changes.expectedOutput) : row.expected_output},
@@ -412,87 +410,83 @@ export class EvalStore {
     `);
 
     // Update dataset's updated_at
-    this.db.run(sql`UPDATE eval_datasets SET updated_at = ${now} WHERE id = ${row.dataset_id}`);
+    await dbRun(this.db, sql`UPDATE eval_datasets SET updated_at = ${now} WHERE id = ${row.dataset_id}`);
 
-    const updated = this.db.get<TestCaseRow>(sql`SELECT * FROM eval_test_cases WHERE id = ${caseId}`);
+    const updated = await dbGet<TestCaseRow>(this.db, sql`SELECT * FROM eval_test_cases WHERE id = ${caseId}`);
     return updated ? rowToTestCase(updated) : undefined;
   }
 
-  deleteTestCase(tenantId: string, caseId: string): boolean {
-    const row = this.db.get<TestCaseRow>(sql`
+  async deleteTestCase(tenantId: string, caseId: string): Promise<boolean> {
+    const row = await dbGet<TestCaseRow>(this.db, sql`
       SELECT * FROM eval_test_cases WHERE id = ${caseId} AND tenant_id = ${tenantId}
     `);
     if (!row) return false;
 
     // Check immutability
-    const ds = this.db.get<DatasetRow>(sql`SELECT * FROM eval_datasets WHERE id = ${row.dataset_id}`);
+    const ds = await dbGet<DatasetRow>(this.db, sql`SELECT * FROM eval_datasets WHERE id = ${row.dataset_id}`);
     if (ds && ds.immutable === 1) throw new Error('Cannot modify an immutable (versioned) dataset');
 
-    this.db.run(sql`DELETE FROM eval_test_cases WHERE id = ${caseId}`);
+    await dbRun(this.db, sql`DELETE FROM eval_test_cases WHERE id = ${caseId}`);
     const now = new Date().toISOString();
-    this.db.run(sql`UPDATE eval_datasets SET updated_at = ${now} WHERE id = ${row.dataset_id}`);
+    await dbRun(this.db, sql`UPDATE eval_datasets SET updated_at = ${now} WHERE id = ${row.dataset_id}`);
     return true;
   }
 
   // ─── Versioning ────────────────────────────────────────
 
-  createVersion(tenantId: string, datasetId: string): EvalDataset {
-    const existing = this.getDataset(tenantId, datasetId);
+  async createVersion(tenantId: string, datasetId: string): Promise<EvalDataset> {
+    const existing = await this.getDataset(tenantId, datasetId);
     if (!existing) throw new Error(`Dataset ${datasetId} not found`);
 
     const newId = randomUUID();
     const now = new Date().toISOString();
     const newVersion = existing.version + 1;
+    const cases = await this.getTestCases(datasetId); // read before the transaction
 
-    const client = (this.db as any).$client;
-    const txn = client.transaction(() => {
+    const queries: SQL[] = [
       // Mark original as immutable
-      this.db.run(sql`
+      sql`
         UPDATE eval_datasets SET immutable = 1, updated_at = ${now}
         WHERE id = ${datasetId} AND tenant_id = ${tenantId}
-      `);
-
+      `,
       // Create new dataset row
-      this.db.run(sql`
+      sql`
         INSERT INTO eval_datasets (id, tenant_id, agent_id, name, description, version, parent_id, created_at, updated_at)
         VALUES (${newId}, ${tenantId}, ${existing.agentId ?? null}, ${existing.name}, ${existing.description ?? null}, ${newVersion}, ${datasetId}, ${now}, ${now})
+      `,
+    ];
+    for (const tc of cases) {
+      const caseId = randomUUID();
+      queries.push(sql`
+        INSERT INTO eval_test_cases (id, dataset_id, tenant_id, input, expected_output, tags, metadata, scoring_criteria, sort_order, created_at)
+        VALUES (
+          ${caseId}, ${newId}, ${tenantId},
+          ${JSON.stringify(tc.input)},
+          ${tc.expectedOutput !== undefined ? JSON.stringify(tc.expectedOutput) : null},
+          ${JSON.stringify(tc.tags)},
+          ${JSON.stringify(tc.metadata)},
+          ${tc.scoringCriteria ?? null},
+          ${tc.sortOrder},
+          ${now}
+        )
       `);
+    }
+    await runInTransaction(this.db, queries);
 
-      // Copy test cases
-      const cases = this.getTestCases(datasetId);
-      for (const tc of cases) {
-        const caseId = randomUUID();
-        this.db.run(sql`
-          INSERT INTO eval_test_cases (id, dataset_id, tenant_id, input, expected_output, tags, metadata, scoring_criteria, sort_order, created_at)
-          VALUES (
-            ${caseId}, ${newId}, ${tenantId},
-            ${JSON.stringify(tc.input)},
-            ${tc.expectedOutput !== undefined ? JSON.stringify(tc.expectedOutput) : null},
-            ${JSON.stringify(tc.tags)},
-            ${JSON.stringify(tc.metadata)},
-            ${tc.scoringCriteria ?? null},
-            ${tc.sortOrder},
-            ${now}
-          )
-        `);
-      }
-    });
-    txn();
-
-    return this.getDataset(tenantId, newId)!;
+    return (await this.getDataset(tenantId, newId))!;
   }
 
   // ─── Run CRUD ──────────────────────────────────────────
 
-  createRun(tenantId: string, input: CreateRunInput): EvalRun {
+  async createRun(tenantId: string, input: CreateRunInput): Promise<EvalRun> {
     const id = randomUUID();
     const now = new Date().toISOString();
 
     // Get dataset version
-    const ds = this.getDataset(tenantId, input.datasetId);
+    const ds = await this.getDataset(tenantId, input.datasetId);
     if (!ds) throw new Error(`Dataset ${input.datasetId} not found`);
 
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO eval_runs (id, tenant_id, dataset_id, dataset_version, agent_id, webhook_url, status, config, baseline_run_id, prompt_version_id, model_id, triggered_by, triggered_by_method, created_at)
       VALUES (
         ${id}, ${tenantId}, ${input.datasetId}, ${ds.version}, ${input.agentId}, ${input.webhookUrl},
@@ -501,18 +495,18 @@ export class EvalStore {
       )
     `);
 
-    return this.getRun(tenantId, id)!;
+    return (await this.getRun(tenantId, id))!;
   }
 
-  getRun(tenantId: string, id: string): EvalRun | undefined {
-    const row = this.db.get<RunRow>(sql`
+  async getRun(tenantId: string, id: string): Promise<EvalRun | undefined> {
+    const row = await dbGet<RunRow>(this.db, sql`
       SELECT * FROM eval_runs WHERE id = ${id} AND tenant_id = ${tenantId}
     `);
     if (!row) return undefined;
     return rowToRun(row);
   }
 
-  listRuns(tenantId: string, filters: ListRunFilters = {}): { runs: EvalRun[]; total: number } {
+  async listRuns(tenantId: string, filters: ListRunFilters = {}): Promise<{ runs: EvalRun[]; total: number }> {
     const { datasetId, agentId, status, limit = 20, offset = 0 } = filters;
 
     let whereClause = sql`WHERE tenant_id = ${tenantId}`;
@@ -520,12 +514,12 @@ export class EvalStore {
     if (agentId) whereClause = sql`${whereClause} AND agent_id = ${agentId}`;
     if (status) whereClause = sql`${whereClause} AND status = ${status}`;
 
-    const countRow = this.db.get<{ cnt: number }>(sql`
+    const countRow = await dbGet<{ cnt: number }>(this.db, sql`
       SELECT COUNT(*) as cnt FROM eval_runs ${whereClause}
     `);
     const total = countRow?.cnt ?? 0;
 
-    const rows = this.db.all<RunRow>(sql`
+    const rows = await dbAll<RunRow>(this.db, sql`
       SELECT * FROM eval_runs ${whereClause}
       ORDER BY created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -534,9 +528,9 @@ export class EvalStore {
     return { runs: rows.map(rowToRun), total };
   }
 
-  updateRunStatus(id: string, status: EvalRunStatus, aggregates?: Partial<Pick<EvalRun, 'totalCases' | 'passedCases' | 'failedCases' | 'avgScore' | 'totalCostUsd' | 'totalDurationMs' | 'startedAt' | 'completedAt'>>, error?: string): void {
+  async updateRunStatus(id: string, status: EvalRunStatus, aggregates?: Partial<Pick<EvalRun, 'totalCases' | 'passedCases' | 'failedCases' | 'avgScore' | 'totalCostUsd' | 'totalDurationMs' | 'startedAt' | 'completedAt'>>, error?: string): Promise<void> {
     const now = new Date().toISOString();
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE eval_runs SET
         status = ${status},
         total_cases = COALESCE(${aggregates?.totalCases ?? null}, total_cases),
@@ -552,19 +546,19 @@ export class EvalStore {
     `);
   }
 
-  cancelRun(id: string): void {
-    this.db.run(sql`
+  async cancelRun(id: string): Promise<void> {
+    await dbRun(this.db, sql`
       UPDATE eval_runs SET status = 'cancelled' WHERE id = ${id} AND status IN ('pending', 'running')
     `);
   }
 
   // ─── Result CRUD ───────────────────────────────────────
 
-  saveResult(input: CreateResultInput): EvalResult {
+  async saveResult(input: CreateResultInput): Promise<EvalResult> {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO eval_results (id, run_id, test_case_id, tenant_id, session_id, actual_output, score, passed, scorer_type, scorer_details, latency_ms, cost_usd, token_count, error, created_at)
       VALUES (
         ${id}, ${input.runId}, ${input.testCaseId}, ${input.tenantId},
@@ -577,19 +571,19 @@ export class EvalStore {
       )
     `);
 
-    const row = this.db.get<ResultRow>(sql`SELECT * FROM eval_results WHERE id = ${id}`);
+    const row = await dbGet<ResultRow>(this.db, sql`SELECT * FROM eval_results WHERE id = ${id}`);
     return rowToResult(row!);
   }
 
-  getResults(runId: string): EvalResult[] {
-    const rows = this.db.all<ResultRow>(sql`
+  async getResults(runId: string): Promise<EvalResult[]> {
+    const rows = await dbAll<ResultRow>(this.db, sql`
       SELECT * FROM eval_results WHERE run_id = ${runId} ORDER BY created_at ASC
     `);
     return rows.map(rowToResult);
   }
 
-  getResultForCase(runId: string, testCaseId: string): EvalResult | undefined {
-    const row = this.db.get<ResultRow>(sql`
+  async getResultForCase(runId: string, testCaseId: string): Promise<EvalResult | undefined> {
+    const row = await dbGet<ResultRow>(this.db, sql`
       SELECT * FROM eval_results WHERE run_id = ${runId} AND test_case_id = ${testCaseId}
     `);
     return row ? rowToResult(row) : undefined;

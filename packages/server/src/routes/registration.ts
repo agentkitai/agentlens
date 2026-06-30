@@ -242,7 +242,7 @@ export async function registerRoutes(
     app.route('/api/annotations', annotationRoutes(db, store));
     // Seed the read-only built-in evaluator catalog (#55 Phase 4), idempotent.
     try {
-      new EvaluatorStore(db).seedBuiltins(BUILTIN_EVALUATORS);
+      await new EvaluatorStore(db).seedBuiltins(BUILTIN_EVALUATORS);
     } catch (err) {
       log.warn(`Built-in evaluator seed failed: ${err instanceof Error ? err.message : err}`);
     }

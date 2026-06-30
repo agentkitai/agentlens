@@ -9,7 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { SqliteDb } from './index.js';
+import { type AnyDb, dbRun, dbAll, dbGet, dbRunCount } from './dialect-db.js';
 import type {
   EvaluatorDefinition,
   EvaluatorStatus,
@@ -73,9 +73,9 @@ function toEvaluator(row: EvaluatorRow): EvaluatorDefinition {
 }
 
 export class EvaluatorStore {
-  constructor(private db: SqliteDb) {}
+  constructor(private db: AnyDb) {}
 
-  create(tenantId: string, input: CreateEvaluatorInput): EvaluatorDefinition {
+  async create(tenantId: string, input: CreateEvaluatorInput): Promise<EvaluatorDefinition> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const row: EvaluatorRow = {
@@ -94,7 +94,7 @@ export class EvaluatorStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO evaluator_definitions
         (id, tenant_id, name, description, scorer_type, config_template, tags, builtin, status, published_by, published_at, verified_at, created_at, updated_at)
       VALUES (${id}, ${tenantId}, ${row.name}, ${row.description}, ${row.scorer_type}, ${row.config_template}, ${row.tags}, ${0}, ${'draft'}, ${null}, ${null}, ${null}, ${now}, ${now})
@@ -103,8 +103,8 @@ export class EvaluatorStore {
   }
 
   /** Get an evaluator visible to the tenant (its own, or a global built-in). */
-  get(tenantId: string, id: string): EvaluatorDefinition | null {
-    const rows = this.db.all<EvaluatorRow>(sql`
+  async get(tenantId: string, id: string): Promise<EvaluatorDefinition | null> {
+    const rows = await dbAll<EvaluatorRow>(this.db, sql`
       SELECT * FROM evaluator_definitions
       WHERE id = ${id} AND (tenant_id = ${tenantId} OR builtin = 1)
       LIMIT 1
@@ -113,14 +113,14 @@ export class EvaluatorStore {
   }
 
   /** List evaluators visible to the tenant (own + built-ins), newest first. */
-  list(tenantId: string, filter: ListEvaluatorFilter = {}): EvaluatorDefinition[] {
+  async list(tenantId: string, filter: ListEvaluatorFilter = {}): Promise<EvaluatorDefinition[]> {
     const conds = [sql`(tenant_id = ${tenantId} OR builtin = 1)`];
     if (filter.scorerType) conds.push(sql`scorer_type = ${filter.scorerType}`);
     if (filter.status) conds.push(sql`status = ${filter.status}`);
     if (filter.builtin !== undefined) conds.push(sql`builtin = ${filter.builtin ? 1 : 0}`);
     if (filter.verified !== undefined) conds.push(filter.verified ? sql`verified_at IS NOT NULL` : sql`verified_at IS NULL`);
     const where = sql.join(conds, sql` AND `);
-    const rows = this.db.all<EvaluatorRow>(sql`
+    const rows = await dbAll<EvaluatorRow>(this.db, sql`
       SELECT * FROM evaluator_definitions WHERE ${where} ORDER BY created_at DESC
     `);
     let result = rows.map(toEvaluator);
@@ -131,16 +131,16 @@ export class EvaluatorStore {
 
   /** Update metadata (name/description/tags) of a tenant-owned evaluator. Returns
    *  null if not found; built-ins (other tenant) never match the tenant scope. */
-  update(tenantId: string, id: string, patch: { name?: string; description?: string; tags?: string[] }): EvaluatorDefinition | null {
-    const existing = this.db.all<EvaluatorRow>(sql`
+  async update(tenantId: string, id: string, patch: { name?: string; description?: string; tags?: string[] }): Promise<EvaluatorDefinition | null> {
+    const existing = await dbGet<EvaluatorRow>(this.db, sql`
       SELECT * FROM evaluator_definitions WHERE id = ${id} AND tenant_id = ${tenantId} AND builtin = 0 LIMIT 1
-    `)[0];
+    `);
     if (!existing) return null;
     const now = new Date().toISOString();
     const name = patch.name ?? existing.name;
     const description = patch.description !== undefined ? patch.description : existing.description;
     const tags = patch.tags !== undefined ? JSON.stringify(patch.tags) : existing.tags;
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE evaluator_definitions SET name = ${name}, description = ${description}, tags = ${tags}, updated_at = ${now}
       WHERE id = ${id} AND tenant_id = ${tenantId} AND builtin = 0
     `);
@@ -148,42 +148,42 @@ export class EvaluatorStore {
   }
 
   /** Delete a tenant-owned (non-builtin) evaluator. Returns false if not found. */
-  delete(tenantId: string, id: string): boolean {
-    const res = this.db.run(sql`
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    const n = await dbRunCount(this.db, sql`
       DELETE FROM evaluator_definitions WHERE id = ${id} AND tenant_id = ${tenantId} AND builtin = 0
     `);
-    return res.changes > 0;
+    return n > 0;
   }
 
   /** draft → published. Returns null if not found / not tenant-owned. */
-  publish(tenantId: string, id: string, publishedBy?: string): EvaluatorDefinition | null {
+  async publish(tenantId: string, id: string, publishedBy?: string): Promise<EvaluatorDefinition | null> {
     const now = new Date().toISOString();
-    const res = this.db.run(sql`
+    const n = await dbRunCount(this.db, sql`
       UPDATE evaluator_definitions
       SET status = ${'published'}, published_by = ${publishedBy ?? null}, published_at = ${now}, updated_at = ${now}
       WHERE id = ${id} AND tenant_id = ${tenantId} AND builtin = 0
     `);
-    return res.changes > 0 ? this.get(tenantId, id) : null;
+    return n > 0 ? this.get(tenantId, id) : null;
   }
 
   /** Mark a tenant-owned evaluator verified (trust signal). Returns null if not found. */
-  verify(tenantId: string, id: string): EvaluatorDefinition | null {
+  async verify(tenantId: string, id: string): Promise<EvaluatorDefinition | null> {
     const now = new Date().toISOString();
-    const res = this.db.run(sql`
+    const n = await dbRunCount(this.db, sql`
       UPDATE evaluator_definitions SET verified_at = ${now}, updated_at = ${now}
       WHERE id = ${id} AND tenant_id = ${tenantId} AND builtin = 0
     `);
-    return res.changes > 0 ? this.get(tenantId, id) : null;
+    return n > 0 ? this.get(tenantId, id) : null;
   }
 
   /**
    * Idempotently seed the read-only built-in catalog under SYSTEM_TENANT. Built-ins
    * have deterministic ids so re-seeding (every startup) updates them in place.
    */
-  seedBuiltins(builtins: Array<{ id: string; name: string; description: string; scorerType: ScorerType; configTemplate: ScorerConfig; tags: string[] }>): void {
+  async seedBuiltins(builtins: Array<{ id: string; name: string; description: string; scorerType: ScorerType; configTemplate: ScorerConfig; tags: string[] }>): Promise<void> {
     const now = new Date().toISOString();
     for (const b of builtins) {
-      this.db.run(sql`
+      await dbRun(this.db, sql`
         INSERT INTO evaluator_definitions
           (id, tenant_id, name, description, scorer_type, config_template, tags, builtin, status, published_by, published_at, verified_at, created_at, updated_at)
         VALUES (${b.id}, ${SYSTEM_TENANT}, ${b.name}, ${b.description}, ${b.scorerType}, ${JSON.stringify(b.configTemplate)}, ${JSON.stringify(b.tags)}, ${1}, ${'published'}, ${'agentlens'}, ${now}, ${now}, ${now}, ${now})
