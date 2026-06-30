@@ -17,8 +17,9 @@
  *   - /api/events/ingest        — webhook ingest; authenticates via HMAC signature
  *     verification in its own handler, not via API key.
  *   - /api/internal             — internal service-to-service endpoints (e.g.
- *     AgentGate spend reads); authenticate via the AGENTGATE_SERVICE_TOKEN
- *     bearer in their own handler, not via a user API key / JWT.
+ *     AgentGate spend reads); authenticate via a per-tenant service-token bearer
+ *     (#59) — or the deprecated org-wide AGENTGATE_SERVICE_TOKEN — in their own
+ *     handler, not via a user API key / JWT.
  *
  * Health (`/api/health`) is registered before the auth middleware, so it does not
  * need an entry here.

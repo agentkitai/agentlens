@@ -24,8 +24,22 @@ import { tenantScopedStore } from './tenant-helper.js';
 import { appendEventToSession } from '../lib/append-event.js';
 import { buildBreachEvalResult, buildAgentEvalResult } from '../lib/eval/index.js';
 import { HashChainError } from '../db/errors.js';
+import { ServiceTokenStore } from '../db/service-token-store.js';
+import { hashApiKey } from '../middleware/auth.js';
+import type { AnyDb } from '../db/dialect-db.js';
 
 const log = createLogger('Internal');
+
+let warnedLegacyToken = false;
+
+/**
+ * Whether a request's tenantId is authorized by the presented service token.
+ * The sentinel '*' means the legacy org-wide env token (authorizes any tenant);
+ * a missing value (undefined) denies (fail-closed).
+ */
+function tenantAllowed(serviceTenantId: string | undefined, requestedTenantId: string): boolean {
+  return serviceTenantId === '*' || serviceTenantId === requestedTenantId;
+}
 
 /** Numeric JSON field extraction, dialect-aware (mirrors analytics.ts). */
 function jn(isPg: boolean, field: string): SQL {
@@ -56,22 +70,43 @@ function tokenMatches(presented: string, expected: string): boolean {
 }
 
 export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: PostgresDb) {
-  const app = new Hono();
+  const app = new Hono<{ Variables: { serviceTenantId: string } }>();
   const isPg = !!pgDb;
   const qdb = pgDb ?? null;
+  const tokenStore = new ServiceTokenStore((pgDb ?? db) as AnyDb);
 
   // ── Service-token auth (applies to every /api/internal route) ──
+  // Per-tenant DB-backed service tokens (#59) are preferred and authorize ONLY
+  // their own tenant; the legacy org-wide AGENTGATE_SERVICE_TOKEN env still works
+  // (deprecated) and authorizes any tenant. Each handler then asserts the request
+  // tenantId is covered by the token (tenantAllowed → 403 otherwise).
   app.use('*', async (c, next) => {
-    const expected = getConfig().agentgateServiceToken;
-    if (!expected) {
-      return c.json({ error: 'Internal endpoints disabled (AGENTGATE_SERVICE_TOKEN unset)' }, 503);
-    }
     const authHeader = c.req.header('Authorization');
     const presented = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    if (!presented || !tokenMatches(presented, expected)) {
-      return c.json({ error: 'Unauthorized' }, 401);
+    if (presented) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const row = await tokenStore.findActiveByHash(hashApiKey(presented), nowSec).catch(() => null);
+      if (row) {
+        c.set('serviceTenantId', row.tenantId);
+        void tokenStore.touchLastUsed(row.id, nowSec).catch(() => {});
+        return next();
+      }
+      const expected = getConfig().agentgateServiceToken;
+      if (expected && tokenMatches(presented, expected)) {
+        if (!warnedLegacyToken) {
+          warnedLegacyToken = true;
+          log.warn('AGENTGATE_SERVICE_TOKEN (org-wide) is deprecated; mint per-tenant service tokens (#59).');
+        }
+        c.set('serviceTenantId', '*'); // org-wide, any tenant
+        return next();
+      }
     }
-    return next();
+    // "Disabled" (no auth configured at all) → 503; a presented-but-invalid token → 401.
+    const configured = !!getConfig().agentgateServiceToken || (await tokenStore.hasAny().catch(() => false));
+    if (!configured) {
+      return c.json({ error: 'Internal endpoints disabled (no service tokens configured)' }, 503);
+    }
+    return c.json({ error: 'Unauthorized' }, 401);
   });
 
   // POST /api/internal/spend — per-agent spend over [from, to] for a tenant.
@@ -90,6 +125,9 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
     }
     if (typeof tenantId !== 'string' || !tenantId) {
       return c.json({ error: 'tenantId is required' }, 400);
+    }
+    if (!tenantAllowed(c.get('serviceTenantId'), tenantId)) {
+      return c.json({ error: 'Service token is not authorized for this tenant' }, 403);
     }
     // Cap fan-out to keep the IN-list bounded.
     if (agentIds.length > 1000) {
@@ -183,6 +221,9 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
     if (typeof tenantId !== 'string' || !tenantId) {
       return c.json({ error: 'tenantId is required' }, 400);
     }
+    if (!tenantAllowed(c.get('serviceTenantId'), tenantId)) {
+      return c.json({ error: 'Service token is not authorized for this tenant' }, 403);
+    }
     const agentIds = body?.agentIds;
     if (agentIds !== undefined && (!Array.isArray(agentIds) || !agentIds.every((a) => typeof a === 'string'))) {
       return c.json({ error: 'agentIds must be an array of strings' }, 400);
@@ -259,6 +300,9 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
       }, 400);
     }
     const { tenantId, sessionId, agentId, breach } = parsed.data;
+    if (!tenantAllowed(c.get('serviceTenantId'), tenantId)) {
+      return c.json({ error: 'Service token is not authorized for this tenant' }, 403);
+    }
 
     const tenantStore = tenantScopedStore(store, tenantId);
     // Append even to an empty/unseen session: the gate is trusted and a breach
@@ -317,6 +361,9 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
       }, 400);
     }
     const { tenantId, sessionId, agentId, run } = parsed.data;
+    if (!tenantAllowed(c.get('serviceTenantId'), tenantId)) {
+      return c.json({ error: 'Service token is not authorized for this tenant' }, 403);
+    }
     const payload: EvalResultPayload = buildAgentEvalResult(run);
 
     const tenantStore = tenantScopedStore(store, tenantId);
@@ -366,6 +413,9 @@ export function internalRoutes(store: IEventStore, db: SqliteDb, pgDb?: Postgres
     const tenantId = c.req.query('tenantId');
     if (!agentId) return c.json({ error: 'agentId is required' }, 400);
     if (!tenantId) return c.json({ error: 'tenantId is required' }, 400);
+    if (!tenantAllowed(c.get('serviceTenantId'), tenantId)) {
+      return c.json({ error: 'Service token is not authorized for this tenant' }, 403);
+    }
     try {
       const rows = await dbAll<{ id: string; status: string; total_cases: number; passed_cases: number; created_at: string }>(
         db,
