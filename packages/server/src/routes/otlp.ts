@@ -1001,9 +1001,11 @@ export function otlpRoutes(
     const apiKey = c.get('apiKey') as { tenantId?: string } | undefined;
     if (apiKey?.tenantId) return apiKey.tenantId;
 
-    // Resource attribute
-    const attrTenant = getAttrStr(resourceAttrs, 'openclaw.tenant_id');
-    if (attrTenant) return attrTenant;
+    // Resource attribute — the project id is the isolation key (ADR 0002). Accept
+    // openclaw.project_id, falling back to the legacy openclaw.tenant_id alias.
+    const attrProject =
+      getAttrStr(resourceAttrs, 'openclaw.project_id') ?? getAttrStr(resourceAttrs, 'openclaw.tenant_id');
+    if (attrProject) return attrProject;
 
     // Multi-tenant mode: reject unscoped ingestion
     if (multiTenantMode) return null;
