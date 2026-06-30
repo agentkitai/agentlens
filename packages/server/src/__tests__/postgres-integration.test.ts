@@ -20,6 +20,8 @@ import { LlmConnectionStore } from '../db/llm-connection-store.js';
 import { RetentionService } from '../db/services/retention-service.js';
 import { HealthSnapshotStore } from '../db/health-snapshot-store.js';
 import { NotificationChannelRepository } from '../db/repositories/notification-channel-repository.js';
+import { PostgresEventStore } from '../db/postgres-store.js';
+import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { computeEventHash } from '@agentkitai/agentlens-core';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
@@ -746,6 +748,27 @@ describePg('Postgres integration tests', () => {
       await repo.deleteChannel(cid, tid);
       expect(await repo.getChannel(cid, tid)).toBeNull();
       await expect(repo.deleteChannel(cid, tid)).rejects.toThrow(); // NotFoundError
+    });
+  });
+
+  // ─── #147 (Phase 7): org/project stamped at insert on the Postgres path ──
+  describe('Org/project stamping on Postgres (#147)', () => {
+    it('stamps the scope org_id/project_id onto inserted events on pg', async () => {
+      const pgStore = new PostgresEventStore(db);
+      const scoped = new TenantScopedStore(pgStore, 'tenant-pg', { orgId: 'org-pg', projectId: 'proj-pg' });
+      const sid = `s_${randomUUID().slice(0, 8)}`;
+      const base = {
+        id: `e_${randomUUID()}`, timestamp: '2026-06-30T00:00:00Z',
+        sessionId: sid, agentId: 'agt', eventType: 'custom', severity: 'info',
+        payload: {}, metadata: {}, prevHash: null,
+      };
+      const hash = computeEventHash(base);
+      await scoped.insertEvents([{ ...base, hash, tenantId: 'tenant-pg' } as never]);
+
+      const r = await db.execute(sql`SELECT org_id, project_id, tenant_id FROM events WHERE id = ${base.id}`);
+      expect(r.rows[0].tenant_id).toBe('tenant-pg');
+      expect(r.rows[0].org_id).toBe('org-pg');
+      expect(r.rows[0].project_id).toBe('proj-pg');
     });
   });
 });

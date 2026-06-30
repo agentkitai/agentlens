@@ -467,6 +467,10 @@ export interface AgentLensEvent {
 
   /** Tenant this event belongs to (multi-tenant isolation) */
   tenantId: string;
+  /** Org ID for the org→project hierarchy (#147; defaults to 'default') */
+  orgId?: string;
+  /** Project ID for the org→project hierarchy (#147; defaults to the tenant ID) */
+  projectId?: string;
 }
 
 // ─── Session & Agent ────────────────────────────────────────────────

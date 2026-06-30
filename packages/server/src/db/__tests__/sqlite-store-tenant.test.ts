@@ -12,6 +12,7 @@ import { SqliteEventStore } from '../sqlite-store.js';
 import { TenantScopedStore } from '../tenant-scoped-store.js';
 import { computeEventHash } from '@agentkitai/agentlens-core';
 import type { AgentLensEvent, AlertRule } from '@agentkitai/agentlens-core';
+import { sql } from 'drizzle-orm';
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -575,5 +576,38 @@ describe('Tenant Isolation (Story 1.3)', () => {
         expect(agents[0]!.id).toBe(`agent-${tenants[i]}`);
       }
     });
+  });
+});
+
+describe('Org/project stamping (#147)', () => {
+  it('stamps the scope org_id/project_id onto inserted events', async () => {
+    const db = createTestDb();
+    runMigrations(db);
+    const store = new SqliteEventStore(db);
+    const scoped = new TenantScopedStore(store, 'tenant-a', { orgId: 'org-x', projectId: 'proj-x' });
+    const ev = makeSessionStartEvent('sess-1', 'agent-1');
+    await scoped.insertEvents([ev]);
+
+    const row = db.get<{ org_id: string; project_id: string; tenant_id: string }>(
+      sql`SELECT org_id, project_id, tenant_id FROM events WHERE id = ${ev.id}`,
+    );
+    expect(row?.tenant_id).toBe('tenant-a');
+    expect(row?.org_id).toBe('org-x');
+    expect(row?.project_id).toBe('proj-x');
+  });
+
+  it('defaults org to "default" and project to the tenant id when no scope is given', async () => {
+    const db = createTestDb();
+    runMigrations(db);
+    const store = new SqliteEventStore(db);
+    const scoped = new TenantScopedStore(store, 'tenant-b'); // no explicit scope
+    const ev = makeSessionStartEvent('sess-2', 'agent-2');
+    await scoped.insertEvents([ev]);
+
+    const row = db.get<{ org_id: string; project_id: string }>(
+      sql`SELECT org_id, project_id FROM events WHERE id = ${ev.id}`,
+    );
+    expect(row?.org_id).toBe('default');
+    expect(row?.project_id).toBe('tenant-b');
   });
 });
