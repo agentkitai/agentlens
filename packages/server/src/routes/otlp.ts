@@ -992,8 +992,9 @@ export function otlpRoutes(
     c: any,
     resourceAttrs?: OtlpKeyValue[],
   ): string | null {
-    // F2 auth context
-    const auth = c.get('auth') as { orgId?: string } | undefined;
+    // F2 auth context — the project id is the data-isolation key (ADR 0002).
+    const auth = c.get('auth') as { projectId?: string; orgId?: string } | undefined;
+    if (auth?.projectId) return auth.projectId;
     if (auth?.orgId) return auth.orgId;
 
     // Legacy API key context

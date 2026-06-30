@@ -14,6 +14,7 @@ import { BearerAuthScheme } from './schemas/common.js';
 import { getConfig, type ServerConfig } from './config.js';
 import { authMiddleware, type AuthVariables } from './middleware/auth.js';
 import { unifiedAuthMiddleware } from './middleware/unified-auth.js';
+import { resolveProjectScope } from './middleware/resolve-project-scope.js';
 import { requireCategory, requireMethodCategory, requireCategoryByMethod } from './middleware/rbac.js';
 import { securityHeadersMiddleware } from './middleware/security-headers.js';
 import { sanitizeErrorMessage, getErrorStatus } from './lib/error-sanitizer.js';
@@ -185,6 +186,12 @@ export async function createApp(
 
     // ── Unified auth catch-all ──
     app.use('/api/*', unifiedAuthMiddleware(authLookup, authConfig));
+
+    // ── Project scope: resolve the active project's org + enforce membership (#228) ──
+    {
+      const scopeDb = config?.pgDb ?? db;
+      if (scopeDb) app.use('/api/*', resolveProjectScope(scopeDb));
+    }
 
     // ── RBAC enforcement per architecture §3.3 ──────────
     const manageGuard = requireCategory('manage');
