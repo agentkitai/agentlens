@@ -88,6 +88,12 @@ export class ServiceTokenStore {
     return row ? mapRow(row) : null;
   }
 
+  /** True if any service token exists at all (used to tell "disabled" from "invalid"). */
+  async hasAny(): Promise<boolean> {
+    const row = await dbGet<Record<string, unknown>>(this.db, sql`SELECT 1 AS one FROM service_tokens LIMIT 1`);
+    return row != null;
+  }
+
   async listByTenant(tenantId: string): Promise<ServiceTokenRow[]> {
     const rows = await dbAll<Record<string, unknown>>(
       this.db,

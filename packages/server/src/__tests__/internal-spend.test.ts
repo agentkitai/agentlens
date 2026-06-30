@@ -5,8 +5,24 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { createTestApp, createApiKey, authHeaders } from './test-helpers.js';
 import type { Hono } from 'hono';
 import type { SqliteDb } from '../db/index.js';
+import { ServiceTokenStore } from '../db/service-token-store.js';
+import { hashApiKey } from '../middleware/auth.js';
 
 const SVC_TOKEN = 'svc-test-token-abc123';
+
+/** Mint a per-tenant DB service token (#59); returns the raw token to present. */
+async function mkServiceToken(
+  db: SqliteDb,
+  raw: string,
+  tenantId: string,
+  opts: { expiresAt?: number; revoke?: boolean } = {},
+): Promise<string> {
+  const store = new ServiceTokenStore(db);
+  const now = Math.floor(Date.now() / 1000);
+  await store.create({ id: `st_${raw}`, tokenHash: hashApiKey(raw), tenantId, name: 'test', createdAt: now, expiresAt: opts.expiresAt ?? null });
+  if (opts.revoke) await store.revoke(tenantId, `st_${raw}`, now);
+  return raw;
+}
 const WINDOW = { from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00Z' };
 
 function costEvent(agentId: string, sessionId: string, costUsd: number, ts: string) {
@@ -109,6 +125,31 @@ describe('POST /api/internal/spend', () => {
     delete process.env['AGENTGATE_SERVICE_TOKEN'];
     expect((await spend(app, { agentIds: ['agt_a'], tenantId: 'default' })).status).toBe(503);
     process.env['AGENTGATE_SERVICE_TOKEN'] = SVC_TOKEN;
+  });
+
+  // ── Per-tenant service tokens (#59) ──
+  it('per-tenant token authorizes its own tenant (200) but not another (403)', async () => {
+    const tok = await mkServiceToken(db, 'agl_svc_default_xyz', 'default');
+    expect((await spend(app, { agentIds: ['agt_a'], tenantId: 'default', ...WINDOW }, tok)).status).toBe(200);
+    expect((await spend(app, { agentIds: ['agt_a'], tenantId: 'tenant-b', ...WINDOW }, tok)).status).toBe(403);
+  });
+
+  it('still works when AGENTGATE_SERVICE_TOKEN is unset, via a DB token', async () => {
+    delete process.env['AGENTGATE_SERVICE_TOKEN'];
+    const tok = await mkServiceToken(db, 'agl_svc_only_db', 'default');
+    expect((await spend(app, { agentIds: ['agt_a'], tenantId: 'default', ...WINDOW }, tok)).status).toBe(200);
+    expect((await spend(app, { agentIds: ['agt_a'], tenantId: 'tenant-b', ...WINDOW }, tok)).status).toBe(403);
+    process.env['AGENTGATE_SERVICE_TOKEN'] = SVC_TOKEN;
+  });
+
+  it('rejects a revoked service token (401)', async () => {
+    const tok = await mkServiceToken(db, 'agl_svc_revoked', 'default', { revoke: true });
+    expect((await spend(app, { agentIds: ['agt_a'], tenantId: 'default', ...WINDOW }, tok)).status).toBe(401);
+  });
+
+  it('rejects an expired service token (401)', async () => {
+    const tok = await mkServiceToken(db, 'agl_svc_expired', 'default', { expiresAt: Math.floor(Date.now() / 1000) - 10 });
+    expect((await spend(app, { agentIds: ['agt_a'], tenantId: 'default', ...WINDOW }, tok)).status).toBe(401);
   });
 
   it('validates the body (400 on empty/missing agentIds or tenantId)', async () => {
