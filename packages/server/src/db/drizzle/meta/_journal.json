@@ -71,6 +71,13 @@
       "when": 1740652800000,
       "tag": "0009_eval_tables",
       "breakpoints": false
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1740739200000,
+      "tag": "0010_cost_tables",
+      "breakpoints": false
     }
   ]
 }

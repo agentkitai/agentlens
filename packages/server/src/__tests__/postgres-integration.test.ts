@@ -270,6 +270,8 @@ describePg('Postgres integration tests', () => {
         // #172 feature 3 (schema step): evaluation tables on the pg path
         'eval_datasets', 'eval_test_cases', 'eval_runs', 'eval_results',
         'evaluator_definitions',
+        // #172 feature 4 (schema step): cost-management tables on the pg path
+        'cost_budgets', 'cost_budget_state', 'cost_anomaly_config', 'cost_rollups',
       ];
 
       for (const table of expectedTables) {
@@ -303,6 +305,24 @@ describePg('Postgres integration tests', () => {
       const r = await db.execute(sql`SELECT score, passed FROM eval_results WHERE run_id = ${run}`);
       expect(Number(r.rows[0].score)).toBeCloseTo(0.875, 6);
       expect(Number(r.rows[0].passed)).toBe(1);
+    });
+
+    it('cost tables accept the store columns (composite PK rollup, double cost)', async () => {
+      // Smoke-test the 0010 schema for the dialect-agnostic CostBudgetStore/rollup (next PR).
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      await db.execute(sql`INSERT INTO cost_budgets (id, tenant_id, scope, period, limit_usd, on_breach, enabled, created_at, updated_at)
+        VALUES (${`b_${randomUUID()}`}, ${tid}, 'tenant', 'monthly', 100.5, 'alert', 1, '2026-06-30T00:00:00Z', '2026-06-30T00:00:00Z')`);
+      // cost_rollups has a 5-column PK — insert + ON CONFLICT upsert path
+      await db.execute(sql`INSERT INTO cost_rollups (tenant_id, verified_agent_id, model, bucket_start, granularity, cost_usd, updated_at)
+        VALUES (${tid}, 'agt', 'claude', '2026-06-30T00:00:00Z', 'hour', 1.25, '2026-06-30T00:00:00Z')
+        ON CONFLICT (tenant_id, verified_agent_id, model, bucket_start, granularity)
+        DO UPDATE SET cost_usd = cost_rollups.cost_usd + 0.75`);
+      await db.execute(sql`INSERT INTO cost_rollups (tenant_id, verified_agent_id, model, bucket_start, granularity, cost_usd, updated_at)
+        VALUES (${tid}, 'agt', 'claude', '2026-06-30T00:00:00Z', 'hour', 1.25, '2026-06-30T00:00:00Z')
+        ON CONFLICT (tenant_id, verified_agent_id, model, bucket_start, granularity)
+        DO UPDATE SET cost_usd = cost_rollups.cost_usd + 0.75`);
+      const r = await db.execute(sql`SELECT cost_usd FROM cost_rollups WHERE tenant_id = ${tid}`);
+      expect(Number(r.rows[0].cost_usd)).toBeCloseTo(2.0, 6); // 1.25 + 0.75 (upsert)
     });
   });
 
