@@ -28,6 +28,7 @@ import {
 } from './schema.postgres.js';
 import { HashChainError, NotFoundError } from './errors.js';
 import { createLogger } from '../lib/logger.js';
+import { aggregateBatch, mergeRollup, type RollupRow } from '../lib/rollup.js';
 import { withRetry } from '../lib/db-resilience.js';
 import { metadataVerifiedAgentId } from '../lib/agent-identity.js';
 import { COST_EVENT_TYPES } from './repositories/event-repository.js';
@@ -305,7 +306,55 @@ export class PostgresEventStore implements IEventStore {
         // Handle agent upsert
         await this.handleAgentUpsert(tx, event, evTenantId);
       }
+
+      // Cost rollups (#180): best-effort, in a SAVEPOINT so a rollup failure
+      // rolls back only the rollup — the already-inserted events still commit
+      // (unlike SQLite, a failed statement aborts the whole Postgres tx).
+      try {
+        await tx.transaction(async (sp: any) => {
+          await this.applyRollupsPg(sp, eventList, pv);
+        });
+      } catch (err) {
+        log.warn(`cost-rollup update failed (best-effort): ${err instanceof Error ? err.message : err}`);
+      }
     }));
+  }
+
+  /** Merge a batch into cost_rollups on Postgres (ON CONFLICT upsert, dialect sibling of applyRollupBatch). */
+  private async applyRollupsPg(sp: any, eventList: AgentLensEvent[], pv: string | null): Promise<void> {
+    const buckets = aggregateBatch(eventList, pv);
+    if (buckets.size === 0) return;
+    const now = new Date().toISOString();
+    for (const b of buckets.values()) {
+      const res = await sp.execute(sql`
+        SELECT event_count, tool_call_count, error_count, llm_call_count, input_tokens, output_tokens,
+               cache_read_tokens, cache_write_tokens, cost_usd, latency_sum_ms, latency_count, pricing_versions
+        FROM cost_rollups
+        WHERE tenant_id = ${b.tenantId} AND verified_agent_id = ${b.verifiedAgentId}
+          AND model = ${b.model} AND bucket_start = ${b.bucketStart} AND granularity = 'hour'
+      `);
+      const existing = rowsOf<RollupRow>(res)[0];
+      const row = mergeRollup(existing, b);
+      await sp.execute(sql`
+        INSERT INTO cost_rollups
+          (tenant_id, verified_agent_id, model, bucket_start, granularity, event_count, tool_call_count,
+           error_count, llm_call_count, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+           cost_usd, latency_sum_ms, latency_count, pricing_versions, updated_at)
+        VALUES
+          (${b.tenantId}, ${b.verifiedAgentId}, ${b.model}, ${b.bucketStart}, 'hour', ${row.eventCount}, ${row.toolCallCount},
+           ${row.errorCount}, ${row.llmCallCount}, ${row.inputTokens}, ${row.outputTokens}, ${row.cacheReadTokens}, ${row.cacheWriteTokens},
+           ${row.costUsd}, ${row.latencySumMs}, ${row.latencyCount}, ${row.pricingVersions}, ${now})
+        ON CONFLICT (tenant_id, verified_agent_id, model, bucket_start, granularity)
+        DO UPDATE SET
+          event_count = excluded.event_count, tool_call_count = excluded.tool_call_count,
+          error_count = excluded.error_count, llm_call_count = excluded.llm_call_count,
+          input_tokens = excluded.input_tokens, output_tokens = excluded.output_tokens,
+          cache_read_tokens = excluded.cache_read_tokens, cache_write_tokens = excluded.cache_write_tokens,
+          cost_usd = excluded.cost_usd, latency_sum_ms = excluded.latency_sum_ms,
+          latency_count = excluded.latency_count, pricing_versions = excluded.pricing_versions,
+          updated_at = excluded.updated_at
+      `);
+    }
   }
 
   private async handleSessionUpdate(tx: any, event: AgentLensEvent, tenantId: string): Promise<void> {

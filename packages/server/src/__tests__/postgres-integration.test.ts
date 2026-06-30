@@ -939,4 +939,47 @@ describePg('Postgres integration tests', () => {
       expect((await projA.getAnalytics({ from, to, granularity: 'day', agentId: 'a' })).totals.eventCount).toBe(1);
     });
   });
+
+  // ─── #180: cost_rollups populated on the Postgres ingest path ──
+  describe('Cost rollups on Postgres (#180)', () => {
+    it('populates and accumulates cost_rollups on insertEvents', async () => {
+      const tid = `tenant-${randomUUID().slice(0, 8)}`;
+      const scoped = new TenantScopedStore(new PostgresEventStore(db), tid);
+      const mk = (over: Record<string, unknown>) => {
+        const base = {
+          id: `e_${randomUUID()}`, timestamp: '2026-06-15T10:00:00Z',
+          sessionId: `s_${randomUUID().slice(0, 6)}`, agentId: 'agt_x',
+          eventType: 'custom', severity: 'info', payload: {}, metadata: { verifiedAgentId: 'agt_x' }, prevHash: null,
+          ...over,
+        };
+        return { ...base, hash: computeEventHash(base), tenantId: tid };
+      };
+
+      await scoped.insertEvents([
+        mk({ eventType: 'llm_call', payload: { model: 'gpt-4o' } }) as never,
+        mk({ eventType: 'llm_response', payload: { model: 'gpt-4o', costUsd: 0.05, latencyMs: 120, usage: { inputTokens: 100, outputTokens: 50 } } }) as never,
+      ]);
+
+      const r1 = (await db.execute(sql`
+        SELECT event_count, llm_call_count, cost_usd, input_tokens, verified_agent_id, model
+        FROM cost_rollups WHERE tenant_id = ${tid}
+      `)).rows;
+      expect(r1).toHaveLength(1);
+      expect(r1[0].verified_agent_id).toBe('agt_x');
+      expect(r1[0].model).toBe('gpt-4o');
+      expect(Number(r1[0].event_count)).toBe(2);
+      expect(Number(r1[0].llm_call_count)).toBe(1);
+      expect(Number(r1[0].cost_usd)).toBeCloseTo(0.05, 6);
+      expect(Number(r1[0].input_tokens)).toBe(100);
+
+      // A second batch in the SAME hour accumulates into the same bucket.
+      await scoped.insertEvents([
+        mk({ timestamp: '2026-06-15T10:45:00Z', eventType: 'llm_response', payload: { model: 'gpt-4o', costUsd: 0.03, latencyMs: 80, usage: { inputTokens: 20, outputTokens: 10 } } }) as never,
+      ]);
+      const r2 = (await db.execute(sql`SELECT event_count, cost_usd, input_tokens FROM cost_rollups WHERE tenant_id = ${tid}`)).rows;
+      expect(Number(r2[0].event_count)).toBe(3);
+      expect(Number(r2[0].cost_usd)).toBeCloseTo(0.08, 6);
+      expect(Number(r2[0].input_tokens)).toBe(120);
+    });
+  });
 });
