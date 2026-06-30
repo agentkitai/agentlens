@@ -30,6 +30,7 @@ interface DatasetRow {
   description: string | null;
   version: number;
   parent_id: string | null;
+  folder: string | null;
   immutable: number;
   created_at: string;
   updated_at: string;
@@ -98,6 +99,7 @@ export interface CreateDatasetInput {
   name: string;
   description?: string;
   agentId?: string;
+  folder?: string;
   testCases?: CreateTestCaseInput[];
 }
 
@@ -112,6 +114,7 @@ export interface CreateTestCaseInput {
 
 export interface ListDatasetFilters {
   agentId?: string;
+  folder?: string;
   limit?: number;
   offset?: number;
 }
@@ -180,6 +183,7 @@ function rowToDataset(row: DatasetRow): EvalDataset {
   if (row.agent_id) ds.agentId = row.agent_id;
   if (row.description) ds.description = row.description;
   if (row.parent_id) ds.parentId = row.parent_id;
+  if (row.folder) ds.folder = row.folder;
   return ds;
 }
 
@@ -259,8 +263,8 @@ export class EvalStore {
 
     const queries: SQL[] = [
       sql`
-        INSERT INTO eval_datasets (id, tenant_id, agent_id, name, description, version, created_at, updated_at)
-        VALUES (${id}, ${tenantId}, ${input.agentId ?? null}, ${input.name}, ${input.description ?? null}, 1, ${now}, ${now})
+        INSERT INTO eval_datasets (id, tenant_id, agent_id, name, description, folder, version, created_at, updated_at)
+        VALUES (${id}, ${tenantId}, ${input.agentId ?? null}, ${input.name}, ${input.description ?? null}, ${input.folder ?? null}, 1, ${now}, ${now})
       `,
     ];
     if (input.testCases && input.testCases.length > 0) {
@@ -356,11 +360,14 @@ export class EvalStore {
   }
 
   async listDatasets(tenantId: string, filters: ListDatasetFilters = {}): Promise<{ datasets: EvalDataset[]; total: number }> {
-    const { agentId, limit = 20, offset = 0 } = filters;
+    const { agentId, folder, limit = 20, offset = 0 } = filters;
 
     let whereClause = sql`WHERE tenant_id = ${tenantId}`;
     if (agentId) {
       whereClause = sql`${whereClause} AND agent_id = ${agentId}`;
+    }
+    if (folder !== undefined) {
+      whereClause = sql`${whereClause} AND folder = ${folder}`;
     }
 
     const countRow = await dbGet<{ cnt: number }>(this.db, sql`

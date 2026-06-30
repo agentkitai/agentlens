@@ -385,3 +385,21 @@ describe('EvalStore — createItemsFromTrace (#214)', () => {
     await expect(store.createItemsFromTrace(tid, 'sess-x', { datasetId: 'nope' })).rejects.toThrow('not found');
   });
 });
+
+// ─── Dataset folders (#224) ────────────────────────────────
+
+describe('EvalStore — dataset folders (#224)', () => {
+  it('stores and returns a dataset folder', async () => {
+    const ds = await store.createDataset('t1', { name: 'DS', folder: 'team-a/billing' });
+    expect(ds.folder).toBe('team-a/billing');
+    expect((await store.getDataset('t1', ds.id))?.folder).toBe('team-a/billing');
+  });
+
+  it('filters listDatasets by folder', async () => {
+    await store.createDataset('t1', { name: 'A', folder: 'fa' });
+    await store.createDataset('t1', { name: 'B', folder: 'fb' });
+    await store.createDataset('t1', { name: 'C' }); // no folder
+    expect((await store.listDatasets('t1', { folder: 'fa' })).datasets.map((d) => d.name)).toEqual(['A']);
+    expect((await store.listDatasets('t1', {})).total).toBe(3);
+  });
+});

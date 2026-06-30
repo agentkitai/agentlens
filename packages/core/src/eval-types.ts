@@ -14,6 +14,8 @@ export interface EvalDataset {
   description?: string;
   version: number;
   parentId?: string;
+  /** Optional folder path for organizing datasets in the UI (#224). */
+  folder?: string;
   immutable?: boolean;
   testCaseCount?: number;
   createdAt: string;
