@@ -19,6 +19,7 @@ import { AnnotationStore } from '../db/annotation-store.js';
 import { LlmConnectionStore } from '../db/llm-connection-store.js';
 import { RetentionService } from '../db/services/retention-service.js';
 import { HealthSnapshotStore } from '../db/health-snapshot-store.js';
+import { NotificationChannelRepository } from '../db/repositories/notification-channel-repository.js';
 import { computeEventHash } from '@agentkitai/agentlens-core';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
@@ -284,9 +285,9 @@ describePg('Postgres integration tests', () => {
         'guardrail_rules', 'guardrail_state', 'guardrail_trigger_history',
         // #172 feature 6 (schema step): benchmark tables on the pg path
         'benchmarks', 'benchmark_variants', 'benchmark_results',
-        // #172 features 7-10: annotations, llm connections, chain anchors, health
+        // #172 features 7-11: annotations, llm connections, chain anchors, health, notifications
         'annotation_queues', 'annotation_items', 'llm_connections', 'chain_anchors',
-        'health_snapshots',
+        'health_snapshots', 'notification_channels', 'notification_log',
       ];
 
       for (const table of expectedTables) {
@@ -708,6 +709,43 @@ describePg('Postgres integration tests', () => {
       const removed = await store.cleanup(tid, 1);
       expect(typeof removed).toBe('number');
       expect(removed).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  // ─── #172 feature 11 (final): notifications via the dialect-agnostic repo ──
+  describe('Notifications (dialect-agnostic NotificationChannelRepository on Postgres)', () => {
+    it('CRUDs channels (boolean enabled) + log on pg', async () => {
+      const repo = new NotificationChannelRepository(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const cid = `ch_${randomUUID()}`;
+      await repo.createChannel({
+        id: cid, tenantId: tid, type: 'slack', name: 'Ops',
+        config: { url: 'https://x' }, enabled: true,
+        createdAt: '2026-06-30T00:00:00Z', updatedAt: '2026-06-30T00:00:00Z',
+      } as never);
+
+      const got = await repo.getChannel(cid, tid);
+      expect(got?.enabled).toBe(true); // boolean round-trip on pg (vs sqlite 0/1)
+      expect(got?.config).toEqual({ url: 'https://x' });
+      expect((await repo.listChannels(tid)).length).toBe(1);
+
+      await repo.updateChannel(cid, { enabled: false, name: 'Ops2', updatedAt: '2026-06-30T01:00:00Z' }, tid);
+      const upd = await repo.getChannel(cid, tid);
+      expect(upd?.enabled).toBe(false);
+      expect(upd?.name).toBe('Ops2');
+
+      await repo.insertLog({
+        id: `lg_${randomUUID()}`, tenantId: tid, channelId: cid,
+        status: 'sent', attempt: 1, createdAt: '2026-06-30T00:01:00Z',
+      } as never);
+      const log = await repo.listLog({ tenantId: tid });
+      expect(typeof log.total).toBe('number'); // COUNT coercion
+      expect(log.total).toBe(1);
+      expect(log.entries[0]?.status).toBe('sent');
+
+      await repo.deleteChannel(cid, tid);
+      expect(await repo.getChannel(cid, tid)).toBeNull();
+      await expect(repo.deleteChannel(cid, tid)).rejects.toThrow(); // NotFoundError
     });
   });
 });
