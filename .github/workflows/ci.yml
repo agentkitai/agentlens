@@ -106,7 +106,6 @@ jobs:
         env:
           DB_DIALECT: postgresql
           DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test
-          DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test
 
   # Smoke-tests the README headline: ingest a trace, verify the hash chain,
   # tamper a record, confirm verification fails. demo/aha.sh exits non-zero
