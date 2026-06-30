@@ -12,6 +12,7 @@ import { PromptStore } from '../db/prompt-store.js';
 import { EvalStore } from '../db/eval-store.js';
 import { EvaluatorStore } from '../db/evaluator-store.js';
 import { BUILTIN_EVALUATORS } from '../lib/eval/builtin-evaluators.js';
+import { CostBudgetStore } from '../db/cost-budget-store.js';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -434,6 +435,40 @@ describePg('Postgres integration tests', () => {
       await store.seedBuiltins(BUILTIN_EVALUATORS);
       await store.seedBuiltins(BUILTIN_EVALUATORS);
       expect((await store.list(tid, { builtin: true })).length).toBe(BUILTIN_EVALUATORS.length);
+    });
+  });
+
+  // ─── #172 feature 4: cost budgets via the dialect-agnostic store ──
+  describe('Cost budgets (dialect-agnostic CostBudgetStore on Postgres)', () => {
+    it('CRUDs budgets + upserts state/anomaly config (ON CONFLICT) on pg', async () => {
+      const store = new CostBudgetStore(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const id = `b_${randomUUID()}`;
+      const now = '2026-06-30T00:00:00Z';
+      await store.createBudget({
+        id, tenantId: tid, scope: 'tenant', period: 'monthly', limitUsd: 100.5,
+        onBreach: 'alert', enabled: true, createdAt: now, updatedAt: now,
+      });
+      expect((await store.getBudget(tid, id))?.limitUsd).toBeCloseTo(100.5, 6);
+      expect((await store.listBudgets(tid, { enabled: true })).length).toBe(1);
+
+      expect(await store.updateBudget(tid, id, { limitUsd: 200 })).toBe(true);
+      expect((await store.getBudget(tid, id))?.limitUsd).toBe(200);
+
+      // state upsert (ON CONFLICT on the 2-column PK), set from params
+      await store.upsertState({ budgetId: id, tenantId: tid, breachCount: 1, currentSpend: 50 });
+      await store.upsertState({ budgetId: id, tenantId: tid, breachCount: 2, currentSpend: 75 });
+      expect((await store.getState(tid, id))?.breachCount).toBe(2);
+
+      // anomaly config upsert (ON CONFLICT on tenant_id)
+      await store.upsertAnomalyConfig({ tenantId: tid, multiplier: 3.5, minSessions: 5, enabled: true, updatedAt: now });
+      await store.upsertAnomalyConfig({ tenantId: tid, multiplier: 4.0, minSessions: 8, enabled: false, updatedAt: now });
+      const cfg = await store.getAnomalyConfig(tid);
+      expect(cfg?.multiplier).toBeCloseTo(4.0, 6);
+      expect(cfg?.enabled).toBe(false);
+
+      expect(await store.deleteBudget(tid, id)).toBe(true);
+      expect(await store.getBudget(tid, id)).toBeNull();
     });
   });
 });

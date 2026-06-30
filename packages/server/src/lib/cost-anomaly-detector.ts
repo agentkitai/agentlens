@@ -55,7 +55,7 @@ export class CostAnomalyDetector {
     if (!session.totalCostUsd || session.totalCostUsd === 0) return;
 
     // Load config
-    const config = this.store.getAnomalyConfig(tenantId);
+    const config = await this.store.getAnomalyConfig(tenantId);
     const multiplier = config?.multiplier ?? DEFAULT_MULTIPLIER;
     const minSessions = config?.minSessions ?? DEFAULT_MIN_SESSIONS;
     const enabled = config?.enabled ?? true;
