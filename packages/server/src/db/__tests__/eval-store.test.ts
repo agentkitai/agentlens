@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { sql } from 'drizzle-orm';
 import { createTestDb, type SqliteDb } from '../index.js';
 import { runMigrations } from '../migrate.js';
 import { EvalStore, type CreateDatasetInput, type CreateTestCaseInput } from '../eval-store.js';
@@ -335,5 +336,52 @@ describe('EvalStore — Result CRUD', async () => {
 
   it('returns undefined for nonexistent result', async () => {
     expect(await store.getResultForCase(runId, 'nonexistent')).toBeUndefined();
+  });
+});
+
+// ─── Create items from a production trace (#214) ───────────
+
+describe('EvalStore — createItemsFromTrace (#214)', () => {
+  const tid = 't1';
+  function ins(id: string, sessionId: string, type: string, payload: unknown) {
+    db.run(sql`
+      INSERT INTO events (id, timestamp, session_id, agent_id, event_type, payload, hash, tenant_id)
+      VALUES (${id}, '2026-06-15T10:00:00Z', ${sessionId}, 'agt', ${type}, ${JSON.stringify(payload)}, ${'h_' + id}, ${tid})
+    `);
+  }
+  function seedTrace(sessionId: string) {
+    ins(`c1_${sessionId}`, sessionId, 'llm_call', { callId: 'k1', model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] });
+    ins(`r1_${sessionId}`, sessionId, 'llm_response', { callId: 'k1', completion: 'hello' });
+    ins(`c2_${sessionId}`, sessionId, 'llm_call', { callId: 'k2', model: 'gpt-4o', messages: [{ role: 'system', content: 's' }, { role: 'user', content: 'q2' }] });
+    ins(`r2_${sessionId}`, sessionId, 'llm_response', { callId: 'k2', completion: 'a2' });
+  }
+
+  it('creates a dataset with one case per paired llm call/response, carrying provenance', async () => {
+    seedTrace('sess-1');
+    const res = await store.createItemsFromTrace(tid, 'sess-1');
+    expect(res.created).toBe(2);
+
+    const cases = await store.getTestCases(res.datasetId);
+    expect(cases).toHaveLength(2);
+    const c1 = cases.find((c) => c.input.prompt === 'hi');
+    expect(c1).toBeDefined();
+    expect(c1!.expectedOutput).toBe('hello');
+    expect((c1!.metadata as Record<string, unknown>).source).toBe('trace');
+    expect((c1!.metadata as Record<string, unknown>).sourceEventId).toBe('c1_sess-1');
+  });
+
+  it('adds to an existing dataset and ignores unpaired events', async () => {
+    seedTrace('sess-2');
+    ins('c3_sess-2', 'sess-2', 'llm_call', { callId: 'k3', messages: [] }); // no matching response
+    const ds = await store.createDataset(tid, { name: 'existing' });
+
+    const res = await store.createItemsFromTrace(tid, 'sess-2', { datasetId: ds.id });
+    expect(res.datasetId).toBe(ds.id);
+    expect(res.created).toBe(2); // k1, k2 paired; k3 unpaired → ignored
+    expect(await store.getTestCases(ds.id)).toHaveLength(2);
+  });
+
+  it('throws when the target dataset does not exist', async () => {
+    await expect(store.createItemsFromTrace(tid, 'sess-x', { datasetId: 'nope' })).rejects.toThrow('not found');
   });
 });

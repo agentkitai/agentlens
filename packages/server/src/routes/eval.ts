@@ -92,6 +92,27 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     }
   });
 
+  // POST /api/eval/datasets/from-trace — build test cases from a production trace (#214)
+  app.post('/datasets/from-trace', async (c) => {
+    const store = getStore();
+    if (!store) return c.json({ error: 'Database not available' }, 500);
+
+    const tenantId = getTenantId(c);
+    const body = await c.req.json().catch(() => null);
+    if (!body || !body.sessionId) {
+      return c.json({ error: 'sessionId is required' }, 400);
+    }
+    try {
+      const result = await store.createItemsFromTrace(tenantId, String(body.sessionId), {
+        datasetId: body.datasetId ? String(body.datasetId) : undefined,
+        name: body.name ? String(body.name) : undefined,
+      });
+      return c.json(result, 201);
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
+  });
+
   app.get('/datasets', async (c) => {
     const store = getStore();
     if (!store) return c.json({ error: 'Database not available' }, 500);
