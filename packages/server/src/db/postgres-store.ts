@@ -45,6 +45,16 @@ function safeJsonParse<T>(raw: unknown, fallback: T): T {
   return fallback;
 }
 
+/**
+ * Normalize a raw `db.execute()` result to a rows array. postgres-js (prod)
+ * returns an array-like; node-postgres (tests) returns `{ rows }`. Raw-SQL call
+ * sites must go through this to stay driver-agnostic.
+ */
+function rowsOf<T>(res: unknown): T[] {
+  if (Array.isArray(res)) return res as T[];
+  return ((res as { rows?: T[] })?.rows ?? []) as T[];
+}
+
 /** Build event WHERE conditions for Postgres schema. */
 function buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>) {
   const conditions = [];
@@ -964,7 +974,7 @@ export class PostgresEventStore implements IEventStore {
         ORDER BY bucket ASC
       `,
     );
-    const bucketRows = [...bucketResult];
+    const bucketRows = rowsOf<{ bucket: string; eventCount: number; toolCallCount: number; errorCount: number; uniqueSessions: number; avgLatencyMs: number; totalCostUsd: number }>(bucketResult);
 
     const totalsResult = await this.db.execute<{
       eventCount: number;
@@ -993,7 +1003,7 @@ export class PostgresEventStore implements IEventStore {
           ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
       `,
     );
-    const totalsRow = totalsResult[0];
+    const totalsRow = rowsOf<{ eventCount: number; toolCallCount: number; errorCount: number; uniqueSessions: number; uniqueAgents: number; avgLatencyMs: number; totalCostUsd: number }>(totalsResult)[0];
 
     return {
       buckets: bucketRows.map((row) => ({
