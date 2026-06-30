@@ -39,6 +39,7 @@ import { orgRoutes } from './orgs.js';
 import { scimRoutes } from './scim.js';
 import { samlRoutes } from './sso-saml.js';
 import { ssoAdminRoutes } from './sso-admin.js';
+import { oidcRoutes } from './sso-oidc.js';
 import { getJwks } from '../lib/export-signing.js';
 import { diagnoseRoutes } from './diagnose.js';
 import { registerReplayRoutes } from './replay.js';
@@ -331,6 +332,17 @@ export async function registerRoutes(
       app.route(
         '/sso/saml',
         samlRoutes(config?.pgDb ?? db, {
+          baseUrl: resolvedConfig.publicBaseUrl ?? resolvedConfig.corsOrigin,
+          sessionSecret: resolvedConfig.ssoSessionSecret,
+        }),
+      );
+    }
+
+    // ─── Enterprise OIDC SSO connections (#148) — gated by the enterprise flag ──
+    if (resolvedConfig.enterpriseEnabled && resolvedConfig.ssoSessionSecret) {
+      app.route(
+        '/sso/oidc',
+        oidcRoutes(config?.pgDb ?? db, {
           baseUrl: resolvedConfig.publicBaseUrl ?? resolvedConfig.corsOrigin,
           sessionSecret: resolvedConfig.ssoSessionSecret,
         }),

@@ -11,6 +11,8 @@ export interface OidcClaims {
   name?: string;
   tenantId?: string;
   role?: string;
+  /** IdP groups from the configured groups claim (#148). */
+  groups?: string[];
 }
 
 export interface TokenSet {
@@ -115,12 +117,19 @@ export class OidcClient {
 
   /** Extract standard + configurable claims from the id_token payload. */
   private extractClaims(payload: Record<string, unknown>): OidcClaims {
+    const rawGroups = payload[this.config.groupsClaim ?? 'groups'];
+    const groups = Array.isArray(rawGroups)
+      ? rawGroups.map(String)
+      : rawGroups
+        ? [String(rawGroups)]
+        : undefined;
     return {
       sub: payload.sub as string,
       email: payload.email as string | undefined,
       name: payload.name as string | undefined,
       tenantId: payload[this.config.tenantClaim] as string | undefined,
       role: payload[this.config.roleClaim] as string | undefined,
+      ...(groups ? { groups } : {}),
     };
   }
 }
