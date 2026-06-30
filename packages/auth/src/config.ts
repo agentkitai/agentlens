@@ -18,6 +18,8 @@ export interface OidcConfig {
   redirectUri: string;
   tenantClaim: string;
   roleClaim: string;
+  /** ID-token claim holding the user's IdP groups (default: 'groups'). #148 */
+  groupsClaim?: string;
 }
 
 /**
