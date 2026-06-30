@@ -36,3 +36,34 @@ Unify identity on **org → project → member**, built as a sequence of small, 
 
 - Postgres parity for the new tables ships alongside; SQLite is the tested path.
 - Enterprise SSO (SAML/SCIM/enforcement) builds on this hierarchy — see #148.
+
+## Addendum — #198: retire the `tenant_id` shim (decision, 2026-06-30)
+
+A code audit of staging step 5 found the shim is a single line (`TenantScopedStore`:
+`projectId = scope?.projectId ?? tenantId`) and, critically, that **`project_id` cannot
+diverge from `tenant_id` today**: nothing in the request/auth path supplies a `projectId`
+(unified-auth and `api_keys` carry only `org_id` / `tenant_id`), and only `events` /
+`sessions` / `agents` even have the org/project columns — the other ~27 tenant-scoped
+tables and several `events` readers remain `tenant_id`-only.
+
+**Decision: RETAIN `tenant_id` as the coarse org/isolation key; do not physically remove
+it now.** Removing the column today would be pure mechanical renaming across ~2645
+references / ~250 files / ~30 tables / both dialects — maximum risk (an isolation
+regression is a cross-tenant data-leak class bug) for zero behavioral decoupling, because
+there is no project identity to decouple *to*. True decoupling is gated on a prerequisite
+that #147 deliberately did not ship: a **project source-of-truth in auth**.
+
+The physical-removal path is re-graduated into sequenced, no-milestone follow-ups:
+
+1. **Project identity in auth/scope** — resolve + validate a `projectId` (unified-auth /
+   api-keys / header) and plumb a real `scope:{orgId,projectId}` into `getTenantStore` so
+   `project_id` *can* differ from `tenant_id`. Hard prerequisite for the rest.
+2. **Schema parity** — org/project columns on the remaining tenant-scoped tables (both
+   dialects), backfilled `project_id = tenant_id`, `org_id = 'default'`.
+3. **Per-store migration batches** onto `(org_id, project_id)` + the remaining
+   `tenant_id`-only `events` readers.
+4. **Flip the default** (drop `?? tenantId`) and, only if a concrete multi-project product
+   requirement lands (projects moving orgs, per-project roles in data reads), drop the
+   column behind its own reversible migration.
+
+Until then the shim stays — it is cheap, correct, and load-bearing. This resolves #198.
