@@ -7,9 +7,9 @@
  * so a cold range stays tamper-evident after the raw rows are gone, and a
  * broken/tampered segment is never silently purged.
  */
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import type { SqliteDb } from '../index.js';
+import { type AnyDb, dbAll, dbRun, runInTransaction } from '../dialect-db.js';
 import { safeJsonParse } from '../shared/query-helpers.js';
 import { buildAnchor, signAnchorBody, type AnchorEventRow } from '../../lib/anchors.js';
 import { createLogger } from '../../lib/logger.js';
@@ -32,7 +32,7 @@ interface EventRow {
 }
 
 export class RetentionService {
-  constructor(private db: SqliteDb) {}
+  constructor(private db: AnyDb) {}
 
   async applyRetention(
     olderThan: string,
@@ -40,7 +40,8 @@ export class RetentionService {
   ): Promise<{ deletedCount: number; anchoredSegments: number; skippedSegments: number }> {
     const signingKey = process.env.AUDIT_SIGNING_KEY?.trim() || undefined;
 
-    const targetSessions = this.db.all<{ session_id: string; tenant_id: string }>(
+    const targetSessions = await dbAll<{ session_id: string; tenant_id: string }>(
+      this.db,
       tenantId
         ? sql`SELECT DISTINCT session_id, tenant_id FROM events WHERE timestamp <= ${olderThan} AND tenant_id = ${tenantId}`
         : sql`SELECT DISTINCT session_id, tenant_id FROM events WHERE timestamp <= ${olderThan}`,
@@ -51,7 +52,7 @@ export class RetentionService {
     let skippedSegments = 0;
 
     for (const s of targetSessions) {
-      const rows = this.db.all<EventRow>(sql`
+      const rows = await dbAll<EventRow>(this.db, sql`
         SELECT * FROM events
         WHERE session_id = ${s.session_id} AND tenant_id = ${s.tenant_id} AND timestamp <= ${olderThan}
         ORDER BY timestamp ASC, id ASC
@@ -67,8 +68,9 @@ export class RetentionService {
         agentId: r.agent_id,
         eventType: r.event_type,
         severity: r.severity,
-        payload: safeJsonParse(r.payload, {}),
-        metadata: safeJsonParse(r.metadata, {}) as Record<string, unknown>,
+        // pg returns jsonb columns as objects; sqlite returns them as text.
+        payload: typeof r.payload === 'string' ? safeJsonParse(r.payload, {}) : (r.payload ?? {}),
+        metadata: (typeof r.metadata === 'string' ? safeJsonParse(r.metadata, {}) : (r.metadata ?? {})) as Record<string, unknown>,
         verifiedAgentId: r.verified_agent_id,
         pricingVersion: r.pricing_version,
       }));
@@ -84,8 +86,9 @@ export class RetentionService {
       const signature = signAnchorBody(body, signingKey);
       const now = new Date().toISOString();
       // Anchor first, then delete — never delete without a covering anchor.
-      this.db.transaction((tx) => {
-        tx.run(sql`
+      // Anchor first, then delete — atomically, on either dialect.
+      await runInTransaction(this.db, [
+        sql`
           INSERT INTO chain_anchors
             (id, tenant_id, scope, session_id, first_prev_hash, last_hash, event_count, segment_digest,
              chained, ts_min, ts_max, pricing_versions, verified_agent_ids, signature, created_at)
@@ -93,24 +96,24 @@ export class RetentionService {
             (${randomUUID()}, ${body.tenantId}, 'session', ${body.sessionId}, ${body.firstPrevHash}, ${body.lastHash},
              ${body.eventCount}, ${body.segmentDigest}, ${body.chained ? 1 : 0}, ${body.tsMin}, ${body.tsMax},
              ${JSON.stringify(body.pricingVersions)}, ${JSON.stringify(body.verifiedAgentIds)}, ${signature ?? null}, ${now})
-        `);
-        tx.run(sql`
+        `,
+        sql`
           DELETE FROM events
           WHERE session_id = ${s.session_id} AND tenant_id = ${s.tenant_id} AND timestamp <= ${olderThan}
-        `);
-      });
+        `,
+      ]);
       deletedCount += rows.length;
       anchoredSegments++;
     }
 
     // Orphan-session cleanup (sessions whose every event was purged).
     if (tenantId) {
-      this.db.run(sql`
+      await dbRun(this.db, sql`
         DELETE FROM sessions WHERE tenant_id = ${tenantId}
           AND id NOT IN (SELECT DISTINCT session_id FROM events WHERE tenant_id = ${tenantId})
       `);
     } else {
-      this.db.run(sql`DELETE FROM sessions WHERE id NOT IN (SELECT DISTINCT session_id FROM events)`);
+      await dbRun(this.db, sql`DELETE FROM sessions WHERE id NOT IN (SELECT DISTINCT session_id FROM events)`);
     }
 
     return { deletedCount, anchoredSegments, skippedSegments };

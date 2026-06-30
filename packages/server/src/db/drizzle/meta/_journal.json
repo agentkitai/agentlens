@@ -106,6 +106,13 @@
       "when": 1741084800000,
       "tag": "0014_llm_connections",
       "breakpoints": false
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1741171200000,
+      "tag": "0015_chain_anchors",
+      "breakpoints": false
     }
   ]
 }
