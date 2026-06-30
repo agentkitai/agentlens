@@ -60,6 +60,20 @@ export function orgRoutes(db: AnyDb) {
     return c.json({ project }, 201);
   });
 
+  // Project members (#229) — per-project access grants under an org.
+  app.get('/:id/projects/:pid/members', async (c) =>
+    c.json({ members: await store.listProjectMembers(c.req.param('pid')) }),
+  );
+
+  app.post('/:id/projects/:pid/members', async (c) => {
+    const b = (await c.req.json().catch(() => ({}))) as { userId?: string; role?: string };
+    if (!b.userId || !b.role) return c.json({ error: 'userId and role are required' }, 400);
+    if (!(await store.getProject(c.req.param('pid')))) return c.json({ error: 'Project not found' }, 404);
+    const member = await store.addProjectMember(c.req.param('pid'), b.userId, b.role);
+    auditOrgMutation(c, 'project_member_added', 'project_member', `${member.projectId}:${member.userId}`, { role: member.role });
+    return c.json({ member }, 201);
+  });
+
   app.get('/:id/members', async (c) => c.json({ members: await store.listOrgMembers(c.req.param('id')) }));
 
   app.post('/:id/members', async (c) => {
