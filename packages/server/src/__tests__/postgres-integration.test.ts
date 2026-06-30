@@ -577,8 +577,13 @@ describePg('Postgres integration tests', () => {
       await store.saveResults(tid, bm.id, { variants: [], comparisons: [], summary: 's', computedAt: '2026-06-30T00:00:00Z' } as never);
       expect((await store.getResults(tid, bm.id))?.summary).toBe('s');
 
-      expect(await store.delete(tid, bm.id)).toBe(true);
-      expect(await store.getById(tid, bm.id)).toBeNull();
+      // delete is only allowed for draft/cancelled — use a fresh draft benchmark
+      const bm2 = await store.create(tid, {
+        name: 'B2', metrics: [],
+        variants: [{ name: 'A', tag: 'a' }, { name: 'B', tag: 'b' }],
+      } as never);
+      expect(await store.delete(tid, bm2.id)).toBe(true);
+      expect(await store.getById(tid, bm2.id)).toBeNull();
     });
   });
 });
