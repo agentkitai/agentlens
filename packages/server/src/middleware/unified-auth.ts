@@ -32,6 +32,7 @@ export interface AuthContext {
   type: 'api-key' | 'jwt';
   userId: string | null;
   orgId: string;
+  projectId: string;
   role: Role;
   scopes: string[];
   keyId: string | null;
@@ -120,6 +121,7 @@ export function unifiedAuthMiddleware(
         type: 'api-key',
         userId: null,
         orgId: 'default',
+        projectId: 'default',
         role: 'owner',
         scopes: ['*'],
         keyId: 'dev',
@@ -195,6 +197,7 @@ export function unifiedAuthMiddleware(
           type: 'api-key',
           userId: null,
           orgId: row.tenantId,
+          projectId: row.tenantId,
           role,
           scopes,
           keyId: row.id,
@@ -238,6 +241,7 @@ export function unifiedAuthMiddleware(
         type: 'api-key',
         userId: null,
         orgId: row.tenantId,
+        projectId: row.tenantId,
         role,
         scopes,
         keyId: row.id,
@@ -262,6 +266,7 @@ export function unifiedAuthMiddleware(
           type: 'api-key',
           userId: null,
           orgId: result.orgId,
+          projectId: result.orgId,
           role,
           scopes,
           keyId: result.keyId,
@@ -305,6 +310,7 @@ export function unifiedAuthMiddleware(
       type: 'jwt',
       userId: payload.sub,
       orgId,
+      projectId: orgId,
       role,
       scopes: ['*'],
       keyId: null,
