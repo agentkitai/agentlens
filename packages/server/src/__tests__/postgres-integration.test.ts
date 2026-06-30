@@ -800,6 +800,12 @@ describePg('Postgres integration tests', () => {
       expect(sessA).not.toContain(eb.sessionId);
       expect(await projA.getSession(eb.sessionId)).toBeNull();
       expect(await projA.getSession(ea.sessionId)).not.toBeNull();
+
+      // agents are project-isolated: agent 'a' is stamped to project pa (first writer),
+      // so project pb cannot see it.
+      expect((await projA.listAgents()).map((a) => a.id)).toEqual(['a']);
+      expect(await projA.getAgent('a')).not.toBeNull();
+      expect(await projB.getAgent('a')).toBeNull();
     });
   });
 });

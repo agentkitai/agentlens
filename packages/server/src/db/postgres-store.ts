@@ -715,9 +715,11 @@ export class PostgresEventStore implements IEventStore {
     return (result as any).rowCount > 0;
   }
 
-  async listAgents(tenantId?: string): Promise<Agent[]> {
+  async listAgents(tenantId?: string, orgId?: string, projectId?: string): Promise<Agent[]> {
     warnIfNoTenant('listAgents', tenantId);
     const conditions = tenantId ? [eq(agents.tenantId, tenantId)] : [];
+    if (orgId) conditions.push(eq(agents.orgId, orgId));
+    if (projectId) conditions.push(eq(agents.projectId, projectId));
 
     const rows = await this.db
       .select()
@@ -730,6 +732,8 @@ export class PostgresEventStore implements IEventStore {
     // session_started event, so OTLP-ingested agents read 0 despite having
     // sessions.
     const sessConds = tenantId ? [eq(sessions.tenantId, tenantId)] : [];
+    if (orgId) sessConds.push(eq(sessions.orgId, orgId));
+    if (projectId) sessConds.push(eq(sessions.projectId, projectId));
     const countRows = await this.db
       .select({ agentId: sessions.agentId, n: drizzleCount() })
       .from(sessions)
@@ -740,9 +744,11 @@ export class PostgresEventStore implements IEventStore {
     return rows.map((r) => ({ ...mapAgentRow(r), sessionCount: counts.get(r.id) ?? 0 }));
   }
 
-  async getAgent(id: string, tenantId?: string): Promise<Agent | null> {
+  async getAgent(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<Agent | null> {
     const conditions = [eq(agents.id, id)];
     if (tenantId) conditions.push(eq(agents.tenantId, tenantId));
+    if (orgId) conditions.push(eq(agents.orgId, orgId));
+    if (projectId) conditions.push(eq(agents.projectId, projectId));
 
     const [row] = await this.db
       .select()
@@ -754,6 +760,8 @@ export class PostgresEventStore implements IEventStore {
 
     const sessConds = [eq(sessions.agentId, id)];
     if (tenantId) sessConds.push(eq(sessions.tenantId, tenantId));
+    if (orgId) sessConds.push(eq(sessions.orgId, orgId));
+    if (projectId) sessConds.push(eq(sessions.projectId, projectId));
     const [sc] = await this.db
       .select({ n: drizzleCount() })
       .from(sessions)

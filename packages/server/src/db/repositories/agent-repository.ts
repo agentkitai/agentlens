@@ -134,9 +134,11 @@ export class AgentRepository {
     return result.changes > 0;
   }
 
-  async listAgents(tenantId?: string): Promise<Agent[]> {
+  async listAgents(tenantId?: string, orgId?: string, projectId?: string): Promise<Agent[]> {
     this.warnIfNoTenant('listAgents', tenantId);
     const conditions = tenantId ? [eq(agents.tenantId, tenantId)] : [];
+    if (orgId) conditions.push(eq(agents.orgId, orgId));
+    if (projectId) conditions.push(eq(agents.projectId, projectId));
 
     const rows = this.db
       .select()
@@ -149,13 +151,15 @@ export class AgentRepository {
     // the denormalized agents.sessionCount counter — that counter is only bumped
     // by the SDK's session_started event, so OTLP-ingested agents (no
     // session_started) always read 0 despite having sessions.
-    const counts = this.sessionCountsByAgent(tenantId);
+    const counts = this.sessionCountsByAgent(tenantId, orgId, projectId);
     return rows.map((r) => ({ ...mapAgentRow(r), sessionCount: counts.get(r.id) ?? 0 }));
   }
 
   /** Actual session counts per agent, from the sessions table. */
-  private sessionCountsByAgent(tenantId?: string): Map<string, number> {
+  private sessionCountsByAgent(tenantId?: string, orgId?: string, projectId?: string): Map<string, number> {
     const conds = tenantId ? [eq(sessions.tenantId, tenantId)] : [];
+    if (orgId) conds.push(eq(sessions.orgId, orgId));
+    if (projectId) conds.push(eq(sessions.projectId, projectId));
     const rows = this.db
       .select({ agentId: sessions.agentId, n: drizzleCount() })
       .from(sessions)
@@ -165,9 +169,11 @@ export class AgentRepository {
     return new Map(rows.map((r) => [r.agentId, Number(r.n)]));
   }
 
-  async getAgent(id: string, tenantId?: string): Promise<Agent | null> {
+  async getAgent(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<Agent | null> {
     const conditions = [eq(agents.id, id)];
     if (tenantId) conditions.push(eq(agents.tenantId, tenantId));
+    if (orgId) conditions.push(eq(agents.orgId, orgId));
+    if (projectId) conditions.push(eq(agents.projectId, projectId));
 
     const row = this.db
       .select()
@@ -179,6 +185,8 @@ export class AgentRepository {
 
     const sessConds = [eq(sessions.agentId, id)];
     if (tenantId) sessConds.push(eq(sessions.tenantId, tenantId));
+    if (orgId) sessConds.push(eq(sessions.orgId, orgId));
+    if (projectId) sessConds.push(eq(sessions.projectId, projectId));
     const sc = this.db
       .select({ n: drizzleCount() })
       .from(sessions)
