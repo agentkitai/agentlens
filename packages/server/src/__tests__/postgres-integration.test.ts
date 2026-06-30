@@ -24,6 +24,7 @@ import { UserStore } from '../db/user-store.js';
 import { SsoConnectionStore } from '../db/sso-connection-store.js';
 import { ScimGroupStore } from '../db/scim-group-store.js';
 import { PostgresEventStore } from '../db/postgres-store.js';
+import { getRollupAnalyticsAsync } from '../db/repositories/analytics-repository.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { computeEventHash } from '@agentkitai/agentlens-core';
 
@@ -980,6 +981,33 @@ describePg('Postgres integration tests', () => {
       expect(Number(r2[0].event_count)).toBe(3);
       expect(Number(r2[0].cost_usd)).toBeCloseTo(0.08, 6);
       expect(Number(r2[0].input_tokens)).toBe(120);
+    });
+  });
+
+  // ─── #220: read cost_rollups dialect-agnostically (getRollupAnalytics on pg) ──
+  describe('Rollup analytics on Postgres (#220)', () => {
+    it('reads cost_rollups via getRollupAnalyticsAsync (Number-coerced)', async () => {
+      const tid = `tenant-${randomUUID().slice(0, 8)}`;
+      await db.execute(sql`
+        INSERT INTO cost_rollups
+          (tenant_id, verified_agent_id, model, bucket_start, granularity, event_count, tool_call_count,
+           error_count, llm_call_count, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+           cost_usd, latency_sum_ms, latency_count, pricing_versions, updated_at)
+        VALUES (${tid}, 'agt-x', 'gpt-4o', '2026-06-15T10:00:00Z', 'hour', 5, 2, 1, 3, 100, 50, 0, 0,
+                0.05, 300, 3, '[]', '2026-06-15T10:00:00Z')
+      `);
+
+      const r = await getRollupAnalyticsAsync(db, { tenantId: tid, from: '2026-06-01T00:00:00Z', to: '2026-07-01T00:00:00Z' });
+      expect(r.totals.eventCount).toBe(5);
+      expect(r.totals.costUsd).toBeCloseTo(0.05, 6);
+      expect(r.totals.llmCallCount).toBe(3);
+      expect(r.byAgent).toHaveLength(1);
+      expect(r.byAgent[0]!.verifiedAgentId).toBe('agt-x');
+      expect(r.byAgent[0]!.costUsd).toBeCloseTo(0.05, 6);
+      expect(r.buckets).toHaveLength(1);
+      expect(r.buckets[0]!.bucket).toBe('2026-06-15T00:00:00Z'); // day granularity
+      expect(r.buckets[0]!.eventCount).toBe(5);
+      expect(r.buckets[0]!.avgLatencyMs).toBeCloseTo(100, 6); // 300 / 3
     });
   });
 });

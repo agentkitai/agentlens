@@ -9,6 +9,7 @@ import type { SqliteDb } from '../index.js';
 import { events, sessions, agents } from '../schema.sqlite.js';
 import { createLogger } from '../../lib/logger.js';
 import { bucketStartHour } from '../../lib/rollup.js';
+import { type AnyDb, dbAll, dbGet } from '../dialect-db.js';
 
 export interface RollupAnalyticsResult {
   buckets: Array<{
@@ -27,6 +28,91 @@ export interface RollupAnalyticsResult {
 }
 
 const log = createLogger('AnalyticsRepository');
+
+// ─── Rollup analytics (dialect-agnostic, #220) ────────────
+// cost_rollups is plain SQL; aliases are snake_case (lowercased identically on
+// both dialects — pg lowercases unquoted aliases) and mapped to camelCase in JS,
+// with Number() coercion (pg returns SUM/COUNT as strings).
+interface RollupParams {
+  tenantId: string;
+  from: string;
+  to: string;
+  granularity?: 'hour' | 'day';
+  verifiedAgentId?: string;
+}
+
+function rollupQueries(params: RollupParams) {
+  const fromHour = bucketStartHour(params.from);
+  const bucketExpr =
+    (params.granularity ?? 'day') === 'hour' ? sql`bucket_start` : sql`substr(bucket_start, 1, 10) || 'T00:00:00Z'`;
+  const agentFilter = params.verifiedAgentId ? sql`AND verified_agent_id = ${params.verifiedAgentId}` : sql``;
+  const range = sql`tenant_id = ${params.tenantId} AND granularity = 'hour' AND bucket_start >= ${fromHour} AND bucket_start <= ${params.to}`;
+  return {
+    buckets: sql`
+      SELECT ${bucketExpr} AS bucket,
+        COALESCE(SUM(event_count), 0) AS event_count,
+        COALESCE(SUM(tool_call_count), 0) AS tool_call_count,
+        COALESCE(SUM(error_count), 0) AS error_count,
+        COALESCE(SUM(llm_call_count), 0) AS llm_call_count,
+        COALESCE(SUM(cost_usd), 0) AS cost_usd,
+        COALESCE(SUM(input_tokens), 0) AS input_tokens,
+        COALESCE(SUM(output_tokens), 0) AS output_tokens,
+        CASE WHEN SUM(latency_count) > 0 THEN SUM(latency_sum_ms) / SUM(latency_count) ELSE 0 END AS avg_latency_ms
+      FROM cost_rollups WHERE ${range} ${agentFilter}
+      GROUP BY bucket ORDER BY bucket ASC`,
+    byAgent: sql`
+      SELECT verified_agent_id, COALESCE(SUM(cost_usd), 0) AS cost_usd,
+        COALESCE(SUM(event_count), 0) AS event_count, COALESCE(SUM(input_tokens), 0) AS input_tokens,
+        COALESCE(SUM(output_tokens), 0) AS output_tokens
+      FROM cost_rollups WHERE ${range}
+      GROUP BY verified_agent_id ORDER BY cost_usd DESC`,
+    totals: sql`
+      SELECT COALESCE(SUM(event_count), 0) AS event_count, COALESCE(SUM(cost_usd), 0) AS cost_usd,
+        COALESCE(SUM(input_tokens), 0) AS input_tokens, COALESCE(SUM(output_tokens), 0) AS output_tokens,
+        COALESCE(SUM(llm_call_count), 0) AS llm_call_count
+      FROM cost_rollups WHERE ${range}`,
+  };
+}
+
+type Row = Record<string, unknown>;
+const num = (v: unknown): number => Number(v ?? 0);
+const mapBucket = (r: Row): RollupAnalyticsResult['buckets'][number] => ({
+  bucket: String(r.bucket),
+  eventCount: num(r.event_count),
+  toolCallCount: num(r.tool_call_count),
+  errorCount: num(r.error_count),
+  llmCallCount: num(r.llm_call_count),
+  costUsd: num(r.cost_usd),
+  inputTokens: num(r.input_tokens),
+  outputTokens: num(r.output_tokens),
+  avgLatencyMs: num(r.avg_latency_ms),
+});
+const mapAgent = (r: Row): RollupAnalyticsResult['byAgent'][number] => ({
+  verifiedAgentId: String(r.verified_agent_id),
+  costUsd: num(r.cost_usd),
+  eventCount: num(r.event_count),
+  inputTokens: num(r.input_tokens),
+  outputTokens: num(r.output_tokens),
+});
+const mapTotals = (r: Row): RollupAnalyticsResult['totals'] => ({
+  eventCount: num(r.event_count),
+  costUsd: num(r.cost_usd),
+  inputTokens: num(r.input_tokens),
+  outputTokens: num(r.output_tokens),
+  llmCallCount: num(r.llm_call_count),
+});
+const EMPTY_TOTALS: RollupAnalyticsResult['totals'] = { eventCount: 0, costUsd: 0, inputTokens: 0, outputTokens: 0, llmCallCount: 0 };
+
+/** Dialect-agnostic rollup analytics (sqlite or postgres). */
+export async function getRollupAnalyticsAsync(db: AnyDb, params: RollupParams): Promise<RollupAnalyticsResult> {
+  const q = rollupQueries(params);
+  const [buckets, byAgent, totals] = await Promise.all([
+    dbAll<Row>(db, q.buckets),
+    dbAll<Row>(db, q.byAgent),
+    dbGet<Row>(db, q.totals),
+  ]);
+  return { buckets: buckets.map(mapBucket), byAgent: byAgent.map(mapAgent), totals: totals ? mapTotals(totals) : EMPTY_TOTALS };
+}
 
 export class AnalyticsRepository {
   constructor(private db: SqliteDb) {}
@@ -225,52 +311,13 @@ export class AnalyticsRepository {
    * stored hourly grain to the requested granularity. Survives raw-event purge.
    * Drill-down / sub-bucket / unique-session queries stay on the raw path.
    */
-  getRollupAnalytics(params: {
-    tenantId: string;
-    from: string;
-    to: string;
-    granularity?: 'hour' | 'day';
-    verifiedAgentId?: string;
-  }): RollupAnalyticsResult {
-    const fromHour = bucketStartHour(params.from);
-    const bucketExpr =
-      (params.granularity ?? 'day') === 'hour' ? sql`bucket_start` : sql`substr(bucket_start, 1, 10) || 'T00:00:00Z'`;
-    const agentFilter = params.verifiedAgentId ? sql`AND verified_agent_id = ${params.verifiedAgentId}` : sql``;
-    const range = sql`tenant_id = ${params.tenantId} AND granularity = 'hour' AND bucket_start >= ${fromHour} AND bucket_start <= ${params.to}`;
-
-    const buckets = this.db.all<RollupAnalyticsResult['buckets'][number]>(sql`
-      SELECT ${bucketExpr} AS bucket,
-        COALESCE(SUM(event_count), 0) AS eventCount,
-        COALESCE(SUM(tool_call_count), 0) AS toolCallCount,
-        COALESCE(SUM(error_count), 0) AS errorCount,
-        COALESCE(SUM(llm_call_count), 0) AS llmCallCount,
-        COALESCE(SUM(cost_usd), 0) AS costUsd,
-        COALESCE(SUM(input_tokens), 0) AS inputTokens,
-        COALESCE(SUM(output_tokens), 0) AS outputTokens,
-        CASE WHEN SUM(latency_count) > 0 THEN SUM(latency_sum_ms) / SUM(latency_count) ELSE 0 END AS avgLatencyMs
-      FROM cost_rollups WHERE ${range} ${agentFilter}
-      GROUP BY bucket ORDER BY bucket ASC
-    `);
-
-    const byAgent = this.db.all<RollupAnalyticsResult['byAgent'][number]>(sql`
-      SELECT verified_agent_id AS verifiedAgentId, COALESCE(SUM(cost_usd), 0) AS costUsd,
-        COALESCE(SUM(event_count), 0) AS eventCount, COALESCE(SUM(input_tokens), 0) AS inputTokens,
-        COALESCE(SUM(output_tokens), 0) AS outputTokens
-      FROM cost_rollups WHERE ${range}
-      GROUP BY verified_agent_id ORDER BY costUsd DESC
-    `);
-
-    const totals = this.db.get<RollupAnalyticsResult['totals']>(sql`
-      SELECT COALESCE(SUM(event_count), 0) AS eventCount, COALESCE(SUM(cost_usd), 0) AS costUsd,
-        COALESCE(SUM(input_tokens), 0) AS inputTokens, COALESCE(SUM(output_tokens), 0) AS outputTokens,
-        COALESCE(SUM(llm_call_count), 0) AS llmCallCount
-      FROM cost_rollups WHERE ${range}
-    `);
-
+  getRollupAnalytics(params: RollupParams): RollupAnalyticsResult {
+    const q = rollupQueries(params);
+    const totals = this.db.get<Row>(q.totals);
     return {
-      buckets,
-      byAgent,
-      totals: totals ?? { eventCount: 0, costUsd: 0, inputTokens: 0, outputTokens: 0, llmCallCount: 0 },
+      buckets: this.db.all<Row>(q.buckets).map(mapBucket),
+      byAgent: this.db.all<Row>(q.byAgent).map(mapAgent),
+      totals: totals ? mapTotals(totals) : EMPTY_TOTALS,
     };
   }
 }
