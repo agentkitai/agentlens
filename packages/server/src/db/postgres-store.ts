@@ -49,6 +49,9 @@ function safeJsonParse<T>(raw: unknown, fallback: T): T {
 function buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>) {
   const conditions = [];
   if (query.tenantId) conditions.push(eq(events.tenantId, query.tenantId));
+  // org→project isolation (#147) — filtered only when the scope provides them.
+  if (query.orgId) conditions.push(eq(events.orgId, query.orgId));
+  if (query.projectId) conditions.push(eq(events.projectId, query.projectId));
   if (query.sessionId) conditions.push(eq(events.sessionId, query.sessionId));
   if (query.agentId) conditions.push(eq(events.agentId, query.agentId));
   if (query.eventType) {
@@ -443,10 +446,12 @@ export class PostgresEventStore implements IEventStore {
     };
   }
 
-  async getEvent(id: string, tenantId?: string): Promise<AgentLensEvent | null> {
+  async getEvent(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<AgentLensEvent | null> {
     warnIfNoTenant('getEvent', tenantId);
     const conditions = [eq(events.id, id)];
     if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+    if (orgId) conditions.push(eq(events.orgId, orgId));
+    if (projectId) conditions.push(eq(events.projectId, projectId));
 
     const [row] = await this.db
       .select()
@@ -457,9 +462,11 @@ export class PostgresEventStore implements IEventStore {
     return row ? mapEventRow(row) : null;
   }
 
-  async getSessionTimeline(sessionId: string, tenantId?: string): Promise<AgentLensEvent[]> {
+  async getSessionTimeline(sessionId: string, tenantId?: string, orgId?: string, projectId?: string): Promise<AgentLensEvent[]> {
     const conditions = [eq(events.sessionId, sessionId)];
     if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+    if (orgId) conditions.push(eq(events.orgId, orgId));
+    if (projectId) conditions.push(eq(events.projectId, projectId));
 
     const rows = await this.db
       .select()
@@ -472,9 +479,11 @@ export class PostgresEventStore implements IEventStore {
     return rows.map(mapEventRow);
   }
 
-  async getLastEventHash(sessionId: string, tenantId?: string): Promise<string | null> {
+  async getLastEventHash(sessionId: string, tenantId?: string, orgId?: string, projectId?: string): Promise<string | null> {
     const conditions = [eq(events.sessionId, sessionId)];
     if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+    if (orgId) conditions.push(eq(events.orgId, orgId));
+    if (projectId) conditions.push(eq(events.projectId, projectId));
 
     const [row] = await this.db
       .select({ hash: events.hash })

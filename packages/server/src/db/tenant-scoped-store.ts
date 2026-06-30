@@ -50,23 +50,23 @@ export class TenantScopedStore implements IEventStore {
   }
 
   async queryEvents(query: EventQuery): Promise<EventQueryResult> {
-    return this.inner.queryEvents({ ...query, tenantId: this.tenantId });
+    return this.inner.queryEvents({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
   }
 
   async getEvent(id: string): Promise<AgentLensEvent | null> {
-    return this.inner.getEvent(id, this.tenantId);
+    return this.inner.getEvent(id, this.tenantId, this.orgId, this.projectId);
   }
 
   async getSessionTimeline(sessionId: string): Promise<AgentLensEvent[]> {
-    return this.inner.getSessionTimeline(sessionId, this.tenantId);
+    return this.inner.getSessionTimeline(sessionId, this.tenantId, this.orgId, this.projectId);
   }
 
   async getLastEventHash(sessionId: string): Promise<string | null> {
-    return this.inner.getLastEventHash(sessionId, this.tenantId);
+    return this.inner.getLastEventHash(sessionId, this.tenantId, this.orgId, this.projectId);
   }
 
   async countEvents(query: Omit<EventQuery, 'limit' | 'offset'>): Promise<number> {
-    return this.inner.countEvents({ ...query, tenantId: this.tenantId });
+    return this.inner.countEvents({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
   }
 
   async countEventsBatch(query: { agentId: string; from: string; to: string; tenantId?: string }): Promise<{ total: number; error: number; critical: number; toolError: number }> {
