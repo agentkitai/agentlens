@@ -25,8 +25,10 @@ export interface ServerConfig {
   otlpAuthToken?: string;
   /** Service token authenticating AgentGate's internal spend-read calls (#13).
    *  Also used to authenticate AgentLens's OUTBOUND ingest-key verify call to
-   *  AgentGate (#24) — a bidirectional shared service secret. When unset, POST
-   *  /api/internal/spend is disabled and OTLP ingest-key verification is off. */
+   *  AgentGate (#24) — a bidirectional shared service secret. When unset, OTLP
+   *  ingest-key verification is off. For INBOUND /api/internal auth this is the
+   *  DEPRECATED org-wide path (#59) — prefer per-tenant service tokens (POST
+   *  /api/service-tokens); still required OUTBOUND for ingest-key verification. */
   agentgateServiceToken?: string;
   /** AgentGate base URL (#24). When set (with agentgateServiceToken), an OTLP
    *  exporter may present a longer-lived X-Agent-Ingest-Key, which AgentLens
