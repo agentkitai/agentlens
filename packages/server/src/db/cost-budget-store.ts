@@ -6,7 +6,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import type { SqliteDb } from './index.js';
+import { type AnyDb, dbRun, dbAll, dbGet } from './dialect-db.js';
 import type {
   CostBudget,
   CostBudgetState,
@@ -14,12 +14,12 @@ import type {
 } from '@agentkitai/agentlens-core';
 
 export class CostBudgetStore {
-  constructor(private readonly db: SqliteDb) {}
+  constructor(private readonly db: AnyDb) {}
 
   // ─── Budgets ─────────────────────────────────────────────
 
-  createBudget(budget: CostBudget): void {
-    this.db.run(sql`
+  async createBudget(budget: CostBudget): Promise<void> {
+    await dbRun(this.db, sql`
       INSERT INTO cost_budgets (
         id, tenant_id, scope, agent_id, period, limit_usd,
         on_breach, downgrade_target_model, enabled, created_at, updated_at
@@ -32,88 +32,88 @@ export class CostBudgetStore {
     `);
   }
 
-  getBudget(tenantId: string, budgetId: string): CostBudget | null {
-    const row = this.db.get<Record<string, unknown>>(sql`
+  async getBudget(tenantId: string, budgetId: string): Promise<CostBudget | null> {
+    const row = await dbGet<Record<string, unknown>>(this.db, sql`
       SELECT * FROM cost_budgets WHERE id = ${budgetId} AND tenant_id = ${tenantId}
     `);
     return row ? this._mapBudget(row) : null;
   }
 
-  listBudgets(tenantId: string, opts?: { agentId?: string; scope?: string; enabled?: boolean }): CostBudget[] {
+  async listBudgets(tenantId: string, opts?: { agentId?: string; scope?: string; enabled?: boolean }): Promise<CostBudget[]> {
     if (opts?.agentId && opts?.scope && opts?.enabled !== undefined) {
-      return this.db.all<Record<string, unknown>>(sql`
+      return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId}
           AND agent_id = ${opts.agentId} AND scope = ${opts.scope} AND enabled = ${opts.enabled ? 1 : 0}
         ORDER BY created_at DESC
-      `).map(r => this._mapBudget(r));
+      `)).map(r => this._mapBudget(r));
     }
     if (opts?.agentId && opts?.scope) {
-      return this.db.all<Record<string, unknown>>(sql`
+      return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId}
           AND agent_id = ${opts.agentId} AND scope = ${opts.scope}
         ORDER BY created_at DESC
-      `).map(r => this._mapBudget(r));
+      `)).map(r => this._mapBudget(r));
     }
     if (opts?.agentId && opts?.enabled !== undefined) {
-      return this.db.all<Record<string, unknown>>(sql`
+      return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId}
           AND agent_id = ${opts.agentId} AND enabled = ${opts.enabled ? 1 : 0}
         ORDER BY created_at DESC
-      `).map(r => this._mapBudget(r));
+      `)).map(r => this._mapBudget(r));
     }
     if (opts?.scope && opts?.enabled !== undefined) {
-      return this.db.all<Record<string, unknown>>(sql`
+      return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId}
           AND scope = ${opts.scope} AND enabled = ${opts.enabled ? 1 : 0}
         ORDER BY created_at DESC
-      `).map(r => this._mapBudget(r));
+      `)).map(r => this._mapBudget(r));
     }
     if (opts?.agentId) {
-      return this.db.all<Record<string, unknown>>(sql`
+      return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId} AND agent_id = ${opts.agentId}
         ORDER BY created_at DESC
-      `).map(r => this._mapBudget(r));
+      `)).map(r => this._mapBudget(r));
     }
     if (opts?.scope) {
-      return this.db.all<Record<string, unknown>>(sql`
+      return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId} AND scope = ${opts.scope}
         ORDER BY created_at DESC
-      `).map(r => this._mapBudget(r));
+      `)).map(r => this._mapBudget(r));
     }
     if (opts?.enabled !== undefined) {
-      return this.db.all<Record<string, unknown>>(sql`
+      return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId} AND enabled = ${opts.enabled ? 1 : 0}
         ORDER BY created_at DESC
-      `).map(r => this._mapBudget(r));
+      `)).map(r => this._mapBudget(r));
     }
-    return this.db.all<Record<string, unknown>>(sql`
+    return (await dbAll<Record<string, unknown>>(this.db, sql`
       SELECT * FROM cost_budgets WHERE tenant_id = ${tenantId}
       ORDER BY created_at DESC
-    `).map(r => this._mapBudget(r));
+    `)).map(r => this._mapBudget(r));
   }
 
-  listEnabledBudgets(tenantId: string, agentId?: string): CostBudget[] {
+  async listEnabledBudgets(tenantId: string, agentId?: string): Promise<CostBudget[]> {
     if (agentId) {
-      return this.db.all<Record<string, unknown>>(sql`
+      return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM cost_budgets
         WHERE tenant_id = ${tenantId} AND enabled = 1
           AND (scope = 'session' OR agent_id = ${agentId})
         ORDER BY created_at ASC
-      `).map(r => this._mapBudget(r));
+      `)).map(r => this._mapBudget(r));
     }
-    return this.db.all<Record<string, unknown>>(sql`
+    return (await dbAll<Record<string, unknown>>(this.db, sql`
       SELECT * FROM cost_budgets
       WHERE tenant_id = ${tenantId} AND enabled = 1
       ORDER BY created_at ASC
-    `).map(r => this._mapBudget(r));
+    `)).map(r => this._mapBudget(r));
   }
 
-  updateBudget(tenantId: string, budgetId: string, updates: Partial<CostBudget>): boolean {
-    const existing = this.getBudget(tenantId, budgetId);
+  async updateBudget(tenantId: string, budgetId: string, updates: Partial<CostBudget>): Promise<boolean> {
+    const existing = await this.getBudget(tenantId, budgetId);
     if (!existing) return false;
 
     const merged = { ...existing, ...updates, updatedAt: new Date().toISOString() };
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE cost_budgets SET
         scope = ${merged.scope},
         agent_id = ${merged.agentId ?? null},
@@ -128,26 +128,26 @@ export class CostBudgetStore {
     return true;
   }
 
-  deleteBudget(tenantId: string, budgetId: string): boolean {
-    const existing = this.getBudget(tenantId, budgetId);
+  async deleteBudget(tenantId: string, budgetId: string): Promise<boolean> {
+    const existing = await this.getBudget(tenantId, budgetId);
     if (!existing) return false;
 
-    this.db.run(sql`DELETE FROM cost_budgets WHERE id = ${budgetId} AND tenant_id = ${tenantId}`);
-    this.db.run(sql`DELETE FROM cost_budget_state WHERE budget_id = ${budgetId} AND tenant_id = ${tenantId}`);
+    await dbRun(this.db, sql`DELETE FROM cost_budgets WHERE id = ${budgetId} AND tenant_id = ${tenantId}`);
+    await dbRun(this.db, sql`DELETE FROM cost_budget_state WHERE budget_id = ${budgetId} AND tenant_id = ${tenantId}`);
     return true;
   }
 
   // ─── State ───────────────────────────────────────────────
 
-  getState(tenantId: string, budgetId: string): CostBudgetState | null {
-    const row = this.db.get<Record<string, unknown>>(sql`
+  async getState(tenantId: string, budgetId: string): Promise<CostBudgetState | null> {
+    const row = await dbGet<Record<string, unknown>>(this.db, sql`
       SELECT * FROM cost_budget_state WHERE budget_id = ${budgetId} AND tenant_id = ${tenantId}
     `);
     return row ? this._mapState(row) : null;
   }
 
-  upsertState(state: CostBudgetState): void {
-    this.db.run(sql`
+  async upsertState(state: CostBudgetState): Promise<void> {
+    await dbRun(this.db, sql`
       INSERT INTO cost_budget_state (budget_id, tenant_id, last_breach_at, breach_count, current_spend, period_start)
       VALUES (${state.budgetId}, ${state.tenantId}, ${state.lastBreachAt ?? null},
               ${state.breachCount}, ${state.currentSpend ?? null}, ${state.periodStart ?? null})
@@ -161,15 +161,15 @@ export class CostBudgetStore {
 
   // ─── Anomaly Config ──────────────────────────────────────
 
-  getAnomalyConfig(tenantId: string): CostAnomalyConfig | null {
-    const row = this.db.get<Record<string, unknown>>(sql`
+  async getAnomalyConfig(tenantId: string): Promise<CostAnomalyConfig | null> {
+    const row = await dbGet<Record<string, unknown>>(this.db, sql`
       SELECT * FROM cost_anomaly_config WHERE tenant_id = ${tenantId}
     `);
     return row ? this._mapAnomalyConfig(row) : null;
   }
 
-  upsertAnomalyConfig(config: CostAnomalyConfig): void {
-    this.db.run(sql`
+  async upsertAnomalyConfig(config: CostAnomalyConfig): Promise<void> {
+    await dbRun(this.db, sql`
       INSERT INTO cost_anomaly_config (tenant_id, multiplier, min_sessions, enabled, updated_at)
       VALUES (${config.tenantId}, ${config.multiplier}, ${config.minSessions},
               ${config.enabled ? 1 : 0}, ${config.updatedAt})

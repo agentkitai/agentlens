@@ -49,7 +49,7 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
       updatedAt: now,
     };
 
-    store.createBudget(budget);
+    await store.createBudget(budget);
     return created(c, budget);
   });
 
@@ -60,7 +60,7 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
     const enabledStr = c.req.query('enabled');
     const enabled = enabledStr === 'true' ? true : enabledStr === 'false' ? false : undefined;
 
-    const budgets = store.listBudgets(tenantId, {
+    const budgets = await store.listBudgets(tenantId, {
       agentId: agentId || undefined,
       scope: scope || undefined,
       enabled,
@@ -70,7 +70,7 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
 
   app.get('/anomaly/config', async (c) => {
     const tenantId = getTenantId(c);
-    const config = store.getAnomalyConfig(tenantId);
+    const config = await store.getAnomalyConfig(tenantId);
     if (!config) {
       return c.json({
         tenantId,
@@ -99,7 +99,7 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
       }, 400);
     }
 
-    const existing = store.getAnomalyConfig(tenantId);
+    const existing = await store.getAnomalyConfig(tenantId);
     const config: CostAnomalyConfig = {
       tenantId,
       multiplier: result.data.multiplier ?? existing?.multiplier ?? 3.0,
@@ -108,14 +108,14 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
       updatedAt: new Date().toISOString(),
     };
 
-    store.upsertAnomalyConfig(config);
+    await store.upsertAnomalyConfig(config);
     return c.json(config);
   });
 
   app.get('/:id/status', async (c) => {
     const tenantId = getTenantId(c);
     const budgetId = c.req.param('id');
-    const budget = store.getBudget(tenantId, budgetId);
+    const budget = await store.getBudget(tenantId, budgetId);
     if (!budget) {
       return notFound(c, 'Budget');
     }
@@ -134,7 +134,7 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
     // For session scope, we can't compute without a specific session context
     // Return the cached state value if available
     if (budget.scope === 'session') {
-      const state = store.getState(tenantId, budgetId);
+      const state = await store.getState(tenantId, budgetId);
       currentSpend = state?.currentSpend ?? 0;
     }
 
@@ -183,19 +183,19 @@ export function costBudgetRoutes(store: CostBudgetStore, eventStore: IEventStore
     const parsed = await parseBody(c, updateCostBudgetSchema);
     if (!parsed.success) return parsed.response;
 
-    const updated = store.updateBudget(tenantId, budgetId, parsed.data as Partial<CostBudget>);
+    const updated = await store.updateBudget(tenantId, budgetId, parsed.data as Partial<CostBudget>);
     if (!updated) {
       return notFound(c, 'Budget');
     }
 
-    const budget = store.getBudget(tenantId, budgetId);
+    const budget = await store.getBudget(tenantId, budgetId);
     return c.json(budget);
   });
 
   app.delete('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const budgetId = c.req.param('id');
-    const deleted = store.deleteBudget(tenantId, budgetId);
+    const deleted = await store.deleteBudget(tenantId, budgetId);
     if (!deleted) {
       return notFound(c, 'Budget');
     }

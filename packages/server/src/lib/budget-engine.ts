@@ -54,7 +54,7 @@ export class BudgetEngine {
     // Only evaluate cost-relevant events
     if (event.eventType !== 'llm_response' && event.eventType !== 'cost_tracked') return;
 
-    const budgets = this.store.listEnabledBudgets(event.tenantId, event.agentId);
+    const budgets = await this.store.listEnabledBudgets(event.tenantId, event.agentId);
     if (budgets.length === 0) return;
 
     for (const budget of budgets) {
@@ -74,7 +74,7 @@ export class BudgetEngine {
     const currentSpend = await this.computeCurrentSpend(budget, event);
 
     // Update state
-    const existingState = this.store.getState(budget.tenantId, budget.id);
+    const existingState = await this.store.getState(budget.tenantId, budget.id);
     const newState: CostBudgetState = {
       budgetId: budget.id,
       tenantId: budget.tenantId,
@@ -85,13 +85,13 @@ export class BudgetEngine {
     };
 
     if (currentSpend < budget.limitUsd) {
-      this.store.upsertState(newState);
+      await this.store.upsertState(newState);
       return;
     }
 
     // Budget breached — check cooldown
     if (this.isBreachCooldownActive(budget, existingState)) {
-      this.store.upsertState(newState);
+      await this.store.upsertState(newState);
       return;
     }
 
@@ -101,7 +101,7 @@ export class BudgetEngine {
     // Update state with breach
     newState.lastBreachAt = new Date().toISOString();
     newState.breachCount = (existingState?.breachCount ?? 0) + 1;
-    this.store.upsertState(newState);
+    await this.store.upsertState(newState);
   }
 
   private async computeCurrentSpend(budget: CostBudget, event: AgentLensEvent): Promise<number> {
