@@ -98,11 +98,11 @@ export class TenantScopedStore implements IEventStore {
   }
 
   async listAgents(): Promise<Agent[]> {
-    return this.inner.listAgents(this.tenantId);
+    return this.inner.listAgents(this.tenantId, this.orgId, this.projectId);
   }
 
   async getAgent(id: string): Promise<Agent | null> {
-    return this.inner.getAgent(id, this.tenantId);
+    return this.inner.getAgent(id, this.tenantId, this.orgId, this.projectId);
   }
 
   async unpauseAgent(agentId: string, clearModelOverride: boolean): Promise<boolean> {

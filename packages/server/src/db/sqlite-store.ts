@@ -123,12 +123,12 @@ export class SqliteEventStore implements IEventStore {
     return this.agentRepo.setModelOverride(tenantId, agentId, model);
   }
 
-  async listAgents(tenantId?: string): Promise<Agent[]> {
-    return this.agentRepo.listAgents(tenantId);
+  async listAgents(tenantId?: string, orgId?: string, projectId?: string): Promise<Agent[]> {
+    return this.agentRepo.listAgents(tenantId, orgId, projectId);
   }
 
-  async getAgent(id: string, tenantId?: string): Promise<Agent | null> {
-    return this.agentRepo.getAgent(id, tenantId);
+  async getAgent(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<Agent | null> {
+    return this.agentRepo.getAgent(id, tenantId, orgId, projectId);
   }
 
   // ─── Alerts ────────────────────────────────────────────────

@@ -643,5 +643,11 @@ describe('Org/project stamping (#147)', () => {
     expect((await projB.querySessions({})).sessions.map((s) => s.id)).toEqual(['sess-b']);
     expect(await projA.getSession('sess-b')).toBeNull();
     expect(await projA.getSession('sess-a')).not.toBeNull();
+
+    // agents (created from the events) are project-isolated too
+    expect((await projA.listAgents()).map((a) => a.id)).toEqual(['agent-a']);
+    expect((await projB.listAgents()).map((a) => a.id)).toEqual(['agent-b']);
+    expect(await projA.getAgent('agent-b')).toBeNull();
+    expect(await projA.getAgent('agent-a')).not.toBeNull();
   });
 });
