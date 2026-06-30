@@ -30,6 +30,10 @@ export interface CreateEventOptions {
   timestamp?: string;
   /** Tenant ID (defaults to 'default') */
   tenantId?: string;
+  /** Org ID for the org→project hierarchy (#147; defaults to 'default') */
+  orgId?: string;
+  /** Project ID for the org→project hierarchy (#147; defaults to the tenant ID) */
+  projectId?: string;
 }
 
 /**

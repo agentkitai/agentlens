@@ -39,8 +39,13 @@ export class TenantScopedStore implements IEventStore {
   // ─── Events ──────────────────────────────────────────────
 
   async insertEvents(eventList: AgentLensEvent[]): Promise<void> {
-    // Stamp every event with this tenant's ID
-    const stamped = eventList.map((e) => ({ ...e, tenantId: this.tenantId }));
+    // Stamp every event with this tenant's ID + org/project scope (#147)
+    const stamped = eventList.map((e) => ({
+      ...e,
+      tenantId: this.tenantId,
+      orgId: this.orgId,
+      projectId: this.projectId,
+    }));
     return this.inner.insertEvents(stamped);
   }
 
