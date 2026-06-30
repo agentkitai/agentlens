@@ -36,7 +36,7 @@ export function playgroundRoutes(db: SqliteDb) {
     };
 
     if (!body.connectionId) return c.json({ error: 'connectionId is required' }, 400);
-    const conn = connections.getWithKey(tenantId, body.connectionId);
+    const conn = await connections.getWithKey(tenantId, body.connectionId);
     if (!conn) return c.json({ error: 'Connection not found' }, 404);
 
     // Resolve messages: explicit messages, a stored prompt (compiled), or a raw string.
