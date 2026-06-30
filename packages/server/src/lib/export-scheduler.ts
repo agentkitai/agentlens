@@ -29,7 +29,7 @@ export interface ExportJob {
 
 export interface ExportSchedulerDeps {
   sink: ExportSink;
-  fetchEvents: (tenantId: string, from: string, to: string) => unknown[];
+  fetchEvents: (tenantId: string, from: string, to: string) => unknown[] | Promise<unknown[]>;
   /** Clock (ms) — injectable for deterministic tests. */
   now?: () => number;
   /** Webhook dispatcher — injectable for tests. */
