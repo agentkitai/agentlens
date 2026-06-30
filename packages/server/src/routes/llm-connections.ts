@@ -32,7 +32,7 @@ export function llmConnectionsRoutes(db: SqliteDb) {
     if (!VALID_PROVIDERS.has(provider)) return c.json({ error: `provider must be one of ${[...VALID_PROVIDERS].join(', ')}` }, 400);
     if (!name || !apiKey) return c.json({ error: 'name and apiKey are required' }, 400);
 
-    const connection = store.create(getTenantId(c), {
+    const connection = await store.create(getTenantId(c), {
       provider,
       name,
       apiKey,
@@ -44,23 +44,23 @@ export function llmConnectionsRoutes(db: SqliteDb) {
   });
 
   // GET /api/llm-connections — list (masked)
-  app.get('/', (c) => c.json({ connections: store.list(getTenantId(c)) }));
+  app.get('/', async (c) => c.json({ connections: await store.list(getTenantId(c)) }));
 
   // GET /api/llm-connections/:id — single (masked)
-  app.get('/:id', (c) => {
-    const connection = store.get(getTenantId(c), c.req.param('id'));
+  app.get('/:id', async (c) => {
+    const connection = await store.get(getTenantId(c), c.req.param('id'));
     return connection ? c.json({ connection }) : c.json({ error: 'Connection not found' }, 404);
   });
 
   // DELETE /api/llm-connections/:id
-  app.delete('/:id', (c) => {
-    const ok = store.delete(getTenantId(c), c.req.param('id'));
+  app.delete('/:id', async (c) => {
+    const ok = await store.delete(getTenantId(c), c.req.param('id'));
     return ok ? c.json({ ok: true }) : c.json({ error: 'Connection not found' }, 404);
   });
 
   // POST /api/llm-connections/:id/test — verify the credential with a cheap call
   app.post('/:id/test', async (c) => {
-    const withKey = store.getWithKey(getTenantId(c), c.req.param('id'));
+    const withKey = await store.getWithKey(getTenantId(c), c.req.param('id'));
     if (!withKey) return c.json({ error: 'Connection not found' }, 404);
     const result = await testConnection({
       provider: withKey.provider,

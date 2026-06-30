@@ -7,7 +7,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import type { SqliteDb } from './index.js';
+import { type AnyDb, dbRun, dbAll, dbGet } from './dialect-db.js';
 import { encryptSecret, decryptSecret, lastFour } from '../lib/secret-box.js';
 
 export type LlmProvider = 'openai' | 'anthropic' | 'azure' | 'bedrock' | 'vertex' | 'custom';
@@ -65,9 +65,9 @@ function toPublic(r: Row): LlmConnection {
 }
 
 export class LlmConnectionStore {
-  constructor(private readonly db: SqliteDb) {}
+  constructor(private readonly db: AnyDb) {}
 
-  create(tenantId: string, input: CreateConnectionInput): LlmConnection {
+  async create(tenantId: string, input: CreateConnectionInput): Promise<LlmConnection> {
     const now = new Date().toISOString();
     const row: Row = {
       id: `llmconn_${randomUUID()}`,
@@ -82,7 +82,7 @@ export class LlmConnectionStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO llm_connections
         (id, tenant_id, provider, name, base_url, default_model, encrypted_key, key_last4, created_by, created_at, updated_at)
       VALUES
@@ -92,27 +92,26 @@ export class LlmConnectionStore {
     return toPublic(row);
   }
 
-  list(tenantId: string): LlmConnection[] {
-    return this.db
-      .all<Row>(sql`SELECT * FROM llm_connections WHERE tenant_id = ${tenantId} ORDER BY created_at DESC`)
+  async list(tenantId: string): Promise<LlmConnection[]> {
+    return (await dbAll<Row>(this.db, sql`SELECT * FROM llm_connections WHERE tenant_id = ${tenantId} ORDER BY created_at DESC`))
       .map(toPublic);
   }
 
-  get(tenantId: string, id: string): LlmConnection | undefined {
-    const r = this.db.get<Row>(sql`SELECT * FROM llm_connections WHERE tenant_id = ${tenantId} AND id = ${id}`);
+  async get(tenantId: string, id: string): Promise<LlmConnection | undefined> {
+    const r = await dbGet<Row>(this.db, sql`SELECT * FROM llm_connections WHERE tenant_id = ${tenantId} AND id = ${id}`);
     return r ? toPublic(r) : undefined;
   }
 
   /** Internal: decrypt the key for server-side provider calls. Never expose via the API. */
-  getWithKey(tenantId: string, id: string): (LlmConnection & { apiKey: string }) | undefined {
-    const r = this.db.get<Row>(sql`SELECT * FROM llm_connections WHERE tenant_id = ${tenantId} AND id = ${id}`);
+  async getWithKey(tenantId: string, id: string): Promise<(LlmConnection & { apiKey: string }) | undefined> {
+    const r = await dbGet<Row>(this.db, sql`SELECT * FROM llm_connections WHERE tenant_id = ${tenantId} AND id = ${id}`);
     if (!r) return undefined;
     return { ...toPublic(r), apiKey: decryptSecret(r.encrypted_key) };
   }
 
-  delete(tenantId: string, id: string): boolean {
-    const existed = this.get(tenantId, id) !== undefined;
-    this.db.run(sql`DELETE FROM llm_connections WHERE tenant_id = ${tenantId} AND id = ${id}`);
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    const existed = (await this.get(tenantId, id)) !== undefined;
+    await dbRun(this.db, sql`DELETE FROM llm_connections WHERE tenant_id = ${tenantId} AND id = ${id}`);
     return existed;
   }
 }

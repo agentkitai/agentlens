@@ -99,6 +99,13 @@
       "when": 1740998400000,
       "tag": "0013_annotation_tables",
       "breakpoints": false
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1741084800000,
+      "tag": "0014_llm_connections",
+      "breakpoints": false
     }
   ]
 }

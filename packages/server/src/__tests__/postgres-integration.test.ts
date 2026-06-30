@@ -16,6 +16,7 @@ import { CostBudgetStore } from '../db/cost-budget-store.js';
 import { GuardrailStore } from '../db/guardrail-store.js';
 import { BenchmarkStore } from '../db/benchmark-store.js';
 import { AnnotationStore } from '../db/annotation-store.js';
+import { LlmConnectionStore } from '../db/llm-connection-store.js';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -614,6 +615,27 @@ describePg('Postgres integration tests', () => {
       // FK ON DELETE CASCADE: deleting the queue removes its items
       await db.execute(sql`DELETE FROM annotation_queues WHERE id = ${queue.id}`);
       expect(await store.listItems(tid, queue.id)).toHaveLength(0);
+    });
+  });
+
+  // ─── #172 feature 8: llm_connections via the dialect-agnostic store ──
+  describe('LLM connections (dialect-agnostic LlmConnectionStore on Postgres)', () => {
+    it('CRUDs connections + masks the key + decrypts internally on pg', async () => {
+      const store = new LlmConnectionStore(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const conn = await store.create(tid, { provider: 'openai', name: 'C', apiKey: 'sk-secret-1234', createdBy: 'u1' } as never);
+      expect(conn.keyLast4).toBe('1234');
+      expect((conn as Record<string, unknown>).apiKey).toBeUndefined(); // never exposed
+
+      expect((await store.list(tid)).length).toBe(1);
+      expect((await store.get(tid, conn.id))?.name).toBe('C');
+
+      // internal getWithKey decrypts the AES-256-GCM ciphertext round-trip
+      expect((await store.getWithKey(tid, conn.id))?.apiKey).toBe('sk-secret-1234');
+
+      expect(await store.get('other-tenant', conn.id)).toBeUndefined(); // tenant isolation
+      expect(await store.delete(tid, conn.id)).toBe(true);
+      expect(await store.get(tid, conn.id)).toBeUndefined();
     });
   });
 });
