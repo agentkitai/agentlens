@@ -1282,6 +1282,28 @@ export function runMigrations(db: SqliteDb): void {
     )
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_ab_tests_lookup ON prompt_ab_tests(tenant_id, template_id, environment, status)`);
+
+  // ─── Enterprise SSO connections (#148) ──────────────────
+  // Per-org SAML/OIDC connection config + group→role mapping + domain
+  // enforcement. INTEGER booleans (0/1) so the same SQL binds on both dialects.
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS sso_connections (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL DEFAULT 'default',
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      domain TEXT,
+      domain_verified INTEGER NOT NULL DEFAULT 0,
+      enforced INTEGER NOT NULL DEFAULT 0,
+      config TEXT NOT NULL DEFAULT '{}',
+      group_role_mappings TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_sso_connections_org ON sso_connections(org_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_sso_connections_domain ON sso_connections(domain)`);
 }
 
 /**
