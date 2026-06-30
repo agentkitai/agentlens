@@ -120,6 +120,13 @@
       "when": 1741257600000,
       "tag": "0016_health_snapshots",
       "breakpoints": false
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1741344000000,
+      "tag": "0017_notification_tables",
+      "breakpoints": false
     }
   ]
 }
