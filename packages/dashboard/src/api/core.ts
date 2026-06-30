@@ -30,10 +30,12 @@ export class ApiError extends Error {
   }
 }
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit, opts?: { unscoped?: boolean }): Promise<T> {
   // Scope the request to the active project (#231). Server resolves + membership-
   // checks it (resolveProjectScope). init.headers may still override.
-  const projectId = getActiveProjectId();
+  // `unscoped` omits X-Project-Id — for membership endpoints like /api/projects
+  // that must work even when the persisted active project was revoked (#244).
+  const projectId = opts?.unscoped ? null : getActiveProjectId();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {

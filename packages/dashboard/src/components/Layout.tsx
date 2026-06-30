@@ -2,6 +2,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from './ErrorBoundary';
 import { OrgSwitcher } from '../cloud/OrgSwitcher';
+import { ProjectSwitcher } from './ProjectSwitcher';
 import { useFeatures } from '../hooks/useFeatures';
 import { useAuth } from '../context/AuthContext';
 
@@ -257,6 +258,7 @@ export const Layout = React.memo(function Layout(): React.ReactElement {
 
         <div className="px-4 pt-3 pb-1">
           <OrgSwitcher />
+          <ProjectSwitcher />
         </div>
 
         <nav className="flex flex-col gap-1 p-4 overflow-y-auto max-h-[calc(100vh-7rem)]">

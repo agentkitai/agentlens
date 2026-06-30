@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getActiveProjectId } from '../api/active-project';
 
 export interface UseApiOptions {
   /** How long (ms) data is considered fresh — skip refetch if within window. Default: 0 (always refetch). */
@@ -17,9 +18,12 @@ export interface UseApiState<T> {
 /** Simple in-memory cache shared across useApi instances. */
 const apiCache = new Map<string, { data: unknown; fetchedAt: number; timer?: ReturnType<typeof setTimeout> }>();
 
-/** Build a stable cache key from the fetcher source + deps array. */
+/**
+ * Build a stable cache key from the fetcher source + deps array, partitioned by
+ * the active project (#244) so cached data never bleeds across project scopes.
+ */
 function depsKey(fetcher: Function, deps: unknown[]): string {
-  return fetcher.toString().slice(0, 100) + '::' + JSON.stringify(deps);
+  return (getActiveProjectId() ?? '') + '::' + fetcher.toString().slice(0, 100) + '::' + JSON.stringify(deps);
 }
 
 /**
