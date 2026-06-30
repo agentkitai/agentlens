@@ -38,6 +38,7 @@ import { playgroundRoutes } from './playground.js';
 import { orgRoutes } from './orgs.js';
 import { scimRoutes } from './scim.js';
 import { samlRoutes } from './sso-saml.js';
+import { ssoAdminRoutes } from './sso-admin.js';
 import { getJwks } from '../lib/export-signing.js';
 import { diagnoseRoutes } from './diagnose.js';
 import { registerReplayRoutes } from './replay.js';
@@ -333,6 +334,14 @@ export async function registerRoutes(
           baseUrl: resolvedConfig.publicBaseUrl ?? resolvedConfig.corsOrigin,
           sessionSecret: resolvedConfig.ssoSessionSecret,
         }),
+      );
+    }
+
+    // ─── Enterprise SSO enforcement + domain verification (#148) — gated ──
+    if (resolvedConfig.enterpriseEnabled) {
+      app.route(
+        '/sso',
+        ssoAdminRoutes(config?.pgDb ?? db, { baseUrl: resolvedConfig.publicBaseUrl ?? resolvedConfig.corsOrigin }),
       );
     }
   }
