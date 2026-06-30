@@ -5,7 +5,8 @@
  * Tests for request(), ApiError, and toQueryString helpers.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { setActiveProjectId } from '../active-project';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -47,6 +48,25 @@ describe('ApiError', () => {
 
 // ─── request() via public API functions ─────────────────────────
 // We test request() indirectly through exported functions since it's not exported.
+
+describe('X-Project-Id header (#231)', () => {
+  afterEach(() => setActiveProjectId(null));
+
+  it('sends X-Project-Id when an active project is set', async () => {
+    setActiveProjectId('proj-a');
+    mockFetch.mockResolvedValueOnce(jsonResponse({ agents: [] }));
+    await api.getAgents();
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init.headers['X-Project-Id']).toBe('proj-a');
+  });
+
+  it('omits X-Project-Id when no active project', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ agents: [] }));
+    await api.getAgents();
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init.headers['X-Project-Id']).toBeUndefined();
+  });
+});
 
 describe('request() — success', () => {
   it('returns parsed JSON on 200', async () => {

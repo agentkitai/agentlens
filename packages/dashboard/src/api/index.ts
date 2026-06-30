@@ -21,3 +21,4 @@ export * from './diagnose';
 export * from './prompts';
 export * from './compliance';
 export * from './budgets';
+export * from './projects';
