@@ -1325,6 +1325,26 @@ export function runMigrations(db: SqliteDb): void {
     )
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_scim_group_members_user ON scim_group_members(user_id)`);
+
+  // #59 — per-tenant service tokens (machine-to-machine auth for /api/internal).
+  // Raw-SQL-only (not in the drizzle schema modules), mirrored by drizzle/0020 for pg.
+  // Timestamps are unix SECONDS (int4-safe on pg). Only the sha256 hash is stored.
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS service_tokens (
+      id           TEXT PRIMARY KEY,
+      token_hash   TEXT NOT NULL,
+      tenant_id    TEXT NOT NULL DEFAULT 'default',
+      name         TEXT NOT NULL,
+      created_at   INTEGER NOT NULL,
+      last_used_at INTEGER,
+      revoked_at   INTEGER,
+      rotated_at   INTEGER,
+      expires_at   INTEGER,
+      created_by   TEXT
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_service_tokens_hash ON service_tokens(token_hash)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_service_tokens_tenant ON service_tokens(tenant_id)`);
 }
 
 /**
