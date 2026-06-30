@@ -610,4 +610,32 @@ describe('Org/project stamping (#147)', () => {
     expect(row?.org_id).toBe('default');
     expect(row?.project_id).toBe('tenant-b');
   });
+
+  it('isolates reads across projects within the same tenant (#147 acceptance)', async () => {
+    const db = createTestDb();
+    runMigrations(db);
+    const store = new SqliteEventStore(db);
+    // Two projects, SAME tenant_id — isolation must come from project_id, not tenant_id.
+    const projA = new TenantScopedStore(store, 'shared-tenant', { orgId: 'org1', projectId: 'proj-a' });
+    const projB = new TenantScopedStore(store, 'shared-tenant', { orgId: 'org1', projectId: 'proj-b' });
+
+    const evA = makeSessionStartEvent('sess-a', 'agent-a');
+    const evB = makeSessionStartEvent('sess-b', 'agent-b');
+    await projA.insertEvents([evA]);
+    await projB.insertEvents([evB]);
+
+    // queryEvents / countEvents are project-scoped
+    expect((await projA.queryEvents({})).events.map((e) => e.id)).toEqual([evA.id]);
+    expect((await projB.queryEvents({})).events.map((e) => e.id)).toEqual([evB.id]);
+    expect(await projA.countEvents({})).toBe(1);
+
+    // by-ID cross-project read returns null; same-project works
+    expect(await projA.getEvent(evB.id)).toBeNull();
+    expect(await projB.getEvent(evA.id)).toBeNull();
+    expect(await projA.getEvent(evA.id)).not.toBeNull();
+
+    // session timeline is project-scoped
+    expect(await projA.getSessionTimeline('sess-b')).toHaveLength(0);
+    expect(await projA.getSessionTimeline('sess-a')).toHaveLength(1);
+  });
 });

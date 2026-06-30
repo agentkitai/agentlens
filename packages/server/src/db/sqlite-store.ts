@@ -63,16 +63,16 @@ export class SqliteEventStore implements IEventStore {
     return this.eventRepo.queryEvents(query);
   }
 
-  async getEvent(id: string, tenantId?: string): Promise<AgentLensEvent | null> {
-    return this.eventRepo.getEvent(id, tenantId);
+  async getEvent(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<AgentLensEvent | null> {
+    return this.eventRepo.getEvent(id, tenantId, orgId, projectId);
   }
 
-  async getSessionTimeline(sessionId: string, tenantId?: string): Promise<AgentLensEvent[]> {
-    return this.eventRepo.getSessionTimeline(sessionId, tenantId);
+  async getSessionTimeline(sessionId: string, tenantId?: string, orgId?: string, projectId?: string): Promise<AgentLensEvent[]> {
+    return this.eventRepo.getSessionTimeline(sessionId, tenantId, orgId, projectId);
   }
 
-  async getLastEventHash(sessionId: string, tenantId?: string): Promise<string | null> {
-    return this.eventRepo.getLastEventHash(sessionId, tenantId);
+  async getLastEventHash(sessionId: string, tenantId?: string, orgId?: string, projectId?: string): Promise<string | null> {
+    return this.eventRepo.getLastEventHash(sessionId, tenantId, orgId, projectId);
   }
 
   async countEvents(query: Omit<EventQuery, 'limit' | 'offset'>): Promise<number> {

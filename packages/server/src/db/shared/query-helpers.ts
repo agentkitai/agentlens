@@ -42,6 +42,13 @@ export function buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>
   if (query.tenantId) {
     conditions.push(eq(events.tenantId, query.tenantId));
   }
+  // org→project isolation (#147) — filtered only when the scope provides them.
+  if (query.orgId) {
+    conditions.push(eq(events.orgId, query.orgId));
+  }
+  if (query.projectId) {
+    conditions.push(eq(events.projectId, query.projectId));
+  }
   if (query.sessionId) {
     conditions.push(eq(events.sessionId, query.sessionId));
   }

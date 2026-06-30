@@ -175,10 +175,12 @@ export class EventRepository {
     };
   }
 
-  async getEvent(id: string, tenantId?: string): Promise<AgentLensEvent | null> {
+  async getEvent(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<AgentLensEvent | null> {
     this.warnIfNoTenant('getEvent', tenantId);
     const conditions = [eq(events.id, id)];
     if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+    if (orgId) conditions.push(eq(events.orgId, orgId));
+    if (projectId) conditions.push(eq(events.projectId, projectId));
 
     const row = this.db
       .select()
@@ -189,9 +191,11 @@ export class EventRepository {
     return row ? mapEventRow(row) : null;
   }
 
-  async getSessionTimeline(sessionId: string, tenantId?: string): Promise<AgentLensEvent[]> {
+  async getSessionTimeline(sessionId: string, tenantId?: string, orgId?: string, projectId?: string): Promise<AgentLensEvent[]> {
     const conditions = [eq(events.sessionId, sessionId)];
     if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+    if (orgId) conditions.push(eq(events.orgId, orgId));
+    if (projectId) conditions.push(eq(events.projectId, projectId));
 
     const rows = this.db
       .select()
@@ -205,9 +209,11 @@ export class EventRepository {
     return rows.map(mapEventRow);
   }
 
-  async getLastEventHash(sessionId: string, tenantId?: string): Promise<string | null> {
+  async getLastEventHash(sessionId: string, tenantId?: string, orgId?: string, projectId?: string): Promise<string | null> {
     const conditions = [eq(events.sessionId, sessionId)];
     if (tenantId) conditions.push(eq(events.tenantId, tenantId));
+    if (orgId) conditions.push(eq(events.orgId, orgId));
+    if (projectId) conditions.push(eq(events.projectId, projectId));
 
     const row = this.db
       .select({ hash: events.hash })

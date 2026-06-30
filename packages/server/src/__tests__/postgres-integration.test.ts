@@ -770,5 +770,29 @@ describePg('Postgres integration tests', () => {
       expect(r.rows[0].org_id).toBe('org-pg');
       expect(r.rows[0].project_id).toBe('proj-pg');
     });
+
+    it('isolates reads across projects within the same tenant on pg', async () => {
+      const pgStore = new PostgresEventStore(db);
+      const projA = new TenantScopedStore(pgStore, 'shared-pg', { orgId: 'o', projectId: 'pa' });
+      const projB = new TenantScopedStore(pgStore, 'shared-pg', { orgId: 'o', projectId: 'pb' });
+      const mk = (sid: string) => {
+        const base = {
+          id: `e_${randomUUID()}`, timestamp: '2026-06-30T00:00:00Z',
+          sessionId: sid, agentId: 'a', eventType: 'custom', severity: 'info',
+          payload: {}, metadata: {}, prevHash: null,
+        };
+        return { ...base, hash: computeEventHash(base), tenantId: 'shared-pg' };
+      };
+      const ea = mk(`sa_${randomUUID().slice(0, 6)}`);
+      const eb = mk(`sb_${randomUUID().slice(0, 6)}`);
+      await projA.insertEvents([ea as never]);
+      await projB.insertEvents([eb as never]);
+
+      const idsA = (await projA.queryEvents({})).events.map((e) => e.id);
+      expect(idsA).toContain(ea.id);
+      expect(idsA).not.toContain(eb.id); // same tenant, different project → isolated
+      expect(await projA.getEvent(eb.id)).toBeNull();
+      expect(await projA.getEvent(ea.id)).not.toBeNull();
+    });
   });
 });
