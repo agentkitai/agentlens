@@ -6,7 +6,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import type { SqliteDb } from './index.js';
+import { type AnyDb, dbRun, dbAll, dbGet } from './dialect-db.js';
 import type {
   GuardrailRule,
   GuardrailState,
@@ -14,12 +14,12 @@ import type {
 } from '@agentkitai/agentlens-core';
 
 export class GuardrailStore {
-  constructor(private readonly db: SqliteDb) {}
+  constructor(private readonly db: AnyDb) {}
 
   // ─── Rules ───────────────────────────────────────────────
 
-  createRule(rule: GuardrailRule): void {
-    this.db.run(sql`
+  async createRule(rule: GuardrailRule): Promise<void> {
+    await dbRun(this.db, sql`
       INSERT INTO guardrail_rules (
         id, tenant_id, name, description, enabled,
         condition_type, condition_config, action_type, action_config,
@@ -40,29 +40,29 @@ export class GuardrailStore {
     `);
   }
 
-  getRule(tenantId: string, ruleId: string): GuardrailRule | null {
-    const row = this.db.get<Record<string, unknown>>(sql`
+  async getRule(tenantId: string, ruleId: string): Promise<GuardrailRule | null> {
+    const row = await dbGet<Record<string, unknown>>(this.db, sql`
       SELECT * FROM guardrail_rules WHERE id = ${ruleId} AND tenant_id = ${tenantId}
     `);
     return row ? this._mapRule(row) : null;
   }
 
-  listRules(tenantId: string, agentId?: string): GuardrailRule[] {
+  async listRules(tenantId: string, agentId?: string): Promise<GuardrailRule[]> {
     if (agentId) {
-      const rows = this.db.all<Record<string, unknown>>(sql`
+      const rows = await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM guardrail_rules WHERE tenant_id = ${tenantId} AND agent_id = ${agentId} ORDER BY created_at DESC
       `);
       return rows.map((r) => this._mapRule(r));
     }
-    const rows = this.db.all<Record<string, unknown>>(sql`
+    const rows = await dbAll<Record<string, unknown>>(this.db, sql`
       SELECT * FROM guardrail_rules WHERE tenant_id = ${tenantId} ORDER BY created_at DESC
     `);
     return rows.map((r) => this._mapRule(r));
   }
 
-  listEnabledRules(tenantId: string, agentId?: string): GuardrailRule[] {
+  async listEnabledRules(tenantId: string, agentId?: string): Promise<GuardrailRule[]> {
     if (agentId) {
-      const rows = this.db.all<Record<string, unknown>>(sql`
+      const rows = await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM guardrail_rules
         WHERE tenant_id = ${tenantId} AND enabled = 1
           AND (agent_id IS NULL OR agent_id = ${agentId})
@@ -70,7 +70,7 @@ export class GuardrailStore {
       `);
       return rows.map((r) => this._mapRule(r));
     }
-    const rows = this.db.all<Record<string, unknown>>(sql`
+    const rows = await dbAll<Record<string, unknown>>(this.db, sql`
       SELECT * FROM guardrail_rules
       WHERE tenant_id = ${tenantId} AND enabled = 1
       ORDER BY created_at ASC
@@ -78,12 +78,12 @@ export class GuardrailStore {
     return rows.map((r) => this._mapRule(r));
   }
 
-  updateRule(tenantId: string, ruleId: string, updates: Partial<GuardrailRule>): boolean {
-    const existing = this.getRule(tenantId, ruleId);
+  async updateRule(tenantId: string, ruleId: string, updates: Partial<GuardrailRule>): Promise<boolean> {
+    const existing = await this.getRule(tenantId, ruleId);
     if (!existing) return false;
 
     const merged = { ...existing, ...updates, updatedAt: new Date().toISOString() };
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE guardrail_rules SET
         name = ${merged.name},
         description = ${merged.description ?? null},
@@ -104,28 +104,28 @@ export class GuardrailStore {
     return true;
   }
 
-  deleteRule(tenantId: string, ruleId: string): boolean {
-    const existing = this.getRule(tenantId, ruleId);
+  async deleteRule(tenantId: string, ruleId: string): Promise<boolean> {
+    const existing = await this.getRule(tenantId, ruleId);
     if (!existing) return false;
 
-    this.db.run(sql`DELETE FROM guardrail_rules WHERE id = ${ruleId} AND tenant_id = ${tenantId}`);
+    await dbRun(this.db, sql`DELETE FROM guardrail_rules WHERE id = ${ruleId} AND tenant_id = ${tenantId}`);
     // Also clean up state and history
-    this.db.run(sql`DELETE FROM guardrail_state WHERE rule_id = ${ruleId} AND tenant_id = ${tenantId}`);
-    this.db.run(sql`DELETE FROM guardrail_trigger_history WHERE rule_id = ${ruleId} AND tenant_id = ${tenantId}`);
+    await dbRun(this.db, sql`DELETE FROM guardrail_state WHERE rule_id = ${ruleId} AND tenant_id = ${tenantId}`);
+    await dbRun(this.db, sql`DELETE FROM guardrail_trigger_history WHERE rule_id = ${ruleId} AND tenant_id = ${tenantId}`);
     return true;
   }
 
   // ─── State ───────────────────────────────────────────────
 
-  getState(tenantId: string, ruleId: string): GuardrailState | null {
-    const row = this.db.get<Record<string, unknown>>(sql`
+  async getState(tenantId: string, ruleId: string): Promise<GuardrailState | null> {
+    const row = await dbGet<Record<string, unknown>>(this.db, sql`
       SELECT * FROM guardrail_state WHERE rule_id = ${ruleId} AND tenant_id = ${tenantId}
     `);
     return row ? this._mapState(row) : null;
   }
 
-  upsertState(state: GuardrailState): void {
-    this.db.run(sql`
+  async upsertState(state: GuardrailState): Promise<void> {
+    await dbRun(this.db, sql`
       INSERT INTO guardrail_state (rule_id, tenant_id, last_triggered_at, trigger_count, last_evaluated_at, current_value)
       VALUES (${state.ruleId}, ${state.tenantId}, ${state.lastTriggeredAt ?? null},
               ${state.triggerCount}, ${state.lastEvaluatedAt ?? null}, ${state.currentValue ?? null})
@@ -139,8 +139,8 @@ export class GuardrailStore {
 
   // ─── Trigger History ─────────────────────────────────────
 
-  insertTrigger(trigger: GuardrailTriggerHistory): void {
-    this.db.run(sql`
+  async insertTrigger(trigger: GuardrailTriggerHistory): Promise<void> {
+    await dbRun(this.db, sql`
       INSERT INTO guardrail_trigger_history (
         id, rule_id, tenant_id, triggered_at, condition_value, condition_threshold,
         action_executed, action_result, metadata
@@ -153,10 +153,10 @@ export class GuardrailStore {
     `);
   }
 
-  listTriggerHistory(
+  async listTriggerHistory(
     tenantId: string,
     opts?: { ruleId?: string; limit?: number; offset?: number },
-  ): { triggers: GuardrailTriggerHistory[]; total: number } {
+  ): Promise<{ triggers: GuardrailTriggerHistory[]; total: number }> {
     const limit = opts?.limit ?? 50;
     const offset = opts?.offset ?? 0;
 
@@ -164,31 +164,29 @@ export class GuardrailStore {
     let total: number;
 
     if (opts?.ruleId) {
-      triggers = this.db
-        .all<Record<string, unknown>>(sql`
+      triggers = (await dbAll<Record<string, unknown>>(this.db, sql`
           SELECT * FROM guardrail_trigger_history
           WHERE tenant_id = ${tenantId} AND rule_id = ${opts.ruleId}
           ORDER BY triggered_at DESC
           LIMIT ${limit} OFFSET ${offset}
-        `)
+        `))
         .map((r) => this._mapTrigger(r));
 
-      const countRow = this.db.get<{ count: number }>(sql`
+      const countRow = await dbGet<{ count: number }>(this.db, sql`
         SELECT COUNT(*) as count FROM guardrail_trigger_history
         WHERE tenant_id = ${tenantId} AND rule_id = ${opts.ruleId}
       `);
       total = countRow?.count ?? 0;
     } else {
-      triggers = this.db
-        .all<Record<string, unknown>>(sql`
+      triggers = (await dbAll<Record<string, unknown>>(this.db, sql`
           SELECT * FROM guardrail_trigger_history
           WHERE tenant_id = ${tenantId}
           ORDER BY triggered_at DESC
           LIMIT ${limit} OFFSET ${offset}
-        `)
+        `))
         .map((r) => this._mapTrigger(r));
 
-      const countRow = this.db.get<{ count: number }>(sql`
+      const countRow = await dbGet<{ count: number }>(this.db, sql`
         SELECT COUNT(*) as count FROM guardrail_trigger_history
         WHERE tenant_id = ${tenantId}
       `);
@@ -198,14 +196,13 @@ export class GuardrailStore {
     return { triggers, total };
   }
 
-  getRecentTriggers(tenantId: string, ruleId: string, limit: number = 5): GuardrailTriggerHistory[] {
-    return this.db
-      .all<Record<string, unknown>>(sql`
+  async getRecentTriggers(tenantId: string, ruleId: string, limit: number = 5): Promise<GuardrailTriggerHistory[]> {
+    return (await dbAll<Record<string, unknown>>(this.db, sql`
         SELECT * FROM guardrail_trigger_history
         WHERE tenant_id = ${tenantId} AND rule_id = ${ruleId}
         ORDER BY triggered_at DESC
         LIMIT ${limit}
-      `)
+      `))
       .map((r) => this._mapTrigger(r));
   }
 
@@ -213,13 +210,13 @@ export class GuardrailStore {
    * Aggregate guardrail trigger stats for compliance report.
    * Joins with guardrail_rules to get condition_type and action_type.
    */
-  getTriggerStats(
+  async getTriggerStats(
     tenantId: string,
     from: string,
     to: string,
-  ): { total: number; byConditionType: Record<string, number>; byActionType: Record<string, number> } {
+  ): Promise<{ total: number; byConditionType: Record<string, number>; byActionType: Record<string, number> }> {
     // Get total triggers in range
-    const totalRow = this.db.get<{ count: number }>(sql`
+    const totalRow = await dbGet<{ count: number }>(this.db, sql`
       SELECT COUNT(*) as count FROM guardrail_trigger_history
       WHERE tenant_id = ${tenantId}
         AND triggered_at >= ${from}
@@ -228,7 +225,7 @@ export class GuardrailStore {
     const total = totalRow?.count ?? 0;
 
     // Get breakdown by condition_type (via JOIN with rules)
-    const conditionRows = this.db.all<{ condition_type: string; count: number }>(sql`
+    const conditionRows = await dbAll<{ condition_type: string; count: number }>(this.db, sql`
       SELECT r.condition_type, COUNT(*) as count
       FROM guardrail_trigger_history h
       JOIN guardrail_rules r ON h.rule_id = r.id AND h.tenant_id = r.tenant_id
@@ -243,7 +240,7 @@ export class GuardrailStore {
     }
 
     // Get breakdown by action_type (via JOIN with rules)
-    const actionRows = this.db.all<{ action_type: string; count: number }>(sql`
+    const actionRows = await dbAll<{ action_type: string; count: number }>(this.db, sql`
       SELECT r.action_type, COUNT(*) as count
       FROM guardrail_trigger_history h
       JOIN guardrail_rules r ON h.rule_id = r.id AND h.tenant_id = r.tenant_id

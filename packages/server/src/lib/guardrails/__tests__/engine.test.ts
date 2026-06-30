@@ -47,13 +47,13 @@ function makeEvent(overrides: Partial<AgentLensEvent> = {}): AgentLensEvent {
   return { ...base, hash, tenantId } as AgentLensEvent;
 }
 
-describe('GuardrailEngine', () => {
+describe('GuardrailEngine', async () => {
   let db: SqliteDb;
   let tenantStore: TenantScopedStore;
   let guardrailStore: GuardrailStore;
   let engine: GuardrailEngine;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     db = createTestDb();
     runMigrations(db);
     const rawStore = new SqliteEventStore(db);
@@ -70,7 +70,7 @@ describe('GuardrailEngine', () => {
     db.$client?.close?.();
   });
 
-  it('should start and stop without errors', () => {
+  it('should start and stop without errors', async () => {
     engine.start();
     expect(() => engine.stop()).not.toThrow();
   });
@@ -85,7 +85,7 @@ describe('GuardrailEngine', () => {
       await tenantStore.insertEvents([makeEvent({ severity: 'info' })]);
     }
     await engine.evaluateEvent(makeEvent());
-    const history = guardrailStore.listTriggerHistory(tenantId);
+    const history = await guardrailStore.listTriggerHistory(tenantId);
     expect(history.triggers).toHaveLength(0);
   });
 
@@ -97,7 +97,7 @@ describe('GuardrailEngine', () => {
     const alerts: unknown[] = [];
     eventBus.on('alert_triggered', (e) => alerts.push(e));
     await engine.evaluateEvent(makeEvent({ severity: 'error' }));
-    const history = guardrailStore.listTriggerHistory(tenantId, { ruleId: rule.id });
+    const history = await guardrailStore.listTriggerHistory(tenantId, { ruleId: rule.id });
     expect(history.triggers.length).toBeGreaterThanOrEqual(1);
     expect(history.triggers[0].actionExecuted).toBe(true);
     expect(alerts.length).toBeGreaterThanOrEqual(1);
@@ -105,12 +105,12 @@ describe('GuardrailEngine', () => {
 
   it('should respect cooldown period', async () => {
     const rule = makeRule(guardrailStore, { conditionConfig: { threshold: 10, windowMinutes: 60 }, cooldownMinutes: 60 });
-    guardrailStore.upsertState({ ruleId: rule.id, tenantId, lastTriggeredAt: new Date().toISOString(), triggerCount: 1 });
+    await guardrailStore.upsertState({ ruleId: rule.id, tenantId, lastTriggeredAt: new Date().toISOString(), triggerCount: 1 });
     for (let i = 0; i < 10; i++) {
       await tenantStore.insertEvents([makeEvent({ severity: 'error' })]);
     }
     await engine.evaluateEvent(makeEvent({ severity: 'error' }));
-    const history = guardrailStore.listTriggerHistory(tenantId, { ruleId: rule.id });
+    const history = await guardrailStore.listTriggerHistory(tenantId, { ruleId: rule.id });
     expect(history.triggers).toHaveLength(0);
   });
 
@@ -122,7 +122,7 @@ describe('GuardrailEngine', () => {
     const alerts: unknown[] = [];
     eventBus.on('alert_triggered', (e) => alerts.push(e));
     await engine.evaluateEvent(makeEvent({ severity: 'error' }));
-    const history = guardrailStore.listTriggerHistory(tenantId, { ruleId: rule.id });
+    const history = await guardrailStore.listTriggerHistory(tenantId, { ruleId: rule.id });
     expect(history.triggers.length).toBeGreaterThanOrEqual(1);
     expect(history.triggers[0].actionResult).toBe('dry_run');
     expect(history.triggers[0].actionExecuted).toBe(false);
@@ -132,7 +132,7 @@ describe('GuardrailEngine', () => {
   it('should update state after evaluation', async () => {
     const rule = makeRule(guardrailStore, { conditionConfig: { threshold: 90, windowMinutes: 60 } });
     await engine.evaluateEvent(makeEvent());
-    const state = guardrailStore.getState(tenantId, rule.id);
+    const state = await guardrailStore.getState(tenantId, rule.id);
     expect(state).not.toBeNull();
     expect(state!.lastEvaluatedAt).toBeDefined();
   });
@@ -144,7 +144,7 @@ describe('GuardrailEngine', () => {
     }
     await engine.evaluateEvent(makeEvent({ severity: 'error' }));
     await engine.evaluateEvent(makeEvent({ severity: 'error' }));
-    const state = guardrailStore.getState(tenantId, rule.id);
+    const state = await guardrailStore.getState(tenantId, rule.id);
     expect(state!.triggerCount).toBeGreaterThanOrEqual(2);
   });
 
@@ -154,7 +154,7 @@ describe('GuardrailEngine', () => {
       await tenantStore.insertEvents([makeEvent({ severity: 'error' })]);
     }
     await engine.evaluateEvent(makeEvent({ severity: 'error' }));
-    const history = guardrailStore.listTriggerHistory(tenantId);
+    const history = await guardrailStore.listTriggerHistory(tenantId);
     expect(history.triggers).toHaveLength(0);
   });
 
@@ -166,11 +166,11 @@ describe('GuardrailEngine', () => {
     engine.start();
     eventBus.emit({ type: 'event_ingested', event: makeEvent({ severity: 'error' }), timestamp: new Date().toISOString() });
     await new Promise((r) => setTimeout(r, 200));
-    const history = guardrailStore.listTriggerHistory(tenantId, { ruleId: rule.id });
+    const history = await guardrailStore.listTriggerHistory(tenantId, { ruleId: rule.id });
     expect(history.triggers.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('should expose the GuardrailStore', () => {
+  it('should expose the GuardrailStore', async () => {
     expect(engine.getStore()).toBeInstanceOf(GuardrailStore);
   });
 });

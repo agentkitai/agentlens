@@ -61,7 +61,7 @@ function insertEventChain(
 
 // ─── Story 1: Auditor Role RBAC ─────────────────────────────
 
-describe('[F9-S1] Auditor Role RBAC', () => {
+describe('[F9-S1] Auditor Role RBAC', async () => {
   it('isRoleAllowed works for auditor', async () => {
     const { isRoleAllowed } = await import('../cloud/auth/rbac.js');
     expect(isRoleAllowed('auditor', 'read')).toBe(true);
@@ -88,7 +88,7 @@ describe('[F9-S1] Auditor Role RBAC', () => {
 
 // ─── Stories 7, 8: Compliance Endpoints ─────────────────────
 
-describe('[F9-S7,S8] Compliance Endpoints', () => {
+describe('[F9-S7,S8] Compliance Endpoints', async () => {
   let ctx: TestContext;
 
   beforeEach(async () => {
@@ -104,7 +104,7 @@ describe('[F9-S7,S8] Compliance Endpoints', () => {
 
   // ─── Report Endpoint ───────────────────────────────────
 
-  describe('GET /api/compliance/report', () => {
+  describe('GET /api/compliance/report', async () => {
     it('returns 200 with all report sections [AC1]', async () => {
       const res = await ctx.app.request(
         '/api/compliance/report?from=2026-01-01T00:00:00Z&to=2026-02-01T00:00:00Z',
@@ -199,7 +199,7 @@ describe('[F9-S7,S8] Compliance Endpoints', () => {
 
   // ─── Approval Stats [AC3] ──────────────────────────────
 
-  describe('approval stats in report [AC3]', () => {
+  describe('approval stats in report [AC3]', async () => {
     it('counts approval events correctly', async () => {
       // Insert approval events
       const baseDate = new Date('2026-01-16T10:00:00Z');
@@ -234,7 +234,7 @@ describe('[F9-S7,S8] Compliance Endpoints', () => {
 
   // ─── Event Export Endpoint ─────────────────────────────
 
-  describe('GET /api/compliance/export/events', () => {
+  describe('GET /api/compliance/export/events', async () => {
     it('format=json returns events with chainVerification [AC5]', async () => {
       const res = await ctx.app.request(
         '/api/compliance/export/events?from=2026-01-01T00:00:00Z&to=2026-02-01T00:00:00Z&format=json',
@@ -288,7 +288,7 @@ describe('[F9-S7,S8] Compliance Endpoints', () => {
 
 // ─── Story 10: Tenant Isolation ─────────────────────────────
 
-describe('[F9-S10] Compliance Tenant Isolation', () => {
+describe('[F9-S10] Compliance Tenant Isolation', async () => {
   let ctx: TestContext;
   let tenantAKey: string;
   let tenantBKey: string;
@@ -387,7 +387,7 @@ describe('[F9-S10] Compliance Tenant Isolation', () => {
 
 // ─── Story 2: Event Repository Methods ──────────────────────
 
-describe('[F9-S2] EventRepository compliance methods', () => {
+describe('[F9-S2] EventRepository compliance methods', async () => {
   let ctx: TestContext;
 
   beforeEach(async () => {
@@ -496,7 +496,7 @@ describe('[F9-S2] EventRepository compliance methods', () => {
 
 // ─── Story 5: ComplianceReportBuilder ───────────────────────
 
-describe('[F9-S5] ComplianceReportBuilder', () => {
+describe('[F9-S5] ComplianceReportBuilder', async () => {
   let ctx: TestContext;
 
   beforeEach(async () => {
@@ -579,7 +579,7 @@ describe('[F9-S5] ComplianceReportBuilder', () => {
 
 // ─── Story 6: CSV Export ────────────────────────────────────
 
-describe('[F9-S6] CSV Export', () => {
+describe('[F9-S6] CSV Export', async () => {
   it('escapes fields with commas, quotes, newlines', async () => {
     const { CsvEventTransform } = await import('../lib/compliance-export.js');
     const transform = new CsvEventTransform();
@@ -630,7 +630,7 @@ describe('[F9-S6] CSV Export', () => {
 
 // ─── Story 3: GuardrailStore.getTriggerStats ────────────────
 
-describe('[F9-S3] GuardrailStore.getTriggerStats', () => {
+describe('[F9-S3] GuardrailStore.getTriggerStats', async () => {
   let ctx: TestContext;
 
   beforeEach(async () => {
@@ -641,7 +641,7 @@ describe('[F9-S3] GuardrailStore.getTriggerStats', () => {
     const { GuardrailStore } = await import('../db/guardrail-store.js');
     const store = new GuardrailStore(ctx.db);
 
-    const stats = store.getTriggerStats('nonexistent', '2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z');
+    const stats = await store.getTriggerStats('nonexistent', '2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z');
     expect(stats.total).toBe(0);
     expect(stats.byConditionType).toEqual({});
     expect(stats.byActionType).toEqual({});
@@ -650,7 +650,7 @@ describe('[F9-S3] GuardrailStore.getTriggerStats', () => {
 
 // ─── Story 3: AnalyticsRepository.getCostByAgent ────────────
 
-describe('[F9-S3] AnalyticsRepository.getCostByAgent', () => {
+describe('[F9-S3] AnalyticsRepository.getCostByAgent', async () => {
   let ctx: TestContext;
 
   beforeEach(async () => {

@@ -48,7 +48,7 @@ export class ContentGuardrailEngine {
     }
 
     // Load enabled content rules
-    const allRules = this.store.listEnabledRules(context.tenantId, context.agentId);
+    const allRules = await this.store.listEnabledRules(context.tenantId, context.agentId);
     const contentRules = allRules
       .filter((r) => isContentRule(r))
       .filter((r) => this.matchesDirection(r, context.direction))
@@ -156,13 +156,13 @@ export class ContentGuardrailEngine {
     return result;
   }
 
-  private recordTriggerAsync(
+  private async recordTriggerAsync(
     rule: GuardrailRule,
     matches: ContentMatch[],
     context: ContentEvalContext,
-  ): void {
+  ): Promise<void> {
     try {
-      this.store.insertTrigger({
+      await this.store.insertTrigger({
         id: ulid(),
         ruleId: rule.id,
         tenantId: rule.tenantId,

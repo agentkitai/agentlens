@@ -96,7 +96,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
       updatedAt: now,
     };
 
-    guardrailStore.createRule(rule);
+    await guardrailStore.createRule(rule);
     return created(c, rule);
   });
 
@@ -114,7 +114,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
       if (!agentId) {
         return c.json({ error: 'Missing request.agentId', status: 400 }, 400);
       }
-      const rules = guardrailStore.listEnabledRules(tenantId, agentId);
+      const rules = await guardrailStore.listEnabledRules(tenantId, agentId);
       const actions: Array<{
         ruleId: string;
         ruleName: string;
@@ -164,7 +164,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
       // Record actions as trigger history
       const now = new Date().toISOString();
       for (const action of actions) {
-        guardrailStore.insertTrigger({
+        await guardrailStore.insertTrigger({
           id: ulid(),
           ruleId: action.ruleId,
           tenantId,
@@ -214,7 +214,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
   app.get('/:id/actions', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
-    const rule = guardrailStore.getRule(tenantId, ruleId);
+    const rule = await guardrailStore.getRule(tenantId, ruleId);
     if (!rule) {
       return notFound(c, 'Guardrail rule');
     }
@@ -222,7 +222,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') ?? '50', 10)), 200);
     const offset = Math.max(0, parseInt(c.req.query('offset') ?? '0', 10));
 
-    const { triggers, total } = guardrailStore.listTriggerHistory(tenantId, {
+    const { triggers, total } = await guardrailStore.listTriggerHistory(tenantId, {
       ruleId,
       limit,
       offset,
@@ -251,7 +251,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     const tenantId = getTenantId(c);
     const agentId = c.req.query('agentId');
     const type = c.req.query('type');
-    let rules = guardrailStore.listRules(tenantId, agentId || undefined);
+    let rules = await guardrailStore.listRules(tenantId, agentId || undefined);
 
     if (type === 'content') {
       const contentTypes = new Set(['pii_detection', 'secrets_detection', 'content_regex', 'toxicity_detection', 'prompt_injection']);
@@ -275,7 +275,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     const limit = parseInt(c.req.query('limit') ?? '50', 10);
     const offset = parseInt(c.req.query('offset') ?? '0', 10);
 
-    const { triggers, total } = guardrailStore.listTriggerHistory(tenantId, {
+    const { triggers, total } = await guardrailStore.listTriggerHistory(tenantId, {
       ruleId: ruleId || undefined,
       limit: Math.min(Math.max(1, limit), 200),
       offset: Math.max(0, offset),
@@ -294,7 +294,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
   app.get('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
-    const rule = guardrailStore.getRule(tenantId, ruleId);
+    const rule = await guardrailStore.getRule(tenantId, ruleId);
     if (!rule) {
       return notFound(c, 'Guardrail rule');
     }
@@ -331,14 +331,14 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
       updates.agentId = undefined;
     }
 
-    const updated = guardrailStore.updateRule(tenantId, ruleId, updates);
+    const updated = await guardrailStore.updateRule(tenantId, ruleId, updates);
     if (!updated) {
       return notFound(c, 'Guardrail rule');
     }
 
     invalidateScanner(ruleId);
 
-    const rule = guardrailStore.getRule(tenantId, ruleId);
+    const rule = await guardrailStore.getRule(tenantId, ruleId);
     return c.json(rule);
   });
 
@@ -352,7 +352,7 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
   app.delete('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
-    const deleted = guardrailStore.deleteRule(tenantId, ruleId);
+    const deleted = await guardrailStore.deleteRule(tenantId, ruleId);
     if (!deleted) {
       return notFound(c, 'Guardrail rule');
     }
@@ -370,13 +370,13 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
   app.get('/:id/status', async (c) => {
     const tenantId = getTenantId(c);
     const ruleId = c.req.param('id');
-    const rule = guardrailStore.getRule(tenantId, ruleId);
+    const rule = await guardrailStore.getRule(tenantId, ruleId);
     if (!rule) {
       return notFound(c, 'Guardrail rule');
     }
 
-    const state = guardrailStore.getState(tenantId, ruleId);
-    const recentTriggers = guardrailStore.getRecentTriggers(tenantId, ruleId, 10);
+    const state = await guardrailStore.getState(tenantId, ruleId);
+    const recentTriggers = await guardrailStore.getRecentTriggers(tenantId, ruleId, 10);
 
     return c.json({ rule, state, recentTriggers });
   });
