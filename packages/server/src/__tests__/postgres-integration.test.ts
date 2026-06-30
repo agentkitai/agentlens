@@ -14,6 +14,7 @@ import { EvaluatorStore } from '../db/evaluator-store.js';
 import { BUILTIN_EVALUATORS } from '../lib/eval/builtin-evaluators.js';
 import { CostBudgetStore } from '../db/cost-budget-store.js';
 import { GuardrailStore } from '../db/guardrail-store.js';
+import { BenchmarkStore } from '../db/benchmark-store.js';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -550,6 +551,34 @@ describePg('Postgres integration tests', () => {
       expect(await store.deleteRule(tid, rid)).toBe(true);
       expect(await store.getRule(tid, rid)).toBeNull();
       expect(await store.getState(tid, rid)).toBeNull();
+    });
+  });
+
+  // ─── #172 feature 6: benchmarks via the dialect-agnostic store ──
+  describe('Benchmarks (dialect-agnostic BenchmarkStore on Postgres)', () => {
+    it('creates (atomic transaction) + lists (COUNT→number) + results on pg', async () => {
+      const store = new BenchmarkStore(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      // create runs the benchmark + variant inserts atomically (runInTransaction)
+      const bm = await store.create(tid, {
+        name: 'B', metrics: [],
+        variants: [{ name: 'V1', tag: 'control' }, { name: 'V2', tag: 'treatment' }],
+      } as never);
+      expect(bm.variants).toHaveLength(2);
+      expect((await store.getById(tid, bm.id))?.variants).toHaveLength(2);
+
+      // list().total must be a NUMBER on pg (COUNT returns a string otherwise)
+      const listed = await store.list(tid, {});
+      expect(listed.total).toBe(1);
+      expect(typeof listed.total).toBe('number');
+
+      expect((await store.updateStatus(tid, bm.id, 'running')).status).toBe('running');
+
+      await store.saveResults(tid, bm.id, { variants: [], comparisons: [], summary: 's', computedAt: '2026-06-30T00:00:00Z' } as never);
+      expect((await store.getResults(tid, bm.id))?.summary).toBe('s');
+
+      expect(await store.delete(tid, bm.id)).toBe(true);
+      expect(await store.getById(tid, bm.id)).toBeNull();
     });
   });
 });

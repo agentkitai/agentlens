@@ -53,7 +53,7 @@ export class BenchmarkEngine {
   ): Promise<BenchmarkResults> {
     // For completed benchmarks, try to return cached results first
     if (benchmark.status === 'completed' && benchmarkStore) {
-      const cached = benchmarkStore.getResults(benchmark.tenantId, benchmark.id);
+      const cached = await benchmarkStore.getResults(benchmark.tenantId, benchmark.id);
       if (cached) return cached;
     }
 
@@ -123,7 +123,7 @@ export class BenchmarkEngine {
 
     // Cache results for completed benchmarks
     if (benchmark.status === 'completed' && benchmarkStore) {
-      benchmarkStore.saveResults(benchmark.tenantId, benchmark.id, results);
+      await benchmarkStore.saveResults(benchmark.tenantId, benchmark.id, results);
     }
 
     return results;

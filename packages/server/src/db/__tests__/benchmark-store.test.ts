@@ -13,7 +13,7 @@ import type { BenchmarkResults, MetricComparison, VariantMetrics } from '@agentk
 let db: SqliteDb;
 let store: BenchmarkStore;
 
-beforeEach(() => {
+beforeEach(async () => {
   db = createTestDb();
   runMigrations(db);
   store = new BenchmarkStore(db);
@@ -53,9 +53,9 @@ function makeResults(benchmarkId: string, tenantId: string): BenchmarkResults {
 
 // ─── Create ────────────────────────────────────────────────
 
-describe('BenchmarkStore — create', () => {
-  it('creates a benchmark with variants', () => {
-    const result = store.create('tenant-1', makeInput());
+describe('BenchmarkStore — create', async () => {
+  it('creates a benchmark with variants', async () => {
+    const result = await store.create('tenant-1', makeInput());
 
     expect(result.id).toBeDefined();
     expect(result.tenantId).toBe('tenant-1');
@@ -74,38 +74,36 @@ describe('BenchmarkStore — create', () => {
     expect(result.updatedAt).toBeDefined();
   });
 
-  it('validates minimum 2 variants', () => {
-    expect(() =>
-      store.create('tenant-1', makeInput({ variants: [{ name: 'Solo', tag: 'solo' }] })),
-    ).toThrow('Benchmark must have between 2 and 10 variants');
+  it('validates minimum 2 variants', async () => {
+    await expect(store.create('tenant-1', makeInput({ variants: [{ name: 'Solo', tag: 'solo' }] }))).rejects.toThrow('Benchmark must have between 2 and 10 variants');
   });
 
-  it('validates maximum 10 variants', () => {
+  it('validates maximum 10 variants', async () => {
     const variants = Array.from({ length: 11 }, (_, i) => ({
       name: `Variant ${i}`,
       tag: `tag-${i}`,
     }));
-    expect(() => store.create('tenant-1', makeInput({ variants }))).toThrow(
+    await expect(store.create('tenant-1', makeInput({ variants }))).rejects.toThrow(
       'Benchmark must have between 2 and 10 variants',
     );
   });
 
-  it('accepts exactly 10 variants', () => {
+  it('accepts exactly 10 variants', async () => {
     const variants = Array.from({ length: 10 }, (_, i) => ({
       name: `Variant ${i}`,
       tag: `tag-${i}`,
     }));
-    const result = store.create('tenant-1', makeInput({ variants }));
+    const result = await store.create('tenant-1', makeInput({ variants }));
     expect(result.variants).toHaveLength(10);
   });
 });
 
 // ─── Get By ID ─────────────────────────────────────────────
 
-describe('BenchmarkStore — getById', () => {
-  it('returns benchmark with variants when found', () => {
-    const created = store.create('tenant-1', makeInput());
-    const fetched = store.getById('tenant-1', created.id);
+describe('BenchmarkStore — getById', async () => {
+  it('returns benchmark with variants when found', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    const fetched = await store.getById('tenant-1', created.id);
 
     expect(fetched).not.toBeNull();
     expect(fetched!.id).toBe(created.id);
@@ -113,104 +111,104 @@ describe('BenchmarkStore — getById', () => {
     expect(fetched!.variants).toHaveLength(2);
   });
 
-  it('returns null when not found', () => {
-    expect(store.getById('tenant-1', 'nonexistent')).toBeNull();
+  it('returns null when not found', async () => {
+    expect(await store.getById('tenant-1', 'nonexistent')).toBeNull();
   });
 });
 
 // ─── List ──────────────────────────────────────────────────
 
-describe('BenchmarkStore — list', () => {
-  it('lists benchmarks with status filter', () => {
-    store.create('tenant-1', makeInput({ name: 'Draft One' }));
-    store.create('tenant-1', makeInput({ name: 'Draft Two' }));
-    const b3 = store.create('tenant-1', makeInput({ name: 'Running One' }));
-    store.updateStatus('tenant-1', b3.id, 'running');
+describe('BenchmarkStore — list', async () => {
+  it('lists benchmarks with status filter', async () => {
+    await store.create('tenant-1', makeInput({ name: 'Draft One' }));
+    await store.create('tenant-1', makeInput({ name: 'Draft Two' }));
+    const b3 = await store.create('tenant-1', makeInput({ name: 'Running One' }));
+    await store.updateStatus('tenant-1', b3.id, 'running');
 
-    const drafts = store.list('tenant-1', { status: 'draft' });
+    const drafts = await store.list('tenant-1', { status: 'draft' });
     expect(drafts.benchmarks).toHaveLength(2);
     expect(drafts.total).toBe(2);
 
-    const running = store.list('tenant-1', { status: 'running' });
+    const running = await store.list('tenant-1', { status: 'running' });
     expect(running.benchmarks).toHaveLength(1);
     expect(running.total).toBe(1);
   });
 
-  it('lists benchmarks with agentId filter', () => {
-    store.create('tenant-1', makeInput({ name: 'Agent X', agentId: 'agent-x' }));
-    store.create('tenant-1', makeInput({ name: 'Agent Y', agentId: 'agent-y' }));
-    store.create('tenant-1', makeInput({ name: 'No Agent' }));
+  it('lists benchmarks with agentId filter', async () => {
+    await store.create('tenant-1', makeInput({ name: 'Agent X', agentId: 'agent-x' }));
+    await store.create('tenant-1', makeInput({ name: 'Agent Y', agentId: 'agent-y' }));
+    await store.create('tenant-1', makeInput({ name: 'No Agent' }));
 
-    const result = store.list('tenant-1', { agentId: 'agent-x' });
+    const result = await store.list('tenant-1', { agentId: 'agent-x' });
     expect(result.benchmarks).toHaveLength(1);
     expect(result.benchmarks[0]!.name).toBe('Agent X');
   });
 
-  it('supports pagination', () => {
+  it('supports pagination', async () => {
     for (let i = 0; i < 5; i++) {
-      store.create('tenant-1', makeInput({ name: `Benchmark ${i}` }));
+      await store.create('tenant-1', makeInput({ name: `Benchmark ${i}` }));
     }
 
-    const page1 = store.list('tenant-1', { limit: 2, offset: 0 });
+    const page1 = await store.list('tenant-1', { limit: 2, offset: 0 });
     expect(page1.benchmarks).toHaveLength(2);
     expect(page1.total).toBe(5);
 
-    const page2 = store.list('tenant-1', { limit: 2, offset: 2 });
+    const page2 = await store.list('tenant-1', { limit: 2, offset: 2 });
     expect(page2.benchmarks).toHaveLength(2);
 
-    const page3 = store.list('tenant-1', { limit: 2, offset: 4 });
+    const page3 = await store.list('tenant-1', { limit: 2, offset: 4 });
     expect(page3.benchmarks).toHaveLength(1);
   });
 });
 
 // ─── Status Transitions ───────────────────────────────────
 
-describe('BenchmarkStore — updateStatus', () => {
-  it('allows draft → running', () => {
-    const created = store.create('tenant-1', makeInput());
-    const updated = store.updateStatus('tenant-1', created.id, 'running');
+describe('BenchmarkStore — updateStatus', async () => {
+  it('allows draft → running', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    const updated = await store.updateStatus('tenant-1', created.id, 'running');
     expect(updated.status).toBe('running');
   });
 
-  it('allows draft → cancelled', () => {
-    const created = store.create('tenant-1', makeInput());
-    const updated = store.updateStatus('tenant-1', created.id, 'cancelled');
+  it('allows draft → cancelled', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    const updated = await store.updateStatus('tenant-1', created.id, 'cancelled');
     expect(updated.status).toBe('cancelled');
   });
 
-  it('allows running → completed and sets completedAt', () => {
-    const created = store.create('tenant-1', makeInput());
-    store.updateStatus('tenant-1', created.id, 'running');
-    const completed = store.updateStatus('tenant-1', created.id, 'completed');
+  it('allows running → completed and sets completedAt', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    await store.updateStatus('tenant-1', created.id, 'running');
+    const completed = await store.updateStatus('tenant-1', created.id, 'completed');
     expect(completed.status).toBe('completed');
     expect(completed.completedAt).toBeDefined();
   });
 
-  it('allows running → cancelled', () => {
-    const created = store.create('tenant-1', makeInput());
-    store.updateStatus('tenant-1', created.id, 'running');
-    const cancelled = store.updateStatus('tenant-1', created.id, 'cancelled');
+  it('allows running → cancelled', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    await store.updateStatus('tenant-1', created.id, 'running');
+    const cancelled = await store.updateStatus('tenant-1', created.id, 'cancelled');
     expect(cancelled.status).toBe('cancelled');
   });
 
-  it('rejects invalid transition draft → completed', () => {
-    const created = store.create('tenant-1', makeInput());
-    expect(() => store.updateStatus('tenant-1', created.id, 'completed')).toThrow(
+  it('rejects invalid transition draft → completed', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    await expect(store.updateStatus('tenant-1', created.id, 'completed')).rejects.toThrow(
       'Invalid status transition',
     );
   });
 
-  it('rejects invalid transition completed → running', () => {
-    const created = store.create('tenant-1', makeInput());
-    store.updateStatus('tenant-1', created.id, 'running');
-    store.updateStatus('tenant-1', created.id, 'completed');
-    expect(() => store.updateStatus('tenant-1', created.id, 'running')).toThrow(
+  it('rejects invalid transition completed → running', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    await store.updateStatus('tenant-1', created.id, 'running');
+    await store.updateStatus('tenant-1', created.id, 'completed');
+    await expect(store.updateStatus('tenant-1', created.id, 'running')).rejects.toThrow(
       'Invalid status transition',
     );
   });
 
-  it('throws for non-existent benchmark', () => {
-    expect(() => store.updateStatus('tenant-1', 'nonexistent', 'running')).toThrow(
+  it('throws for non-existent benchmark', async () => {
+    await expect(store.updateStatus('tenant-1', 'nonexistent', 'running')).rejects.toThrow(
       'not found',
     );
   });
@@ -218,96 +216,96 @@ describe('BenchmarkStore — updateStatus', () => {
 
 // ─── Delete ────────────────────────────────────────────────
 
-describe('BenchmarkStore — delete', () => {
-  it('deletes draft benchmarks', () => {
-    const created = store.create('tenant-1', makeInput());
-    const deleted = store.delete('tenant-1', created.id);
+describe('BenchmarkStore — delete', async () => {
+  it('deletes draft benchmarks', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    const deleted = await store.delete('tenant-1', created.id);
     expect(deleted).toBe(true);
-    expect(store.getById('tenant-1', created.id)).toBeNull();
+    expect(await store.getById('tenant-1', created.id)).toBeNull();
   });
 
-  it('deletes cancelled benchmarks', () => {
-    const created = store.create('tenant-1', makeInput());
-    store.updateStatus('tenant-1', created.id, 'cancelled');
-    expect(store.delete('tenant-1', created.id)).toBe(true);
+  it('deletes cancelled benchmarks', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    await store.updateStatus('tenant-1', created.id, 'cancelled');
+    expect(await store.delete('tenant-1', created.id)).toBe(true);
   });
 
-  it('refuses to delete running benchmarks', () => {
-    const created = store.create('tenant-1', makeInput());
-    store.updateStatus('tenant-1', created.id, 'running');
-    expect(store.delete('tenant-1', created.id)).toBe(false);
+  it('refuses to delete running benchmarks', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    await store.updateStatus('tenant-1', created.id, 'running');
+    expect(await store.delete('tenant-1', created.id)).toBe(false);
   });
 
-  it('refuses to delete completed benchmarks', () => {
-    const created = store.create('tenant-1', makeInput());
-    store.updateStatus('tenant-1', created.id, 'running');
-    store.updateStatus('tenant-1', created.id, 'completed');
-    expect(store.delete('tenant-1', created.id)).toBe(false);
+  it('refuses to delete completed benchmarks', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    await store.updateStatus('tenant-1', created.id, 'running');
+    await store.updateStatus('tenant-1', created.id, 'completed');
+    expect(await store.delete('tenant-1', created.id)).toBe(false);
   });
 });
 
 // ─── Results ───────────────────────────────────────────────
 
-describe('BenchmarkStore — results', () => {
-  it('saves and retrieves results', () => {
-    const created = store.create('tenant-1', makeInput());
+describe('BenchmarkStore — results', async () => {
+  it('saves and retrieves results', async () => {
+    const created = await store.create('tenant-1', makeInput());
     const results = makeResults(created.id, 'tenant-1');
-    store.saveResults('tenant-1', created.id, results);
+    await store.saveResults('tenant-1', created.id, results);
 
-    const fetched = store.getResults('tenant-1', created.id);
+    const fetched = await store.getResults('tenant-1', created.id);
     expect(fetched).not.toBeNull();
     expect(fetched!.benchmarkId).toBe(created.id);
     expect(fetched!.summary).toBe('Test results summary');
     expect(fetched!.variants).toHaveLength(1);
   });
 
-  it('returns null when no results exist', () => {
-    const created = store.create('tenant-1', makeInput());
-    expect(store.getResults('tenant-1', created.id)).toBeNull();
+  it('returns null when no results exist', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    expect(await store.getResults('tenant-1', created.id)).toBeNull();
   });
 
-  it('upserts results (replaces existing)', () => {
-    const created = store.create('tenant-1', makeInput());
+  it('upserts results (replaces existing)', async () => {
+    const created = await store.create('tenant-1', makeInput());
 
     const results1 = makeResults(created.id, 'tenant-1');
     results1.summary = 'First';
-    store.saveResults('tenant-1', created.id, results1);
+    await store.saveResults('tenant-1', created.id, results1);
 
     const results2 = makeResults(created.id, 'tenant-1');
     results2.summary = 'Second';
-    store.saveResults('tenant-1', created.id, results2);
+    await store.saveResults('tenant-1', created.id, results2);
 
-    const fetched = store.getResults('tenant-1', created.id);
+    const fetched = await store.getResults('tenant-1', created.id);
     expect(fetched!.summary).toBe('Second');
   });
 });
 
 // ─── Tenant Isolation ──────────────────────────────────────
 
-describe('BenchmarkStore — tenant isolation', () => {
-  it('isolates benchmarks by tenant', () => {
-    store.create('tenant-1', makeInput({ name: 'Tenant 1 Benchmark' }));
-    store.create('tenant-2', makeInput({ name: 'Tenant 2 Benchmark' }));
+describe('BenchmarkStore — tenant isolation', async () => {
+  it('isolates benchmarks by tenant', async () => {
+    await store.create('tenant-1', makeInput({ name: 'Tenant 1 Benchmark' }));
+    await store.create('tenant-2', makeInput({ name: 'Tenant 2 Benchmark' }));
 
-    const t1List = store.list('tenant-1');
+    const t1List = await store.list('tenant-1');
     expect(t1List.benchmarks).toHaveLength(1);
     expect(t1List.benchmarks[0]!.name).toBe('Tenant 1 Benchmark');
 
-    const t2List = store.list('tenant-2');
+    const t2List = await store.list('tenant-2');
     expect(t2List.benchmarks).toHaveLength(1);
     expect(t2List.benchmarks[0]!.name).toBe('Tenant 2 Benchmark');
   });
 
-  it('cannot access another tenant benchmark by id', () => {
-    const created = store.create('tenant-1', makeInput());
-    expect(store.getById('tenant-2', created.id)).toBeNull();
+  it('cannot access another tenant benchmark by id', async () => {
+    const created = await store.create('tenant-1', makeInput());
+    expect(await store.getById('tenant-2', created.id)).toBeNull();
   });
 
-  it('isolates results by tenant', () => {
-    const b1 = store.create('tenant-1', makeInput());
+  it('isolates results by tenant', async () => {
+    const b1 = await store.create('tenant-1', makeInput());
     const results = makeResults(b1.id, 'tenant-1');
-    store.saveResults('tenant-1', b1.id, results);
+    await store.saveResults('tenant-1', b1.id, results);
 
-    expect(store.getResults('tenant-2', b1.id)).toBeNull();
+    expect(await store.getResults('tenant-2', b1.id)).toBeNull();
   });
 });
