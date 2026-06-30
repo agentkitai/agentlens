@@ -11,8 +11,11 @@
 import { Hono } from 'hono';
 import type { AnyDb } from '../db/dialect-db.js';
 import { UserStore, type SsoUser } from '../db/user-store.js';
+import { ScimGroupStore, type ScimGroup } from '../db/scim-group-store.js';
+import { OrgProjectStore } from '../db/org-project-store.js';
 
 const USER_SCHEMA = 'urn:ietf:params:scim:schemas:core:2.0:User';
+const GROUP_SCHEMA = 'urn:ietf:params:scim:schemas:core:2.0:Group';
 const LIST_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:ListResponse';
 const ERROR_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:Error';
 const PATCH_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:PatchOp';
@@ -50,6 +53,28 @@ function parseUserNameFilter(filter: string | undefined): string | null {
   if (!filter) return null;
   const m = /userName\s+eq\s+"([^"]+)"/i.exec(filter);
   return m ? m[1]! : null;
+}
+
+/** Parse `displayName eq "Engineers"` → the name; null if not that shape. */
+function parseDisplayNameFilter(filter: string | undefined): string | null {
+  if (!filter) return null;
+  const m = /displayName\s+eq\s+"([^"]+)"/i.exec(filter);
+  return m ? m[1]! : null;
+}
+
+function scimGroup(g: ScimGroup): Record<string, unknown> {
+  return {
+    schemas: [GROUP_SCHEMA],
+    id: g.id,
+    displayName: g.displayName,
+    members: g.memberIds.map((id) => ({ value: id })),
+    meta: {
+      resourceType: 'Group',
+      created: g.createdAt,
+      lastModified: g.updatedAt,
+      location: `/scim/v2/Groups/${g.id}`,
+    },
+  };
 }
 
 export function scimRoutes(db: AnyDb, opts: ScimOpts) {
@@ -167,6 +192,94 @@ export function scimRoutes(db: AnyDb, opts: ScimOpts) {
     const u = await store.getById(c.req.param('id'));
     if (!u || u.tenantId !== opts.tenantId) return c.json(scimError('User not found', 404), 404);
     await store.delete(u.id);
+    return c.body(null, 204);
+  });
+
+  // ─── Groups ───────────────────────────────────────────────
+  const groups = new ScimGroupStore(db);
+  const orgs = new OrgProjectStore(db);
+
+  // Reflect SCIM group membership into org membership so groups grant access.
+  async function reflectMembers(userIds: string[]): Promise<void> {
+    for (const uid of userIds) {
+      const u = await store.getById(uid);
+      if (u && u.tenantId === opts.tenantId) await orgs.addOrgMember(opts.tenantId, uid, 'member');
+    }
+  }
+
+  app.get('/Groups', async (c) => {
+    const displayName = parseDisplayNameFilter(c.req.query('filter'));
+    const startIndex = Math.max(Number(c.req.query('startIndex') ?? 1), 1);
+    const count = Number(c.req.query('count') ?? 100);
+    const { groups: list, total } = await groups.list(opts.tenantId, {
+      ...(displayName ? { displayName } : {}),
+      limit: count,
+      offset: startIndex - 1,
+    });
+    return c.json({
+      schemas: [LIST_SCHEMA],
+      totalResults: total,
+      startIndex,
+      itemsPerPage: list.length,
+      Resources: list.map(scimGroup),
+    });
+  });
+
+  app.get('/Groups/:id', async (c) => {
+    const g = await groups.getById(c.req.param('id'));
+    if (!g || g.tenantId !== opts.tenantId) return c.json(scimError('Group not found', 404), 404);
+    return c.json(scimGroup(g));
+  });
+
+  app.post('/Groups', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const displayName = body.displayName as string;
+    if (!displayName) return c.json(scimError('displayName is required', 400), 400);
+    const memberIds = ((body.members as Array<{ value: string }>) ?? []).map((m) => m.value).filter(Boolean);
+    const g = await groups.create({ tenantId: opts.tenantId, displayName, externalId: body.externalId as string | undefined, memberIds });
+    await reflectMembers(memberIds);
+    return c.json(scimGroup((await groups.getById(g.id))!), 201);
+  });
+
+  // PATCH — add/remove members (the standard Okta/Azure group-sync path) + rename.
+  app.patch('/Groups/:id', async (c) => {
+    const g = await groups.getById(c.req.param('id'));
+    if (!g || g.tenantId !== opts.tenantId) return c.json(scimError('Group not found', 404), 404);
+    const body = (await c.req.json().catch(() => ({}))) as { Operations?: Array<{ op: string; path?: string; value?: unknown }> };
+    const added: string[] = [];
+    for (const op of body.Operations ?? []) {
+      const verb = op.op?.toLowerCase();
+      const path = op.path?.toLowerCase();
+      if (path === 'members') {
+        const vals = (Array.isArray(op.value) ? op.value : [op.value]).map((m) => (m as { value: string })?.value).filter(Boolean);
+        if (verb === 'add') for (const uid of vals) { await groups.addMember(g.id, uid); added.push(uid); }
+        else if (verb === 'remove') for (const uid of vals) await groups.removeMember(g.id, uid);
+      } else if (path === 'displayname' && typeof op.value === 'string') {
+        await groups.update(g.id, { displayName: op.value });
+      } else if (!op.path && op.value && typeof op.value === 'object' && 'displayName' in (op.value as object)) {
+        await groups.update(g.id, { displayName: (op.value as { displayName: string }).displayName });
+      }
+    }
+    await reflectMembers(added);
+    return c.json(scimGroup((await groups.getById(g.id))!));
+  });
+
+  // PUT — full replace (members + name).
+  app.put('/Groups/:id', async (c) => {
+    const g = await groups.getById(c.req.param('id'));
+    if (!g || g.tenantId !== opts.tenantId) return c.json(scimError('Group not found', 404), 404);
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    if (typeof body.displayName === 'string') await groups.update(g.id, { displayName: body.displayName });
+    const memberIds = ((body.members as Array<{ value: string }>) ?? []).map((m) => m.value).filter(Boolean);
+    await groups.setMembers(g.id, memberIds);
+    await reflectMembers(memberIds);
+    return c.json(scimGroup((await groups.getById(g.id))!));
+  });
+
+  app.delete('/Groups/:id', async (c) => {
+    const g = await groups.getById(c.req.param('id'));
+    if (!g || g.tenantId !== opts.tenantId) return c.json(scimError('Group not found', 404), 404);
+    await groups.delete(g.id);
     return c.body(null, 204);
   });
 

@@ -134,6 +134,13 @@
       "when": 1741430400000,
       "tag": "0018_sso_connections",
       "breakpoints": false
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1741516800000,
+      "tag": "0019_scim_groups",
+      "breakpoints": false
     }
   ]
 }

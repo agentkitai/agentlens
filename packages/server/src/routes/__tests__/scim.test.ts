@@ -80,3 +80,59 @@ describe('SCIM 2.0 /Users (#148)', () => {
     expect((await res.json()).patch.supported).toBe(true);
   });
 });
+
+describe('SCIM 2.0 /Groups (#148)', () => {
+  let app: Hono;
+
+  async function provision(email: string): Promise<string> {
+    const res = await app.request('/scim/v2/Users', authed({ method: 'POST', body: JSON.stringify({ userName: email }) }));
+    return (await res.json()).id;
+  }
+
+  beforeEach(() => {
+    const db = createTestDb();
+    runMigrations(db);
+    app = makeApp(db);
+  });
+
+  it('creates a group with members, filters, patches, and deletes', async () => {
+    const alice = await provision('alice@acme.com');
+    const bob = await provision('bob@acme.com');
+
+    // create with one member
+    const created = await app.request('/scim/v2/Groups', authed({
+      method: 'POST',
+      body: JSON.stringify({ schemas: ['urn:ietf:params:scim:schemas:core:2.0:Group'], displayName: 'Engineers', members: [{ value: alice }] }),
+    }));
+    expect(created.status).toBe(201);
+    const group = await created.json();
+    expect(group.displayName).toBe('Engineers');
+    expect(group.members.map((m: { value: string }) => m.value)).toEqual([alice]);
+
+    // filter by displayName
+    const listed = await app.request(`/scim/v2/Groups?filter=${encodeURIComponent('displayName eq "Engineers"')}`, authed());
+    expect((await listed.json()).totalResults).toBe(1);
+
+    // PATCH add bob (the standard Okta/Azure member-sync path)
+    const added = await app.request(`/scim/v2/Groups/${group.id}`, authed({
+      method: 'PATCH',
+      body: JSON.stringify({ Operations: [{ op: 'add', path: 'members', value: [{ value: bob }] }] }),
+    }));
+    expect((await added.json()).members.map((m: { value: string }) => m.value).sort()).toEqual([alice, bob].sort());
+
+    // PATCH remove alice
+    const removed = await app.request(`/scim/v2/Groups/${group.id}`, authed({
+      method: 'PATCH',
+      body: JSON.stringify({ Operations: [{ op: 'remove', path: 'members', value: [{ value: alice }] }] }),
+    }));
+    expect((await removed.json()).members.map((m: { value: string }) => m.value)).toEqual([bob]);
+
+    // delete → 204 then 404
+    expect((await app.request(`/scim/v2/Groups/${group.id}`, authed({ method: 'DELETE' }))).status).toBe(204);
+    expect((await app.request(`/scim/v2/Groups/${group.id}`, authed())).status).toBe(404);
+  });
+
+  it('rejects unauthenticated group access', async () => {
+    expect((await app.request('/scim/v2/Groups')).status).toBe(401);
+  });
+});
