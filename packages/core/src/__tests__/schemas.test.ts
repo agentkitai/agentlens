@@ -495,6 +495,41 @@ describe('Story 2.3: Zod Validation Schemas', () => {
     });
   });
 
+  describe('Specialized observation taxonomy (#153)', () => {
+    const base = { sessionId: 's1', agentId: 'a1', severity: 'info' as const };
+
+    it('accepts retrieval / embedding / chain_step event types', () => {
+      for (const t of ['retrieval', 'embedding', 'chain_step']) {
+        expect(eventTypeSchema.safeParse(t).success, t).toBe(true);
+      }
+    });
+
+    it('validates a retrieval event and rejects one missing query', () => {
+      expect(
+        ingestEventSchema.safeParse({
+          ...base,
+          eventType: 'retrieval',
+          payload: { query: 'vector db?', retrieverName: 'pgvector', topK: 5, resultCount: 3 },
+        }).success,
+      ).toBe(true);
+      expect(ingestEventSchema.safeParse({ ...base, eventType: 'retrieval', payload: { topK: 5 } }).success).toBe(false);
+    });
+
+    it('validates embedding + chain_step payloads', () => {
+      expect(
+        ingestEventSchema.safeParse({
+          ...base,
+          eventType: 'embedding',
+          payload: { model: 'text-embedding-3-small', inputCount: 4, dimensions: 1536 },
+        }).success,
+      ).toBe(true);
+      expect(
+        ingestEventSchema.safeParse({ ...base, eventType: 'chain_step', payload: { name: 'rag_pipeline', stepType: 'sequence' } }).success,
+      ).toBe(true);
+      expect(ingestEventSchema.safeParse({ ...base, eventType: 'embedding', payload: { inputCount: 4 } }).success).toBe(false);
+    });
+  });
+
   describe('Re-exports from index', () => {
     it('should export schemas and types from @agentkitai/agentlens-core barrel', async () => {
       const core = await import('../index.js');

@@ -55,6 +55,10 @@ export type EventType =
   | 'feedback'
   // Skill activation (e.g. Claude Code skills/plugins)
   | 'skill_activated'
+  // Specialized observation taxonomy (RAG/agent frameworks) (#153)
+  | 'retrieval'
+  | 'embedding'
+  | 'chain_step'
   // Custom / extension
   | 'custom';
 
@@ -407,10 +411,37 @@ export interface SkillActivatedPayload {
 /**
  * Discriminated union of all payload types
  */
+/** Retriever/vector-search observation (RAG frameworks) (#153). */
+export interface RetrievalPayload {
+  query: string;
+  retrieverName?: string;
+  topK?: number;
+  resultCount?: number;
+  durationMs?: number;
+}
+
+/** Embedding-generation observation (#153). */
+export interface EmbeddingPayload {
+  model: string;
+  inputCount: number;
+  dimensions?: number;
+  durationMs?: number;
+}
+
+/** Chain / agent-step observation (#153). */
+export interface ChainStepPayload {
+  name: string;
+  stepType?: string;
+  durationMs?: number;
+}
+
 export type EventPayload =
   | ToolCallPayload
   | ToolResponsePayload
   | ToolErrorPayload
+  | RetrievalPayload
+  | EmbeddingPayload
+  | ChainStepPayload
   | SessionStartedPayload
   | SessionEndedPayload
   | ApprovalRequestedPayload

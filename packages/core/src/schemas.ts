@@ -33,6 +33,9 @@ export const eventTypeSchema = z.enum([
   'llm_response',
   'alert_triggered',
   'alert_resolved',
+  'retrieval',
+  'embedding',
+  'chain_step',
   'custom',
 ]);
 
@@ -201,8 +204,33 @@ export const customPayloadSchema = z.object({
 /**
  * Map of event type to payload schema for type-specific validation.
  */
+// Specialized observation taxonomy (#153)
+export const retrievalPayloadSchema = z.object({
+  query: z.string(),
+  retrieverName: z.string().optional(),
+  topK: z.number().int().nonnegative().optional(),
+  resultCount: z.number().int().nonnegative().optional(),
+  durationMs: z.number().nonnegative().optional(),
+});
+
+export const embeddingPayloadSchema = z.object({
+  model: z.string(),
+  inputCount: z.number().int().nonnegative(),
+  dimensions: z.number().int().positive().optional(),
+  durationMs: z.number().nonnegative().optional(),
+});
+
+export const chainStepPayloadSchema = z.object({
+  name: z.string(),
+  stepType: z.string().optional(),
+  durationMs: z.number().nonnegative().optional(),
+});
+
 export const payloadSchemasByEventType: Record<string, z.ZodTypeAny> = {
   tool_call: toolCallPayloadSchema,
+  retrieval: retrievalPayloadSchema,
+  embedding: embeddingPayloadSchema,
+  chain_step: chainStepPayloadSchema,
   tool_response: toolResponsePayloadSchema,
   tool_error: toolErrorPayloadSchema,
   session_started: sessionStartedPayloadSchema,
