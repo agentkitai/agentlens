@@ -241,7 +241,8 @@ export class BatchWriter {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('SET LOCAL app.current_org = $1', [orgId]);
+      // set_config(..., is_local=true) == SET LOCAL but parameterizable (pg rejects params in a bare SET).
+      await client.query(`SELECT set_config('app.current_org', $1, true)`, [orgId]);
 
       // Build batch INSERT
       const values: unknown[] = [];

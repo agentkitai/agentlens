@@ -50,9 +50,10 @@ export async function withTenantTransaction<T>(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // SET LOCAL is transaction-scoped: auto-clears on COMMIT/ROLLBACK
-    // Safe for PgBouncer transaction mode
-    await client.query(`SET LOCAL app.current_org = $1`, [orgId]);
+    // set_config(..., is_local=true) == SET LOCAL but parameterizable (pg rejects
+    // params in a bare SET). Transaction-scoped: auto-clears on COMMIT/ROLLBACK,
+    // safe for PgBouncer transaction mode.
+    await client.query(`SELECT set_config('app.current_org', $1, true)`, [orgId]);
     const result = await fn(client);
     await client.query('COMMIT');
     return result;
