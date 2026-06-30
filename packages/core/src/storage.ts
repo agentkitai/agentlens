@@ -123,6 +123,9 @@ export interface IEventStore {
     to: string;
     agentId?: string;
     granularity: 'hour' | 'day' | 'week';
+    /** Org/project isolation (#147) — filtered only when provided */
+    orgId?: string;
+    projectId?: string;
   }): Promise<AnalyticsResult>;
 
   // ─── Alert Rules ─────────────────────────────────────────

@@ -246,10 +246,12 @@ export class SessionRepository {
   }
 
   async sumSessionCost(
-    query: { agentId: string; from: string; tenantId?: string },
+    query: { agentId: string; from: string; tenantId?: string; orgId?: string; projectId?: string },
   ): Promise<number> {
     const conditions = [];
     if (query.tenantId) conditions.push(eq(sessions.tenantId, query.tenantId));
+    if (query.orgId) conditions.push(eq(sessions.orgId, query.orgId));
+    if (query.projectId) conditions.push(eq(sessions.projectId, query.projectId));
     conditions.push(eq(sessions.agentId, query.agentId));
     conditions.push(gte(sessions.startedAt, query.from));
 

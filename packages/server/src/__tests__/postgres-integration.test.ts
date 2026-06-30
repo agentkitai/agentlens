@@ -806,6 +806,13 @@ describePg('Postgres integration tests', () => {
       expect((await projA.listAgents()).map((a) => a.id)).toEqual(['a']);
       expect(await projA.getAgent('a')).not.toBeNull();
       expect(await projB.getAgent('a')).toBeNull();
+
+      // countEventsBatch + analytics are project-scoped: both events share tenant
+      // 'shared-pg' + agentId 'a', so WITHOUT the project filter these would be 2.
+      const from = '2000-01-01T00:00:00Z';
+      const to = '2100-01-01T00:00:00Z';
+      expect((await projA.countEventsBatch({ agentId: 'a', from, to })).total).toBe(1);
+      expect((await projA.getAnalytics({ from, to, granularity: 'day', agentId: 'a' })).totals.eventCount).toBe(1);
     });
   });
 });

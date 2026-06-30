@@ -70,11 +70,11 @@ export class TenantScopedStore implements IEventStore {
   }
 
   async countEventsBatch(query: { agentId: string; from: string; to: string; tenantId?: string }): Promise<{ total: number; error: number; critical: number; toolError: number }> {
-    return this.inner.countEventsBatch({ ...query, tenantId: this.tenantId });
+    return this.inner.countEventsBatch({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
   }
 
   async sumSessionCost(query: { agentId: string; from: string; tenantId?: string }): Promise<number> {
-    return this.inner.sumSessionCost({ ...query, tenantId: this.tenantId });
+    return this.inner.sumSessionCost({ ...query, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
   }
 
   // ─── Sessions ────────────────────────────────────────────
@@ -117,7 +117,7 @@ export class TenantScopedStore implements IEventStore {
     agentId?: string;
     granularity: 'hour' | 'day' | 'week';
   }): Promise<AnalyticsResult> {
-    return this.inner.getAnalytics({ ...params, tenantId: this.tenantId });
+    return this.inner.getAnalytics({ ...params, tenantId: this.tenantId, orgId: this.orgId, projectId: this.projectId });
   }
 
   // ─── Alert Rules ─────────────────────────────────────────

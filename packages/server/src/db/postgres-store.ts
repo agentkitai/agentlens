@@ -45,6 +45,16 @@ function safeJsonParse<T>(raw: unknown, fallback: T): T {
   return fallback;
 }
 
+/**
+ * Normalize a raw `db.execute()` result to a rows array. postgres-js (prod)
+ * returns an array-like; node-postgres (tests) returns `{ rows }`. Raw-SQL call
+ * sites must go through this to stay driver-agnostic.
+ */
+function rowsOf<T>(res: unknown): T[] {
+  if (Array.isArray(res)) return res as T[];
+  return ((res as { rows?: T[] })?.rows ?? []) as T[];
+}
+
 /** Build event WHERE conditions for Postgres schema. */
 function buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>) {
   const conditions = [];
@@ -510,10 +520,12 @@ export class PostgresEventStore implements IEventStore {
   }
 
   async countEventsBatch(
-    query: { agentId: string; from: string; to: string; tenantId?: string },
+    query: { agentId: string; from: string; to: string; tenantId?: string; orgId?: string; projectId?: string },
   ): Promise<{ total: number; error: number; critical: number; toolError: number }> {
     const conditions = [];
     if (query.tenantId) conditions.push(eq(events.tenantId, query.tenantId));
+    if (query.orgId) conditions.push(eq(events.orgId, query.orgId));
+    if (query.projectId) conditions.push(eq(events.projectId, query.projectId));
     conditions.push(eq(events.agentId, query.agentId));
     conditions.push(gte(events.timestamp, query.from));
     conditions.push(lte(events.timestamp, query.to));
@@ -635,10 +647,12 @@ export class PostgresEventStore implements IEventStore {
   }
 
   async sumSessionCost(
-    query: { agentId: string; from: string; tenantId?: string },
+    query: { agentId: string; from: string; tenantId?: string; orgId?: string; projectId?: string },
   ): Promise<number> {
     const conditions = [];
     if (query.tenantId) conditions.push(eq(sessions.tenantId, query.tenantId));
+    if (query.orgId) conditions.push(eq(sessions.orgId, query.orgId));
+    if (query.projectId) conditions.push(eq(sessions.projectId, query.projectId));
     conditions.push(eq(sessions.agentId, query.agentId));
     conditions.push(gte(sessions.startedAt, query.from));
 
@@ -917,6 +931,8 @@ export class PostgresEventStore implements IEventStore {
     agentId?: string;
     granularity: 'hour' | 'day' | 'week';
     tenantId?: string;
+    orgId?: string;
+    projectId?: string;
   }): Promise<AnalyticsResult> {
     warnIfNoTenant('getAnalytics', params.tenantId);
 
@@ -952,11 +968,13 @@ export class PostgresEventStore implements IEventStore {
           AND timestamp <= ${params.to}
           ${params.agentId ? sql`AND agent_id = ${params.agentId}` : sql``}
           ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
+          ${params.orgId ? sql`AND org_id = ${params.orgId}` : sql``}
+          ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
         GROUP BY bucket
         ORDER BY bucket ASC
       `,
     );
-    const bucketRows = [...bucketResult];
+    const bucketRows = rowsOf<{ bucket: string; eventCount: number; toolCallCount: number; errorCount: number; uniqueSessions: number; avgLatencyMs: number; totalCostUsd: number }>(bucketResult);
 
     const totalsResult = await this.db.execute<{
       eventCount: number;
@@ -981,9 +999,11 @@ export class PostgresEventStore implements IEventStore {
           AND timestamp <= ${params.to}
           ${params.agentId ? sql`AND agent_id = ${params.agentId}` : sql``}
           ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
+          ${params.orgId ? sql`AND org_id = ${params.orgId}` : sql``}
+          ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
       `,
     );
-    const totalsRow = totalsResult[0];
+    const totalsRow = rowsOf<{ eventCount: number; toolCallCount: number; errorCount: number; uniqueSessions: number; uniqueAgents: number; avgLatencyMs: number; totalCostUsd: number }>(totalsResult)[0];
 
     return {
       buckets: bucketRows.map((row) => ({
