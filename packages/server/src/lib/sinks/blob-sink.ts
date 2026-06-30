@@ -70,3 +70,92 @@ export function s3Sink(bucket: string, opts: S3SinkOptions = {}): BlobSink {
   const refPrefix = `s3://${bucket}${opts.prefix ? '/' + opts.prefix.replace(/\/$/, '') : ''}`;
   return new BlobSink(s3Put(bucket, opts), refPrefix);
 }
+
+// ─── Google Cloud Storage ───────────────────────────────────
+
+/** Minimal GCS client surface (the real Storage satisfies it). */
+export interface GcsLikeClient {
+  bucket(name: string): { file(key: string): { save(content: string, opts: { contentType: string; resumable?: boolean }): Promise<void> } };
+}
+
+export interface GcsSinkOptions {
+  prefix?: string;
+  projectId?: string;
+  keyFilename?: string;
+  client?: GcsLikeClient;
+}
+
+/** A blob `put` backed by Google Cloud Storage via @google-cloud/storage. */
+export function gcsPut(bucket: string, opts: GcsSinkOptions = {}): BlobPut {
+  let clientPromise: Promise<GcsLikeClient> | null = null;
+  const getClient = async (): Promise<GcsLikeClient> => {
+    if (opts.client) return opts.client;
+    if (!clientPromise) {
+      clientPromise = import('@google-cloud/storage').then(
+        ({ Storage }) =>
+          new Storage({
+            ...(opts.projectId ? { projectId: opts.projectId } : {}),
+            ...(opts.keyFilename ? { keyFilename: opts.keyFilename } : {}),
+          }) as unknown as GcsLikeClient,
+      );
+    }
+    return clientPromise;
+  };
+  const prefix = opts.prefix ? opts.prefix.replace(/\/$/, '') + '/' : '';
+  return async (key, content, contentType) => {
+    const client = await getClient();
+    await client.bucket(bucket).file(prefix + key).save(content, { contentType, resumable: false });
+  };
+}
+
+/** An ExportSink writing exports to a GCS bucket. */
+export function gcsSink(bucket: string, opts: GcsSinkOptions = {}): BlobSink {
+  const refPrefix = `gs://${bucket}${opts.prefix ? '/' + opts.prefix.replace(/\/$/, '') : ''}`;
+  return new BlobSink(gcsPut(bucket, opts), refPrefix);
+}
+
+// ─── Azure Blob Storage ─────────────────────────────────────
+
+/** Minimal Azure client surface (the real BlobServiceClient satisfies it). */
+export interface AzureLikeClient {
+  getContainerClient(name: string): {
+    getBlockBlobClient(key: string): {
+      upload(content: string, length: number, opts: { blobHTTPHeaders: { blobContentType: string } }): Promise<unknown>;
+    };
+  };
+}
+
+export interface AzureSinkOptions {
+  prefix?: string;
+  connectionString?: string;
+  client?: AzureLikeClient;
+}
+
+/** A blob `put` backed by Azure Blob Storage via @azure/storage-blob. */
+export function azurePut(container: string, opts: AzureSinkOptions = {}): BlobPut {
+  let clientPromise: Promise<AzureLikeClient> | null = null;
+  const getClient = async (): Promise<AzureLikeClient> => {
+    if (opts.client) return opts.client;
+    if (!clientPromise) {
+      clientPromise = import('@azure/storage-blob').then(({ BlobServiceClient }) => {
+        if (!opts.connectionString) throw new Error('Azure export sink requires a connectionString');
+        return BlobServiceClient.fromConnectionString(opts.connectionString) as unknown as AzureLikeClient;
+      });
+    }
+    return clientPromise;
+  };
+  const prefix = opts.prefix ? opts.prefix.replace(/\/$/, '') + '/' : '';
+  return async (key, content, contentType) => {
+    const client = await getClient();
+    await client
+      .getContainerClient(container)
+      .getBlockBlobClient(prefix + key)
+      .upload(content, Buffer.byteLength(content), { blobHTTPHeaders: { blobContentType: contentType } });
+  };
+}
+
+/** An ExportSink writing exports to an Azure Blob container. */
+export function azureSink(container: string, opts: AzureSinkOptions = {}): BlobSink {
+  const refPrefix = `azure://${container}${opts.prefix ? '/' + opts.prefix.replace(/\/$/, '') : ''}`;
+  return new BlobSink(azurePut(container, opts), refPrefix);
+}

@@ -2,7 +2,15 @@
  * Blob ExportSinks (#151) — BlobSink wrapper + the S3 sink (mocked client).
  */
 import { describe, it, expect } from 'vitest';
-import { BlobSink, s3Sink, type S3LikeClient } from '../blob-sink.js';
+import {
+  BlobSink,
+  s3Sink,
+  gcsSink,
+  azureSink,
+  type S3LikeClient,
+  type GcsLikeClient,
+  type AzureLikeClient,
+} from '../blob-sink.js';
 import { runScheduledExport } from '../../scheduled-export.js';
 
 describe('BlobSink (#151)', () => {
@@ -49,5 +57,44 @@ describe('s3Sink (#151)', () => {
     // both the artifact and the signed manifest landed in S3
     expect(keys.some((k) => k.endsWith('.ndjson'))).toBe(true);
     expect(keys.some((k) => k.endsWith('.manifest.json'))).toBe(true);
+  });
+});
+
+describe('gcsSink (#151)', () => {
+  it('saves to bucket.file(prefixed key) with the content-type', async () => {
+    const saved: Array<{ key: string; content: string; contentType: string }> = [];
+    const client: GcsLikeClient = {
+      bucket: () => ({
+        file: (key: string) => ({
+          save: async (content: string, o: { contentType: string }) => { saved.push({ key, content, contentType: o.contentType }); },
+        }),
+      }),
+    };
+    const sink = gcsSink('gbucket', { prefix: 'exp', client });
+    const { ref } = await sink.write('x.json', '{}');
+    expect(ref).toBe('gs://gbucket/exp/x.json');
+    expect(saved[0]).toEqual({ key: 'exp/x.json', content: '{}', contentType: 'application/json' });
+  });
+});
+
+describe('azureSink (#151)', () => {
+  it('uploads to the container block blob with byte length + content-type', async () => {
+    const uploads: Array<{ key: string; content: string; length: number; contentType: string }> = [];
+    const client: AzureLikeClient = {
+      getContainerClient: () => ({
+        getBlockBlobClient: (key: string) => ({
+          upload: async (content: string, length: number, o: { blobHTTPHeaders: { blobContentType: string } }) => {
+            uploads.push({ key, content, length, contentType: o.blobHTTPHeaders.blobContentType });
+            return {};
+          },
+        }),
+      }),
+    };
+    const sink = azureSink('container1', { client });
+    const { ref } = await sink.write('y.ndjson', '{"a":1}\n');
+    expect(ref).toBe('azure://container1/y.ndjson');
+    expect(uploads[0]!.key).toBe('y.ndjson');
+    expect(uploads[0]!.length).toBe(Buffer.byteLength('{"a":1}\n'));
+    expect(uploads[0]!.contentType).toBe('application/x-ndjson');
   });
 });
