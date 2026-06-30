@@ -515,7 +515,7 @@ export class PromptStore {
       INSERT INTO prompt_fingerprints (content_hash, tenant_id, agent_id, first_seen_at, last_seen_at, call_count, sample_content)
       VALUES (${hash}, ${tenantId}, ${agentId}, ${now}, ${now}, ${inc}, ${sample})
       ON CONFLICT (content_hash, tenant_id, agent_id)
-      DO UPDATE SET last_seen_at = ${now}, call_count = call_count + ${inc}
+      DO UPDATE SET last_seen_at = ${now}, call_count = prompt_fingerprints.call_count + ${inc}
     `);
   }
 
