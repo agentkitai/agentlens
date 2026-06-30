@@ -12,6 +12,14 @@ import { createHash } from 'node:crypto';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { signExport, type ExportSignature } from './export-signing.js';
+import { webhookSignatureHeaders } from './notifications/providers/webhook.js';
+
+/** Webhook dispatcher — injectable for testing (default POSTs via fetch). */
+export type WebhookDispatch = (url: string, body: string, headers: Record<string, string>) => Promise<void>;
+
+const defaultDispatch: WebhookDispatch = async (url, body, headers) => {
+  await fetch(url, { method: 'POST', body, headers });
+};
 
 export type ExportFormat = 'ndjson' | 'json';
 
@@ -67,6 +75,10 @@ export interface ScheduledExportOptions {
   generatedAt: string;
   /** Filename prefix (default 'agentlens-events'). */
   prefix?: string;
+  /** Fire an `export.completed` webhook to this URL after writing (#151). */
+  webhookUrl?: string;
+  /** Webhook dispatcher (default: fetch POST). Injectable for testing. */
+  dispatch?: WebhookDispatch;
 }
 
 /** Run one export: write the artifact + a signed manifest to the sink. */
@@ -95,6 +107,26 @@ export async function runScheduledExport(opts: ScheduledExportOptions): Promise<
   };
   const signature = signExport(manifest);
   const { ref: manifestRef } = await opts.sink.write(`${base}.manifest.json`, JSON.stringify({ ...manifest, signature }, null, 2));
+
+  // Fire export.completed with a verifiable reference (the signed manifest).
+  if (opts.webhookUrl) {
+    const event = {
+      event: 'export.completed',
+      tenantId: opts.tenantId,
+      manifest,
+      signature,
+      artifactRef,
+      manifestRef,
+      generatedAt: opts.generatedAt,
+    };
+    const body = JSON.stringify(event);
+    const headers = { 'Content-Type': 'application/json', ...webhookSignatureHeaders(body, opts.generatedAt) };
+    try {
+      await (opts.dispatch ?? defaultDispatch)(opts.webhookUrl, body, headers);
+    } catch {
+      // A webhook failure must not fail the export — the artifact is already persisted.
+    }
+  }
 
   return { manifest, signature, artifactRef, manifestRef };
 }
