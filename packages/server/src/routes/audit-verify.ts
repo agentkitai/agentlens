@@ -15,14 +15,16 @@ import { EventRepository } from '../db/repositories/event-repository.js';
 import { runVerification } from '../lib/audit-verify.js';
 import { collectAllEvents } from '../lib/compliance-export.js';
 import type { AuthVariables } from '../middleware/auth.js';
-import { hasCategory } from '@agentkitai/auth';
+import { hasCategory, normalizeRole } from '@agentkitai/auth';
 
-/** Resolve role for the current API key */
+/** Resolve role for the current API key, via the unified role model (#147). */
 function resolveRole(db: SqliteDb, keyInfo: { id: string } | undefined): string {
   if (!keyInfo) return 'viewer';
   if (keyInfo.id === 'dev') return 'admin';
+  // Route the raw api_keys.role through normalizeRole — no bespoke auditor
+  // shortcut; aliases (editor → member) and unknowns resolve consistently.
   const row = db.select({ role: apiKeys.role }).from(apiKeys).where(eq(apiKeys.id, keyInfo.id)).get();
-  return row?.role ?? 'viewer';
+  return normalizeRole(row?.role);
 }
 
 /** Validate and parse from/to date params */
