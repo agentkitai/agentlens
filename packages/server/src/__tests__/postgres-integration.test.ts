@@ -18,6 +18,7 @@ import { BenchmarkStore } from '../db/benchmark-store.js';
 import { AnnotationStore } from '../db/annotation-store.js';
 import { LlmConnectionStore } from '../db/llm-connection-store.js';
 import { RetentionService } from '../db/services/retention-service.js';
+import { HealthSnapshotStore } from '../db/health-snapshot-store.js';
 import { computeEventHash } from '@agentkitai/agentlens-core';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
@@ -283,8 +284,9 @@ describePg('Postgres integration tests', () => {
         'guardrail_rules', 'guardrail_state', 'guardrail_trigger_history',
         // #172 feature 6 (schema step): benchmark tables on the pg path
         'benchmarks', 'benchmark_variants', 'benchmark_results',
-        // #172 features 7-9: annotations, llm connections, chain anchors
+        // #172 features 7-10: annotations, llm connections, chain anchors, health
         'annotation_queues', 'annotation_items', 'llm_connections', 'chain_anchors',
+        'health_snapshots',
       ];
 
       for (const table of expectedTables) {
@@ -680,6 +682,32 @@ describePg('Postgres integration tests', () => {
       expect(Number(anchors.rows[0].event_count)).toBe(2);
       const left = await db.execute(sql`SELECT COUNT(*) as c FROM events WHERE session_id = ${sid}`);
       expect(Number(left.rows[0].c)).toBe(0);
+    });
+  });
+
+  // ─── #172 feature 10: health_snapshots via the dialect-agnostic store ──
+  describe('Health snapshots (dialect-agnostic HealthSnapshotStore on Postgres)', () => {
+    it('upserts (ON CONFLICT) + history + latest + cleanup on pg', async () => {
+      const store = new HealthSnapshotStore(db);
+      const tid = `t_${randomUUID().slice(0, 8)}`;
+      const snap = (date: string, score: number) => ({
+        agentId: 'agt', date,
+        overallScore: score, errorRateScore: score, costEfficiencyScore: score,
+        toolSuccessScore: score, latencyScore: score, completionRateScore: score,
+        sessionCount: 3,
+      });
+      await store.save(tid, snap('2026-06-01', 70));
+      await store.save(tid, snap('2026-06-01', 90)); // same (agent,date) → ON CONFLICT replace
+      expect((await store.get(tid, 'agt', '2026-06-01'))?.overallScore).toBe(90);
+
+      await store.save(tid, snap('2026-06-02', 80));
+      expect((await store.getHistory(tid, 'agt', 3650)).length).toBeGreaterThanOrEqual(2);
+      expect((await store.getLatest(tid)).get('agt')?.date).toBe('2026-06-02');
+
+      // cleanup returns a Number (dbRunCount coercion); 1-day retention purges old rows
+      const removed = await store.cleanup(tid, 1);
+      expect(typeof removed).toBe('number');
+      expect(removed).toBeGreaterThanOrEqual(2);
     });
   });
 });

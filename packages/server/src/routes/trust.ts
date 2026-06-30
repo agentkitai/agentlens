@@ -19,7 +19,7 @@ export function trustRoutes(db: SqliteDb) {
     const tenantId = getTenantId(c);
     const agentId = c.req.param('id');
 
-    const score = service.getTrustScore(tenantId, agentId);
+    const score = await service.getTrustScore(tenantId, agentId);
     return c.json({ trust: score });
   });
 

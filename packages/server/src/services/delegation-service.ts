@@ -242,7 +242,7 @@ export class DelegationService {
     }
 
     // 3. Check trust threshold (H5 FIX: now actually computes trust)
-    const trustOk = this.checkTrustThreshold(tenantId, request.targetAnonymousId, agentId);
+    const trustOk = await this.checkTrustThreshold(tenantId, request.targetAnonymousId, agentId);
     if (!trustOk) {
       this.logDelegation(tenantId, {
         id: requestId,
@@ -317,11 +317,8 @@ export class DelegationService {
    * Update trust score after a delegation outcome.
    */
   private updateTrustAfterDelegation(tenantId: string, agentId: string): void {
-    try {
-      this.trustService.updateAfterDelegation(tenantId, agentId);
-    } catch {
-      // Trust updates should not break delegation
-    }
+    // Fire-and-forget — trust updates must not break delegation.
+    void this.trustService.updateAfterDelegation(tenantId, agentId).catch(() => {});
   }
 
   // ─── Inbound: inbox & acceptance ──────────────────────
@@ -525,11 +522,11 @@ export class DelegationService {
    * Computes the requesting agent's trust score on-the-fly and compares
    * against the tenant's minimum trust threshold.
    */
-  private checkTrustThreshold(tenantId: string, _targetAnonymousId: string, agentId?: string): boolean {
+  private async checkTrustThreshold(tenantId: string, _targetAnonymousId: string, agentId?: string): Promise<boolean> {
     if (!agentId) return true; // Can't check without agentId
     try {
       const config = this.discoveryService.getDiscoveryConfig(tenantId);
-      const trustScore = this.trustService.getTrustScore(tenantId, agentId);
+      const trustScore = await this.trustService.getTrustScore(tenantId, agentId);
       return trustScore.percentile >= config.minTrustThreshold;
     } catch {
       // If trust computation fails, fail-open to avoid breaking delegation
