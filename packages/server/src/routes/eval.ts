@@ -80,7 +80,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     }
 
     try {
-      const dataset = store.createDataset(tenantId, {
+      const dataset = await store.createDataset(tenantId, {
         name: body.name,
         description: body.description,
         agentId: body.agentId,
@@ -101,7 +101,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!, 10) : undefined;
     const offset = c.req.query('offset') ? parseInt(c.req.query('offset')!, 10) : undefined;
 
-    const { datasets, total } = store.listDatasets(tenantId, { agentId, limit, offset });
+    const { datasets, total } = await store.listDatasets(tenantId, { agentId, limit, offset });
     return c.json({ datasets, total, hasMore: (offset ?? 0) + datasets.length < total });
   });
 
@@ -111,10 +111,10 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
 
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
-    const dataset = store.getDataset(tenantId, id);
+    const dataset = await store.getDataset(tenantId, id);
     if (!dataset) return c.json({ error: 'Dataset not found' }, 404);
 
-    const testCases = store.getTestCases(id);
+    const testCases = await store.getTestCases(id);
     return c.json({ ...dataset, testCases });
   });
 
@@ -127,7 +127,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     const body = await c.req.json().catch(() => null);
     if (!body) return c.json({ error: 'Request body required' }, 400);
 
-    const updated = store.updateDataset(tenantId, id, body);
+    const updated = await store.updateDataset(tenantId, id, body);
     if (!updated) return c.json({ error: 'Dataset not found' }, 404);
     return c.json(updated);
   });
@@ -144,7 +144,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     }
 
     try {
-      const cases = store.addTestCases(id, tenantId, body.testCases);
+      const cases = await store.addTestCases(id, tenantId, body.testCases);
       return c.json({ testCases: cases }, 201);
     } catch (err) {
       const msg = (err as Error).message;
@@ -164,7 +164,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     if (!body) return c.json({ error: 'Request body required' }, 400);
 
     try {
-      const updated = store.updateTestCase(tenantId, caseId, body);
+      const updated = await store.updateTestCase(tenantId, caseId, body);
       if (!updated) return c.json({ error: 'Test case not found' }, 404);
       return c.json(updated);
     } catch (err) {
@@ -182,7 +182,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     const caseId = c.req.param('caseId');
 
     try {
-      const deleted = store.deleteTestCase(tenantId, caseId);
+      const deleted = await store.deleteTestCase(tenantId, caseId);
       if (!deleted) return c.json({ error: 'Test case not found' }, 404);
       return c.body(null, 204);
     } catch (err) {
@@ -200,7 +200,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     const id = c.req.param('id');
 
     try {
-      const newVersion = store.createVersion(tenantId, id);
+      const newVersion = await store.createVersion(tenantId, id);
       return c.json(newVersion, 201);
     } catch (err) {
       const msg = (err as Error).message;
@@ -240,7 +240,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     const triggeredByMethod = verified?.method ?? (apiKey?.id ? 'api_key' : undefined);
 
     try {
-      const run = evalStore.createRun(tenantId, {
+      const run = await evalStore.createRun(tenantId, {
         datasetId: body.datasetId,
         agentId: body.agentId,
         webhookUrl: body.webhookUrl,
@@ -283,7 +283,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!, 10) : undefined;
     const offset = c.req.query('offset') ? parseInt(c.req.query('offset')!, 10) : undefined;
 
-    const { runs, total } = store.listRuns(tenantId, { datasetId, agentId, status, limit, offset });
+    const { runs, total } = await store.listRuns(tenantId, { datasetId, agentId, status, limit, offset });
     return c.json({ runs, total, hasMore: (offset ?? 0) + runs.length < total });
   });
 
@@ -293,7 +293,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
 
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
-    const run = store.getRun(tenantId, id);
+    const run = await store.getRun(tenantId, id);
     if (!run) return c.json({ error: 'Run not found' }, 404);
     return c.json(run);
   });
@@ -304,10 +304,10 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
 
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
-    const run = store.getRun(tenantId, id);
+    const run = await store.getRun(tenantId, id);
     if (!run) return c.json({ error: 'Run not found' }, 404);
 
-    let results = store.getResults(id);
+    let results = await store.getResults(id);
 
     // Filter by passed
     const passedFilter = c.req.query('passed');
@@ -319,7 +319,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     // Filter by tag
     const tagFilter = c.req.query('tag');
     if (tagFilter) {
-      const testCases = store.getTestCases(run.datasetId);
+      const testCases = await store.getTestCases(run.datasetId);
       const caseIdsWithTag = new Set(
         testCases.filter((tc) => tc.tags.includes(tagFilter)).map((tc) => tc.id),
       );
@@ -336,21 +336,21 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
 
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
-    const current = evalStore.getRun(tenantId, id);
+    const current = await evalStore.getRun(tenantId, id);
     if (!current) return c.json({ error: 'Run not found' }, 404);
 
     const baselineRunId = c.req.query('baselineRunId') || current.baselineRunId;
     if (!baselineRunId) {
       return c.json({ error: 'baselineRunId is required (none stored on the run)' }, 400);
     }
-    const baseline = evalStore.getRun(tenantId, baselineRunId);
+    const baseline = await evalStore.getRun(tenantId, baselineRunId);
     if (!baseline) return c.json({ error: 'Baseline run not found' }, 404);
 
     const report = computeRegression(
       baseline,
       current,
-      evalStore.getResults(baseline.id),
-      evalStore.getResults(current.id),
+      await evalStore.getResults(baseline.id),
+      await evalStore.getResults(current.id),
       {
         maxScoreDrop: c.req.query('maxScoreDrop') ? parseFloat(c.req.query('maxScoreDrop')!) : undefined,
         maxFlips: c.req.query('maxFlips') ? parseInt(c.req.query('maxFlips')!, 10) : undefined,
@@ -387,7 +387,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     if (parsed.data.evaluatorId) {
       const evStore = getEvaluatorStore();
       if (!evStore) return c.json({ error: 'Evaluator catalog unavailable' }, 503);
-      const ev = evStore.get(tenantId, parsed.data.evaluatorId);
+      const ev = await evStore.get(tenantId, parsed.data.evaluatorId);
       if (!ev) return c.json({ error: 'Evaluator not found' }, 404);
       if (ev.scorerType !== 'compliance') {
         return c.json({ error: `Evaluator '${ev.id}' is a ${ev.scorerType} evaluator, not compliance` }, 400);
@@ -484,7 +484,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     if (parsed.data.evaluatorId) {
       const evStore = getEvaluatorStore();
       if (!evStore) return c.json({ error: 'Evaluator catalog unavailable' }, 503);
-      const ev = evStore.get(tenantId, parsed.data.evaluatorId);
+      const ev = await evStore.get(tenantId, parsed.data.evaluatorId);
       if (!ev) return c.json({ error: 'Evaluator not found' }, 404);
       if (ev.scorerType !== 'llm_judge') {
         return c.json({ error: `Evaluator '${ev.id}' is a ${ev.scorerType} evaluator, not llm_judge` }, 400);
@@ -559,10 +559,10 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
 
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
-    const run = store.getRun(tenantId, id);
+    const run = await store.getRun(tenantId, id);
     if (!run) return c.json({ error: 'Run not found' }, 404);
 
-    store.cancelRun(id);
+    await store.cancelRun(id);
     return c.json({ id, status: 'cancelled' });
   });
 
@@ -578,7 +578,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     if (!evStore) return c.json({ error: 'Database not available' }, 500);
     const tenantId = getTenantId(c);
     const q = c.req.query();
-    const evaluators = evStore.list(tenantId, {
+    const evaluators = await evStore.list(tenantId, {
       scorerType: (q.scorerType as never) || undefined,
       tag: q.tag || undefined,
       status: (q.status as never) || undefined,
@@ -591,7 +591,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
   app.get('/evaluators/:id', async (c) => {
     const evStore = getEvaluatorStore();
     if (!evStore) return c.json({ error: 'Database not available' }, 500);
-    const ev = evStore.get(getTenantId(c), c.req.param('id'));
+    const ev = await evStore.get(getTenantId(c), c.req.param('id'));
     if (!ev) return c.json({ error: 'Evaluator not found' }, 404);
     return c.json(ev);
   });
@@ -603,7 +603,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     if (!parsed.success) {
       return c.json({ error: 'Validation failed', details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })) }, 400);
     }
-    const ev = evStore.create(getTenantId(c), {
+    const ev = await evStore.create(getTenantId(c), {
       name: parsed.data.name,
       description: parsed.data.description,
       scorerType: parsed.data.scorerType,
@@ -622,7 +622,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     if (!parsed.success) {
       return c.json({ error: 'Validation failed', details: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })) }, 400);
     }
-    const ev = evStore.update(getTenantId(c), c.req.param('id'), parsed.data);
+    const ev = await evStore.update(getTenantId(c), c.req.param('id'), parsed.data);
     if (!ev) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
     return c.json(ev);
   });
@@ -630,7 +630,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
   app.delete('/evaluators/:id', async (c) => {
     const evStore = getEvaluatorStore();
     if (!evStore) return c.json({ error: 'Database not available' }, 500);
-    const ok = evStore.delete(getTenantId(c), c.req.param('id'));
+    const ok = await evStore.delete(getTenantId(c), c.req.param('id'));
     if (!ok) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
     return c.body(null, 204);
   });
@@ -641,7 +641,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     // Attribute the publish to the calling API key (the unified-auth 'auth' var
     // isn't set on this path — the middleware sets 'apiKey').
     const apiKey = c.get('apiKey') as { id?: string; name?: string } | undefined;
-    const ev = evStore.publish(getTenantId(c), c.req.param('id'), apiKey?.name ?? apiKey?.id);
+    const ev = await evStore.publish(getTenantId(c), c.req.param('id'), apiKey?.name ?? apiKey?.id);
     if (!ev) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
     return c.json(ev);
   });
@@ -649,7 +649,7 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
   app.post('/evaluators/:id/verify', async (c) => {
     const evStore = getEvaluatorStore();
     if (!evStore) return c.json({ error: 'Database not available' }, 500);
-    const ev = evStore.verify(getTenantId(c), c.req.param('id'));
+    const ev = await evStore.verify(getTenantId(c), c.req.param('id'));
     if (!ev) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
     return c.json(ev);
   });

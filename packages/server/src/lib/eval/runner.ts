@@ -116,14 +116,14 @@ export class EvalRunner {
    * Execute an eval run. Called asynchronously from the route handler.
    */
   async execute(runId: string, tenantId: string): Promise<void> {
-    const run = this.evalStore.getRun(tenantId, runId);
+    const run = await this.evalStore.getRun(tenantId, runId);
     if (!run) throw new Error(`Run ${runId} not found`);
 
     const config = run.config;
-    const testCases = this.evalStore.getTestCases(run.datasetId);
+    const testCases = await this.evalStore.getTestCases(run.datasetId);
 
     if (testCases.length === 0) {
-      this.evalStore.updateRunStatus(runId, 'completed', {
+      await this.evalStore.updateRunStatus(runId, 'completed', {
         totalCases: 0,
         passedCases: 0,
         failedCases: 0,
@@ -136,7 +136,7 @@ export class EvalRunner {
 
     // Transition to running
     const startedAt = new Date().toISOString();
-    this.evalStore.updateRunStatus(runId, 'running', { startedAt });
+    await this.evalStore.updateRunStatus(runId, 'running', { startedAt });
 
     const semaphore = new Semaphore(config.concurrency || 5);
     const tokenBucket = config.rateLimitPerSec ? new TokenBucket(config.rateLimitPerSec) : null;
@@ -206,7 +206,7 @@ export class EvalRunner {
           totalScore += finalScore.score;
 
           // Save result
-          this.evalStore.saveResult({
+          await this.evalStore.saveResult({
             runId,
             testCaseId: testCase.id,
             tenantId,
@@ -244,7 +244,7 @@ export class EvalRunner {
       const completedAt = new Date().toISOString();
       const total = testCases.length;
       const totalCost = agentCost + judgeCost;
-      this.evalStore.updateRunStatus(runId, 'completed', {
+      await this.evalStore.updateRunStatus(runId, 'completed', {
         totalCases: total,
         passedCases,
         failedCases,
@@ -257,7 +257,7 @@ export class EvalRunner {
       // Run-level chained eval_result summary as tamper-evident evidence (#121).
       await this.emitRunSummary(run, tenantId, { total, passedCases, failedCases, agentCost, judgeCost });
     } catch (err) {
-      this.evalStore.updateRunStatus(
+      await this.evalStore.updateRunStatus(
         runId,
         'failed',
         { completedAt: new Date().toISOString() },
@@ -298,8 +298,7 @@ export class EvalRunner {
     const { total, passedCases, failedCases, agentCost, judgeCost } = agg;
     const passRate = total > 0 ? passedCases / total : 0;
     const usesJudge = run.config.scorers.some((s) => s.type === 'llm_judge') || judgeCost > 0;
-    const violations = this.evalStore
-      .getResults(run.id)
+    const violations = (await this.evalStore.getResults(run.id))
       .filter((r) => !r.passed)
       .map((r) => ({ ruleId: r.testCaseId, ruleType: 'eval_case', detail: `case failed (score ${r.score.toFixed(2)})` }));
 

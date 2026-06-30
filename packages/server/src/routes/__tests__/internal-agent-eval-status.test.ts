@@ -13,7 +13,7 @@ import { EvalStore } from '../../db/eval-store.js';
 
 const SVC = 'svc-eval-status-token';
 
-describe('GET /api/internal/agent-eval-status (#7)', () => {
+describe('GET /api/internal/agent-eval-status (#7)', async () => {
   let db: any;
   let app: any;
 
@@ -23,15 +23,15 @@ describe('GET /api/internal/agent-eval-status (#7)', () => {
     return app.request(`/api/internal/agent-eval-status${qs}`, { headers });
   };
 
-  function seedCompletedRun(agentId: string, total: number, passed: number) {
+  async function seedCompletedRun(agentId: string, total: number, passed: number) {
     const es = new EvalStore(db);
-    const ds = es.createDataset('default', { name: `suite-${agentId}`, agentId });
-    const run = es.createRun('default', { datasetId: ds.id, agentId, webhookUrl: 'http://x', config: {} });
-    es.updateRunStatus(run.id, 'completed', { totalCases: total, passedCases: passed });
+    const ds = await es.createDataset('default', { name: `suite-${agentId}`, agentId });
+    const run = await es.createRun('default', { datasetId: ds.id, agentId, webhookUrl: 'http://x', config: {} });
+    await es.updateRunStatus(run.id, 'completed', { totalCases: total, passedCases: passed });
     return run.id;
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env['AGENTGATE_SERVICE_TOKEN'] = SVC;
     db = createTestDb();
     runMigrations(db);
@@ -45,9 +45,9 @@ describe('GET /api/internal/agent-eval-status (#7)', () => {
 
   it('returns the latest completed run pass-rate for the agent', async () => {
     // An older run (lower pass-rate) then a newer one — newest must win.
-    seedCompletedRun('agt_eval', 4, 1);
+    await seedCompletedRun('agt_eval', 4, 1);
     await new Promise((r) => setTimeout(r, 5)); // ensure a later created_at
-    seedCompletedRun('agt_eval', 4, 3);
+    await seedCompletedRun('agt_eval', 4, 3);
 
     const res = await get('?agentId=agt_eval&tenantId=default');
     expect(res.status).toBe(200);
@@ -65,7 +65,7 @@ describe('GET /api/internal/agent-eval-status (#7)', () => {
   });
 
   it('is tenant-scoped (another tenant sees no run)', async () => {
-    seedCompletedRun('agt_eval', 2, 2);
+    await seedCompletedRun('agt_eval', 2, 2);
     const res = await get('?agentId=agt_eval&tenantId=other');
     expect((await res.json()).found).toBe(false);
   });

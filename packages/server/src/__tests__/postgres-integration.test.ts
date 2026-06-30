@@ -9,6 +9,9 @@ import { resolve } from 'path';
 import { randomUUID } from 'node:crypto';
 import { OrgProjectStore } from '../db/org-project-store.js';
 import { PromptStore } from '../db/prompt-store.js';
+import { EvalStore } from '../db/eval-store.js';
+import { EvaluatorStore } from '../db/evaluator-store.js';
+import { BUILTIN_EVALUATORS } from '../lib/eval/builtin-evaluators.js';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -366,6 +369,51 @@ describePg('Postgres integration tests', () => {
 
       await store.softDeleteTemplate(template.id, tid);
       expect(await store.getTemplate(template.id, tid)).toBeNull();
+    });
+  });
+
+  // ─── #172 feature 3: evaluations via the dialect-agnostic stores ──
+  describe('Evaluations (dialect-agnostic Eval/EvaluatorStore on Postgres)', () => {
+    it('CRUDs datasets (atomic transaction), runs + results on pg', async () => {
+      const store = new EvalStore(db);
+      const tid = `tenant-${randomUUID().slice(0, 8)}`;
+      // createDataset runs INSERTs in a dialect-agnostic transaction (runInTransaction)
+      const ds = await store.createDataset(tid, {
+        name: 'DS',
+        testCases: [{ input: { q: 'a' }, expectedOutput: 'b' }, { input: { q: 'c' } }],
+      });
+      expect((await store.getDataset(tid, ds.id))?.name).toBe('DS');
+      const cases = await store.getTestCases(ds.id);
+      expect(cases).toHaveLength(2);
+
+      const run = await store.createRun(tid, { datasetId: ds.id, agentId: 'agt', webhookUrl: 'http://x', config: {} });
+      await store.saveResult({
+        runId: run.id, testCaseId: cases[0].id, tenantId: tid,
+        score: 0.875, passed: true, scorerType: 'exact_match',
+        scorerDetails: { score: 0.875, passed: true, scorerType: 'exact_match' },
+      });
+      const results = await store.getResults(run.id);
+      expect(results).toHaveLength(1);
+      expect(results[0].score).toBeCloseTo(0.875, 6);
+
+      // createVersion exercises the second transaction path (immutability snapshot)
+      const v2 = await store.createVersion(tid, ds.id);
+      expect(v2.version).toBe(2);
+      expect(await store.getTestCases(v2.id)).toHaveLength(2);
+    });
+
+    it('EvaluatorStore CRUD + idempotent built-in seed (ON CONFLICT) on pg', async () => {
+      const store = new EvaluatorStore(db);
+      const tid = `tenant-${randomUUID().slice(0, 8)}`;
+      const ev = await store.create(tid, { name: 'PII', scorerType: 'compliance', configTemplate: { type: 'compliance', rules: [] }, tags: ['pii'] });
+      expect((await store.get(tid, ev.id))?.name).toBe('PII');
+      expect((await store.publish(tid, ev.id))?.status).toBe('published');
+      expect(await store.delete(tid, ev.id)).toBe(true);
+
+      // seedBuiltins upserts via ON CONFLICT — re-seeding must be idempotent on pg
+      await store.seedBuiltins(BUILTIN_EVALUATORS);
+      await store.seedBuiltins(BUILTIN_EVALUATORS);
+      expect((await store.list(tid, { builtin: true })).length).toBe(BUILTIN_EVALUATORS.length);
     });
   });
 });

@@ -56,3 +56,21 @@ export async function dbRunCount(db: AnyDb, query: SQL): Promise<number> {
   const res = (await db.execute(query)) as { count?: number; rowCount?: number };
   return res.count ?? res.rowCount ?? 0;
 }
+
+/**
+ * Run a batch of writes atomically. better-sqlite3 transactions are synchronous,
+ * Postgres transactions are async — this bridges both. Build the SQL[] up front
+ * (do any reads before calling), since the sqlite branch runs synchronously.
+ */
+export async function runInTransaction(db: AnyDb, queries: SQL[]): Promise<void> {
+  if (isSqliteDb(db)) {
+    const client = (db as unknown as { $client: { transaction: (fn: () => void) => () => void } }).$client;
+    client.transaction(() => {
+      for (const q of queries) db.run(q);
+    })();
+  } else {
+    await db.transaction(async (tx) => {
+      for (const q of queries) await tx.execute(q);
+    });
+  }
+}

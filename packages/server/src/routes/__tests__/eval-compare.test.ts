@@ -34,14 +34,14 @@ function seedApiKey(db: any, tenantId = 'default', id = 'key1'): string {
 
 const RUN_CONFIG = { scorers: [{ type: 'exact_match' as const }], passThreshold: 0.7, concurrency: 1 };
 
-describe('GET /api/eval/runs/:id/compare (#121)', () => {
+describe('GET /api/eval/runs/:id/compare (#121)', async () => {
   let db: any;
   let store: SqliteEventStore;
   let app: any;
   let apiKey: string;
   let evalStore: EvalStore;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     db = createTestDb();
     runMigrations(db);
     store = new SqliteEventStore(db);
@@ -52,21 +52,21 @@ describe('GET /api/eval/runs/:id/compare (#121)', () => {
 
   const auth = (k = apiKey) => ({ Authorization: `Bearer ${k}` });
 
-  function seedDataset(tenant: string): { datasetId: string; cases: EvalTestCase[] } {
-    const ds = evalStore.createDataset(tenant, {
+  async function seedDataset(tenant: string): Promise<{ datasetId: string; cases: EvalTestCase[] }> {
+    const ds = await evalStore.createDataset(tenant, {
       name: 'D',
       testCases: [{ input: { prompt: 'Q1' } }, { input: { prompt: 'Q2' } }],
     });
-    return { datasetId: ds.id, cases: evalStore.getTestCases(ds.id) };
+    return { datasetId: ds.id, cases: await evalStore.getTestCases(ds.id) };
   }
 
-  function seedRun(tenant: string, datasetId: string, cases: EvalTestCase[], outcomes: boolean[], baselineRunId?: string): string {
-    const run = evalStore.createRun(tenant, { datasetId, agentId: 'a', webhookUrl: 'http://x', config: RUN_CONFIG, baselineRunId });
+  async function seedRun(tenant: string, datasetId: string, cases: EvalTestCase[], outcomes: boolean[], baselineRunId?: string): Promise<string> {
+    const run = await evalStore.createRun(tenant, { datasetId, agentId: 'a', webhookUrl: 'http://x', config: RUN_CONFIG, baselineRunId });
     let passed = 0;
-    cases.forEach((cse, i) => {
+    for (const [i, cse] of cases.entries()) {
       const ok = outcomes[i];
       if (ok) passed++;
-      evalStore.saveResult({
+      await evalStore.saveResult({
         runId: run.id,
         testCaseId: cse.id,
         tenantId: tenant,
@@ -75,8 +75,8 @@ describe('GET /api/eval/runs/:id/compare (#121)', () => {
         scorerType: 'exact_match',
         scorerDetails: { score: ok ? 1 : 0, passed: ok, scorerType: 'exact_match' },
       });
-    });
-    evalStore.updateRunStatus(run.id, 'completed', {
+    }
+    await evalStore.updateRunStatus(run.id, 'completed', {
       totalCases: cases.length,
       passedCases: passed,
       failedCases: cases.length - passed,
@@ -87,9 +87,9 @@ describe('GET /api/eval/runs/:id/compare (#121)', () => {
   }
 
   it('returns a regression report with a pass→fail flip', async () => {
-    const { datasetId, cases } = seedDataset('default');
-    const baseline = seedRun('default', datasetId, cases, [true, true]);
-    const current = seedRun('default', datasetId, cases, [true, false]);
+    const { datasetId, cases } = await seedDataset('default');
+    const baseline = await seedRun('default', datasetId, cases, [true, true]);
+    const current = await seedRun('default', datasetId, cases, [true, false]);
 
     const res = await app.request(`/api/eval/runs/${current}/compare?baselineRunId=${baseline}`, { headers: auth() });
     expect(res.status).toBe(200);
@@ -102,9 +102,9 @@ describe('GET /api/eval/runs/:id/compare (#121)', () => {
   });
 
   it("defaults to the run's stored baselineRunId", async () => {
-    const { datasetId, cases } = seedDataset('default');
-    const baseline = seedRun('default', datasetId, cases, [true, true]);
-    const current = seedRun('default', datasetId, cases, [true, true], baseline);
+    const { datasetId, cases } = await seedDataset('default');
+    const baseline = await seedRun('default', datasetId, cases, [true, true]);
+    const current = await seedRun('default', datasetId, cases, [true, true], baseline);
 
     const res = await app.request(`/api/eval/runs/${current}/compare`, { headers: auth() });
     expect(res.status).toBe(200);
@@ -114,15 +114,15 @@ describe('GET /api/eval/runs/:id/compare (#121)', () => {
   });
 
   it('400s when no baseline is available', async () => {
-    const { datasetId, cases } = seedDataset('default');
-    const run = seedRun('default', datasetId, cases, [true, true]);
+    const { datasetId, cases } = await seedDataset('default');
+    const run = await seedRun('default', datasetId, cases, [true, true]);
     const res = await app.request(`/api/eval/runs/${run}/compare`, { headers: auth() });
     expect(res.status).toBe(400);
   });
 
   it('404s a run from another tenant (isolation)', async () => {
-    const { datasetId, cases } = seedDataset('default');
-    const run = seedRun('default', datasetId, cases, [true, true]);
+    const { datasetId, cases } = await seedDataset('default');
+    const run = await seedRun('default', datasetId, cases, [true, true]);
     const otherKey = seedApiKey(db, 'other-tenant', 'key2');
     const res = await app.request(`/api/eval/runs/${run}/compare?baselineRunId=${run}`, {
       headers: { Authorization: `Bearer ${otherKey}` },
