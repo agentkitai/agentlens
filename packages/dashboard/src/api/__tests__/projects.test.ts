@@ -38,6 +38,14 @@ describe('getProjects (#231)', () => {
     expect(projects[0]!.project.id).toBe('p1');
     expect(projects[0]!.role).toBe('member');
   });
+
+  it('fetches UNSCOPED — no X-Project-Id even when a project is active (#244)', async () => {
+    api.setActiveProjectId('proj-active');
+    mockFetch.mockResolvedValueOnce(jsonResponse({ projects: [] }));
+    await api.getProjects();
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init.headers['X-Project-Id']).toBeUndefined();
+  });
 });
 
 describe('active project selection (#231)', () => {
