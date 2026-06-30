@@ -1,14 +1,13 @@
 /**
  * Org → project → member store (#147, sub-PR 1).
  *
- * The SQLite-backed hierarchy that the OSS path will scope data by once
- * `TenantScopedStore` moves to `(org_id, project_id)` in the next sub-PR. Roles
- * use the cloud set for now (`owner|admin|member|viewer`); `auditor` is folded in
- * by the role-unification sub-PR.
+ * Dialect-agnostic (#172): runs on both SQLite and Postgres via the `dialect-db`
+ * helpers, so the org hierarchy that the OSS path scopes data by works on either
+ * backend. Roles use the unified set (`owner|admin|member|viewer|auditor`).
  */
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import type { SqliteDb } from './index.js';
+import { type AnyDb, dbRun, dbAll, dbGet } from './dialect-db.js';
 
 export interface Org {
   id: string;
@@ -66,9 +65,9 @@ const toOrgMember = (r: OrgMemberRow): OrgMember => ({ orgId: r.org_id, userId: 
 const toProjectMember = (r: ProjectMemberRow): ProjectMember => ({ projectId: r.project_id, userId: r.user_id, role: r.role, joinedAt: r.joined_at });
 
 export class OrgProjectStore {
-  constructor(private readonly db: SqliteDb) {}
+  constructor(private readonly db: AnyDb) {}
 
-  createOrg(input: { name: string; slug?: string; plan?: string }): Org {
+  async createOrg(input: { name: string; slug?: string; plan?: string }): Promise<Org> {
     const now = new Date().toISOString();
     const row: OrgRow = {
       id: `org_${randomUUID()}`,
@@ -79,21 +78,21 @@ export class OrgProjectStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.run(sql`INSERT INTO orgs (id, name, slug, plan, settings, created_at, updated_at)
+    await dbRun(this.db, sql`INSERT INTO orgs (id, name, slug, plan, settings, created_at, updated_at)
       VALUES (${row.id}, ${row.name}, ${row.slug}, ${row.plan}, ${row.settings}, ${row.created_at}, ${row.updated_at})`);
     return toOrg(row);
   }
 
-  getOrg(id: string): Org | undefined {
-    const r = this.db.get<OrgRow>(sql`SELECT * FROM orgs WHERE id = ${id}`);
+  async getOrg(id: string): Promise<Org | undefined> {
+    const r = await dbGet<OrgRow>(this.db, sql`SELECT * FROM orgs WHERE id = ${id}`);
     return r ? toOrg(r) : undefined;
   }
 
-  listOrgs(): Org[] {
-    return this.db.all<OrgRow>(sql`SELECT * FROM orgs ORDER BY created_at ASC`).map(toOrg);
+  async listOrgs(): Promise<Org[]> {
+    return (await dbAll<OrgRow>(this.db, sql`SELECT * FROM orgs ORDER BY created_at ASC`)).map(toOrg);
   }
 
-  createProject(orgId: string, input: { name: string; slug?: string }): Project {
+  async createProject(orgId: string, input: { name: string; slug?: string }): Promise<Project> {
     const now = new Date().toISOString();
     const row: ProjectRow = {
       id: `proj_${randomUUID()}`,
@@ -104,39 +103,41 @@ export class OrgProjectStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.run(sql`INSERT INTO projects (id, org_id, name, slug, settings, created_at, updated_at)
+    await dbRun(this.db, sql`INSERT INTO projects (id, org_id, name, slug, settings, created_at, updated_at)
       VALUES (${row.id}, ${row.org_id}, ${row.name}, ${row.slug}, ${row.settings}, ${row.created_at}, ${row.updated_at})`);
     return toProject(row);
   }
 
-  getProject(id: string): Project | undefined {
-    const r = this.db.get<ProjectRow>(sql`SELECT * FROM projects WHERE id = ${id}`);
+  async getProject(id: string): Promise<Project | undefined> {
+    const r = await dbGet<ProjectRow>(this.db, sql`SELECT * FROM projects WHERE id = ${id}`);
     return r ? toProject(r) : undefined;
   }
 
-  listProjects(orgId: string): Project[] {
-    return this.db.all<ProjectRow>(sql`SELECT * FROM projects WHERE org_id = ${orgId} ORDER BY created_at ASC`).map(toProject);
+  async listProjects(orgId: string): Promise<Project[]> {
+    return (await dbAll<ProjectRow>(this.db, sql`SELECT * FROM projects WHERE org_id = ${orgId} ORDER BY created_at ASC`)).map(toProject);
   }
 
-  addOrgMember(orgId: string, userId: string, role: string, invitedBy?: string): OrgMember {
+  async addOrgMember(orgId: string, userId: string, role: string, invitedBy?: string): Promise<OrgMember> {
     const now = new Date().toISOString();
-    this.db.run(sql`INSERT OR REPLACE INTO org_members (org_id, user_id, role, invited_by, joined_at)
-      VALUES (${orgId}, ${userId}, ${role}, ${invitedBy ?? null}, ${now})`);
+    await dbRun(this.db, sql`INSERT INTO org_members (org_id, user_id, role, invited_by, joined_at)
+      VALUES (${orgId}, ${userId}, ${role}, ${invitedBy ?? null}, ${now})
+      ON CONFLICT (org_id, user_id) DO UPDATE SET role = excluded.role, invited_by = excluded.invited_by, joined_at = excluded.joined_at`);
     return { orgId, userId, role, invitedBy, joinedAt: now };
   }
 
-  listOrgMembers(orgId: string): OrgMember[] {
-    return this.db.all<OrgMemberRow>(sql`SELECT * FROM org_members WHERE org_id = ${orgId} ORDER BY joined_at ASC`).map(toOrgMember);
+  async listOrgMembers(orgId: string): Promise<OrgMember[]> {
+    return (await dbAll<OrgMemberRow>(this.db, sql`SELECT * FROM org_members WHERE org_id = ${orgId} ORDER BY joined_at ASC`)).map(toOrgMember);
   }
 
-  addProjectMember(projectId: string, userId: string, role: string): ProjectMember {
+  async addProjectMember(projectId: string, userId: string, role: string): Promise<ProjectMember> {
     const now = new Date().toISOString();
-    this.db.run(sql`INSERT OR REPLACE INTO project_members (project_id, user_id, role, joined_at)
-      VALUES (${projectId}, ${userId}, ${role}, ${now})`);
+    await dbRun(this.db, sql`INSERT INTO project_members (project_id, user_id, role, joined_at)
+      VALUES (${projectId}, ${userId}, ${role}, ${now})
+      ON CONFLICT (project_id, user_id) DO UPDATE SET role = excluded.role, joined_at = excluded.joined_at`);
     return { projectId, userId, role, joinedAt: now };
   }
 
-  listProjectMembers(projectId: string): ProjectMember[] {
-    return this.db.all<ProjectMemberRow>(sql`SELECT * FROM project_members WHERE project_id = ${projectId} ORDER BY joined_at ASC`).map(toProjectMember);
+  async listProjectMembers(projectId: string): Promise<ProjectMember[]> {
+    return (await dbAll<ProjectMemberRow>(this.db, sql`SELECT * FROM project_members WHERE project_id = ${projectId} ORDER BY joined_at ASC`)).map(toProjectMember);
   }
 }

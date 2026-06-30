@@ -312,7 +312,8 @@ export async function registerRoutes(
   if (db) {
     app.route('/api/llm-connections', llmConnectionsRoutes(db));
     app.route('/api/playground', playgroundRoutes(db));
-    app.route('/api/orgs', orgRoutes(db));
+    // #172: org/project model is dialect-agnostic — use the pg db when active.
+    app.route('/api/orgs', orgRoutes(config?.pgDb ?? db));
   }
 
   // ─── Cloud org routes with org access validation [F6-fix] ──
