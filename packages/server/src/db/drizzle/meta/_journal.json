@@ -141,6 +141,13 @@
       "when": 1741516800000,
       "tag": "0019_scim_groups",
       "breakpoints": false
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1741603200000,
+      "tag": "0020_service_tokens",
+      "breakpoints": false
     }
   ]
 }
