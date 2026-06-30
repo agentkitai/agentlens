@@ -58,6 +58,9 @@ const TYPE_LABELS: Record<EventType, string> = {
   human_score: 'Human Score',
   feedback: 'Feedback',
   skill_activated: 'Skill Activated',
+  retrieval: 'Retrieval',
+  embedding: 'Embedding',
+  chain_step: 'Chain Step',
   custom: 'Custom',
 };
 
