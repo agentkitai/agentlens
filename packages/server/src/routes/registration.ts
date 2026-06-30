@@ -14,6 +14,7 @@ import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
 import type { IEmbeddingStore } from '../db/embedding-store.interface.js';
 
 import { apiKeysRoutes } from './api-keys.js';
+import { serviceTokensRoutes } from './service-tokens.js';
 import { eventsRoutes } from './events.js';
 import { sessionsRoutes } from './sessions.js';
 import { agentsRoutes } from './agents.js';
@@ -169,6 +170,7 @@ export async function registerRoutes(
   // ─── Routes ────────────────────────────────────────────
   if (db) {
     app.route('/api/keys', apiKeysRoutes(db));
+    app.route('/api/service-tokens', serviceTokensRoutes(config?.pgDb ?? db, db));
   }
   // Prompt auto-discovery (#55 Thread 2) — SQLite-backed; null on Postgres-only.
   const promptStore = db ? new PromptStore(db) : null;
