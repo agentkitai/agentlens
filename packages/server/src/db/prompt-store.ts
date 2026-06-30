@@ -23,6 +23,20 @@ import type {
 } from '@agentkitai/agentlens-core';
 import { costUsdDetailed } from '@agentkitai/agentlens-core';
 
+// ─── Dialect-aware JSON access (#175) ──────────────────────
+// events.payload/metadata is jsonb on Postgres and TEXT on SQLite. These build the
+// right field-extraction SQL for each dialect; paths/columns are code constants
+// (never user input), so raw interpolation is safe. col e.g. 'r.payload'.
+function jText(isPg: boolean, col: string, ...path: string[]): string {
+  if (!isPg) return `json_extract(${col}, '$.${path.join('.')}')`;
+  const leaf = path[path.length - 1];
+  const parents = path.slice(0, -1).map((p) => `'${p}'`);
+  return parents.length ? `${col}->${parents.join('->')}->>'${leaf}'` : `${col}->>'${leaf}'`;
+}
+function jNum(isPg: boolean, col: string, ...path: string[]): string {
+  return isPg ? `(${jText(isPg, col, ...path)})::numeric` : `json_extract(${col}, '$.${path.join('.')}')`;
+}
+
 // ─── DB Row Types ──────────────────────────────────────────
 
 interface TemplateRow {
@@ -556,11 +570,8 @@ export class PromptStore {
     from?: string,
     to?: string,
   ): Promise<PromptVersionAnalytics[]> {
-    // #172: per-version analytics join the events table with SQLite json_extract;
-    // the dialect-aware Postgres rewrite is deferred (#175).
-    if (!isSqliteDb(this.db)) {
-      throw new Error('getVersionAnalytics is not yet supported on Postgres (deferred — see #175)');
-    }
+    // #175: per-version analytics join events via dialect-aware JSON access.
+    const isPg = !isSqliteDb(this.db);
     const fromDate = from ?? new Date(Date.now() - 30 * 86400000).toISOString();
     const toDate = to ?? new Date().toISOString();
 
@@ -581,26 +592,26 @@ export class PromptStore {
         pv.id AS version_id,
         pv.version_number,
         COUNT(DISTINCT e.id) AS call_count,
-        COALESCE(SUM(json_extract(r.payload, '$.costUsd')), 0) AS total_cost_usd,
-        COALESCE(AVG(json_extract(r.payload, '$.costUsd')), 0) AS avg_cost_usd,
-        COALESCE(AVG(json_extract(r.payload, '$.latencyMs')), 0) AS avg_latency_ms,
+        COALESCE(SUM(${sql.raw(jNum(isPg, 'r.payload', 'costUsd'))}), 0) AS total_cost_usd,
+        COALESCE(AVG(${sql.raw(jNum(isPg, 'r.payload', 'costUsd'))}), 0) AS avg_cost_usd,
+        COALESCE(AVG(${sql.raw(jNum(isPg, 'r.payload', 'latencyMs'))}), 0) AS avg_latency_ms,
         COALESCE(
-          CAST(SUM(CASE WHEN json_extract(r.payload, '$.finishReason') = 'error' THEN 1 ELSE 0 END) AS REAL)
+          CAST(SUM(CASE WHEN ${sql.raw(jText(isPg, 'r.payload', 'finishReason'))} = 'error' THEN 1 ELSE 0 END) AS REAL)
           / NULLIF(COUNT(DISTINCT e.id), 0),
           0
         ) AS error_rate,
-        COALESCE(AVG(json_extract(r.payload, '$.usage.inputTokens')), 0) AS avg_input_tokens,
-        COALESCE(AVG(json_extract(r.payload, '$.usage.outputTokens')), 0) AS avg_output_tokens,
-        COALESCE(SUM(json_extract(r.payload, '$.usage.cacheReadTokens')), 0) AS total_cache_read_tokens,
-        COALESCE(SUM(json_extract(r.payload, '$.usage.cacheWriteTokens')), 0) AS total_cache_write_tokens
+        COALESCE(AVG(${sql.raw(jNum(isPg, 'r.payload', 'usage', 'inputTokens'))}), 0) AS avg_input_tokens,
+        COALESCE(AVG(${sql.raw(jNum(isPg, 'r.payload', 'usage', 'outputTokens'))}), 0) AS avg_output_tokens,
+        COALESCE(SUM(${sql.raw(jNum(isPg, 'r.payload', 'usage', 'cacheReadTokens'))}), 0) AS total_cache_read_tokens,
+        COALESCE(SUM(${sql.raw(jNum(isPg, 'r.payload', 'usage', 'cacheWriteTokens'))}), 0) AS total_cache_write_tokens
       FROM prompt_versions pv
       LEFT JOIN events e
-        ON json_extract(e.payload, '$.promptVersionId') = pv.id
+        ON ${sql.raw(jText(isPg, 'e.payload', 'promptVersionId'))} = pv.id
         AND e.event_type = 'llm_call'
         AND e.tenant_id = ${tenantId}
         AND e.timestamp BETWEEN ${fromDate} AND ${toDate}
       LEFT JOIN events r
-        ON json_extract(r.payload, '$.callId') = json_extract(e.payload, '$.callId')
+        ON ${sql.raw(jText(isPg, 'r.payload', 'callId'))} = ${sql.raw(jText(isPg, 'e.payload', 'callId'))}
         AND r.event_type = 'llm_response'
         AND r.tenant_id = ${tenantId}
       WHERE pv.template_id = ${templateId} AND pv.tenant_id = ${tenantId}
@@ -612,18 +623,19 @@ export class PromptStore {
     // by (version, model) and price each group in JS (the main query is per-version).
     const savings = await this.cacheSavingsByVersion(templateId, tenantId, fromDate, toDate);
 
+    // Postgres returns numeric/count aggregates as strings — coerce to numbers.
     return rows.map((r) => ({
       versionId: r.version_id,
-      versionNumber: r.version_number,
-      callCount: r.call_count,
-      totalCostUsd: r.total_cost_usd,
-      avgCostUsd: r.avg_cost_usd,
-      avgLatencyMs: r.avg_latency_ms,
-      errorRate: r.error_rate,
-      avgInputTokens: r.avg_input_tokens,
-      avgOutputTokens: r.avg_output_tokens,
-      totalCacheReadTokens: r.total_cache_read_tokens,
-      totalCacheWriteTokens: r.total_cache_write_tokens,
+      versionNumber: Number(r.version_number),
+      callCount: Number(r.call_count),
+      totalCostUsd: Number(r.total_cost_usd),
+      avgCostUsd: Number(r.avg_cost_usd),
+      avgLatencyMs: Number(r.avg_latency_ms),
+      errorRate: Number(r.error_rate),
+      avgInputTokens: Number(r.avg_input_tokens),
+      avgOutputTokens: Number(r.avg_output_tokens),
+      totalCacheReadTokens: Number(r.total_cache_read_tokens),
+      totalCacheWriteTokens: Number(r.total_cache_write_tokens),
       estimatedCacheSavingsUsd: savings.get(r.version_id) ?? 0,
     }));
   }
@@ -635,32 +647,35 @@ export class PromptStore {
     fromDate: string,
     toDate: string,
   ): Promise<Map<string, number>> {
+    const isPg = !isSqliteDb(this.db);
+    const modelExpr = jText(isPg, 'r.payload', 'model');
     const rows = await dbAll<{ version_id: string; model: string | null; cache_read: number }>(this.db, sql`
       SELECT
         pv.id AS version_id,
-        json_extract(r.payload, '$.model') AS model,
-        COALESCE(SUM(json_extract(r.payload, '$.usage.cacheReadTokens')), 0) AS cache_read
+        ${sql.raw(modelExpr)} AS model,
+        COALESCE(SUM(${sql.raw(jNum(isPg, 'r.payload', 'usage', 'cacheReadTokens'))}), 0) AS cache_read
       FROM prompt_versions pv
       LEFT JOIN events e
-        ON json_extract(e.payload, '$.promptVersionId') = pv.id
+        ON ${sql.raw(jText(isPg, 'e.payload', 'promptVersionId'))} = pv.id
         AND e.event_type = 'llm_call'
         AND e.tenant_id = ${tenantId}
         AND e.timestamp BETWEEN ${fromDate} AND ${toDate}
       LEFT JOIN events r
-        ON json_extract(r.payload, '$.callId') = json_extract(e.payload, '$.callId')
+        ON ${sql.raw(jText(isPg, 'r.payload', 'callId'))} = ${sql.raw(jText(isPg, 'e.payload', 'callId'))}
         AND r.event_type = 'llm_response'
         AND r.tenant_id = ${tenantId}
       WHERE pv.template_id = ${templateId} AND pv.tenant_id = ${tenantId}
-      GROUP BY pv.id, model
+      GROUP BY pv.id, ${sql.raw(modelExpr)}
     `);
 
     const byVersion = new Map<string, number>();
     for (const row of rows) {
-      if (!row.model || !row.cache_read) continue;
+      const cacheRead = Number(row.cache_read);
+      if (!row.model || !cacheRead) continue;
       // Single source of truth for the per-model cache discount (robust to a
       // LiteLLM refresh): savings = the cacheSavingsUsd costUsdDetailed reports.
       const { cacheSavingsUsd } = costUsdDetailed(row.model, {
-        inputTokens: 0, outputTokens: 0, cacheReadTokens: row.cache_read,
+        inputTokens: 0, outputTokens: 0, cacheReadTokens: cacheRead,
       });
       if (cacheSavingsUsd > 0) byVersion.set(row.version_id, (byVersion.get(row.version_id) ?? 0) + cacheSavingsUsd);
     }
@@ -917,12 +932,11 @@ export class PromptStore {
     from?: string,
     to?: string,
   ): Promise<PromptAgentUsage[]> {
-    // #172: deferred on Postgres (events-joining json_extract) — see #175.
-    if (!isSqliteDb(this.db)) {
-      throw new Error('getVersionAnalyticsByAgent is not yet supported on Postgres (deferred — see #175)');
-    }
+    // #175: dialect-aware JSON access (events.metadata/payload jsonb on pg).
+    const isPg = !isSqliteDb(this.db);
     const fromDate = from ?? new Date(Date.now() - 30 * 86400000).toISOString();
     const toDate = to ?? new Date().toISOString();
+    const verifiedId = jText(isPg, 'e.metadata', 'verifiedAgentId');
 
     const rows = await dbAll<{
       version_id: string;
@@ -937,24 +951,24 @@ export class PromptStore {
       SELECT
         pv.id AS version_id,
         pv.version_number,
-        COALESCE(json_extract(e.metadata, '$.verifiedAgentId'), e.agent_id) AS resolved_agent_id,
-        CASE WHEN json_extract(e.metadata, '$.verifiedAgentId') IS NOT NULL THEN 1 ELSE 0 END AS verified,
+        COALESCE(${sql.raw(verifiedId)}, e.agent_id) AS resolved_agent_id,
+        CASE WHEN ${sql.raw(verifiedId)} IS NOT NULL THEN 1 ELSE 0 END AS verified,
         COUNT(DISTINCT e.id) AS call_count,
-        COALESCE(SUM(json_extract(r.payload, '$.costUsd')), 0) AS total_cost_usd,
-        COALESCE(AVG(json_extract(r.payload, '$.latencyMs')), 0) AS avg_latency_ms,
+        COALESCE(SUM(${sql.raw(jNum(isPg, 'r.payload', 'costUsd'))}), 0) AS total_cost_usd,
+        COALESCE(AVG(${sql.raw(jNum(isPg, 'r.payload', 'latencyMs'))}), 0) AS avg_latency_ms,
         COALESCE(
-          CAST(SUM(CASE WHEN json_extract(r.payload, '$.finishReason') = 'error' THEN 1 ELSE 0 END) AS REAL)
+          CAST(SUM(CASE WHEN ${sql.raw(jText(isPg, 'r.payload', 'finishReason'))} = 'error' THEN 1 ELSE 0 END) AS REAL)
           / NULLIF(COUNT(DISTINCT e.id), 0),
           0
         ) AS error_rate
       FROM prompt_versions pv
       JOIN events e
-        ON json_extract(e.payload, '$.promptVersionId') = pv.id
+        ON ${sql.raw(jText(isPg, 'e.payload', 'promptVersionId'))} = pv.id
         AND e.event_type = 'llm_call'
         AND e.tenant_id = ${tenantId}
         AND e.timestamp BETWEEN ${fromDate} AND ${toDate}
       LEFT JOIN events r
-        ON json_extract(r.payload, '$.callId') = json_extract(e.payload, '$.callId')
+        ON ${sql.raw(jText(isPg, 'r.payload', 'callId'))} = ${sql.raw(jText(isPg, 'e.payload', 'callId'))}
         AND r.event_type = 'llm_response'
         AND r.tenant_id = ${tenantId}
       WHERE pv.template_id = ${templateId} AND pv.tenant_id = ${tenantId}
@@ -962,15 +976,16 @@ export class PromptStore {
       ORDER BY pv.version_number DESC, call_count DESC
     `);
 
+    // Postgres returns numeric/count aggregates as strings — coerce.
     return rows.map((r) => ({
       versionId: r.version_id,
-      versionNumber: r.version_number,
+      versionNumber: Number(r.version_number),
       agentId: r.resolved_agent_id ?? 'unknown',
-      verified: r.verified === 1,
-      callCount: r.call_count,
-      totalCostUsd: r.total_cost_usd,
-      avgLatencyMs: r.avg_latency_ms,
-      errorRate: r.error_rate,
+      verified: Number(r.verified) === 1,
+      callCount: Number(r.call_count),
+      totalCostUsd: Number(r.total_cost_usd),
+      avgLatencyMs: Number(r.avg_latency_ms),
+      errorRate: Number(r.error_rate),
     }));
   }
 }
