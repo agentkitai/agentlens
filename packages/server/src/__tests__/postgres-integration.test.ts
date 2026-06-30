@@ -21,6 +21,7 @@ import { RetentionService } from '../db/services/retention-service.js';
 import { HealthSnapshotStore } from '../db/health-snapshot-store.js';
 import { NotificationChannelRepository } from '../db/repositories/notification-channel-repository.js';
 import { UserStore } from '../db/user-store.js';
+import { SsoConnectionStore } from '../db/sso-connection-store.js';
 import { PostgresEventStore } from '../db/postgres-store.js';
 import { TenantScopedStore } from '../db/tenant-scoped-store.js';
 import { computeEventHash } from '@agentkitai/agentlens-core';
@@ -291,6 +292,8 @@ describePg('Postgres integration tests', () => {
         // #172 features 7-11: annotations, llm connections, chain anchors, health, notifications
         'annotation_queues', 'annotation_items', 'llm_connections', 'chain_anchors',
         'health_snapshots', 'notification_channels', 'notification_log',
+        // #148: enterprise SSO connections
+        'sso_connections',
       ];
 
       for (const table of expectedTables) {
@@ -789,6 +792,31 @@ describePg('Postgres integration tests', () => {
 
       expect(await store.delete(u.id)).toBe(true);
       expect(await store.getById(u.id)).toBeUndefined();
+    });
+  });
+
+  // ─── #148 (Phase 7): dialect-agnostic SsoConnectionStore on pg ──
+  describe('SsoConnectionStore on Postgres (#148)', () => {
+    it('CRUDs SSO connections + domain enforcement lookup on pg', async () => {
+      const store = new SsoConnectionStore(db);
+      const org = `org_${randomUUID().slice(0, 8)}`;
+      const domain = `${randomUUID().slice(0, 6)}.com`;
+      const conn = await store.create({
+        orgId: org, type: 'saml', name: 'Okta PG', domain,
+        config: { ssoUrl: 'https://idp/sso' },
+        groupRoleMappings: { admins: 'admin' },
+      });
+      expect(conn.enabled).toBe(false); // INTEGER 0 → boolean false on pg
+      expect(conn.config.ssoUrl).toBe('https://idp/sso');
+      expect((await store.listByOrg(org)).map((c) => c.id)).toEqual([conn.id]);
+
+      // not enforced yet → no domain match
+      expect(await store.getEnforcedByDomain(domain)).toBeUndefined();
+      await store.update(conn.id, { enabled: true, domainVerified: true, enforced: true });
+      expect((await store.getEnforcedByDomain(domain))?.id).toBe(conn.id);
+
+      expect(await store.delete(conn.id)).toBe(true);
+      expect(await store.getById(conn.id)).toBeUndefined();
     });
   });
 
