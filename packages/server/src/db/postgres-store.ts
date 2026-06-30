@@ -86,6 +86,9 @@ function buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>) {
 function buildSessionConditions(query: SessionQuery) {
   const conditions = [];
   if (query.tenantId) conditions.push(eq(sessions.tenantId, query.tenantId));
+  // org→project isolation (#147) — filtered only when the scope provides them.
+  if (query.orgId) conditions.push(eq(sessions.orgId, query.orgId));
+  if (query.projectId) conditions.push(eq(sessions.projectId, query.projectId));
   if (query.agentId) conditions.push(eq(sessions.agentId, query.agentId));
   if (query.status) {
     if (Array.isArray(query.status)) {
@@ -315,8 +318,8 @@ export class PostgresEventStore implements IEventStore {
           totalCostUsd: 0,
           tags: tags,
           tenantId,
-          orgId: 'default', // #147
-          projectId: tenantId, // #147
+          orgId: event.orgId ?? 'default', // #147
+          projectId: event.projectId ?? tenantId, // #147
         })
         .onConflictDoUpdate({
           target: [sessions.id, sessions.tenantId],
@@ -344,8 +347,8 @@ export class PostgresEventStore implements IEventStore {
         totalCostUsd: 0,
         tags: [],
         tenantId,
-        orgId: 'default', // #147
-        projectId: tenantId, // #147
+        orgId: event.orgId ?? 'default', // #147
+        projectId: event.projectId ?? tenantId, // #147
       })
       .onConflictDoNothing({ target: [sessions.id, sessions.tenantId] });
 
@@ -408,8 +411,8 @@ export class PostgresEventStore implements IEventStore {
         lastSeenAt: event.timestamp,
         sessionCount: event.eventType === 'session_started' ? 1 : 0,
         tenantId,
-        orgId: 'default', // #147
-        projectId: tenantId, // #147
+        orgId: event.orgId ?? 'default', // #147
+        projectId: event.projectId ?? tenantId, // #147
       })
       .onConflictDoUpdate({
         target: [agents.id, agents.tenantId],
@@ -616,9 +619,11 @@ export class PostgresEventStore implements IEventStore {
     };
   }
 
-  async getSession(id: string, tenantId?: string): Promise<Session | null> {
+  async getSession(id: string, tenantId?: string, orgId?: string, projectId?: string): Promise<Session | null> {
     const conditions = [eq(sessions.id, id)];
     if (tenantId) conditions.push(eq(sessions.tenantId, tenantId));
+    if (orgId) conditions.push(eq(sessions.orgId, orgId));
+    if (projectId) conditions.push(eq(sessions.projectId, projectId));
 
     const [row] = await this.db
       .select()

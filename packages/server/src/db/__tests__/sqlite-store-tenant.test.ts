@@ -637,5 +637,11 @@ describe('Org/project stamping (#147)', () => {
     // session timeline is project-scoped
     expect(await projA.getSessionTimeline('sess-b')).toHaveLength(0);
     expect(await projA.getSessionTimeline('sess-a')).toHaveLength(1);
+
+    // sessions (created from the session_started events) are project-isolated too
+    expect((await projA.querySessions({})).sessions.map((s) => s.id)).toEqual(['sess-a']);
+    expect((await projB.querySessions({})).sessions.map((s) => s.id)).toEqual(['sess-b']);
+    expect(await projA.getSession('sess-b')).toBeNull();
+    expect(await projA.getSession('sess-a')).not.toBeNull();
   });
 });
