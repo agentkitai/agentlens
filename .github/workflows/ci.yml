@@ -99,6 +99,14 @@ jobs:
         env:
           DB_DIALECT: postgresql
           DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test
+      # Cloud-edition tests against the same Postgres service (#256 harness). Run
+      # serially (the config sets fileParallelism:false) and as a separate step so
+      # cloud failures are isolated from the postgres-integration suite above.
+      - run: pnpm --filter @agentkitai/agentlens-server exec vitest run --config vitest.cloud-postgres.config.ts
+        env:
+          DB_DIALECT: postgresql
+          DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test
+          DATABASE_URL: postgres://test:test@localhost:5432/agentlens_test
 
   # Smoke-tests the README headline: ingest a trace, verify the hash chain,
   # tamper a record, confirm verification fails. demo/aha.sh exits non-zero
