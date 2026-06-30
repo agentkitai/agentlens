@@ -11,6 +11,9 @@ export default defineConfig({
     environment: 'node',
     include: ['src/cloud/__tests__/**/*.test.ts'],
     exclude: ['dist/**', 'node_modules/**'],
+    // Drop all tables once before the suite so the cloud migrations start clean
+    // (the shared CI db carries OSS tables from the postgres-integration step).
+    globalSetup: ['src/cloud/__tests__/reset-db.global.ts'],
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 30_000,
