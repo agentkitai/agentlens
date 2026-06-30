@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm';
 import { resolve } from 'path';
 import { randomUUID } from 'node:crypto';
 import { OrgProjectStore } from '../db/org-project-store.js';
+import { PromptStore } from '../db/prompt-store.js';
 
 const IS_PG = process.env.DB_DIALECT === 'postgresql';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/agentlens_test';
@@ -308,6 +309,45 @@ describePg('Postgres integration tests', () => {
 
       await store.addProjectMember(proj.id, 'user-pg-1', 'viewer');
       expect(await store.listProjectMembers(proj.id)).toHaveLength(1);
+    });
+  });
+
+  // ─── #172 feature 2: prompt management via the dialect-agnostic store ──
+  describe('Prompt management (dialect-agnostic PromptStore on Postgres)', () => {
+    it('CRUDs templates/versions/fingerprints/deploys/AB and defers analytics on pg', async () => {
+      const store = new PromptStore(db);
+      const tid = `tenant-${randomUUID().slice(0, 8)}`;
+
+      const { template, version } = await store.createTemplate(tid, { name: 'Greeting', content: 'Hello {{name}}', category: 'system' });
+      expect(template.currentVersionId).toBe(version.id);
+      expect((await store.getTemplate(template.id, tid))?.name).toBe('Greeting');
+
+      const v2 = await store.createVersion(template.id, tid, { content: 'Hi {{name}}', promptType: 'chat' });
+      expect(v2?.versionNumber).toBe(2);
+      expect(await store.listVersions(template.id, tid)).toHaveLength(2);
+      expect((await store.getVersion(v2!.id, tid))?.promptType).toBe('chat');
+
+      // fingerprint upsert — ON CONFLICT increments call_count on both dialects
+      await store.upsertFingerprint('h1', tid, 'agt1', 'sys', 1);
+      await store.upsertFingerprint('h1', tid, 'agt1', 'sys', 2);
+      const fps = await store.getFingerprints(tid);
+      expect(fps).toHaveLength(1);
+      expect(fps[0].callCount).toBe(3);
+
+      // deploy ledger — server-authored hash chain, derived live version
+      await store.appendDeployment(tid, { templateId: template.id, environment: 'staging', versionId: version.id, action: 'deploy' });
+      expect(await store.getLiveVersion(tid, 'staging', template.id)).toBe(version.id);
+      expect((await store.verifyDeployLedger(tid, 'staging')).valid).toBe(true);
+
+      // A/B test
+      const ab = await store.createAbTest(tid, template.id, 'staging', [{ versionId: version.id, label: 'a', weight: 1 }]);
+      expect((await store.getActiveAbTest(tid, template.id, 'staging'))?.id).toBe(ab.id);
+
+      // events-joining version analytics are deferred on Postgres (#175)
+      await expect(store.getVersionAnalytics(template.id, tid)).rejects.toThrow(/Postgres/);
+
+      await store.softDeleteTemplate(template.id, tid);
+      expect(await store.getTemplate(template.id, tid)).toBeNull();
     });
   });
 });

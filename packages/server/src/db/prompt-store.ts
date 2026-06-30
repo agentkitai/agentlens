@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { pickVariant, type AbVariant } from '../lib/prompt-ab.js';
-import type { SqliteDb } from './index.js';
+import { type AnyDb, isSqliteDb, dbRun, dbAll, dbGet, dbRunCount } from './dialect-db.js';
 import type {
   PromptTemplate,
   PromptVersion,
@@ -305,14 +305,14 @@ function toAbTest(r: AbTestRow): AbTest {
 // ─── Store Class ───────────────────────────────────────────
 
 export class PromptStore {
-  constructor(private db: SqliteDb) {}
+  constructor(private db: AnyDb) {}
 
   // ─── Template CRUD ────────────────────────────────────────
 
-  createTemplate(
+  async createTemplate(
     tenantId: string,
     input: CreateTemplateInput,
-  ): { template: PromptTemplate; version: PromptVersion } {
+  ): Promise<{ template: PromptTemplate; version: PromptVersion }> {
     const templateId = randomUUID();
     const versionId = randomUUID();
     const now = new Date().toISOString();
@@ -322,12 +322,12 @@ export class PromptStore {
     const promptType = input.promptType ?? 'text';
 
     // Atomic: insert template + version 1
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO prompt_templates (id, tenant_id, name, description, category, current_version_id, created_at, updated_at)
       VALUES (${templateId}, ${tenantId}, ${input.name}, ${input.description ?? null}, ${input.category ?? 'general'}, ${versionId}, ${now}, ${now})
     `);
 
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO prompt_versions (id, template_id, tenant_id, version_number, content, variables, config, prompt_type, content_hash, changelog, created_by, created_at)
       VALUES (${versionId}, ${templateId}, ${tenantId}, ${1}, ${input.content}, ${variables}, ${config}, ${promptType}, ${contentHash}, ${'Initial version'}, ${input.createdBy ?? null}, ${now})
     `);
@@ -359,8 +359,8 @@ export class PromptStore {
     return { template, version };
   }
 
-  getTemplate(id: string, tenantId: string): (PromptTemplate & { versions?: PromptVersion[] }) | null {
-    const row = this.db.get<TemplateRow>(sql`
+  async getTemplate(id: string, tenantId: string): Promise<(PromptTemplate & { versions?: PromptVersion[] }) | null> {
+    const row = await dbGet<TemplateRow>(this.db, sql`
       SELECT * FROM prompt_templates
       WHERE id = ${id} AND tenant_id = ${tenantId} AND deleted_at IS NULL
     `);
@@ -369,7 +369,7 @@ export class PromptStore {
     // Get current version number
     let versionNumber: number | undefined;
     if (row.current_version_id) {
-      const vRow = this.db.get<{ version_number: number }>(sql`
+      const vRow = await dbGet<{ version_number: number }>(this.db, sql`
         SELECT version_number FROM prompt_versions WHERE id = ${row.current_version_id}
       `);
       versionNumber = vRow?.version_number;
@@ -378,7 +378,7 @@ export class PromptStore {
     return toTemplate(row, versionNumber);
   }
 
-  listTemplates(query: ListTemplatesQuery): { templates: PromptTemplate[]; total: number } {
+  async listTemplates(query: ListTemplatesQuery): Promise<{ templates: PromptTemplate[]; total: number }> {
     const { tenantId, category, search, limit = 50, offset = 0 } = query;
 
     // Build WHERE clauses
@@ -390,12 +390,12 @@ export class PromptStore {
       whereClause = sql`${whereClause} AND name LIKE ${'%' + search + '%'}`;
     }
 
-    const totalRow = this.db.get<{ count: number }>(sql`
+    const totalRow = await dbGet<{ count: number }>(this.db, sql`
       SELECT COUNT(*) as count FROM prompt_templates WHERE ${whereClause}
     `);
     const total = totalRow?.count ?? 0;
 
-    const rows = this.db.all<TemplateRow>(sql`
+    const rows = await dbAll<TemplateRow>(this.db, sql`
       SELECT * FROM prompt_templates WHERE ${whereClause}
       ORDER BY updated_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -409,24 +409,24 @@ export class PromptStore {
     return { templates, total };
   }
 
-  softDeleteTemplate(id: string, tenantId: string): boolean {
+  async softDeleteTemplate(id: string, tenantId: string): Promise<boolean> {
     const now = new Date().toISOString();
-    const result = this.db.run(sql`
+    const changed = await dbRunCount(this.db, sql`
       UPDATE prompt_templates SET deleted_at = ${now}, updated_at = ${now}
       WHERE id = ${id} AND tenant_id = ${tenantId} AND deleted_at IS NULL
     `);
-    return result.changes > 0;
+    return changed > 0;
   }
 
   // ─── Version Management ───────────────────────────────────
 
-  createVersion(
+  async createVersion(
     templateId: string,
     tenantId: string,
     input: CreateVersionInput,
-  ): PromptVersion | null {
+  ): Promise<PromptVersion | null> {
     // Check template exists
-    const template = this.db.get<TemplateRow>(sql`
+    const template = await dbGet<TemplateRow>(this.db, sql`
       SELECT * FROM prompt_templates
       WHERE id = ${templateId} AND tenant_id = ${tenantId} AND deleted_at IS NULL
     `);
@@ -436,7 +436,7 @@ export class PromptStore {
 
     // Check if hash matches current version (dedup — no-op)
     if (template.current_version_id) {
-      const currentVersion = this.db.get<VersionRow>(sql`
+      const currentVersion = await dbGet<VersionRow>(this.db, sql`
         SELECT * FROM prompt_versions WHERE id = ${template.current_version_id}
       `);
       if (currentVersion && currentVersion.content_hash === contentHash) {
@@ -445,7 +445,7 @@ export class PromptStore {
     }
 
     // Get max version number
-    const maxRow = this.db.get<{ max_ver: number | null }>(sql`
+    const maxRow = await dbGet<{ max_ver: number | null }>(this.db, sql`
       SELECT MAX(version_number) as max_ver FROM prompt_versions
       WHERE template_id = ${templateId}
     `);
@@ -457,12 +457,12 @@ export class PromptStore {
     const config = input.config ? JSON.stringify(input.config) : null;
     const promptType = input.promptType ?? 'text';
 
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO prompt_versions (id, template_id, tenant_id, version_number, content, variables, config, prompt_type, content_hash, changelog, created_by, created_at)
       VALUES (${versionId}, ${templateId}, ${tenantId}, ${nextVersion}, ${input.content}, ${variables}, ${config}, ${promptType}, ${contentHash}, ${input.changelog ?? null}, ${input.createdBy ?? null}, ${now})
     `);
 
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE prompt_templates SET current_version_id = ${versionId}, updated_at = ${now}
       WHERE id = ${templateId}
     `);
@@ -482,15 +482,15 @@ export class PromptStore {
     };
   }
 
-  getVersion(versionId: string, tenantId: string): PromptVersion | null {
-    const row = this.db.get<VersionRow>(sql`
+  async getVersion(versionId: string, tenantId: string): Promise<PromptVersion | null> {
+    const row = await dbGet<VersionRow>(this.db, sql`
       SELECT * FROM prompt_versions WHERE id = ${versionId} AND tenant_id = ${tenantId}
     `);
     return row ? toVersion(row) : null;
   }
 
-  listVersions(templateId: string, tenantId: string): PromptVersion[] {
-    const rows = this.db.all<VersionRow>(sql`
+  async listVersions(templateId: string, tenantId: string): Promise<PromptVersion[]> {
+    const rows = await dbAll<VersionRow>(this.db, sql`
       SELECT * FROM prompt_versions
       WHERE template_id = ${templateId} AND tenant_id = ${tenantId}
       ORDER BY version_number DESC
@@ -500,18 +500,18 @@ export class PromptStore {
 
   // ─── Fingerprinting ──────────────────────────────────────
 
-  upsertFingerprint(
+  async upsertFingerprint(
     hash: string,
     tenantId: string,
     agentId: string,
     sampleContent?: string,
     count = 1,
-  ): void {
+  ): Promise<void> {
     const now = new Date().toISOString();
     const sample = sampleContent?.slice(0, 2000) ?? null;
     const inc = Math.max(1, Math.trunc(count));
 
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO prompt_fingerprints (content_hash, tenant_id, agent_id, first_seen_at, last_seen_at, call_count, sample_content)
       VALUES (${hash}, ${tenantId}, ${agentId}, ${now}, ${now}, ${inc}, ${sample})
       ON CONFLICT (content_hash, tenant_id, agent_id)
@@ -519,16 +519,16 @@ export class PromptStore {
     `);
   }
 
-  getFingerprints(tenantId: string, agentId?: string): PromptFingerprint[] {
+  async getFingerprints(tenantId: string, agentId?: string): Promise<PromptFingerprint[]> {
     if (agentId) {
-      const rows = this.db.all<FingerprintRow>(sql`
+      const rows = await dbAll<FingerprintRow>(this.db, sql`
         SELECT * FROM prompt_fingerprints
         WHERE tenant_id = ${tenantId} AND agent_id = ${agentId}
         ORDER BY last_seen_at DESC
       `);
       return rows.map(toFingerprint);
     }
-    const rows = this.db.all<FingerprintRow>(sql`
+    const rows = await dbAll<FingerprintRow>(this.db, sql`
       SELECT * FROM prompt_fingerprints
       WHERE tenant_id = ${tenantId}
       ORDER BY last_seen_at DESC
@@ -536,30 +536,35 @@ export class PromptStore {
     return rows.map(toFingerprint);
   }
 
-  linkFingerprintToTemplate(
+  async linkFingerprintToTemplate(
     hash: string,
     tenantId: string,
     templateId: string,
-  ): boolean {
-    const result = this.db.run(sql`
+  ): Promise<boolean> {
+    const changed = await dbRunCount(this.db, sql`
       UPDATE prompt_fingerprints SET template_id = ${templateId}
       WHERE content_hash = ${hash} AND tenant_id = ${tenantId}
     `);
-    return result.changes > 0;
+    return changed > 0;
   }
 
   // ─── Analytics ────────────────────────────────────────────
 
-  getVersionAnalytics(
+  async getVersionAnalytics(
     templateId: string,
     tenantId: string,
     from?: string,
     to?: string,
-  ): PromptVersionAnalytics[] {
+  ): Promise<PromptVersionAnalytics[]> {
+    // #172: per-version analytics join the events table with SQLite json_extract;
+    // the dialect-aware Postgres rewrite is deferred (#175).
+    if (!isSqliteDb(this.db)) {
+      throw new Error('getVersionAnalytics is not yet supported on Postgres (deferred — see #175)');
+    }
     const fromDate = from ?? new Date(Date.now() - 30 * 86400000).toISOString();
     const toDate = to ?? new Date().toISOString();
 
-    const rows = this.db.all<{
+    const rows = await dbAll<{
       version_id: string;
       version_number: number;
       call_count: number;
@@ -571,7 +576,7 @@ export class PromptStore {
       avg_output_tokens: number;
       total_cache_read_tokens: number;
       total_cache_write_tokens: number;
-    }>(sql`
+    }>(this.db, sql`
       SELECT
         pv.id AS version_id,
         pv.version_number,
@@ -605,7 +610,7 @@ export class PromptStore {
 
     // Cache savings need a per-model rate, so aggregate cache-read tokens grouped
     // by (version, model) and price each group in JS (the main query is per-version).
-    const savings = this.cacheSavingsByVersion(templateId, tenantId, fromDate, toDate);
+    const savings = await this.cacheSavingsByVersion(templateId, tenantId, fromDate, toDate);
 
     return rows.map((r) => ({
       versionId: r.version_id,
@@ -624,13 +629,13 @@ export class PromptStore {
   }
 
   /** Estimated USD saved by cache reads per version = cacheReadTokens × (input − cacheRead) rate. */
-  private cacheSavingsByVersion(
+  private async cacheSavingsByVersion(
     templateId: string,
     tenantId: string,
     fromDate: string,
     toDate: string,
-  ): Map<string, number> {
-    const rows = this.db.all<{ version_id: string; model: string | null; cache_read: number }>(sql`
+  ): Promise<Map<string, number>> {
+    const rows = await dbAll<{ version_id: string; model: string | null; cache_read: number }>(this.db, sql`
       SELECT
         pv.id AS version_id,
         json_extract(r.payload, '$.model') AS model,
@@ -675,7 +680,7 @@ export class PromptStore {
    * Gating (AgentGate) is decided in the route; this records the outcome,
    * including denials (status='denied'), so the audit trail is complete.
    */
-  appendDeployment(
+  async appendDeployment(
     tenantId: string,
     input: {
       templateId: string;
@@ -689,10 +694,10 @@ export class PromptStore {
       approvalRef?: string | null;
       note?: string | null;
     },
-  ): PromptDeployment | null {
+  ): Promise<PromptDeployment | null> {
     if (!isKnownEnvironment(input.environment)) return null;
 
-    const version = this.db.get<VersionRow>(sql`
+    const version = await dbGet<VersionRow>(this.db, sql`
       SELECT * FROM prompt_versions
       WHERE id = ${input.versionId} AND template_id = ${input.templateId} AND tenant_id = ${tenantId}
     `);
@@ -700,7 +705,7 @@ export class PromptStore {
 
     // Chain to the env's tail. The UNIQUE(tenant, env, seq) index fails closed
     // if two writers race the same seq (mirrors append-event's race handling).
-    const tail = this.db.get<{ seq: number; hash: string }>(sql`
+    const tail = await dbGet<{ seq: number; hash: string }>(this.db, sql`
       SELECT seq, hash FROM prompt_deployments
       WHERE tenant_id = ${tenantId} AND environment = ${input.environment}
       ORDER BY seq DESC LIMIT 1
@@ -730,7 +735,7 @@ export class PromptStore {
     };
     const hash = computeDeploymentHash(fields);
 
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO prompt_deployments
         (id, tenant_id, template_id, environment, version_id, action, status,
          actor_id, actor_method, approver_id, approval_ref, note, seq, prev_hash, hash, created_at)
@@ -760,8 +765,8 @@ export class PromptStore {
   }
 
   /** The version currently live in an environment for a template (latest committed row), or null. */
-  getLiveVersion(tenantId: string, environment: string, templateId: string): string | null {
-    const row = this.db.get<{ version_id: string }>(sql`
+  async getLiveVersion(tenantId: string, environment: string, templateId: string): Promise<string | null> {
+    const row = await dbGet<{ version_id: string }>(this.db, sql`
       SELECT version_id FROM prompt_deployments
       WHERE tenant_id = ${tenantId} AND environment = ${environment}
         AND template_id = ${templateId} AND status = 'committed'
@@ -771,10 +776,10 @@ export class PromptStore {
   }
 
   /** Map of environment → live version id for a template (only envs with a live version). */
-  getLiveVersions(tenantId: string, templateId: string): Record<string, string> {
+  async getLiveVersions(tenantId: string, templateId: string): Promise<Record<string, string>> {
     const out: Record<string, string> = {};
     for (const env of getPromptEnvironments()) {
-      const v = this.getLiveVersion(tenantId, env.name, templateId);
+      const v = await this.getLiveVersion(tenantId, env.name, templateId);
       if (v) out[env.name] = v;
     }
     return out;
@@ -783,29 +788,29 @@ export class PromptStore {
   // ─── A/B testing (#150) ───────────────────────────────────
 
   /** Create (or replace) the active A/B test for a (template, environment). */
-  createAbTest(
+  async createAbTest(
     tenantId: string,
     templateId: string,
     environment: string,
     variants: AbVariant[],
     createdBy?: string,
-  ): AbTest {
+  ): Promise<AbTest> {
     const now = new Date().toISOString();
     // One active test per (template, env): stop any existing active one.
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       UPDATE prompt_ab_tests SET status = 'stopped', updated_at = ${now}
       WHERE tenant_id = ${tenantId} AND template_id = ${templateId} AND environment = ${environment} AND status = 'active'
     `);
     const id = `abtest_${randomUUID()}`;
-    this.db.run(sql`
+    await dbRun(this.db, sql`
       INSERT INTO prompt_ab_tests (id, tenant_id, template_id, environment, variants, status, created_by, created_at, updated_at)
       VALUES (${id}, ${tenantId}, ${templateId}, ${environment}, ${JSON.stringify(variants)}, 'active', ${createdBy ?? null}, ${now}, ${now})
     `);
     return { id, tenantId, templateId, environment, variants, status: 'active', createdAt: now, updatedAt: now };
   }
 
-  getActiveAbTest(tenantId: string, templateId: string, environment: string): AbTest | undefined {
-    const r = this.db.get<AbTestRow>(sql`
+  async getActiveAbTest(tenantId: string, templateId: string, environment: string): Promise<AbTest | undefined> {
+    const r = await dbGet<AbTestRow>(this.db, sql`
       SELECT * FROM prompt_ab_tests
       WHERE tenant_id = ${tenantId} AND template_id = ${templateId} AND environment = ${environment} AND status = 'active'
       ORDER BY created_at DESC LIMIT 1
@@ -813,15 +818,13 @@ export class PromptStore {
     return r ? toAbTest(r) : undefined;
   }
 
-  listAbTests(tenantId: string, templateId: string): AbTest[] {
-    return this.db
-      .all<AbTestRow>(sql`SELECT * FROM prompt_ab_tests WHERE tenant_id = ${tenantId} AND template_id = ${templateId} ORDER BY created_at DESC`)
-      .map(toAbTest);
+  async listAbTests(tenantId: string, templateId: string): Promise<AbTest[]> {
+    return (await dbAll<AbTestRow>(this.db, sql`SELECT * FROM prompt_ab_tests WHERE tenant_id = ${tenantId} AND template_id = ${templateId} ORDER BY created_at DESC`)).map(toAbTest);
   }
 
-  stopAbTest(tenantId: string, id: string): boolean {
-    const existing = this.db.get<{ id: string }>(sql`SELECT id FROM prompt_ab_tests WHERE tenant_id = ${tenantId} AND id = ${id} AND status = 'active'`);
-    this.db.run(sql`UPDATE prompt_ab_tests SET status = 'stopped', updated_at = ${new Date().toISOString()} WHERE tenant_id = ${tenantId} AND id = ${id}`);
+  async stopAbTest(tenantId: string, id: string): Promise<boolean> {
+    const existing = await dbGet<{ id: string }>(this.db, sql`SELECT id FROM prompt_ab_tests WHERE tenant_id = ${tenantId} AND id = ${id} AND status = 'active'`);
+    await dbRun(this.db, sql`UPDATE prompt_ab_tests SET status = 'stopped', updated_at = ${new Date().toISOString()} WHERE tenant_id = ${tenantId} AND id = ${id}`);
     return existing !== undefined;
   }
 
@@ -829,32 +832,32 @@ export class PromptStore {
    * Resolve the version to serve for (template, environment): an active A/B test's
    * weighted (sticky-by-key) variant, else the single live version.
    */
-  resolveVersion(
+  async resolveVersion(
     tenantId: string,
     templateId: string,
     environment: string,
     key?: string,
-  ): { versionId: string; label: string; abTestId?: string } | null {
-    const ab = this.getActiveAbTest(tenantId, templateId, environment);
+  ): Promise<{ versionId: string; label: string; abTestId?: string } | null> {
+    const ab = await this.getActiveAbTest(tenantId, templateId, environment);
     if (ab) {
       const v = pickVariant(ab.variants, key);
       if (v) return { versionId: v.versionId, label: v.label, abTestId: ab.id };
     }
-    const live = this.getLiveVersion(tenantId, environment, templateId);
+    const live = await this.getLiveVersion(tenantId, environment, templateId);
     return live ? { versionId: live, label: environment } : null;
   }
 
   /** Deploy history (newest first), optionally filtered by template and/or environment. */
-  listDeployments(
+  async listDeployments(
     tenantId: string,
     opts: { templateId?: string; environment?: string; limit?: number } = {},
-  ): PromptDeployment[] {
+  ): Promise<PromptDeployment[]> {
     const conds = [sql`tenant_id = ${tenantId}`];
     if (opts.templateId) conds.push(sql`template_id = ${opts.templateId}`);
     if (opts.environment) conds.push(sql`environment = ${opts.environment}`);
     const where = sql.join(conds, sql` AND `);
     const limit = Math.min(opts.limit ?? 200, 1000);
-    const rows = this.db.all<DeploymentRow>(sql`
+    const rows = await dbAll<DeploymentRow>(this.db, sql`
       SELECT * FROM prompt_deployments WHERE ${where}
       ORDER BY created_at DESC, seq DESC LIMIT ${limit}
     `);
@@ -862,8 +865,8 @@ export class PromptStore {
   }
 
   /** Verify a (tenant, environment) deploy chain: seq continuity, prev-hash links, and per-row hashes. */
-  verifyDeployLedger(tenantId: string, environment: string): DeployLedgerVerifyResult {
-    const rows = this.db.all<DeploymentRow>(sql`
+  async verifyDeployLedger(tenantId: string, environment: string): Promise<DeployLedgerVerifyResult> {
+    const rows = await dbAll<DeploymentRow>(this.db, sql`
       SELECT * FROM prompt_deployments
       WHERE tenant_id = ${tenantId} AND environment = ${environment}
       ORDER BY seq ASC
@@ -908,16 +911,20 @@ export class PromptStore {
    * verified agent id (falling back to the event's agent id when unverified),
    * reusing the same payload.promptVersionId join as getVersionAnalytics.
    */
-  getVersionAnalyticsByAgent(
+  async getVersionAnalyticsByAgent(
     templateId: string,
     tenantId: string,
     from?: string,
     to?: string,
-  ): PromptAgentUsage[] {
+  ): Promise<PromptAgentUsage[]> {
+    // #172: deferred on Postgres (events-joining json_extract) — see #175.
+    if (!isSqliteDb(this.db)) {
+      throw new Error('getVersionAnalyticsByAgent is not yet supported on Postgres (deferred — see #175)');
+    }
     const fromDate = from ?? new Date(Date.now() - 30 * 86400000).toISOString();
     const toDate = to ?? new Date().toISOString();
 
-    const rows = this.db.all<{
+    const rows = await dbAll<{
       version_id: string;
       version_number: number;
       resolved_agent_id: string | null;
@@ -926,7 +933,7 @@ export class PromptStore {
       total_cost_usd: number;
       avg_latency_ms: number;
       error_rate: number;
-    }>(sql`
+    }>(this.db, sql`
       SELECT
         pv.id AS version_id,
         pv.version_number,

@@ -40,33 +40,33 @@ function makeInput(overrides: Partial<CreateTemplateInput> = {}): CreateTemplate
 
 // ─── Normalization & Hashing ───────────────────────────────
 
-describe('normalizePromptContent', () => {
-  it('normalizes line endings', () => {
+describe('normalizePromptContent', async () => {
+  it('normalizes line endings', async () => {
     expect(normalizePromptContent('a\r\nb')).toBe('a\nb');
   });
 
-  it('trims trailing whitespace per line', () => {
+  it('trims trailing whitespace per line', async () => {
     expect(normalizePromptContent('hello   \nworld\t\n')).toBe('hello\nworld');
   });
 
-  it('collapses excessive newlines', () => {
+  it('collapses excessive newlines', async () => {
     expect(normalizePromptContent('a\n\n\n\nb')).toBe('a\n\nb');
   });
 
-  it('trims leading/trailing', () => {
+  it('trims leading/trailing', async () => {
     expect(normalizePromptContent('  hello  ')).toBe('hello');
   });
 });
 
-describe('computePromptHash', () => {
-  it('produces stable hash', () => {
+describe('computePromptHash', async () => {
+  it('produces stable hash', async () => {
     const h1 = computePromptHash('hello world');
     const h2 = computePromptHash('hello world');
     expect(h1).toBe(h2);
     expect(h1).toHaveLength(64); // SHA-256 hex
   });
 
-  it('same hash for content differing only in whitespace', () => {
+  it('same hash for content differing only in whitespace', async () => {
     const h1 = computePromptHash('hello world  \n');
     const h2 = computePromptHash('hello world\n');
     expect(h1).toBe(h2);
@@ -75,9 +75,9 @@ describe('computePromptHash', () => {
 
 // ─── Template CRUD ─────────────────────────────────────────
 
-describe('PromptStore — createTemplate', () => {
-  it('creates template with version 1', () => {
-    const { template, version } = store.createTemplate(TENANT, makeInput());
+describe('PromptStore — createTemplate', async () => {
+  it('creates template with version 1', async () => {
+    const { template, version } = await store.createTemplate(TENANT, makeInput());
 
     expect(template.id).toBeDefined();
     expect(template.name).toBe('Test Template');
@@ -92,77 +92,77 @@ describe('PromptStore — createTemplate', () => {
   });
 });
 
-describe('PromptStore — getTemplate', () => {
-  it('returns template', () => {
-    const { template } = store.createTemplate(TENANT, makeInput());
-    const result = store.getTemplate(template.id, TENANT);
+describe('PromptStore — getTemplate', async () => {
+  it('returns template', async () => {
+    const { template } = await store.createTemplate(TENANT, makeInput());
+    const result = await store.getTemplate(template.id, TENANT);
     expect(result).not.toBeNull();
     expect(result!.name).toBe('Test Template');
   });
 
-  it('returns null for non-existent', () => {
-    expect(store.getTemplate('nope', TENANT)).toBeNull();
+  it('returns null for non-existent', async () => {
+    expect(await store.getTemplate('nope', TENANT)).toBeNull();
   });
 
-  it('returns null for deleted template', () => {
-    const { template } = store.createTemplate(TENANT, makeInput());
-    store.softDeleteTemplate(template.id, TENANT);
-    expect(store.getTemplate(template.id, TENANT)).toBeNull();
+  it('returns null for deleted template', async () => {
+    const { template } = await store.createTemplate(TENANT, makeInput());
+    await store.softDeleteTemplate(template.id, TENANT);
+    expect(await store.getTemplate(template.id, TENANT)).toBeNull();
   });
 
-  it('enforces tenant isolation', () => {
-    const { template } = store.createTemplate(TENANT, makeInput());
-    expect(store.getTemplate(template.id, 'other-tenant')).toBeNull();
+  it('enforces tenant isolation', async () => {
+    const { template } = await store.createTemplate(TENANT, makeInput());
+    expect(await store.getTemplate(template.id, 'other-tenant')).toBeNull();
   });
 });
 
-describe('PromptStore — listTemplates', () => {
-  it('lists templates with pagination', () => {
-    store.createTemplate(TENANT, makeInput({ name: 'A' }));
-    store.createTemplate(TENANT, makeInput({ name: 'B' }));
-    store.createTemplate(TENANT, makeInput({ name: 'C' }));
+describe('PromptStore — listTemplates', async () => {
+  it('lists templates with pagination', async () => {
+    await store.createTemplate(TENANT, makeInput({ name: 'A' }));
+    await store.createTemplate(TENANT, makeInput({ name: 'B' }));
+    await store.createTemplate(TENANT, makeInput({ name: 'C' }));
 
-    const { templates, total } = store.listTemplates({ tenantId: TENANT, limit: 2 });
+    const { templates, total } = await store.listTemplates({ tenantId: TENANT, limit: 2 });
     expect(total).toBe(3);
     expect(templates).toHaveLength(2);
   });
 
-  it('filters by category', () => {
-    store.createTemplate(TENANT, makeInput({ name: 'A', category: 'system' }));
-    store.createTemplate(TENANT, makeInput({ name: 'B', category: 'greeting' }));
+  it('filters by category', async () => {
+    await store.createTemplate(TENANT, makeInput({ name: 'A', category: 'system' }));
+    await store.createTemplate(TENANT, makeInput({ name: 'B', category: 'greeting' }));
 
-    const { templates, total } = store.listTemplates({ tenantId: TENANT, category: 'system' });
+    const { templates, total } = await store.listTemplates({ tenantId: TENANT, category: 'system' });
     expect(total).toBe(1);
     expect(templates[0].name).toBe('A');
   });
 
-  it('filters by search', () => {
-    store.createTemplate(TENANT, makeInput({ name: 'My System Prompt' }));
-    store.createTemplate(TENANT, makeInput({ name: 'Greeting' }));
+  it('filters by search', async () => {
+    await store.createTemplate(TENANT, makeInput({ name: 'My System Prompt' }));
+    await store.createTemplate(TENANT, makeInput({ name: 'Greeting' }));
 
-    const { templates } = store.listTemplates({ tenantId: TENANT, search: 'System' });
+    const { templates } = await store.listTemplates({ tenantId: TENANT, search: 'System' });
     expect(templates).toHaveLength(1);
     expect(templates[0].name).toBe('My System Prompt');
   });
 });
 
-describe('PromptStore — softDeleteTemplate', () => {
-  it('soft deletes', () => {
-    const { template } = store.createTemplate(TENANT, makeInput());
-    const deleted = store.softDeleteTemplate(template.id, TENANT);
+describe('PromptStore — softDeleteTemplate', async () => {
+  it('soft deletes', async () => {
+    const { template } = await store.createTemplate(TENANT, makeInput());
+    const deleted = await store.softDeleteTemplate(template.id, TENANT);
     expect(deleted).toBe(true);
 
-    const { total } = store.listTemplates({ tenantId: TENANT });
+    const { total } = await store.listTemplates({ tenantId: TENANT });
     expect(total).toBe(0);
   });
 });
 
 // ─── Version Management ────────────────────────────────────
 
-describe('PromptStore — createVersion', () => {
-  it('creates version 2', () => {
-    const { template } = store.createTemplate(TENANT, makeInput());
-    const v2 = store.createVersion(template.id, TENANT, {
+describe('PromptStore — createVersion', async () => {
+  it('creates version 2', async () => {
+    const { template } = await store.createTemplate(TENANT, makeInput());
+    const v2 = await store.createVersion(template.id, TENANT, {
       content: 'Updated content',
       changelog: 'Changed wording',
     });
@@ -173,9 +173,9 @@ describe('PromptStore — createVersion', () => {
     expect(v2!.changelog).toBe('Changed wording');
   });
 
-  it('skips duplicate content (dedup)', () => {
-    const { template, version: v1 } = store.createTemplate(TENANT, makeInput());
-    const v2 = store.createVersion(template.id, TENANT, {
+  it('skips duplicate content (dedup)', async () => {
+    const { template, version: v1 } = await store.createTemplate(TENANT, makeInput());
+    const v2 = await store.createVersion(template.id, TENANT, {
       content: makeInput().content, // same content
     });
 
@@ -185,19 +185,19 @@ describe('PromptStore — createVersion', () => {
     expect(v2!.id).toBe(v1.id);
   });
 
-  it('returns null for non-existent template', () => {
-    const result = store.createVersion('nope', TENANT, { content: 'test' });
+  it('returns null for non-existent template', async () => {
+    const result = await store.createVersion('nope', TENANT, { content: 'test' });
     expect(result).toBeNull();
   });
 });
 
-describe('PromptStore — listVersions', () => {
-  it('lists versions descending', () => {
-    const { template } = store.createTemplate(TENANT, makeInput());
-    store.createVersion(template.id, TENANT, { content: 'v2 content' });
-    store.createVersion(template.id, TENANT, { content: 'v3 content' });
+describe('PromptStore — listVersions', async () => {
+  it('lists versions descending', async () => {
+    const { template } = await store.createTemplate(TENANT, makeInput());
+    await store.createVersion(template.id, TENANT, { content: 'v2 content' });
+    await store.createVersion(template.id, TENANT, { content: 'v3 content' });
 
-    const versions = store.listVersions(template.id, TENANT);
+    const versions = await store.listVersions(template.id, TENANT);
     expect(versions).toHaveLength(3);
     expect(versions[0].versionNumber).toBe(3);
     expect(versions[2].versionNumber).toBe(1);
@@ -206,44 +206,44 @@ describe('PromptStore — listVersions', () => {
 
 // ─── Fingerprinting ────────────────────────────────────────
 
-describe('PromptStore — fingerprints', () => {
-  it('upserts and increments', () => {
-    store.upsertFingerprint('abc123', TENANT, 'agent-1', 'Sample content');
-    store.upsertFingerprint('abc123', TENANT, 'agent-1', 'Sample content');
+describe('PromptStore — fingerprints', async () => {
+  it('upserts and increments', async () => {
+    await store.upsertFingerprint('abc123', TENANT, 'agent-1', 'Sample content');
+    await store.upsertFingerprint('abc123', TENANT, 'agent-1', 'Sample content');
 
-    const fps = store.getFingerprints(TENANT);
+    const fps = await store.getFingerprints(TENANT);
     expect(fps).toHaveLength(1);
     expect(fps[0].callCount).toBe(2);
     expect(fps[0].sampleContent).toBe('Sample content');
   });
 
-  it('filters by agentId', () => {
-    store.upsertFingerprint('hash1', TENANT, 'agent-1', 'content1');
-    store.upsertFingerprint('hash2', TENANT, 'agent-2', 'content2');
+  it('filters by agentId', async () => {
+    await store.upsertFingerprint('hash1', TENANT, 'agent-1', 'content1');
+    await store.upsertFingerprint('hash2', TENANT, 'agent-2', 'content2');
 
-    const fps = store.getFingerprints(TENANT, 'agent-1');
+    const fps = await store.getFingerprints(TENANT, 'agent-1');
     expect(fps).toHaveLength(1);
     expect(fps[0].agentId).toBe('agent-1');
   });
 
-  it('links to template', () => {
-    const { template } = store.createTemplate(TENANT, makeInput());
-    store.upsertFingerprint('hash1', TENANT, 'agent-1', 'content1');
+  it('links to template', async () => {
+    const { template } = await store.createTemplate(TENANT, makeInput());
+    await store.upsertFingerprint('hash1', TENANT, 'agent-1', 'content1');
 
-    const linked = store.linkFingerprintToTemplate('hash1', TENANT, template.id);
+    const linked = await store.linkFingerprintToTemplate('hash1', TENANT, template.id);
     expect(linked).toBe(true);
 
-    const fps = store.getFingerprints(TENANT);
+    const fps = await store.getFingerprints(TENANT);
     expect(fps[0].templateId).toBe(template.id);
   });
 });
 
 // ─── Analytics ─────────────────────────────────────────────
 
-describe('PromptStore — getVersionAnalytics', () => {
-  it('returns zero metrics for template with no events', () => {
-    const { template } = store.createTemplate(TENANT, makeInput());
-    const analytics = store.getVersionAnalytics(template.id, TENANT);
+describe('PromptStore — getVersionAnalytics', async () => {
+  it('returns zero metrics for template with no events', async () => {
+    const { template } = await store.createTemplate(TENANT, makeInput());
+    const analytics = await store.getVersionAnalytics(template.id, TENANT);
 
     expect(analytics).toHaveLength(1);
     expect(analytics[0].callCount).toBe(0);
@@ -252,8 +252,8 @@ describe('PromptStore — getVersionAnalytics', () => {
     expect(analytics[0].estimatedCacheSavingsUsd).toBe(0);
   });
 
-  it('aggregates cache tokens and estimates per-version savings (#55 Thread 2)', () => {
-    const { template, version } = store.createTemplate(TENANT, makeInput());
+  it('aggregates cache tokens and estimates per-version savings (#55 Thread 2)', async () => {
+    const { template, version } = await store.createTemplate(TENANT, makeInput());
     // A paired llm_call (linked to the version) + llm_response with cache reads.
     db.insert(eventsTable).values([
       { id: 'e1', timestamp: '2026-03-01T00:00:01Z', sessionId: 's1', agentId: 'agt_a',
@@ -265,7 +265,7 @@ describe('PromptStore — getVersionAnalytics', () => {
           usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150, cacheReadTokens: 1_000_000, cacheWriteTokens: 200_000 } }) },
     ]).run();
 
-    const a = store.getVersionAnalytics(template.id, TENANT, '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z')
+    const a = (await store.getVersionAnalytics(template.id, TENANT, '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z'))
       .find((x) => x.versionId === version.id)!;
     expect(a.callCount).toBe(1);
     expect(a.totalCacheReadTokens).toBe(1_000_000);
@@ -274,8 +274,8 @@ describe('PromptStore — getVersionAnalytics', () => {
     expect(a.estimatedCacheSavingsUsd).toBeCloseTo(0.72, 6);
   });
 
-  it('sums cache savings across multiple models used by one version', () => {
-    const { template, version } = store.createTemplate(TENANT, makeInput());
+  it('sums cache savings across multiple models used by one version', async () => {
+    const { template, version } = await store.createTemplate(TENANT, makeInput());
     const mk = (id: string, callId: string, model: string, cacheRead: number) => ([
       { id: `${id}c`, timestamp: '2026-03-01T00:00:01Z', sessionId: 's1', agentId: 'agt_a',
         eventType: 'llm_call', severity: 'info', metadata: '{}', prevHash: null, hash: `${id}h1`, tenantId: TENANT,
@@ -289,7 +289,7 @@ describe('PromptStore — getVersionAnalytics', () => {
       ...mk('b', 'c2', 'gpt-4o', 1_000_000),           // savings 1.25 (OpenAI 0.5×)
     ]).run();
 
-    const a = store.getVersionAnalytics(template.id, TENANT, '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z')
+    const a = (await store.getVersionAnalytics(template.id, TENANT, '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z'))
       .find((x) => x.versionId === version.id)!;
     expect(a.totalCacheReadTokens).toBe(2_000_000);
     expect(a.estimatedCacheSavingsUsd).toBeCloseTo(0.72 + 1.25, 6);

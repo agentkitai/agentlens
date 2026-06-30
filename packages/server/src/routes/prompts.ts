@@ -25,7 +25,7 @@ import {
   isKnownEnvironment,
   isProtectedEnvironment,
 } from '../db/prompt-store.js';
-import type { SqliteDb } from '../db/index.js';
+import type { AnyDb } from '../db/dialect-db.js';
 import { compilePrompt, type PromptConfig, type VariableValues } from '@agentkitai/agentlens-core';
 import { normalizeVariants } from '../lib/prompt-ab.js';
 import { verifyAgentTokenWithMethod } from '../lib/agent-identity.js';
@@ -42,7 +42,7 @@ async function resolveActor(
   return { id: null, method: 'unknown' };
 }
 
-export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
+export function promptRoutes(db: AnyDb): Hono<{ Variables: AuthVariables }> {
   const app = new Hono<{ Variables: AuthVariables }>();
   const store = new PromptStore(db);
 
@@ -69,27 +69,27 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       createdBy: body.createdBy,
     };
 
-    const result = store.createTemplate(tenantId, input);
+    const result = await store.createTemplate(tenantId, input);
     return c.json(result, 201);
   });
 
   // GET /api/prompts — List templates
-  app.get('/', (c) => {
+  app.get('/', async (c) => {
     const tenantId = getTenantId(c);
     const category = c.req.query('category');
     const search = c.req.query('search');
     const limit = parseInt(c.req.query('limit') ?? '50', 10);
     const offset = parseInt(c.req.query('offset') ?? '0', 10);
 
-    const result = store.listTemplates({ tenantId, category, search, limit, offset });
+    const result = await store.listTemplates({ tenantId, category, search, limit, offset });
     return c.json(result);
   });
 
   // GET /api/prompts/fingerprints — List fingerprints
-  app.get('/fingerprints', (c) => {
+  app.get('/fingerprints', async (c) => {
     const tenantId = getTenantId(c);
     const agentId = c.req.query('agentId');
-    const fingerprints = store.getFingerprints(tenantId, agentId ?? undefined);
+    const fingerprints = await store.getFingerprints(tenantId, agentId ?? undefined);
     return c.json({ fingerprints });
   });
 
@@ -103,7 +103,7 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       return c.json({ error: 'templateId is required' }, 400);
     }
 
-    const updated = store.linkFingerprintToTemplate(hash, tenantId, body.templateId);
+    const updated = await store.linkFingerprintToTemplate(hash, tenantId, body.templateId);
     if (!updated) {
       return c.json({ error: 'Fingerprint not found' }, 404);
     }
@@ -111,30 +111,30 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
   });
 
   // GET /api/prompts/environments — configured deploy environments (#120)
-  app.get('/environments', (c) => {
+  app.get('/environments', async (c) => {
     return c.json({ environments: getPromptEnvironments() });
   });
 
   // GET /api/prompts/deployments/verify — verify an env's deploy ledger chain (#120)
-  app.get('/deployments/verify', (c) => {
+  app.get('/deployments/verify', async (c) => {
     const tenantId = getTenantId(c);
     const environment = c.req.query('environment');
     if (!environment || !isKnownEnvironment(environment)) {
       return c.json({ error: 'valid environment query param is required' }, 400);
     }
-    return c.json(store.verifyDeployLedger(tenantId, environment));
+    return c.json(await store.verifyDeployLedger(tenantId, environment));
   });
 
   // GET /api/prompts/:id — Get template with versions + live versions per env
-  app.get('/:id', (c) => {
+  app.get('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
-    const template = store.getTemplate(id, tenantId);
+    const template = await store.getTemplate(id, tenantId);
     if (!template) {
       return c.json({ error: 'Template not found' }, 404);
     }
-    const versions = store.listVersions(id, tenantId);
-    const liveVersions = store.getLiveVersions(tenantId, id);
+    const versions = await store.listVersions(id, tenantId);
+    const liveVersions = await store.getLiveVersions(tenantId, id);
     return c.json({ template, versions, liveVersions });
   });
 
@@ -157,7 +157,7 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       createdBy: body.createdBy,
     };
 
-    const version = store.createVersion(templateId, tenantId, input);
+    const version = await store.createVersion(templateId, tenantId, input);
     if (!version) {
       return c.json({ error: 'Template not found' }, 404);
     }
@@ -165,10 +165,10 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
   });
 
   // GET /api/prompts/:id/versions/:vid — Get specific version
-  app.get('/:id/versions/:vid', (c) => {
+  app.get('/:id/versions/:vid', async (c) => {
     const tenantId = getTenantId(c);
     const vid = c.req.param('vid');
-    const version = store.getVersion(vid, tenantId);
+    const version = await store.getVersion(vid, tenantId);
     if (!version) {
       return c.json({ error: 'Version not found' }, 404);
     }
@@ -180,10 +180,10 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
     const body = (await c.req.json().catch(() => ({}))) as { variables?: VariableValues; versionId?: string };
-    let version = body.versionId ? store.getVersion(body.versionId, tenantId) : null;
+    let version = body.versionId ? await store.getVersion(body.versionId, tenantId) : null;
     if (!version) {
-      const template = store.getTemplate(id, tenantId);
-      if (template?.currentVersionId) version = store.getVersion(template.currentVersionId, tenantId);
+      const template = await store.getTemplate(id, tenantId);
+      if (template?.currentVersionId) version = await store.getVersion(template.currentVersionId, tenantId);
     }
     if (!version) return c.json({ error: 'Prompt version not found' }, 404);
     const compiled = compilePrompt(
@@ -204,53 +204,53 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
     }
     const variants = normalizeVariants(body.variants);
     if (!variants) return c.json({ error: 'variants must be [{ versionId, label?, weight }] with at least one positive weight' }, 400);
-    if (!store.getTemplate(templateId, tenantId)) return c.json({ error: 'Template not found' }, 404);
-    const abTest = store.createAbTest(tenantId, templateId, body.environment, variants, c.get('apiKey')?.id);
+    if (!await store.getTemplate(templateId, tenantId)) return c.json({ error: 'Template not found' }, 404);
+    const abTest = await store.createAbTest(tenantId, templateId, body.environment, variants, c.get('apiKey')?.id);
     return c.json({ abTest }, 201);
   });
 
   // GET /api/prompts/:id/ab — list A/B tests for a template
-  app.get('/:id/ab', (c) => {
-    return c.json({ abTests: store.listAbTests(getTenantId(c), c.req.param('id')) });
+  app.get('/:id/ab', async (c) => {
+    return c.json({ abTests: await store.listAbTests(getTenantId(c), c.req.param('id')) });
   });
 
   // DELETE /api/prompts/:id/ab/:abId — stop an active A/B test
-  app.delete('/:id/ab/:abId', (c) => {
-    const ok = store.stopAbTest(getTenantId(c), c.req.param('abId'));
+  app.delete('/:id/ab/:abId', async (c) => {
+    const ok = await store.stopAbTest(getTenantId(c), c.req.param('abId'));
     return ok ? c.json({ ok: true }) : c.json({ error: 'Active A/B test not found' }, 404);
   });
 
   // GET /api/prompts/:id/resolve?environment=&key= — resolve the version to serve
   // (A/B-aware, sticky by key) — what an SDK calls at runtime.
-  app.get('/:id/resolve', (c) => {
+  app.get('/:id/resolve', async (c) => {
     const environment = c.req.query('environment') ?? 'production';
-    const resolved = store.resolveVersion(getTenantId(c), c.req.param('id'), environment, c.req.query('key'));
+    const resolved = await store.resolveVersion(getTenantId(c), c.req.param('id'), environment, c.req.query('key'));
     return resolved ? c.json(resolved) : c.json({ error: 'No live version for this environment' }, 404);
   });
 
   // GET /api/prompts/:id/analytics — Per-version analytics
-  app.get('/:id/analytics', (c) => {
+  app.get('/:id/analytics', async (c) => {
     const tenantId = getTenantId(c);
     const templateId = c.req.param('id');
     const from = c.req.query('from');
     const to = c.req.query('to');
 
-    const analytics = store.getVersionAnalytics(templateId, tenantId, from, to);
+    const analytics = await store.getVersionAnalytics(templateId, tenantId, from, to);
     return c.json({ analytics });
   });
 
   // GET /api/prompts/:id/analytics/by-agent — per-agent usage + cost per version (#120)
-  app.get('/:id/analytics/by-agent', (c) => {
+  app.get('/:id/analytics/by-agent', async (c) => {
     const tenantId = getTenantId(c);
     const templateId = c.req.param('id');
     const from = c.req.query('from');
     const to = c.req.query('to');
-    const usage = store.getVersionAnalyticsByAgent(templateId, tenantId, from, to);
+    const usage = await store.getVersionAnalyticsByAgent(templateId, tenantId, from, to);
     return c.json({ usage });
   });
 
   // GET /api/prompts/:id/diff — Diff between two versions
-  app.get('/:id/diff', (c) => {
+  app.get('/:id/diff', async (c) => {
     const tenantId = getTenantId(c);
     const v1Id = c.req.query('v1');
     const v2Id = c.req.query('v2');
@@ -259,8 +259,8 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       return c.json({ error: 'v1 and v2 query params are required' }, 400);
     }
 
-    const v1 = store.getVersion(v1Id, tenantId);
-    const v2 = store.getVersion(v2Id, tenantId);
+    const v1 = await store.getVersion(v1Id, tenantId);
+    const v2 = await store.getVersion(v2Id, tenantId);
 
     if (!v1 || !v2) {
       return c.json({ error: 'One or both versions not found' }, 404);
@@ -293,11 +293,11 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
   // ─── Deploy lifecycle (#120) ──────────────────────────────
 
   // GET /api/prompts/:id/deployments — deploy history for a template (optionally one env)
-  app.get('/:id/deployments', (c) => {
+  app.get('/:id/deployments', async (c) => {
     const tenantId = getTenantId(c);
     const templateId = c.req.param('id');
     const environment = c.req.query('environment') ?? undefined;
-    const deployments = store.listDeployments(tenantId, { templateId, environment });
+    const deployments = await store.listDeployments(tenantId, { templateId, environment });
     return c.json({ deployments });
   });
 
@@ -323,7 +323,7 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
       }
 
       // The version must exist and belong to this template+tenant before we gate it.
-      const version = store.getVersion(versionId, tenantId);
+      const version = await store.getVersion(versionId, tenantId);
       if (!version || version.templateId !== templateId) {
         return c.json({ error: 'Version not found for this template' }, 404);
       }
@@ -339,7 +339,7 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
         }
         if (!decision.approved) {
           // Record the denial in the ledger (audit trail); live version unchanged.
-          const denied = store.appendDeployment(tenantId, {
+          const denied = await store.appendDeployment(tenantId, {
             templateId, environment, versionId, action, status: 'denied',
             actorId: actor.id, actorMethod: actor.method, approvalRef: decision.approvalRef, note: decision.reason ?? note,
           });
@@ -349,7 +349,7 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
         approvalRef = decision.approvalRef;
       }
 
-      const deployment = store.appendDeployment(tenantId, {
+      const deployment = await store.appendDeployment(tenantId, {
         templateId, environment, versionId, action, status: 'committed',
         actorId: actor.id, actorMethod: actor.method, approverId, approvalRef, note,
       });
@@ -361,10 +361,10 @@ export function promptRoutes(db: SqliteDb): Hono<{ Variables: AuthVariables }> {
   }
 
   // DELETE /api/prompts/:id — Soft delete
-  app.delete('/:id', (c) => {
+  app.delete('/:id', async (c) => {
     const tenantId = getTenantId(c);
     const id = c.req.param('id');
-    const deleted = store.softDeleteTemplate(id, tenantId);
+    const deleted = await store.softDeleteTemplate(id, tenantId);
     if (!deleted) {
       return c.json({ error: 'Template not found' }, 404);
     }

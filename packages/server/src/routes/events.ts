@@ -170,7 +170,7 @@ export function eventsRoutes(
     }
 
     // Auto-discover prompt templates from ingested llm_call events (best-effort).
-    recordPromptFingerprints(deps?.promptStore ?? null, allProcessed);
+    await recordPromptFingerprints(deps?.promptStore ?? null, allProcessed);
 
     // Enqueue embeddable events for background embedding
     const worker = deps?.embeddingWorker;
