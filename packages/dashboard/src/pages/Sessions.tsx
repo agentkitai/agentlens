@@ -17,6 +17,8 @@ import type { SortField, SortDir } from '../components/SessionList';
 // ─── Constants ──────────────────────────────────────────────────────
 
 const PAGE_SIZE = 50;
+// 'idle' is a derived display status (not stored), so it isn't a filter option —
+// filtering happens on the stored column. It still renders as a badge.
 const STATUS_OPTIONS: SessionStatus[] = ['active', 'completed', 'error'];
 
 // ─── Component ──────────────────────────────────────────────────────

@@ -84,6 +84,7 @@ export const sessions = pgTable(
     agentName: text('agent_name'),
     startedAt: text('started_at').notNull(), // ISO 8601
     endedAt: text('ended_at'),
+    lastEventAt: text('last_event_at'), // ISO 8601 of the most recent event (#281 idle derivation)
     status: text('status').notNull().default('active'),
     eventCount: integer('event_count').notNull().default(0),
     toolCallCount: integer('tool_call_count').notNull().default(0),

@@ -32,6 +32,7 @@ import { aggregateBatch, mergeRollup, type RollupRow } from '../lib/rollup.js';
 import { withRetry } from '../lib/db-resilience.js';
 import { metadataVerifiedAgentId } from '../lib/agent-identity.js';
 import { COST_EVENT_TYPES } from './repositories/event-repository.js';
+import { deriveSessionStatus } from './shared/query-helpers.js';
 
 const log = createLogger('PostgresEventStore');
 
@@ -142,7 +143,7 @@ function mapSessionRow(row: typeof sessions.$inferSelect): Session {
     agentName: row.agentName ?? undefined,
     startedAt: row.startedAt,
     endedAt: row.endedAt ?? undefined,
-    status: row.status as Session['status'],
+    status: deriveSessionStatus(row.status, row.lastEventAt, row.startedAt),
     eventCount: row.eventCount,
     toolCallCount: row.toolCallCount,
     errorCount: row.errorCount,
@@ -370,6 +371,7 @@ export class PostgresEventStore implements IEventStore {
           agentId: event.agentId,
           agentName: agentName,
           startedAt: event.timestamp,
+          lastEventAt: event.timestamp,
           status: 'active',
           eventCount: 1,
           toolCallCount: 0,
@@ -384,6 +386,7 @@ export class PostgresEventStore implements IEventStore {
           target: [sessions.id, sessions.tenantId],
           set: {
             agentName: agentName ?? sql`coalesce(${sessions.agentName}, NULL)`,
+            lastEventAt: event.timestamp,
             status: 'active',
             eventCount: sql`${sessions.eventCount} + 1`,
             tags: tags.length > 0 ? tags : sql`${sessions.tags}`,
@@ -399,6 +402,7 @@ export class PostgresEventStore implements IEventStore {
         id: event.sessionId,
         agentId: event.agentId,
         startedAt: event.timestamp,
+        lastEventAt: event.timestamp,
         status: 'active',
         eventCount: 0,
         toolCallCount: 0,
@@ -431,6 +435,7 @@ export class PostgresEventStore implements IEventStore {
         .update(sessions)
         .set({
           endedAt: event.timestamp,
+          lastEventAt: event.timestamp,
           status,
           eventCount: sql`${sessions.eventCount} + 1`,
           errorCount: isError ? sql`${sessions.errorCount} + 1` : sessions.errorCount,
@@ -442,6 +447,7 @@ export class PostgresEventStore implements IEventStore {
     await tx
       .update(sessions)
       .set({
+        lastEventAt: event.timestamp,
         eventCount: sql`${sessions.eventCount} + 1`,
         toolCallCount: isToolCall ? sql`${sessions.toolCallCount} + 1` : sessions.toolCallCount,
         errorCount: isError ? sql`${sessions.errorCount} + 1` : sessions.errorCount,

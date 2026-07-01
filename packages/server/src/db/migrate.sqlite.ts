@@ -144,6 +144,11 @@ export function runMigrations(db: SqliteDb): void {
     db.run(sql`ALTER TABLE sessions ADD COLUMN project_id TEXT`);
     db.run(sql`UPDATE sessions SET project_id = tenant_id WHERE project_id IS NULL`);
   }
+  // #281 idle derivation: last activity timestamp; seed existing rows from started_at.
+  if (!sessionColumnNames.has('last_event_at')) {
+    db.run(sql`ALTER TABLE sessions ADD COLUMN last_event_at TEXT`);
+    db.run(sql`UPDATE sessions SET last_event_at = started_at WHERE last_event_at IS NULL`);
+  }
 
   // ─── Tenant isolation migration (Epic 1) ──────────────────
   // Add tenant_id to all data tables for multi-tenant support

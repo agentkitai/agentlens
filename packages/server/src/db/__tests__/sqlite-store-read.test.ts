@@ -479,7 +479,7 @@ describe('SqliteEventStore — Read Operations (Story 3.5)', () => {
       const session = await store.getSession('sess_detail');
       expect(session).not.toBeNull();
       expect(session!.agentName).toBe('DetailAgent');
-      expect(session!.status).toBe('active');
+      expect(session!.status).toBe('idle'); // #281: months-old events → derived idle
       expect(session!.eventCount).toBe(3);
       expect(session!.toolCallCount).toBe(1);
       expect(session!.errorCount).toBe(1);

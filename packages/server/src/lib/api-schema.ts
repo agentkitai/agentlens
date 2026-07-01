@@ -12,7 +12,7 @@ import { z } from 'zod';
 export const SessionResponseSchema = z.object({
   id: z.string(),
   agentId: z.string(),
-  status: z.enum(['active', 'completed', 'error', 'timeout']),
+  status: z.enum(['active', 'idle', 'completed', 'error', 'timeout']),
   startedAt: z.string().optional(),
   endedAt: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),

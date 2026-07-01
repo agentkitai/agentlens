@@ -197,6 +197,13 @@
       "when": 1742208000000,
       "tag": "0027_prompt_github_sync_state",
       "breakpoints": false
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1742294400000,
+      "tag": "0028_session_last_event_at",
+      "breakpoints": false
     }
   ]
 }
