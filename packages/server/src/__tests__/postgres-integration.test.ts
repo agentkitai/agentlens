@@ -1049,4 +1049,17 @@ describePg('Postgres integration tests', () => {
       }
     });
   });
+
+  // ─── #254: LiveEval config on Postgres ──
+  describe('LiveEval config on Postgres (#254)', () => {
+    it('round-trips the live-eval config', async () => {
+      const { LiveEvalStore } = await import('../lib/eval/live-eval.js');
+      const s = new LiveEvalStore(db);
+      await s.set('t-254', { enabled: true, samplingRate: 0.5, scorerType: 'regex', scorerConfig: { type: 'regex', pattern: 'ok' } as any });
+      const got = await s.get('t-254');
+      expect(got?.enabled).toBe(true);
+      expect(got?.samplingRate).toBe(0.5);
+      expect((got?.scorerConfig as any).pattern).toBe('ok');
+    });
+  });
 });

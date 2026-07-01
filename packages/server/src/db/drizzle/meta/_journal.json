@@ -176,6 +176,13 @@
       "when": 1741948800000,
       "tag": "0024_prompt_github_sync",
       "breakpoints": false
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1742035200000,
+      "tag": "0025_live_eval_config",
+      "breakpoints": false
     }
   ]
 }
