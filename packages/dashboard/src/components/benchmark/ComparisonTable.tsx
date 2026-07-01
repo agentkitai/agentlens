@@ -143,19 +143,25 @@ export function ComparisonTable({
                 <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
                   {metricLabel(m.metric)}
                 </td>
-                {m.variantResults.map((vr) => {
+                {/* Drive body cells from variantNames (the header order) and look
+                    up each variant's result by id, so values always land under the
+                    right column even if variantResults is short or reordered. */}
+                {variantNames.map((v) => {
+                  const vr = m.variantResults.find((r) => r.variantId === v.id);
+                  if (!vr) {
+                    return (
+                      <td key={v.id} className="px-4 py-3 text-sm text-right whitespace-nowrap text-gray-400">
+                        —
+                      </td>
+                    );
+                  }
                   let colorClass = 'text-gray-600';
                   if (isSignificant && winnerId) {
-                    if (vr.variantId === winnerId) {
-                      colorClass = 'text-green-700 font-semibold';
-                    } else {
-                      colorClass = 'text-red-600';
-                    }
+                    colorClass = vr.variantId === winnerId ? 'text-green-700 font-semibold' : 'text-red-600';
                   }
-
                   return (
                     <td
-                      key={vr.variantId}
+                      key={v.id}
                       className={`px-4 py-3 text-sm text-right whitespace-nowrap ${colorClass}`}
                       title={`mean=${vr.mean.toFixed(4)}, median=${vr.median.toFixed(4)}, n=${vr.sampleSize}`}
                     >

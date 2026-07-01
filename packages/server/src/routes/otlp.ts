@@ -696,7 +696,7 @@ function mapClaudeCodeApiRequest(
   // the call by duration — latency is carried explicitly on the llm_response
   // (`latencyMs`), and adjacent call/response timestamps keep the timeline clean.
   const ts = nanoToIso(log.timeUnixNano);
-  const meta = { source: 'otlp_log_claude_code', callId };
+  const meta = { source: 'otlp_log_claude_code', callId, ...(otlpUserId(attrs) ? { userId: otlpUserId(attrs) } : {}) };
 
   // Actual prompt/response text, when captured (only present if the user enabled
   // OTEL_LOG_USER_PROMPTS — otherwise Claude Code redacts it). user_prompt is
@@ -751,6 +751,13 @@ const CC_OPERATIONAL_LOG_BODIES = new Set([
 ]);
 const CC_OPERATIONAL_METRICS = new Set(['claude_code.session.count']);
 
+// End-user attribution: Claude Code stamps user.id + user.email on every log/metric.
+// Surface it as metadata.userId so the per-user cost view (analytics /users) lights
+// up (it reads metadata.userId). Prefer the readable email. (#user-attribution)
+function otlpUserId(attrs: OtlpKeyValue[] | undefined): string | undefined {
+  return getAttrStr(attrs, 'user.email') ?? getAttrStr(attrs, 'user.id');
+}
+
 // Claude Code's tool lifecycle logs → first-class tool_call/tool_response/
 // tool_error events, and skill_activated → a first-class skill_activated event,
 // so the Tools/Skills analytics views, the SessionDetail filters, and the
@@ -788,7 +795,7 @@ function mapClaudeCodeLog(
   const toolName = getAttrStr(attrs, 'tool_name') ?? 'tool';
   const callId = getAttrStr(attrs, 'tool_use_id') ?? `cc-tool-${log.timeUnixNano ?? ''}`;
   const ts = nanoToIso(log.timeUnixNano);
-  const meta = { source: 'otlp_log_claude_code', callId };
+  const meta = { source: 'otlp_log_claude_code', callId, ...(otlpUserId(attrs) ? { userId: otlpUserId(attrs) } : {}) };
 
   if (eventName === 'tool_decision') {
     // The request/authorization point → tool_call. A denial also emits a
@@ -1201,7 +1208,7 @@ export function otlpRoutes(
                 sessionId: getAttrStr(p.attributes, 'openclaw.sessionId') ?? getAttrStr(p.attributes, 'session.id') ?? 'otlp-default',
                 agentId,
                 timestamp: nanoToIso(p.timeUnixNano),
-                metadata: { source: 'otlp_metric', metricName: metric.name },
+                metadata: { source: 'otlp_metric', metricName: metric.name, ...(otlpUserId(p.attributes) ? { userId: otlpUserId(p.attributes) } : {}) },
                 payload: {
                   provider: getAttrStr(p.attributes, 'openclaw.provider') ?? 'unknown',
                   model: getAttrStr(p.attributes, 'openclaw.model') ?? 'unknown',
@@ -1220,7 +1227,7 @@ export function otlpRoutes(
                 sessionId: getAttrStr(p.attributes, 'openclaw.sessionId') ?? getAttrStr(p.attributes, 'session.id') ?? 'otlp-default',
                 agentId,
                 timestamp: nanoToIso(p.timeUnixNano),
-                metadata: { source: 'otlp_metric', metricName: metric.name },
+                metadata: { source: 'otlp_metric', metricName: metric.name, ...(otlpUserId(p.attributes) ? { userId: otlpUserId(p.attributes) } : {}) },
                 payload: {
                   type: 'otlp_metric',
                   data: {
@@ -1316,7 +1323,7 @@ export function otlpRoutes(
             sessionId: extractSessionId(log.attributes, resourceAttrs),
             agentId,
             timestamp: nanoToIso(log.timeUnixNano),
-            metadata: { source: 'otlp_log' },
+            metadata: { source: 'otlp_log', ...(otlpUserId(log.attributes) ? { userId: otlpUserId(log.attributes) } : {}) },
             payload: {
               type: 'otlp_log',
               data: {
