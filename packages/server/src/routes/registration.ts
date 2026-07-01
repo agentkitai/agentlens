@@ -16,6 +16,8 @@ import type { IEmbeddingStore } from '../db/embedding-store.interface.js';
 import { apiKeysRoutes } from './api-keys.js';
 import { serviceTokensRoutes } from './service-tokens.js';
 import { eventsRoutes } from './events.js';
+import { mediaRoutes } from './media.js';
+import { MediaStore } from '../db/media-store.js';
 import { sessionsRoutes } from './sessions.js';
 import { agentsRoutes } from './agents.js';
 import { statsRoutes } from './stats.js';
@@ -175,11 +177,14 @@ export async function registerRoutes(
   }
   // Prompt auto-discovery (#55 Thread 2) — SQLite-backed; null on Postgres-only.
   const promptStore = db ? new PromptStore(db) : null;
+  const mediaDb = config?.pgDb ?? db;
   app.route('/api/events', eventsRoutes(store, {
     embeddingWorker: config?.embeddingWorker ?? null,
     sessionSummaryStore: db ? new SessionSummaryStore(db) : null,
     promptStore,
+    mediaStore: mediaDb ? new MediaStore(mediaDb) : null,
   }));
+  if (mediaDb) app.route('/api/media', mediaRoutes(mediaDb));
   // Replay route registered directly on main app BEFORE sessions sub-app
   registerReplayRoutes(app, store);
   app.route('/api/sessions', sessionsRoutes(store));

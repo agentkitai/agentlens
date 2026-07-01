@@ -23,6 +23,8 @@ import type { AuthVariables } from '../middleware/auth.js';
 import { eventBus } from '../lib/event-bus.js';
 import { verifyAgentTokenWithMethod, stampVerifiedAgent } from '../lib/agent-identity.js';
 import { getTenantId, getTenantStore } from './tenant-helper.js';
+import { offloadPayload } from '../lib/media-offload.js';
+import type { MediaStore } from '../db/media-store.js';
 import { summarizeEvent, summarizeSession } from '../lib/embeddings/summarizer.js';
 import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
 import type { SessionSummaryStore } from '../db/session-summary-store.js';
@@ -43,6 +45,7 @@ export function eventsRoutes(
     embeddingWorker: EmbeddingWorker | null;
     sessionSummaryStore?: SessionSummaryStore | null;
     promptStore?: PromptStore | null;
+    mediaStore?: MediaStore | null;
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -53,6 +56,8 @@ export function eventsRoutes(
   // POST /api/events — ingest events
   app.post('/', async (c) => {
     const tenantStore = getTenantStore(store, c);
+    const tenantId = getTenantId(c);
+    const mediaStore = deps?.mediaStore ?? null;
 
     const rawBody = await c.req.json().catch(() => null);
     if (!rawBody) {
@@ -109,7 +114,12 @@ export function eventsRoutes(
         const id = nextEventId();
         const severity = input.severity ?? 'info';
         const metadata = stampVerifiedAgent(input.metadata ?? {}, verifiedAgentId, verifiedAgentMethod);
-        const payload = truncatePayload(input.payload as AgentLensEvent['payload']);
+        // #252: offload large base64 media to media_objects, leaving media:// refs
+        // (before truncate/hash, so the ref is what's hashed + stored).
+        const rawPayload = mediaStore
+          ? await offloadPayload(input.payload, tenantId, mediaStore)
+          : input.payload;
+        const payload = truncatePayload(rawPayload as AgentLensEvent['payload']);
 
         const hash = computeEventHash({
           id,

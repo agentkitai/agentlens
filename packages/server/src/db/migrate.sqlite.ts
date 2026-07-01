@@ -1353,6 +1353,19 @@ export function runMigrations(db: SqliteDb): void {
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_service_tokens_hash ON service_tokens(token_hash)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_service_tokens_tenant ON service_tokens(tenant_id)`);
+
+  // #252: offloaded media blobs (base64 image/audio moved out of event payloads).
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS media_objects (
+      id           TEXT PRIMARY KEY,
+      tenant_id    TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      size         INTEGER NOT NULL,
+      data         TEXT NOT NULL,
+      created_at   TEXT NOT NULL
+    )
+  `);
+  db.run(sql`CREATE INDEX IF NOT EXISTS idx_media_objects_tenant ON media_objects(tenant_id)`);
 }
 
 /**
