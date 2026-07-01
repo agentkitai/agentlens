@@ -110,6 +110,16 @@ function Th({
 
 const ESTIMATED_ROW_HEIGHT = 48;
 
+// Header and virtualized body live in two separate <table>s, and the body rows
+// are position:absolute (out of table flow) — so left to the browser their 8
+// columns size independently and don't line up. Pin an identical grid template on
+// the header row AND every body row so columns align regardless of content.
+const GRID_STYLE = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(140px,1.5fr) 112px 180px 96px 84px 84px 112px minmax(120px,1fr)',
+  alignItems: 'center',
+} as const;
+
 export function SessionList({
   sessions, sortField, sortDir, onSort, page, pageSize, total, onPageChange,
 }: SessionListProps) {
@@ -138,7 +148,7 @@ export function SessionList({
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
-            <tr>
+            <tr style={GRID_STYLE}>
               <Th field="agentName" label="Agent" sortField={sortField} sortDir={sortDir} onSort={onSort} />
               <Th field="status" label="Status" sortField={sortField} sortDir={sortDir} onSort={onSort} />
               <Th field="startedAt" label="Started" sortField={sortField} sortDir={sortDir} onSort={onSort} />
@@ -174,6 +184,7 @@ export function SessionList({
                       ref={virtualizer.measureElement}
                       className="hover:bg-gray-50 transition-colors"
                       style={{
+                        ...GRID_STYLE,
                         position: 'absolute',
                         top: 0,
                         left: 0,

@@ -987,4 +987,25 @@ describe('Claude Code operational telemetry is not a session (#session-noise)', 
     await app.request('/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     expect((await store.getSessionTimeline('real-1')).length).toBeGreaterThan(0);
   });
+
+  it('attributes the end-user from Claude Code user.email → metadata.userId', async () => {
+    const { app, store } = makeApp();
+    const payload = { resourceLogs: [{
+      resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+      scopeLogs: [{ logRecords: [{
+        timeUnixNano: '1700000000000000000', body: { stringValue: 'claude_code.api_request' },
+        attributes: [
+          { key: 'session.id', value: { stringValue: 'u-sess' } },
+          { key: 'user.email', value: { stringValue: 'amit@example.com' } },
+          { key: 'model', value: { stringValue: 'claude-opus-4-8' } },
+          { key: 'input_tokens', value: { intValue: 10 } },
+          { key: 'output_tokens', value: { intValue: 5 } },
+        ],
+      }] }],
+    }] };
+    await app.request('/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const events = await store.getSessionTimeline('u-sess');
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((e) => (e.metadata as Record<string, unknown>).userId === 'amit@example.com')).toBe(true);
+  });
 });
