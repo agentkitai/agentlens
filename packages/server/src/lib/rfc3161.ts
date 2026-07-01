@@ -69,6 +69,51 @@ export async function requestTimestamp(tsaUrl: string, sha256Hex: string, fetchF
   return { token: Buffer.from(resp).toString('base64'), granted, genTime: parseGenTime(resp) };
 }
 
+// AlgorithmIdentifier for SHA-256 (as it appears in a MessageImprint).
+const SHA256_ALGID = Uint8Array.from([0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00]);
+
+function matchesAt(hay: Uint8Array, needle: Uint8Array, i: number): boolean {
+  for (let k = 0; k < needle.length; k++) if (hay[i + k] !== needle[k]) return false;
+  return true;
+}
+
+/** Does the token's SHA-256 messageImprint (hashedMessage) equal `sha256Hex`? */
+export function messageImprintMatches(resp: Uint8Array, sha256Hex: string): boolean {
+  const want = Buffer.from(sha256Hex, 'hex');
+  for (let i = 0; i + SHA256_ALGID.length + 34 <= resp.length; i++) {
+    if (!matchesAt(resp, SHA256_ALGID, i)) continue;
+    const j = i + SHA256_ALGID.length;
+    if (resp[j] === 0x04 && resp[j + 1] === 0x20) {
+      if (Buffer.compare(Buffer.from(resp.subarray(j + 2, j + 34)), want) === 0) return true;
+    }
+  }
+  return false;
+}
+
+export interface TimestampVerification {
+  /** The TSA response was granted. */
+  granted: boolean;
+  /** The token's messageImprint binds to the given subject hash. */
+  matchesHash: boolean;
+  /** The TSA's asserted time. */
+  genTime: string | null;
+  /** granted AND the hash binds. NOTE: does NOT yet verify the TSA's signature. */
+  valid: boolean;
+}
+
+/**
+ * Offline-verify a stored RFC 3161 token against a subject hash: it must be a
+ * granted response whose messageImprint binds to the hash. This proves the token
+ * was issued for exactly this data. Cryptographic verification of the TSA's
+ * signature + cert-chain (CMS) is a follow-up.
+ */
+export function verifyTimestampToken(tokenBase64: string, sha256Hex: string): TimestampVerification {
+  const resp = Uint8Array.from(Buffer.from(tokenBase64, 'base64'));
+  const granted = statusGranted(resp);
+  const matchesHash = messageImprintMatches(resp, sha256Hex);
+  return { granted, matchesHash, genTime: parseGenTime(resp), valid: granted && matchesHash };
+}
+
 /** Read the leading PKIStatus (TimeStampResp → PKIStatusInfo → status INTEGER). */
 function statusGranted(resp: Uint8Array): boolean {
   // 30 <l> 30 <l> 02 01 <status> ...

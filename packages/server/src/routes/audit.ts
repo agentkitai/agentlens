@@ -14,7 +14,7 @@ import { auditLog } from '../db/schema.sqlite.js';
 import { apiKeys } from '../db/schema.sqlite.js';
 import type { AuthVariables } from '../middleware/auth.js';
 import { dbRun, dbGet } from '../db/dialect-db.js';
-import { requestTimestamp } from '../lib/rfc3161.js';
+import { requestTimestamp, verifyTimestampToken } from '../lib/rfc3161.js';
 
 /** Default RFC 3161 TSA (overridable per-request or via env). */
 const DEFAULT_TSA = process.env['AGENTLENS_TSA_URL'] || 'https://freetsa.org/tsr';
@@ -120,6 +120,18 @@ export function auditRoutes(db: SqliteDb) {
       subjectHash: row.subject_hash, tsaUrl: row.tsa_url, token: row.token,
       genTime: row.gen_time, granted: !!row.granted, createdAt: row.created_at,
     });
+  });
+
+  // GET /api/audit/timestamp/:id/verify — offline-verify the stored token binds to
+  // its subject hash and is a granted response (TSA signature check is a follow-up).
+  app.get('/timestamp/:id/verify', async (c) => {
+    const row = await dbGet<{ subject_hash: string; token: string; tsa_url: string }>(
+      db,
+      sql`SELECT subject_hash, token, tsa_url FROM audit_timestamps WHERE id = ${c.req.param('id')} AND tenant_id = ${getTenantId(c)}`,
+    );
+    if (!row) return c.json({ error: 'Not found', status: 404 }, 404);
+    const v = verifyTimestampToken(row.token, row.subject_hash);
+    return c.json({ ...v, subjectHash: row.subject_hash, tsaUrl: row.tsa_url, signatureVerified: false });
   });
 
   return app;
