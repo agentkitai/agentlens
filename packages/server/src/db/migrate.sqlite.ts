@@ -1388,6 +1388,19 @@ export function runMigrations(db: SqliteDb): void {
     )
   `);
 
+  // #265: last-synced snapshot per prompt (repo blob sha + local content hash) so
+  // a two-way sync can tell which side changed and flag conflicts.
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS prompt_github_sync_state (
+      tenant_id  TEXT NOT NULL,
+      path       TEXT NOT NULL,
+      repo_sha   TEXT NOT NULL,
+      local_hash TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (tenant_id, path)
+    )
+  `);
+
   // #254: online-eval (LiveEvalEngine) config — sample live sessions + score them.
   db.run(sql`
     CREATE TABLE IF NOT EXISTS live_eval_config (

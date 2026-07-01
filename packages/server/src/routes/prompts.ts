@@ -17,7 +17,7 @@ import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantId } from './tenant-helper.js';
-import { PromptGithubSyncStore, pushPrompts } from '../lib/prompt-github-sync.js';
+import { PromptGithubSyncStore, pushPrompts, pullPrompts, syncPrompts, SyncStateStore } from '../lib/prompt-github-sync.js';
 import { secretsAvailable } from '../lib/secret-box.js';
 import {
   PromptStore,
@@ -407,6 +407,32 @@ export function promptRoutes(db: AnyDb): Hono<{ Variables: AuthVariables }> {
       return c.json(result);
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : 'push failed', status: 502 }, 502);
+    }
+  });
+
+  // POST /api/prompts/sync/github/pull — import prompts from the configured repo.
+  app.post('/sync/github/pull', async (c) => {
+    const tenantId = getTenantId(c);
+    const config = await ghSync.getConfig(tenantId);
+    const token = await ghSync.getToken(tenantId);
+    if (!config || !token) return c.json({ error: 'GitHub sync is not configured', status: 400 }, 400);
+    try {
+      return c.json(await pullPrompts(tenantId, config, token, store));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : 'pull failed', status: 502 }, 502);
+    }
+  });
+
+  // POST /api/prompts/sync/github/sync — two-way reconcile; reports conflicts.
+  app.post('/sync/github/sync', async (c) => {
+    const tenantId = getTenantId(c);
+    const config = await ghSync.getConfig(tenantId);
+    const token = await ghSync.getToken(tenantId);
+    if (!config || !token) return c.json({ error: 'GitHub sync is not configured', status: 400 }, 400);
+    try {
+      return c.json(await syncPrompts(tenantId, config, token, store, new SyncStateStore(db)));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : 'sync failed', status: 502 }, 502);
     }
   });
 
