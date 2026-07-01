@@ -295,3 +295,12 @@ describe('PromptStore — getVersionAnalytics', async () => {
     expect(a.estimatedCacheSavingsUsd).toBeCloseTo(0.72 + 1.25, 6);
   });
 });
+
+describe('listTemplates', () => {
+  it('includes currentVersionNumber so the list badge shows "v1" (not a bare "v")', async () => {
+    await store.createTemplate(TENANT, makeInput());
+    const { templates } = await store.listTemplates({ tenantId: TENANT });
+    expect(templates.length).toBe(1);
+    expect(templates[0]!.currentVersionNumber).toBe(1);
+  });
+});

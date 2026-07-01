@@ -417,16 +417,19 @@ export class PromptStore {
     `);
     const total = totalRow?.count ?? 0;
 
-    const rows = await dbAll<TemplateRow>(this.db, sql`
-      SELECT * FROM prompt_templates WHERE ${whereClause}
+    // Include the current version NUMBER (not just its id) via a correlated
+    // subquery — the list UI shows "v3", and without it the badge rendered a bare
+    // "v". Indexed lookup by id, only `limit` rows, so cost is negligible.
+    const rows = await dbAll<TemplateRow & { current_version_number: number | null }>(this.db, sql`
+      SELECT *, (
+        SELECT version_number FROM prompt_versions WHERE prompt_versions.id = prompt_templates.current_version_id
+      ) AS current_version_number
+      FROM prompt_templates WHERE ${whereClause}
       ORDER BY updated_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
 
-    const templates = rows.map((row) => {
-      // We skip fetching version numbers for list performance; clients can get details
-      return toTemplate(row);
-    });
+    const templates = rows.map((row) => toTemplate(row, row.current_version_number ?? undefined));
 
     return { templates, total };
   }

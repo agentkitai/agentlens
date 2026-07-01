@@ -36,7 +36,10 @@ export const authRateLimit = rateLimiter({
   windowMs: AUTH_WINDOW_MS,
   limit: AUTH_MAX,
   standardHeaders: 'draft-7',
-  skip: rateLimitDisabled,
+  // The strict auth limiter protects login/token MUTATIONS. GET /auth/me is a
+  // benign session check the dashboard calls on every navigation — throttling it
+  // at 20/15min logged users out mid-session. Exempt it (mutations stay limited).
+  skip: (c) => rateLimitDisabled() || (c.req.method === 'GET' && new URL(c.req.url).pathname === '/auth/me'),
   keyGenerator: (c) => `auth:${getClientIp(c)}`,
   handler: (c) => {
     const ip = getClientIp(c);
