@@ -15,6 +15,8 @@ import { ApiKeyService } from './api-keys.js';
 
 export interface ApiKeyAuthContext {
   orgId: string;
+  /** Project the key is bound to (#260); defaults to the org for org-scoped keys. */
+  projectId: string;
   keyId: string;
   scopes: string[];
   rateLimitOverride: number | null;
@@ -27,6 +29,7 @@ export interface ApiKeyAuthRequest {
 
 export interface CacheEntry {
   orgId: string;
+  projectId: string;
   keyId: string;
   keyHash: string;
   scopes: string[];
@@ -126,6 +129,7 @@ export class ApiKeyAuthMiddleware {
 
       return {
         orgId: cached.orgId,
+        projectId: cached.projectId,
         keyId: cached.keyId,
         scopes: cached.scopes,
         rateLimitOverride: cached.rateLimitOverride,
@@ -144,6 +148,7 @@ export class ApiKeyAuthMiddleware {
       // Cache the revoked state
       this.cache.set(prefix, {
         orgId: keyRecord.org_id,
+        projectId: keyRecord.project_id ?? keyRecord.org_id,
         keyId: keyRecord.id,
         keyHash: keyRecord.key_hash,
         scopes: keyRecord.scopes,
@@ -164,6 +169,7 @@ export class ApiKeyAuthMiddleware {
     // 7. Cache the result
     this.cache.set(prefix, {
       orgId: keyRecord.org_id,
+      projectId: keyRecord.project_id ?? keyRecord.org_id,
       keyId: keyRecord.id,
       keyHash: keyRecord.key_hash,
       scopes: keyRecord.scopes,
@@ -178,6 +184,7 @@ export class ApiKeyAuthMiddleware {
 
     return {
       orgId: keyRecord.org_id,
+      projectId: keyRecord.project_id ?? keyRecord.org_id,
       keyId: keyRecord.id,
       scopes: keyRecord.scopes,
       rateLimitOverride: keyRecord.rate_limit_override,

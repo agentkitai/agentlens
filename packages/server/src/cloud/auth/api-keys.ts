@@ -23,11 +23,14 @@ export interface CreateApiKeyInput {
   createdBy: string; // user ID
   scopes?: string[];
   rateLimitOverride?: number | null;
+  /** Project the key is bound to (#260). Defaults to the org (an org-scoped key). */
+  projectId?: string;
 }
 
 export interface ApiKeyRecord {
   id: string;
   org_id: string;
+  project_id: string;
   key_prefix: string;
   name: string;
   environment: ApiKeyEnvironment;
@@ -96,11 +99,12 @@ export class ApiKeyService {
     const keyHash = await hashPassword(fullKey);
 
     const result = await this.db.query(
-      `INSERT INTO api_keys (org_id, key_prefix, key_hash, name, environment, scopes, rate_limit_override, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, org_id, key_prefix, name, environment, scopes, rate_limit_override, created_by, last_used_at, revoked_at, created_at`,
+      `INSERT INTO api_keys (org_id, project_id, key_prefix, key_hash, name, environment, scopes, rate_limit_override, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, org_id, project_id, key_prefix, name, environment, scopes, rate_limit_override, created_by, last_used_at, revoked_at, created_at`,
       [
         input.orgId,
+        input.projectId ?? input.orgId,
         prefix,
         keyHash,
         input.name,
@@ -125,7 +129,7 @@ export class ApiKeyService {
    */
   async list(orgId: string): Promise<ApiKeyRecord[]> {
     const result = await this.db.query(
-      `SELECT id, org_id, key_prefix, name, environment, scopes, rate_limit_override, created_by, last_used_at, revoked_at, created_at
+      `SELECT id, org_id, project_id, key_prefix, name, environment, scopes, rate_limit_override, created_by, last_used_at, revoked_at, created_at
        FROM api_keys WHERE org_id = $1 ORDER BY created_at DESC`,
       [orgId],
     );
@@ -140,7 +144,7 @@ export class ApiKeyService {
    */
   async listActive(orgId: string): Promise<ApiKeyRecord[]> {
     const result = await this.db.query(
-      `SELECT id, org_id, key_prefix, name, environment, scopes, rate_limit_override, created_by, last_used_at, revoked_at, created_at
+      `SELECT id, org_id, project_id, key_prefix, name, environment, scopes, rate_limit_override, created_by, last_used_at, revoked_at, created_at
        FROM api_keys WHERE org_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC`,
       [orgId],
     );
@@ -166,7 +170,7 @@ export class ApiKeyService {
    */
   async findByPrefix(prefix: string): Promise<(ApiKeyRecord & { key_hash: string }) | null> {
     const result = await this.db.query(
-      `SELECT id, org_id, key_prefix, key_hash, name, environment, scopes, rate_limit_override, created_by, last_used_at, revoked_at, created_at
+      `SELECT id, org_id, project_id, key_prefix, key_hash, name, environment, scopes, rate_limit_override, created_by, last_used_at, revoked_at, created_at
        FROM api_keys WHERE key_prefix = $1`,
       [prefix],
     );

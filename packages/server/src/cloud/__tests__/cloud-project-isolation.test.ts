@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runMigrations } from '../migrate.js';
+import { ApiKeyService } from '../auth/api-keys.js';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const describeDb = DATABASE_URL ? describe : describe.skip;
@@ -19,6 +20,7 @@ describeDb('#256: cloud project isolation (RLS)', () => {
   const orgId = '00000000-0000-0000-0000-0000025600a1';
   const projA = '00000000-0000-0000-0000-0000025600a2';
   const projB = '00000000-0000-0000-0000-0000025600a3';
+  const userId = '00000000-0000-0000-0000-0000025600a4';
 
   /** Read events under the non-superuser role, optionally project-scoped. */
   async function readProjects(project: string | null): Promise<string[]> {
@@ -51,6 +53,10 @@ describeDb('#256: cloud project isolation (RLS)', () => {
     // Setup runs as the superuser (RLS bypassed): one org, two events in
     // different projects.
     await pool.query(`INSERT INTO orgs (id, name, slug) VALUES ($1, 'iso', 'iso-256') ON CONFLICT (id) DO NOTHING`, [orgId]);
+    await pool.query(
+      `INSERT INTO users (id, email, email_verified, display_name) VALUES ($1, 'iso256@test.com', true, 'iso') ON CONFLICT (id) DO NOTHING`,
+      [userId],
+    );
     for (const project of [projA, projB]) {
       await pool.query(
         `INSERT INTO events (org_id, project_id, timestamp, session_id, agent_id, event_type, payload, hash)
@@ -71,5 +77,20 @@ describeDb('#256: cloud project isolation (RLS)', () => {
 
   it('an org-scoped read (no project) sees every project in the org', async () => {
     expect(await readProjects(null)).toEqual([projA, projB]);
+  });
+
+  // #260: a cloud API key binds to a project; create + lookup round-trip it.
+  it('binds an API key to a project (create + findByPrefix round-trip)', async () => {
+    const svc = new ApiKeyService(pool as unknown as import('../migrate.js').MigrationClient);
+    const created = await svc.create({ orgId, projectId: projA, name: 'bound', environment: 'test', createdBy: userId });
+    expect(created.record.project_id).toBe(projA);
+    const found = await svc.findByPrefix(created.record.key_prefix);
+    expect(found?.project_id).toBe(projA);
+  });
+
+  it('defaults an API key project to the org when unbound', async () => {
+    const svc = new ApiKeyService(pool as unknown as import('../migrate.js').MigrationClient);
+    const created = await svc.create({ orgId, name: 'unbound', environment: 'test', createdBy: userId });
+    expect(created.record.project_id).toBe(orgId);
   });
 });
