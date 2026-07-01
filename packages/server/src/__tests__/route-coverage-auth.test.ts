@@ -6,8 +6,20 @@
  * without credentials. This is the "fail-closed verification" safety net.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestApp } from './test-helpers.js';
+
+// This audit probes every registered route once (unauthenticated), which counts
+// against the shared api rate limiter; disable it so a later public-route check
+// isn't starved into a 429.
+let prevRlDisabled: string | undefined;
+beforeAll(() => {
+  prevRlDisabled = process.env['RATE_LIMIT_DISABLED'];
+  process.env['RATE_LIMIT_DISABLED'] = '1';
+});
+afterAll(() => {
+  process.env['RATE_LIMIT_DISABLED'] = prevRlDisabled;
+});
 
 /** Routes that are intentionally public (no auth required) */
 const PUBLIC_ALLOWLIST = new Set([

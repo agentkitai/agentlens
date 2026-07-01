@@ -1026,6 +1026,7 @@ export function runMigrations(db: SqliteDb): void {
       name TEXT NOT NULL,
       description TEXT,
       category TEXT NOT NULL DEFAULT 'general',
+      folder TEXT,
       current_version_id TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -1035,6 +1036,13 @@ export function runMigrations(db: SqliteDb): void {
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_templates_tenant ON prompt_templates(tenant_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_templates_tenant_cat ON prompt_templates(tenant_id, category)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_prompt_templates_tenant_name ON prompt_templates(tenant_id, name)`);
+  // #253: prompt folders — additive column for existing dbs.
+  {
+    const cols = db.all<{ name: string }>(sql`PRAGMA table_info(prompt_templates)`);
+    if (!new Set(cols.map((c) => c.name)).has('folder')) {
+      db.run(sql`ALTER TABLE prompt_templates ADD COLUMN folder TEXT`);
+    }
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS prompt_versions (
@@ -1366,6 +1374,19 @@ export function runMigrations(db: SqliteDb): void {
     )
   `);
   db.run(sql`CREATE INDEX IF NOT EXISTS idx_media_objects_tenant ON media_objects(tenant_id)`);
+
+  // #253: per-tenant GitHub prompt-sync config (PAT encrypted via secret-box).
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS prompt_github_sync (
+      tenant_id       TEXT PRIMARY KEY,
+      owner           TEXT NOT NULL,
+      repo            TEXT NOT NULL,
+      base_path       TEXT NOT NULL DEFAULT 'prompts',
+      encrypted_token TEXT NOT NULL,
+      token_last4     TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
+    )
+  `);
 }
 
 /**

@@ -45,6 +45,7 @@ interface TemplateRow {
   name: string;
   description: string | null;
   category: string;
+  folder: string | null;
   current_version_id: string | null;
   created_at: string;
   updated_at: string;
@@ -83,6 +84,7 @@ export interface CreateTemplateInput {
   name: string;
   description?: string;
   category?: string;
+  folder?: string;
   content: string;
   variables?: PromptVariable[];
   config?: Record<string, unknown>;
@@ -102,6 +104,7 @@ export interface CreateVersionInput {
 export interface ListTemplatesQuery {
   tenantId: string;
   category?: string;
+  folder?: string;
   search?: string;
   limit?: number;
   offset?: number;
@@ -242,6 +245,7 @@ function toTemplate(row: TemplateRow, versionNumber?: number): PromptTemplate {
     name: row.name,
     description: row.description ?? undefined,
     category: row.category,
+    folder: row.folder ?? undefined,
     currentVersionId: row.current_version_id ?? undefined,
     currentVersionNumber: versionNumber,
     createdAt: row.created_at,
@@ -337,8 +341,8 @@ export class PromptStore {
 
     // Atomic: insert template + version 1
     await dbRun(this.db, sql`
-      INSERT INTO prompt_templates (id, tenant_id, name, description, category, current_version_id, created_at, updated_at)
-      VALUES (${templateId}, ${tenantId}, ${input.name}, ${input.description ?? null}, ${input.category ?? 'general'}, ${versionId}, ${now}, ${now})
+      INSERT INTO prompt_templates (id, tenant_id, name, description, category, folder, current_version_id, created_at, updated_at)
+      VALUES (${templateId}, ${tenantId}, ${input.name}, ${input.description ?? null}, ${input.category ?? 'general'}, ${input.folder ?? null}, ${versionId}, ${now}, ${now})
     `);
 
     await dbRun(this.db, sql`
@@ -352,6 +356,7 @@ export class PromptStore {
       name: input.name,
       description: input.description,
       category: input.category ?? 'general',
+      folder: input.folder,
       currentVersionId: versionId,
       currentVersionNumber: 1,
       createdAt: now,
@@ -393,12 +398,15 @@ export class PromptStore {
   }
 
   async listTemplates(query: ListTemplatesQuery): Promise<{ templates: PromptTemplate[]; total: number }> {
-    const { tenantId, category, search, limit = 50, offset = 0 } = query;
+    const { tenantId, category, folder, search, limit = 50, offset = 0 } = query;
 
     // Build WHERE clauses
     let whereClause = sql`tenant_id = ${tenantId} AND deleted_at IS NULL`;
     if (category) {
       whereClause = sql`${whereClause} AND category = ${category}`;
+    }
+    if (folder !== undefined) {
+      whereClause = sql`${whereClause} AND folder = ${folder}`;
     }
     if (search) {
       whereClause = sql`${whereClause} AND name LIKE ${'%' + search + '%'}`;

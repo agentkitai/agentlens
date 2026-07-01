@@ -1023,4 +1023,30 @@ describePg('Postgres integration tests', () => {
       expect(await s.fetch('other-tenant', id)).toBeNull();
     });
   });
+
+  // ─── #253: prompt folders + GitHub sync config on Postgres ──
+  describe('Prompt folders + GitHub sync on Postgres (#253)', () => {
+    it('round-trips a prompt folder and an (encrypted) github sync config', async () => {
+      const { PromptStore } = await import('../db/prompt-store.js');
+      const ps = new PromptStore(db);
+      await ps.createTemplate('t-253', { name: 'p1', content: 'x', folder: 'f/a' });
+      await ps.createTemplate('t-253', { name: 'p2', content: 'y' });
+      const listed = await ps.listTemplates({ tenantId: 't-253', folder: 'f/a' });
+      expect(listed.templates.map((t) => t.name)).toEqual(['p1']);
+
+      const prev = process.env.AGENTLENS_ENCRYPTION_KEY;
+      process.env.AGENTLENS_ENCRYPTION_KEY = 'pg-test-key-253';
+      try {
+        const { PromptGithubSyncStore } = await import('../lib/prompt-github-sync.js');
+        const gh = new PromptGithubSyncStore(db);
+        await gh.setConfig('t-253', { owner: 'o', repo: 'r', token: 'ghp_abcd' });
+        const cfg = await gh.getConfig('t-253');
+        expect(cfg?.owner).toBe('o');
+        expect(cfg?.tokenLast4).toBe('abcd');
+        expect(await gh.getToken('t-253')).toBe('ghp_abcd');
+      } finally {
+        process.env.AGENTLENS_ENCRYPTION_KEY = prev;
+      }
+    });
+  });
 });

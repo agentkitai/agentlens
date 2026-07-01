@@ -1500,6 +1500,8 @@ export interface PromptTemplate {
   name: string;
   description?: string;
   category: string;
+  /** Optional folder path for organizing prompts in the UI (#253). */
+  folder?: string;
   currentVersionId?: string;
   currentVersionNumber?: number;
   createdAt: string;
