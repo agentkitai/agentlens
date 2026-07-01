@@ -82,6 +82,37 @@ describe('LiveEvalEngine (#254)', () => {
     expect((ev.payload as any).passed).toBe(true); // 'hello world' contains 'world'
   });
 
+  it('scores compliance over the session tool calls (denylist violation → fail)', async () => {
+    await appendEventToSession(store, {
+      tenantId: 'default', sessionId: 's1', agentId: 'a',
+      eventType: 'tool_call', severity: 'info', payload: { toolName: 'send_email', callId: 'c1', arguments: {} },
+    });
+    const config = cfg({
+      scorerType: 'compliance',
+      scorerConfig: { type: 'compliance', rules: [{ id: 'r1', type: 'tool_denylist', tools: ['send_email'], description: 'no email' }] } as any,
+    });
+    const did = await runLiveEval({ tenantId: 'default', sessionId: 's1', agentId: 'a', store, config, rng: () => 0 });
+    expect(did).toBe(true);
+    const ev = (await store.getSessionTimeline('s1')).find((e) => e.eventType === 'eval_result')!;
+    expect((ev.payload as any).scorerType).toBe('compliance');
+    expect((ev.payload as any).method).toBe('deterministic');
+    expect((ev.payload as any).passed).toBe(false);
+  });
+
+  it('compliance passes when no denied tool is used', async () => {
+    await appendEventToSession(store, {
+      tenantId: 'default', sessionId: 's1', agentId: 'a',
+      eventType: 'tool_call', severity: 'info', payload: { toolName: 'search', callId: 'c1', arguments: {} },
+    });
+    const config = cfg({
+      scorerType: 'compliance',
+      scorerConfig: { type: 'compliance', rules: [{ id: 'r1', type: 'tool_denylist', tools: ['send_email'], description: 'no email' }] } as any,
+    });
+    await runLiveEval({ tenantId: 'default', sessionId: 's1', agentId: 'a', store, config, rng: () => 0 });
+    const ev = (await store.getSessionTimeline('s1')).find((e) => e.eventType === 'eval_result')!;
+    expect((ev.payload as any).passed).toBe(true);
+  });
+
   it('runs the llm-judge scorer and records a result (graceful when no LLM configured)', async () => {
     // Build a registry with the LLM key unset → judge returns a "not configured" result (no network).
     const prev = process.env.AGENTLENS_LLM_API_KEY;
