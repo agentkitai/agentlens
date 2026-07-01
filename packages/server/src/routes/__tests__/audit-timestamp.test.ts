@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { auditRoutes } from '../audit.js';
-import { buildTimeStampRequest, parseGenTime } from '../../lib/rfc3161.js';
+import { buildTimeStampRequest, parseGenTime, verifyTimestampToken } from '../../lib/rfc3161.js';
 import { authMiddleware, hashApiKey, type AuthVariables } from '../../middleware/auth.js';
 import { createTestDb } from '../../db/index.js';
 import { runMigrations } from '../../db/migrate.js';
@@ -13,9 +13,13 @@ import { apiKeys } from '../../db/schema.sqlite.js';
 
 const HASH = 'ab'.repeat(32); // 64 hex
 
-// Canned TimeStampResp: PKIStatusInfo{granted} + a bare GeneralizedTime.
+// Canned TimeStampResp: PKIStatusInfo{granted} + a SHA-256 messageImprint (binding
+// to HASH) + a GeneralizedTime.
 const GEN = Buffer.from('20260701000000Z', 'ascii');
-const CANNED = Uint8Array.from([0x30, 0x16, 0x30, 0x03, 0x02, 0x01, 0x00, 0x18, 0x0f, ...GEN]);
+const SHA256_ALGID = [0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00];
+const CANNED = Uint8Array.from([
+  0x30, 0x47, 0x30, 0x03, 0x02, 0x01, 0x00, ...SHA256_ALGID, 0x04, 0x20, ...Buffer.from(HASH, 'hex'), 0x18, 0x0f, ...GEN,
+]);
 
 function seedApiKey(db: any): string {
   const rawKey = 'als_testkey1234567890abcdef1234567890abcdef';
@@ -41,6 +45,16 @@ describe('#99 RFC 3161 timestamping', () => {
     });
     it('parses the TSA GeneralizedTime', () => {
       expect(parseGenTime(CANNED)).toBe('2026-07-01T00:00:00Z');
+    });
+
+    it('verifies a token binds to its subject hash (and rejects a mismatch)', () => {
+      const tokenB64 = Buffer.from(CANNED).toString('base64');
+      const ok = verifyTimestampToken(tokenB64, HASH);
+      expect(ok).toMatchObject({ granted: true, matchesHash: true, genTime: '2026-07-01T00:00:00Z', valid: true });
+
+      const bad = verifyTimestampToken(tokenB64, 'cd'.repeat(32));
+      expect(bad.matchesHash).toBe(false);
+      expect(bad.valid).toBe(false);
     });
   });
 
@@ -74,6 +88,10 @@ describe('#99 RFC 3161 timestamping', () => {
       expect(stored.subjectHash).toBe(HASH);
       expect(stored.granted).toBe(true);
       expect(Buffer.from(stored.token, 'base64')).toEqual(Buffer.from(CANNED));
+
+      // Offline-verify the stored token binds to its hash.
+      const ver = await (await app.request(`/api/audit/timestamp/${body.id}/verify`, { headers: auth() })).json();
+      expect(ver).toMatchObject({ valid: true, matchesHash: true, granted: true, signatureVerified: false });
     });
 
     it('rejects a bad hash', async () => {
