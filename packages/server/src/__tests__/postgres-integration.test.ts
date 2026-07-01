@@ -1010,4 +1010,17 @@ describePg('Postgres integration tests', () => {
       expect(r.buckets[0]!.avgLatencyMs).toBeCloseTo(100, 6); // 300 / 3
     });
   });
+
+  // ─── #252: MediaStore on Postgres (dialect-agnostic offload storage) ──
+  describe('MediaStore on Postgres (#252)', () => {
+    it('stores and fetches a media blob, scoped to the tenant', async () => {
+      const { MediaStore } = await import('../db/media-store.js');
+      const s = new MediaStore(db);
+      const id = await s.store('t-media-252', 'image/png', 'QUJD');
+      const got = await s.fetch('t-media-252', id);
+      expect(got?.contentType).toBe('image/png');
+      expect(got?.data).toBe('QUJD');
+      expect(await s.fetch('other-tenant', id)).toBeNull();
+    });
+  });
 });
