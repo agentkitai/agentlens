@@ -1062,4 +1062,22 @@ describePg('Postgres integration tests', () => {
       expect((got?.scorerConfig as any).pattern).toBe('ok');
     });
   });
+
+  // ─── #99: audit_timestamps on Postgres ──
+  describe('Audit timestamps on Postgres (#99)', () => {
+    it('stores + reads a trusted-timestamp token', async () => {
+      const { dbRun, dbGet } = await import('../db/dialect-db.js');
+      await dbRun(
+        db,
+        sql`INSERT INTO audit_timestamps (id, tenant_id, subject_hash, tsa_url, token, gen_time, granted, created_at)
+            VALUES ('ts-99', 't-99', 'abcd', 'https://tsa', 'dG9rZW4=', '2026-07-01T00:00:00Z', 1, '2026-07-01T00:00:00Z')`,
+      );
+      const row = await dbGet<{ subject_hash: string; granted: number }>(
+        db,
+        sql`SELECT subject_hash, granted FROM audit_timestamps WHERE id = 'ts-99' AND tenant_id = 't-99'`,
+      );
+      expect(row?.subject_hash).toBe('abcd');
+      expect(Number(row?.granted)).toBe(1);
+    });
+  });
 });
