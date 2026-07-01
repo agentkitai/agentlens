@@ -25,6 +25,7 @@ import type { ApiKeyAuthContext } from '../auth/api-key-middleware.js';
 function makeAuth(overrides?: Partial<ApiKeyAuthContext>): ApiKeyAuthContext {
   return {
     orgId: 'org-111',
+    projectId: 'org-111', // defaults to the org (org-scoped key)
     keyId: 'key-222',
     scopes: ['ingest', 'query'],
     rateLimitOverride: null,
@@ -192,6 +193,13 @@ describe('S-3.2: IngestionGateway — single event', () => {
     expect(queued.api_key_id).toBe('key-222');
     expect(queued.received_at).toBeTruthy();
     expect(queued.request_id).toBeTruthy();
+  });
+
+  it('stamps the key\'s bound project, not the org (#260)', async () => {
+    await gateway.ingestSingle(makeEvent(), makeAuth({ projectId: 'proj-xyz' }));
+    const queued = queue.getEvents()[0];
+    expect(queued.org_id).toBe('org-111');
+    expect(queued.project_id).toBe('proj-xyz');
   });
 
   it('rejects invalid event with 400', async () => {

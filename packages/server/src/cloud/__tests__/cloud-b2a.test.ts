@@ -482,7 +482,7 @@ describe('Migration Runner (updated for B2A)', () => {
 
   it('finds all migration files', () => {
     const files = getMigrationFiles(MIGRATIONS_DIR);
-    expect(files).toHaveLength(10); // 001..010 (010 = #256 project_id)
+    expect(files).toHaveLength(11); // 001..011 (011 = #260 api_key project)
   });
 
   it('new migrations are in correct order', () => {
