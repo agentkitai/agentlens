@@ -8,10 +8,11 @@
  * evals. Additional scorer types are a follow-up; this wires one end-to-end.
  */
 import { sql } from 'drizzle-orm';
-import type { AgentLensEvent, EvalTestCase, IEventStore, ScorerConfig, ScorerType } from '@agentkitai/agentlens-core';
+import type { AgentLensEvent, ComplianceRule, EvalTestCase, IEventStore, ScorerConfig, ScorerType } from '@agentkitai/agentlens-core';
 import { type AnyDb, dbRun, dbGet } from '../../db/dialect-db.js';
 import { createDefaultRegistry } from './index.js';
 import type { ScorerRegistry } from './scorers/index.js';
+import { evaluateCompliance } from './compliance.js';
 import { appendEventToSession } from '../append-event.js';
 
 export interface LiveEvalConfig {
@@ -103,29 +104,36 @@ export async function runLiveEval(
   const registry = args.registry ?? defaultRegistry;
   if (!config.enabled || (args.rng ?? Math.random)() >= config.samplingRate) return false;
   const scorerType = ((config.scorerConfig as { type?: string })?.type ?? config.scorerType) as ScorerType;
-  if (!registry.has(scorerType)) return false;
+  // 'compliance' is scored over the trace's tool_call events (not a registry scorer).
+  if (scorerType !== 'compliance' && !registry.has(scorerType)) return false;
   // Budget: cap live LLM-judge calls per tenant per hour.
   if (scorerType === 'llm_judge' && !underLlmBudget(args.tenantId)) return false;
 
   const events = await store.getSessionTimeline(args.sessionId);
-  const output = lastModelOutput(events);
-  if (output == null) return false;
 
-  const testCase = {
-    id: 'live',
-    datasetId: 'live',
-    tenantId: args.tenantId,
-    input: { prompt: lastModelInput(events) },
-    expectedOutput: (config.scorerConfig as unknown as Record<string, unknown>).expected,
-    scoringCriteria: (config.scorerConfig as unknown as Record<string, unknown>).rubric as string | undefined,
-    createdAt: new Date().toISOString(),
-  } as unknown as EvalTestCase;
-
-  let result;
-  try {
-    result = await registry.score({ testCase, actualOutput: output, config: { ...config.scorerConfig, type: scorerType } });
-  } catch {
-    return false; // a misconfigured scorer shouldn't break ingest
+  let result: { score: number; passed: boolean; scorerType: ScorerType; reasoning?: string };
+  if (scorerType === 'compliance') {
+    // Deterministic policy check over the session's tool calls (no LLM, no output needed).
+    const rules = (config.scorerConfig as unknown as { rules?: ComplianceRule[] }).rules ?? [];
+    const r = evaluateCompliance(events, rules);
+    result = { score: r.score, passed: r.passed, scorerType: 'compliance', reasoning: r.reasoning };
+  } else {
+    const output = lastModelOutput(events);
+    if (output == null) return false;
+    const testCase = {
+      id: 'live',
+      datasetId: 'live',
+      tenantId: args.tenantId,
+      input: { prompt: lastModelInput(events) },
+      expectedOutput: (config.scorerConfig as unknown as Record<string, unknown>).expected,
+      scoringCriteria: (config.scorerConfig as unknown as Record<string, unknown>).rubric as string | undefined,
+      createdAt: new Date().toISOString(),
+    } as unknown as EvalTestCase;
+    try {
+      result = await registry.score({ testCase, actualOutput: output, config: { ...config.scorerConfig, type: scorerType } });
+    } catch {
+      return false; // a misconfigured scorer shouldn't break ingest
+    }
   }
 
   await appendEventToSession(store, {
