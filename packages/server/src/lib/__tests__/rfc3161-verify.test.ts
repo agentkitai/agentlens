@@ -3,8 +3,13 @@
  * a CMS-signed timestamp token in-test, then verifies (and rejects a tampered one).
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import forge from 'node-forge';
 import { verifyTimestampSignature } from '../rfc3161-verify.js';
+
+// A real token from freetsa.org (ECDSA cert, SHA-512, id-ct-TSTInfo content) —
+// the shape node-forge's pkcs7 rejected (#277). Captured via /api/audit/timestamp.
+const REAL_TOKEN = readFileSync(new URL('./fixtures/freetsa-token.b64', import.meta.url), 'utf8').trim();
 
 function makeSignedToken(): { token: string; rootPem: string } {
   const keys = forge.pki.rsa.generateKeyPair(2048);
@@ -68,5 +73,19 @@ describe('#272 RFC 3161 signature verification', () => {
 
   it('reports malformed input', () => {
     expect(verifyTimestampSignature('bm90LWEtdG9rZW4=').signatureVerified).toBe(false);
+  });
+
+  // #277: real-world tokens use ECDSA + SHA-512 + id-ct-TSTInfo, which node-forge
+  // can't parse/verify. The hybrid (forge parse + Node crypto verify) handles them.
+  it('verifies a REAL freetsa token (ECDSA / SHA-512 / TSTInfo)', () => {
+    const v = verifyTimestampSignature(REAL_TOKEN);
+    expect(v.signatureVerified).toBe(true);
+    expect(v.signer?.subject).toContain('freetsa.org');
+  });
+
+  it('rejects a real token whose signature bytes were tampered', () => {
+    const bytes = Buffer.from(REAL_TOKEN, 'base64');
+    bytes[bytes.length - 20] = bytes[bytes.length - 20]! ^ 0xff;
+    expect(verifyTimestampSignature(bytes.toString('base64')).signatureVerified).toBe(false);
   });
 });
