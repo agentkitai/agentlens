@@ -14,10 +14,26 @@ import { auditLog } from '../db/schema.sqlite.js';
 import { apiKeys } from '../db/schema.sqlite.js';
 import type { AuthVariables } from '../middleware/auth.js';
 import { dbRun, dbGet } from '../db/dialect-db.js';
+import { readFileSync } from 'node:fs';
 import { requestTimestamp, verifyTimestampToken } from '../lib/rfc3161.js';
+import { verifyTimestampSignature } from '../lib/rfc3161-verify.js';
 
 /** Default RFC 3161 TSA (overridable per-request or via env). */
 const DEFAULT_TSA = process.env['AGENTLENS_TSA_URL'] || 'https://freetsa.org/tsr';
+
+/** Optional trusted TSA roots for cert-chain verification (comma-separated PEM paths). */
+const TSA_ROOTS: string[] = (process.env['AGENTLENS_TSA_ROOTS'] || '')
+  .split(',')
+  .map((p) => p.trim())
+  .filter(Boolean)
+  .map((p) => {
+    try {
+      return readFileSync(p, 'utf8');
+    } catch {
+      return '';
+    }
+  })
+  .filter(Boolean);
 
 export function auditRoutes(db: SqliteDb) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -130,8 +146,18 @@ export function auditRoutes(db: SqliteDb) {
       sql`SELECT subject_hash, token, tsa_url FROM audit_timestamps WHERE id = ${c.req.param('id')} AND tenant_id = ${getTenantId(c)}`,
     );
     if (!row) return c.json({ error: 'Not found', status: 404 }, 404);
-    const v = verifyTimestampToken(row.token, row.subject_hash);
-    return c.json({ ...v, subjectHash: row.subject_hash, tsaUrl: row.tsa_url, signatureVerified: false });
+    const binding = verifyTimestampToken(row.token, row.subject_hash);
+    const sig = verifyTimestampSignature(row.token, TSA_ROOTS);
+    return c.json({
+      ...binding,
+      subjectHash: row.subject_hash,
+      tsaUrl: row.tsa_url,
+      signatureVerified: sig.signatureVerified,
+      signer: sig.signer,
+      ...(sig.chainTrusted !== undefined ? { chainTrusted: sig.chainTrusted } : {}),
+      // Fully verified = bound to the hash AND the TSA signature checks out.
+      fullyVerified: binding.valid && sig.signatureVerified,
+    });
   });
 
   return app;
