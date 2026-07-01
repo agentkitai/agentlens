@@ -1080,4 +1080,16 @@ describePg('Postgres integration tests', () => {
       expect(Number(row?.granted)).toBe(1);
     });
   });
+
+  // ─── #265: GitHub sync state on Postgres ──
+  describe('GitHub sync state on Postgres (#265)', () => {
+    it('round-trips + upserts the last-synced state', async () => {
+      const { SyncStateStore } = await import('../lib/prompt-github-sync.js');
+      const s = new SyncStateStore(db);
+      await s.set('t-265', 'prompts/x.json', { repoSha: 'sha1', localHash: 'h1' });
+      expect(await s.get('t-265', 'prompts/x.json')).toEqual({ repoSha: 'sha1', localHash: 'h1' });
+      await s.set('t-265', 'prompts/x.json', { repoSha: 'sha2', localHash: 'h2' });
+      expect(await s.get('t-265', 'prompts/x.json')).toEqual({ repoSha: 'sha2', localHash: 'h2' });
+    });
+  });
 });
