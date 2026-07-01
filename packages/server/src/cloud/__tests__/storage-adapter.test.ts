@@ -204,7 +204,7 @@ describe('S-4.1: StorageAdapter interface — SQLite', () => {
     const session = await adapter.getSession(ORG_ID, 'sess_001');
     expect(session).not.toBeNull();
     expect(session!.id).toBe('sess_001');
-    expect(session!.status).toBe('active');
+    expect(session!.status).toBe('idle'); // #281: months-old events → derived idle
   });
 
   it('getAgents returns agents created from events', async () => {

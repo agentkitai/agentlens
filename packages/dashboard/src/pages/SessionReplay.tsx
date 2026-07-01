@@ -36,6 +36,7 @@ const STATUS_CONFIG: Record<SessionStatus, { label: string; icon: string; classN
   completed: { label: 'Completed', icon: '✅', className: 'bg-green-100 text-green-800 border-green-300' },
   error:     { label: 'Error',     icon: '❌', className: 'bg-red-100 text-red-800 border-red-300' },
   active:    { label: 'Active',    icon: '🔄', className: 'bg-blue-100 text-blue-800 border-blue-300' },
+  idle:      { label: 'Idle',      icon: '💤', className: 'bg-gray-100 text-gray-700 border-gray-300' },
 };
 
 function StatusBadge({ status }: { status: SessionStatus }): React.ReactElement {

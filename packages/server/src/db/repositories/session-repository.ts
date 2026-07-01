@@ -40,6 +40,7 @@ export class SessionRepository {
           agentId: event.agentId,
           agentName: agentName,
           startedAt: event.timestamp,
+          lastEventAt: event.timestamp,
           status: 'active',
           eventCount: 1,
           toolCallCount: 0,
@@ -54,6 +55,7 @@ export class SessionRepository {
           target: [sessions.id, sessions.tenantId],
           set: {
             agentName: agentName ?? sql`coalesce(${sessions.agentName}, NULL)`,
+            lastEventAt: event.timestamp,
             status: 'active',
             eventCount: sql`${sessions.eventCount} + 1`,
             tags: tags.length > 0 ? JSON.stringify(tags) : sql`${sessions.tags}`,
@@ -69,6 +71,7 @@ export class SessionRepository {
         id: event.sessionId,
         agentId: event.agentId,
         startedAt: event.timestamp,
+        lastEventAt: event.timestamp,
         status: 'active',
         eventCount: 0,
         toolCallCount: 0,
@@ -105,6 +108,7 @@ export class SessionRepository {
       tx.update(sessions)
         .set({
           endedAt: event.timestamp,
+          lastEventAt: event.timestamp,
           status: status as 'active' | 'completed' | 'error' | 'failed',
           eventCount: sql`${sessions.eventCount} + 1`,
           errorCount: isError

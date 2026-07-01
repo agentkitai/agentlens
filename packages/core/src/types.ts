@@ -509,7 +509,7 @@ export interface AgentLensEvent {
 /**
  * Session status enum values
  */
-export type SessionStatus = 'active' | 'completed' | 'error';
+export type SessionStatus = 'active' | 'idle' | 'completed' | 'error';
 
 /**
  * Agent session — materialized from session_started/session_ended events

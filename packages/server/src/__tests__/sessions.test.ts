@@ -158,7 +158,7 @@ describe('Session Endpoints (Story 4.6)', () => {
       expect(body.id).toBe('sess_001');
       expect(body.agentId).toBe('agent_001');
       expect(body.agentName).toBe('Agent One');
-      expect(body.status).toBe('active');
+      expect(body.status).toBe('idle'); // #281: seeded events are months old → derived idle (not ended)
       expect(body.eventCount).toBe(2);
       expect(body.toolCallCount).toBe(1);
       expect(body.tags).toEqual(['prod', 'v2']);

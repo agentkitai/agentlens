@@ -159,6 +159,25 @@ export function mapEventRow(row: typeof events.$inferSelect): AgentLensEvent {
 }
 
 /** Map a raw sessions table row to a Session. */
+/**
+ * Sessions with no event for this long report as 'idle' instead of 'active'.
+ * Exporters like Claude Code rarely emit session_ended, so a stored 'active' can
+ * outlive the real session. Derived at read (not a stored terminal state) so a
+ * later event — last_event_at bumps — flips it back to 'active' automatically.
+ * Tune with AGENTLENS_SESSION_IDLE_MINUTES (default 30).
+ */
+export const SESSION_IDLE_MS = (Number(process.env['AGENTLENS_SESSION_IDLE_MINUTES']) || 30) * 60_000;
+
+export function deriveSessionStatus(
+  stored: string,
+  lastEventAt: string | null | undefined,
+  startedAt: string,
+): Session['status'] {
+  if (stored !== 'active') return stored as Session['status']; // completed/error are terminal
+  const last = Date.parse(lastEventAt ?? startedAt);
+  return Number.isFinite(last) && Date.now() - last > SESSION_IDLE_MS ? 'idle' : 'active';
+}
+
 export function mapSessionRow(row: typeof sessions.$inferSelect): Session {
   return {
     id: row.id,
@@ -166,7 +185,7 @@ export function mapSessionRow(row: typeof sessions.$inferSelect): Session {
     agentName: row.agentName ?? undefined,
     startedAt: row.startedAt,
     endedAt: row.endedAt ?? undefined,
-    status: row.status as Session['status'],
+    status: deriveSessionStatus(row.status, row.lastEventAt, row.startedAt),
     eventCount: row.eventCount,
     toolCallCount: row.toolCallCount,
     errorCount: row.errorCount,

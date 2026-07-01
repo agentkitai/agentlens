@@ -31,6 +31,7 @@ const STATUS_BADGES: Record<SessionStatus, { label: string; icon: string; classN
   completed: { label: 'Completed', icon: '✅', className: 'bg-green-100 text-green-800' },
   error:     { label: 'Error',     icon: '❌', className: 'bg-red-100 text-red-800' },
   active:    { label: 'Active',    icon: '🔄', className: 'bg-blue-100 text-blue-800' },
+  idle:      { label: 'Idle',      icon: '💤', className: 'bg-gray-100 text-gray-700' },
 };
 
 function StatusBadge({ status }: { status: SessionStatus }) {

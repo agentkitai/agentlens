@@ -63,8 +63,11 @@ export const sessions = sqliteTable(
     agentName: text('agent_name'),
     startedAt: text('started_at').notNull(), // ISO 8601
     endedAt: text('ended_at'),
+    lastEventAt: text('last_event_at'), // ISO 8601 of the most recent event (#281 idle derivation)
     status: text('status', {
-      enum: ['active', 'completed', 'error', 'failed'],
+      // 'idle' is never written (derived at read from last_event_at); listed so
+      // status filters that carry the SessionStatus union still type-check.
+      enum: ['active', 'idle', 'completed', 'error', 'failed'],
     })
       .notNull()
       .default('active'),
