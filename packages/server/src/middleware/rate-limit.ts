@@ -29,10 +29,14 @@ function getClientIp(c: Context): string {
 const AUTH_MAX = Number(process.env['RATE_LIMIT_AUTH_MAX'] ?? 20);
 const AUTH_WINDOW_MS = Number(process.env['RATE_LIMIT_AUTH_WINDOW_MS'] ?? 15 * 60 * 1000);
 
+/** Escape hatch (ops / tests): disable rate limiting entirely when set. */
+const rateLimitDisabled = () => process.env['RATE_LIMIT_DISABLED'] === '1';
+
 export const authRateLimit = rateLimiter({
   windowMs: AUTH_WINDOW_MS,
   limit: AUTH_MAX,
   standardHeaders: 'draft-7',
+  skip: rateLimitDisabled,
   keyGenerator: (c) => `auth:${getClientIp(c)}`,
   handler: (c) => {
     const ip = getClientIp(c);
@@ -51,6 +55,7 @@ export const apiRateLimit = rateLimiter({
   windowMs: API_WINDOW_MS,
   limit: API_MAX,
   standardHeaders: 'draft-7',
+  skip: rateLimitDisabled,
   keyGenerator: (c) => {
     // Prefer API key from Authorization header, fall back to IP
     const authHeader = c.req.header('authorization');

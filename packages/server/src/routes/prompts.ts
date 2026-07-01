@@ -17,6 +17,8 @@ import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { AuthVariables } from '../middleware/auth.js';
 import { getTenantId } from './tenant-helper.js';
+import { PromptGithubSyncStore, pushPrompts } from '../lib/prompt-github-sync.js';
+import { secretsAvailable } from '../lib/secret-box.js';
 import {
   PromptStore,
   type CreateTemplateInput,
@@ -62,6 +64,7 @@ export function promptRoutes(db: AnyDb): Hono<{ Variables: AuthVariables }> {
       name: body.name.trim(),
       description: body.description,
       category: body.category,
+      folder: body.folder,
       content: body.content,
       variables: body.variables,
       config: body.config,
@@ -77,11 +80,12 @@ export function promptRoutes(db: AnyDb): Hono<{ Variables: AuthVariables }> {
   app.get('/', async (c) => {
     const tenantId = getTenantId(c);
     const category = c.req.query('category');
+    const folder = c.req.query('folder') ?? undefined;
     const search = c.req.query('search');
     const limit = parseInt(c.req.query('limit') ?? '50', 10);
     const offset = parseInt(c.req.query('offset') ?? '0', 10);
 
-    const result = await store.listTemplates({ tenantId, category, search, limit, offset });
+    const result = await store.listTemplates({ tenantId, category, folder, search, limit, offset });
     return c.json(result);
   });
 
@@ -369,6 +373,41 @@ export function promptRoutes(db: AnyDb): Hono<{ Variables: AuthVariables }> {
       return c.json({ error: 'Template not found' }, 404);
     }
     return c.body(null, 204);
+  });
+
+  // ── GitHub prompt-sync (#253): one-way push of prompt versions to a repo ──
+  const ghSync = new PromptGithubSyncStore(db);
+
+  // GET /api/prompts/sync/github — current sync config (never the token).
+  app.get('/sync/github', async (c) => {
+    return c.json({ config: await ghSync.getConfig(getTenantId(c)) });
+  });
+
+  // PUT /api/prompts/sync/github — set repo + PAT (PAT encrypted via secret-box).
+  app.put('/sync/github', async (c) => {
+    if (!secretsAvailable()) {
+      return c.json({ error: 'AGENTLENS_ENCRYPTION_KEY is not configured; cannot store a token', status: 503 }, 503);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as { owner?: string; repo?: string; basePath?: string; token?: string };
+    if (!body.owner || !body.repo || !body.token) {
+      return c.json({ error: 'owner, repo and token are required', status: 400 }, 400);
+    }
+    await ghSync.setConfig(getTenantId(c), { owner: body.owner, repo: body.repo, basePath: body.basePath, token: body.token });
+    return c.json({ config: await ghSync.getConfig(getTenantId(c)) }, 200);
+  });
+
+  // POST /api/prompts/sync/github/push — push all prompts to the configured repo.
+  app.post('/sync/github/push', async (c) => {
+    const tenantId = getTenantId(c);
+    const config = await ghSync.getConfig(tenantId);
+    const token = await ghSync.getToken(tenantId);
+    if (!config || !token) return c.json({ error: 'GitHub sync is not configured', status: 400 }, 400);
+    try {
+      const result = await pushPrompts(tenantId, config, token, store);
+      return c.json(result);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : 'push failed', status: 502 }, 502);
+    }
   });
 
   return app;
