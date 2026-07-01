@@ -40,9 +40,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         setAuthMode(data.authMode ?? 'dual');
         return true;
       }
-      // 401 or other error
+      // Transient errors (429 rate-limited, 5xx hiccup) must NOT log the user out —
+      // keep the current session; the next poll/navigation retries.
+      if (res.status === 429 || res.status >= 500) {
+        return false;
+      }
+      // 401/403 — genuinely unauthenticated.
       setUser(null);
-      // Try to detect auth mode from response
       if (res.status === 401) {
         try {
           const body = await res.json();

@@ -134,6 +134,8 @@ function AppRoutes(): React.ReactElement {
         <Route path="api-keys" element={<Suspense fallback={<PageSkeleton />}><ApiKeyManagement /></Suspense>} />
         <Route path="usage" element={<Suspense fallback={<PageSkeleton />}><UsageDashboard /></Suspense>} />
         <Route path="settings" element={<Suspense fallback={<PageSkeleton />}><Settings /></Suspense>} />
+        {/* Unknown in-app path → Overview, instead of a blank white screen. */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
