@@ -736,6 +736,21 @@ function mapClaudeCodeApiRequest(
   ];
 }
 
+// Claude Code operational/lifecycle telemetry that carries NO agent activity:
+// plugin/hook/MCP startup logs and the bare session counter. Every hook run,
+// plugin load, headless `claude -p`, and subprocess invocation emits these with a
+// fresh session.id — ingesting them materialises a "ghost" session per invocation
+// (a97a4f48-style real sessions are unaffected; they also emit real events). Drop
+// them so a session only exists when there's actual agent activity. (#session-noise)
+const CC_OPERATIONAL_LOG_BODIES = new Set([
+  'claude_code.plugin_loaded',
+  'claude_code.hook_registered',
+  'claude_code.hook_execution_start',
+  'claude_code.hook_execution_complete',
+  'claude_code.mcp_server_connection',
+]);
+const CC_OPERATIONAL_METRICS = new Set(['claude_code.session.count']);
+
 // Claude Code's tool lifecycle logs → first-class tool_call/tool_response/
 // tool_error events, and skill_activated → a first-class skill_activated event,
 // so the Tools/Skills analytics views, the SessionDetail filters, and the
@@ -1168,6 +1183,9 @@ export function otlpRoutes(
 
       for (const sm of rm.scopeMetrics ?? []) {
         for (const metric of sm.metrics ?? []) {
+          // Skip the bare session counter so a hook/subprocess invocation that
+          // only emits it doesn't materialise a ghost session.
+          if (CC_OPERATIONAL_METRICS.has(metric.name)) continue;
           const points = metricToPoints(metric);
           // Cost is always a sum/gauge counter — never trust a histogram (or other
           // aggregation) named openclaw.cost.usd as spend; it falls through to a
@@ -1282,6 +1300,9 @@ export function otlpRoutes(
           if (cc) { mapped.push(...cc); continue; }
           const ccTool = mapClaudeCodeLog(log, resourceAttrs);
           if (ccTool) { mapped.push(...ccTool); continue; }
+
+          // Skip operational/lifecycle noise so it doesn't create ghost sessions.
+          if (CC_OPERATIONAL_LOG_BODIES.has(log.body?.stringValue ?? '')) continue;
 
           const severityText = log.severityText?.toLowerCase() ?? 'info';
           let severity: EventSeverity = 'info';

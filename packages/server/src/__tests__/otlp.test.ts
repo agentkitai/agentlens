@@ -932,3 +932,59 @@ describe('OTLP GenAI semantic conventions', () => {
     expect(verifyChain(events as unknown as ChainEvent[]).valid).toBe(false);
   });
 });
+
+describe('Claude Code operational telemetry is not a session (#session-noise)', () => {
+  const ccLog = (sid: string, body: string) => ({
+    timeUnixNano: '1700000000000000000', body: { stringValue: body },
+    attributes: [{ key: 'session.id', value: { stringValue: sid } }],
+  });
+
+  it('drops plugin/hook/mcp lifecycle logs — no events, no ghost session', async () => {
+    const { app, store } = makeApp();
+    const payload = { resourceLogs: [{
+      resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+      scopeLogs: [{ logRecords: [
+        ccLog('ghost-1', 'claude_code.plugin_loaded'),
+        ccLog('ghost-1', 'claude_code.hook_registered'),
+        ccLog('ghost-1', 'claude_code.hook_execution_start'),
+        ccLog('ghost-1', 'claude_code.mcp_server_connection'),
+      ] }],
+    }] };
+    const res = await app.request('/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    expect(res.status).toBe(200);
+    expect((await store.getSessionTimeline('ghost-1')).length).toBe(0);
+  });
+
+  it('drops the bare session.count metric', async () => {
+    const { app, store } = makeApp();
+    const payload = { resourceMetrics: [{
+      resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+      scopeMetrics: [{ metrics: [{
+        name: 'claude_code.session.count',
+        sum: { dataPoints: [{ asInt: 1, timeUnixNano: '1700000000000000000', attributes: [{ key: 'session.id', value: { stringValue: 'ghost-2' } }] }] },
+      }] }],
+    }] };
+    const res = await app.request('/v1/metrics', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    expect(res.status).toBe(200);
+    expect((await store.getSessionTimeline('ghost-2')).length).toBe(0);
+  });
+
+  it('still ingests real agent activity (api_request) as a session', async () => {
+    const { app, store } = makeApp();
+    const payload = { resourceLogs: [{
+      resource: { attributes: [{ key: 'service.name', value: { stringValue: 'claude-code' } }] },
+      scopeLogs: [{ logRecords: [{
+        timeUnixNano: '1700000000000000000', body: { stringValue: 'claude_code.api_request' },
+        attributes: [
+          { key: 'session.id', value: { stringValue: 'real-1' } },
+          { key: 'model', value: { stringValue: 'claude-opus-4-8' } },
+          { key: 'input_tokens', value: { intValue: 100 } },
+          { key: 'output_tokens', value: { intValue: 50 } },
+          { key: 'cost_usd', value: { doubleValue: 0.01 } },
+        ],
+      }] }],
+    }] };
+    await app.request('/v1/logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    expect((await store.getSessionTimeline('real-1')).length).toBeGreaterThan(0);
+  });
+});
