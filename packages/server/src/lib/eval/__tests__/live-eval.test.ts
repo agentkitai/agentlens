@@ -71,4 +71,33 @@ describe('LiveEvalEngine (#254)', () => {
     expect(got?.samplingRate).toBe(0.25);
     expect((got?.scorerConfig as any).pattern).toBe('hello');
   });
+
+  // #267: additional scorer types wired for live traffic.
+  it('scores with the deterministic contains scorer (config-provided expected)', async () => {
+    const config = cfg({ scorerType: 'contains', scorerConfig: { type: 'contains', expected: 'world' } as any });
+    const did = await runLiveEval({ tenantId: 'default', sessionId: 's1', agentId: 'a', store, config, rng: () => 0 });
+    expect(did).toBe(true);
+    const ev = (await store.getSessionTimeline('s1')).find((e) => e.eventType === 'eval_result')!;
+    expect((ev.payload as any).scorerType).toBe('contains');
+    expect((ev.payload as any).passed).toBe(true); // 'hello world' contains 'world'
+  });
+
+  it('runs the llm-judge scorer and records a result (graceful when no LLM configured)', async () => {
+    // Build a registry with the LLM key unset → judge returns a "not configured" result (no network).
+    const prev = process.env.AGENTLENS_LLM_API_KEY;
+    delete process.env.AGENTLENS_LLM_API_KEY;
+    try {
+      const { createDefaultRegistry } = await import('../index.js');
+      const registry = createDefaultRegistry();
+      const config = cfg({ scorerType: 'llm_judge', scorerConfig: { type: 'llm_judge', rubric: 'Is it a greeting?' } as any });
+      const did = await runLiveEval({ tenantId: 'default', sessionId: 's1', agentId: 'a', store, config, rng: () => 0, registry });
+      expect(did).toBe(true);
+      const ev = (await store.getSessionTimeline('s1')).find((e) => e.eventType === 'eval_result')!;
+      expect((ev.payload as any).scorerType).toBe('llm_judge');
+      expect((ev.payload as any).method).toBe('llm_judge');
+      expect((ev.payload as any).reasoning).toMatch(/not configured/i);
+    } finally {
+      process.env.AGENTLENS_LLM_API_KEY = prev;
+    }
+  });
 });
