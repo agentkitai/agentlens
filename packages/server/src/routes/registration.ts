@@ -18,6 +18,7 @@ import { serviceTokensRoutes } from './service-tokens.js';
 import { eventsRoutes } from './events.js';
 import { mediaRoutes } from './media.js';
 import { MediaStore } from '../db/media-store.js';
+import { LiveEvalStore } from '../lib/eval/live-eval.js';
 import { sessionsRoutes } from './sessions.js';
 import { agentsRoutes } from './agents.js';
 import { statsRoutes } from './stats.js';
@@ -183,6 +184,7 @@ export async function registerRoutes(
     sessionSummaryStore: db ? new SessionSummaryStore(db) : null,
     promptStore,
     mediaStore: mediaDb ? new MediaStore(mediaDb) : null,
+    liveEvalStore: db ? new LiveEvalStore(db) : null,
   }));
   if (mediaDb) app.route('/api/media', mediaRoutes(mediaDb));
   // Replay route registered directly on main app BEFORE sessions sub-app

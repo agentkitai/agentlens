@@ -25,6 +25,7 @@ import { verifyAgentTokenWithMethod, stampVerifiedAgent } from '../lib/agent-ide
 import { getTenantId, getTenantStore } from './tenant-helper.js';
 import { offloadPayload } from '../lib/media-offload.js';
 import type { MediaStore } from '../db/media-store.js';
+import { runLiveEval, type LiveEvalStore } from '../lib/eval/live-eval.js';
 import { summarizeEvent, summarizeSession } from '../lib/embeddings/summarizer.js';
 import type { EmbeddingWorker } from '../lib/embeddings/worker.js';
 import type { SessionSummaryStore } from '../db/session-summary-store.js';
@@ -46,6 +47,7 @@ export function eventsRoutes(
     sessionSummaryStore?: SessionSummaryStore | null;
     promptStore?: PromptStore | null;
     mediaStore?: MediaStore | null;
+    liveEvalStore?: LiveEvalStore | null;
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -177,6 +179,27 @@ export function eventsRoutes(
     const now = new Date().toISOString();
     for (const event of allProcessed) {
       eventBus.emit({ type: 'event_ingested', event, timestamp: now });
+    }
+
+    // #254: online-eval — sample completed sessions + score them (fire-and-forget,
+    // never blocks ingest; failures are swallowed).
+    const liveEvalStore = deps?.liveEvalStore;
+    if (liveEvalStore) {
+      const ended = new Map<string, string>();
+      for (const e of allProcessed) if (e.eventType === 'session_ended') ended.set(e.sessionId, e.agentId);
+      if (ended.size > 0) {
+        void liveEvalStore
+          .get(tenantId)
+          .then((config) => {
+            if (!config?.enabled) return;
+            return Promise.all(
+              [...ended].map(([sessionId, agentId]) =>
+                runLiveEval({ tenantId, sessionId, agentId, store: tenantStore, config }).catch(() => undefined),
+              ),
+            );
+          })
+          .catch(() => undefined);
+      }
     }
 
     // Auto-discover prompt templates from ingested llm_call events (best-effort).

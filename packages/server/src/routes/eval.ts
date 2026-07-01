@@ -35,6 +35,7 @@ import { createDefaultRegistry, evaluateCompliance, judgeWithLlm, judgeProviderF
 import { appendEventToSession } from '../lib/append-event.js';
 import { verifyAgentTokenWithMethod } from '../lib/agent-identity.js';
 import type { SqliteDb } from '../db/index.js';
+import { LiveEvalStore, type LiveEvalConfig } from '../lib/eval/live-eval.js';
 
 /**
  * Compact a session's events into a linear transcript for the LLM judge.
@@ -675,6 +676,27 @@ export function evalRoutes(db?: SqliteDb, store?: IEventStore) {
     const ev = await evStore.verify(getTenantId(c), c.req.param('id'));
     if (!ev) return c.json({ error: 'Evaluator not found (or it is a read-only built-in)' }, 404);
     return c.json(ev);
+  });
+
+  // ── #254: live (online) eval config — sample live sessions + score them ──
+  app.get('/live', async (c) => {
+    if (!db) return c.json({ config: null });
+    return c.json({ config: await new LiveEvalStore(db).get(getTenantId(c)) });
+  });
+
+  app.put('/live', async (c) => {
+    if (!db) return c.json({ error: 'not available', status: 503 }, 503);
+    const b = (await c.req.json().catch(() => ({}))) as Partial<LiveEvalConfig>;
+    const rate = Number(b.samplingRate ?? 0.1);
+    if (!(rate >= 0 && rate <= 1)) return c.json({ error: 'samplingRate must be between 0 and 1', status: 400 }, 400);
+    const config: LiveEvalConfig = {
+      enabled: !!b.enabled,
+      samplingRate: rate,
+      scorerType: b.scorerType ?? 'regex',
+      scorerConfig: (b.scorerConfig ?? { type: 'regex', pattern: '.*' }) as LiveEvalConfig['scorerConfig'],
+    };
+    await new LiveEvalStore(db).set(getTenantId(c), config);
+    return c.json({ config });
   });
 
   return app;
