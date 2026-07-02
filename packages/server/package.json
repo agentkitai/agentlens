@@ -63,6 +63,7 @@
     "hono-rate-limiter": "^0.5.3",
     "jose": "^6.0.11",
     "node-forge": "^1.4.0",
+    "obscenity": "^0.4.6",
     "postgres": "^3.4.8",
     "protobufjs": "^8.6.4",
     "ulid": "^3.0.2",
