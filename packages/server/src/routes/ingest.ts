@@ -40,11 +40,15 @@ export interface WebhookPayload {
   context?: Record<string, unknown>;
 }
 
+/** A secret may be a fixed string or a resolver read per-request (e.g. from the
+ *  config store, so a secret set in the Settings UI takes effect without a restart). */
+export type SecretSource = string | (() => string | undefined);
+
 export interface IngestConfig {
   /** HMAC secret for AgentGate webhooks */
-  agentgateWebhookSecret?: string;
+  agentgateWebhookSecret?: SecretSource;
   /** HMAC secret for FormBridge webhooks */
-  formbridgeWebhookSecret?: string;
+  formbridgeWebhookSecret?: SecretSource;
   /** Tenant ID for AgentGate webhooks (defaults to 'default') */
   agentgateTenantId?: string;
   /** Tenant ID for FormBridge webhooks (defaults to 'default') */
@@ -197,15 +201,19 @@ function extractCorrelation(context?: Record<string, unknown>): {
 
 // ─── Secret Resolver ────────────────────────────────────────────────
 
+function resolveSecret(s?: SecretSource): string | undefined {
+  return typeof s === 'function' ? s() : s;
+}
+
 function getSecretForSource(
   source: WebhookSource,
   config: IngestConfig,
 ): string | undefined {
   switch (source) {
     case 'agentgate':
-      return config.agentgateWebhookSecret;
+      return resolveSecret(config.agentgateWebhookSecret);
     case 'formbridge':
-      return config.formbridgeWebhookSecret;
+      return resolveSecret(config.formbridgeWebhookSecret);
     case 'generic':
       return undefined; // Generic webhooks don't require HMAC
   }
