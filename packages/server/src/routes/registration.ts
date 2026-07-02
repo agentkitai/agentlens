@@ -22,7 +22,8 @@ import { LiveEvalStore } from '../lib/eval/live-eval.js';
 import { sessionsRoutes } from './sessions.js';
 import { agentsRoutes } from './agents.js';
 import { statsRoutes } from './stats.js';
-import { configRoutes } from './config.js';
+import { configRoutes, getConfigValue } from './config.js';
+import { decryptSecret } from '../lib/secret-box.js';
 import { alertsRoutes } from './alerts.js';
 import { notificationRoutes } from './notifications.js';
 import { NotificationChannelRepository } from '../db/repositories/notification-channel-repository.js';
@@ -132,7 +133,14 @@ export async function registerRoutes(
 
   // ─── Webhook ingest (no API key auth — uses HMAC signature verification) ──
   app.route('/api/events/ingest', ingestRoutes(store, {
-    agentgateWebhookSecret: process.env['AGENTGATE_WEBHOOK_SECRET'],
+    // Prefer the secret set in Settings → Integrations (config store, encrypted at
+    // rest); fall back to the env var. Resolved per-request so a UI change takes
+    // effect without restart.
+    agentgateWebhookSecret: () => {
+      const stored = db ? getConfigValue(db, 'agentGateSecret') : null;
+      const fromConfig = stored ? (stored.startsWith('v1:') ? decryptSecret(stored) : stored) : null;
+      return fromConfig ?? process.env['AGENTGATE_WEBHOOK_SECRET'] ?? undefined;
+    },
     formbridgeWebhookSecret: process.env['FORMBRIDGE_WEBHOOK_SECRET'],
   }));
 

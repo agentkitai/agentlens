@@ -70,6 +70,26 @@ describe('Ingest Routes (F7-S2.2)', () => {
       expect(json.eventType).toBe('approval_requested');
     });
 
+    it('resolves the secret per-request from a function source (config-store wiring)', async () => {
+      // The route reads the secret via a resolver, so a value set later (e.g. in
+      // the Settings UI) takes effect without reconstructing the route.
+      let current = 'first-secret';
+      const dynApp = new Hono();
+      dynApp.route('/api/events/ingest', ingestRoutes(store, { agentgateWebhookSecret: () => current }));
+      const send = (secret: string) => {
+        const body = JSON.stringify(agentgatePayload());
+        return dynApp.request('/api/events/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': sign(body, secret) },
+          body,
+        });
+      };
+      expect((await send('first-secret')).status).toBe(201);
+      current = 'rotated-secret';
+      expect((await send('first-secret')).status).toBe(401); // old secret now rejected
+      expect((await send('rotated-secret')).status).toBe(201); // new secret honored
+    });
+
     it('returns 401 for invalid signature', async () => {
       const body = JSON.stringify(agentgatePayload());
       const res = await app.request('/api/events/ingest', {

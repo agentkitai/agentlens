@@ -15,6 +15,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { getConfig } from '../config.js';
+import { secretsAvailable, encryptSecret } from '../lib/secret-box.js';
 
 /**
  * Hash a secret with SHA-256 for storage.
@@ -122,8 +123,11 @@ export function configRoutes(db: SqliteDb) {
       setConfigValue(db, 'agentGateUrl', updates.agentGateUrl);
     }
     if (updates.agentGateSecret !== undefined) {
-      // Store hash of secret, never plaintext
-      setConfigValue(db, 'agentGateSecret', hashSecret(updates.agentGateSecret));
+      // HMAC webhook verification needs the RECOVERABLE secret, so it can't be
+      // one-way hashed (that's why the integration never worked). Encrypt at rest
+      // when a key is configured; otherwise store as-is (dev without a key).
+      setConfigValue(db, 'agentGateSecret',
+        secretsAvailable() ? encryptSecret(updates.agentGateSecret) : updates.agentGateSecret);
     }
     if (updates.formBridgeUrl !== undefined) {
       setConfigValue(db, 'formBridgeUrl', updates.formBridgeUrl);
