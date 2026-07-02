@@ -260,7 +260,7 @@ const { lore } = useFeatures();
 async createLesson(): Promise<never> {
   throw new Error(
     'Lesson methods have been removed from AgentLens SDK. ' +
-    'Use lore-sdk instead: https://github.com/amitpaz1/lore'
+    'Use lore-sdk instead: https://github.com/agentkitai/lore'
   );
 }
 ```

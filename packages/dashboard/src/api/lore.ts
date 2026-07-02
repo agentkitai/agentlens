@@ -6,7 +6,6 @@ export interface LoreMemory {
   type: string;
   context: string | null;
   tags: string[];
-  confidence: number;
   source: string | null;
   project: string | null;
   createdAt: string;

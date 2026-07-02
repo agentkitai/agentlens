@@ -45,12 +45,8 @@ config:
   meshUrl: ""
   # -- Enable Lore integration
   loreEnabled: false
-  # -- Lore mode: "local" or "remote"
-  loreMode: remote
-  # -- Lore API URL (required when loreMode=remote and loreEnabled=true)
+  # -- Lore API URL (required when loreEnabled=true)
   loreApiUrl: ""
-  # -- Lore database path (local mode)
-  loreDbPath: ""
   # -- Extra environment variables for ConfigMap
   extraEnv: {}
 

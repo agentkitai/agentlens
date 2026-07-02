@@ -159,8 +159,8 @@ Validation rules
 {{- if and .Values.externalDatabase.enabled (not .Values.externalDatabase.url) (not .Values.externalDatabase.existingSecret) }}
   {{- fail "externalDatabase.enabled=true requires either externalDatabase.url or externalDatabase.existingSecret to be set." }}
 {{- end }}
-{{- if and .Values.config.loreEnabled (eq .Values.config.loreMode "remote") (not .Values.config.loreApiUrl) }}
-  {{- fail "Lore remote mode requires config.loreApiUrl to be set." }}
+{{- if and .Values.config.loreEnabled (not .Values.config.loreApiUrl) }}
+  {{- fail "Lore integration requires config.loreApiUrl to be set." }}
 {{- end }}
 {{- end }}
 

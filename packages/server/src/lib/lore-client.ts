@@ -14,7 +14,6 @@ export interface LoreMemory {
   type: string;
   context: string | null;
   tags: string[];
-  confidence: number;
   source: string | null;
   project: string | null;
   createdAt: string;
@@ -99,7 +98,6 @@ export function fromLoreLesson(data: Record<string, any>): LoreMemory {
     type,
     context: data.context ?? null,
     tags: data.tags ?? [],
-    confidence: data.confidence ?? 1.0,
     source: data.source ?? null,
     project: data.project ?? null,
     createdAt: data.created_at,

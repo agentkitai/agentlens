@@ -108,7 +108,6 @@ export function Knowledge(): React.ReactElement {
                   )}
                   <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
                     <span>Created {formatDate(memory.createdAt)}</span>
-                    <span>Confidence: {Math.round(memory.confidence * 100)}%</span>
                     {memory.upvotes > 0 && <span>+{memory.upvotes}</span>}
                     {memory.downvotes > 0 && <span>-{memory.downvotes}</span>}
                     <Link

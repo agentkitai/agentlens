@@ -69,7 +69,6 @@ export function mapLessonToLore(row: LessonRow): {
   problem: string;
   resolution: string;
   tags: string[];
-  confidence: number;
   source: string | undefined;
   meta: Record<string, unknown>;
 } {
@@ -90,7 +89,6 @@ export function mapLessonToLore(row: LessonRow): {
     problem: row.title,
     resolution: row.content,
     tags,
-    confidence: 0.5,
     source: row.agentId ?? undefined,
     meta,
   };
