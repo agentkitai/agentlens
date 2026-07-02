@@ -94,6 +94,14 @@ const FILTERS: FilterDef[] = [
   },
 ];
 
+// Claude Code (and other OTLP exporters) emit each metric — token.usage,
+// cost.usage, active_time.total, commit.count … — as its own event. They're
+// already rolled into the session's cost/token totals, and on a real session were
+// ~60% of the timeline, burying the actual tool/LLM activity. Hidden by default.
+function isMetricEvent(ev: AgentLensEvent): boolean {
+  return (ev.metadata as { source?: string } | undefined)?.source === 'otlp_metric';
+}
+
 // ─── Status badges ──────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<SessionStatus, { label: string; icon: string; className: string }> = {
@@ -155,6 +163,7 @@ export function SessionDetail(): React.ReactElement | null {
   const { id } = useParams<{ id: string }>();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
   const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
+  const [showMetrics, setShowMetrics] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<AgentLensEvent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   // Diagnostics state (Story 18.10)
@@ -250,9 +259,16 @@ export function SessionDetail(): React.ReactElement | null {
     [activeFilter],
   );
 
+  // Hide metric events from the timeline unless explicitly shown.
+  const metricCount = useMemo(() => allEvents.filter(isMetricEvent).length, [allEvents]);
+  const visibleEvents = useMemo(
+    () => (showMetrics ? allEvents : allEvents.filter((ev) => !isMetricEvent(ev))),
+    [allEvents, showMetrics],
+  );
+
   const typeFilteredEvents = useMemo(() => {
-    return allEvents.filter(currentFilter.match);
-  }, [allEvents, currentFilter]);
+    return visibleEvents.filter(currentFilter.match);
+  }, [visibleEvents, currentFilter]);
 
   // [F11-S1] Search filter step
   const filteredEvents = useMemo(() => {
@@ -270,13 +286,13 @@ export function SessionDetail(): React.ReactElement | null {
 
   // Count per filter (uses merged events)
   const filterCounts = useMemo(() => {
-    if (allEvents.length === 0) return new Map<FilterKey, number>();
+    if (visibleEvents.length === 0) return new Map<FilterKey, number>();
     const counts = new Map<FilterKey, number>();
     for (const f of FILTERS) {
-      counts.set(f.key, allEvents.filter(f.match).length);
+      counts.set(f.key, visibleEvents.filter(f.match).length);
     }
     return counts;
-  }, [allEvents]);
+  }, [visibleEvents]);
 
   // Event click handler
   const handleEventClick = useCallback((event: AgentLensEvent) => {
@@ -586,7 +602,7 @@ export function SessionDetail(): React.ReactElement | null {
       <SearchBar
         onQueryChange={setSearchQuery}
         resultCount={filteredEvents.length}
-        totalCount={allEvents.length}
+        totalCount={visibleEvents.length}
       />
 
       {/* Filter buttons (Story 7.5) + [F11-S2] Error nav */}
@@ -651,6 +667,17 @@ export function SessionDetail(): React.ReactElement | null {
                 </button>
               ))}
             </div>
+          )}
+          {metricCount > 0 && (
+            <label className="inline-flex items-center gap-2 ml-2 text-sm text-gray-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showMetrics}
+                onChange={(e) => setShowMetrics(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              Show metric events ({metricCount})
+            </label>
           )}
           {viewMode === 'tree' && hasTrace ? (
             traceLoading && !trace ? (
