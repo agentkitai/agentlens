@@ -18,6 +18,9 @@ import {
   CORRECTION_PROMPT,
 } from './prompt-templates.js';
 import { parseLLMResponse } from './response-parser.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('Diagnostics');
 
 export class DiagnosticEngine {
   private readonly inflight: Map<string, Promise<DiagnosticReport>>;
@@ -222,6 +225,9 @@ export class DiagnosticEngine {
         attempts++;
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
+        // Surface the real failure (e.g. an API/schema rejection) — otherwise a
+        // broken LLM path silently degrades to the heuristic fallback forever.
+        log.warn(`LLM diagnosis attempt ${attempts + 1} failed: ${lastError}`);
         attempts++;
         if (attempts >= 2) break;
       }
