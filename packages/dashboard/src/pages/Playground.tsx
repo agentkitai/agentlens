@@ -7,7 +7,7 @@
  * connections (#143) — side by side. Variables are compiled client-side via the
  * shared prompt-compile engine (#145); output shows tokens, cost, and latency.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { compileText, extractVariables } from '@agentkitai/agentlens-core';
 import { useApi } from '../hooks/useApi';
@@ -37,6 +37,15 @@ export function Playground(): React.ReactElement {
   const [panels, setPanels] = useState<PanelState[]>([emptyPanel(), emptyPanel()]);
 
   const variables = useMemo(() => extractVariables(prompt), [prompt]);
+
+  // With exactly one connection there's no choice to make — pre-select it so
+  // "Open in Playground → Run" works in one click instead of erroring on an
+  // unset connection.
+  useEffect(() => {
+    if (connections.length !== 1) return;
+    const only = connections[0]!.id;
+    setPanels((ps) => ps.map((p) => (p.connectionId ? p : { ...p, connectionId: only })));
+  }, [connections.length, connections[0]?.id]);
 
   function setPanel(i: number, patch: Partial<PanelState>): void {
     setPanels((ps) => ps.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
