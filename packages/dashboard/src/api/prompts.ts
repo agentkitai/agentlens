@@ -107,9 +107,12 @@ export async function getPromptAnalytics(
   params?: { from?: string; to?: string },
 ): Promise<PromptVersionAnalytics[]> {
   const qs = toQueryString({ from: params?.from, to: params?.to });
-  return request<PromptVersionAnalytics[]>(
+  // Server wraps the array as { analytics: [...] } — unwrap it (else the page
+  // crashes on analytics.map).
+  const res = await request<{ analytics: PromptVersionAnalytics[] }>(
     `/api/prompts/${encodeURIComponent(templateId)}/analytics${qs}`,
   );
+  return res.analytics ?? [];
 }
 
 export async function getPromptDiff(
