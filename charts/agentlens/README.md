@@ -85,9 +85,7 @@ This enables: 3 replicas, HPA, PDB, Ingress with cert-manager, topology spread c
 | `config.meshEnabled` | Enable mesh integration | `false` |
 | `config.meshUrl` | Mesh URL | `""` |
 | `config.loreEnabled` | Enable Lore integration | `false` |
-| `config.loreMode` | Lore mode (`local`/`remote`) | `remote` |
 | `config.loreApiUrl` | Lore API URL | `""` |
-| `config.loreDbPath` | Lore DB path | `""` |
 | `config.extraEnv` | Additional env vars | `{}` |
 
 ### Secrets

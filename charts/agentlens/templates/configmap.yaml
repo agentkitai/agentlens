@@ -18,12 +18,8 @@ data:
   MESH_URL: {{ .Values.config.meshUrl | quote }}
   {{- end }}
   LORE_ENABLED: {{ .Values.config.loreEnabled | quote }}
-  LORE_MODE: {{ .Values.config.loreMode | quote }}
   {{- if .Values.config.loreApiUrl }}
   LORE_API_URL: {{ .Values.config.loreApiUrl | quote }}
-  {{- end }}
-  {{- if .Values.config.loreDbPath }}
-  LORE_DB_PATH: {{ .Values.config.loreDbPath | quote }}
   {{- end }}
   {{- range $key, $value := .Values.config.extraEnv }}
   {{ $key }}: {{ $value | quote }}

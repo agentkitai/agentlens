@@ -17,7 +17,6 @@ describe('fromLoreLesson', () => {
       resolution: 'Always use retry logic',
       context: 'API calls',
       tags: ['reliability'],
-      confidence: 0.9,
       source: 'agent-1',
       project: 'my-project',
       created_at: '2026-01-01T00:00:00Z',
@@ -34,7 +33,6 @@ describe('fromLoreLesson', () => {
       type: 'lesson',
       context: 'API calls',
       tags: ['reliability'],
-      confidence: 0.9,
       source: 'agent-1',
       project: 'my-project',
       createdAt: '2026-01-01T00:00:00Z',
@@ -84,7 +82,6 @@ describe('fromLoreLesson', () => {
     expect(result.type).toBe('general');
     expect(result.context).toBeNull();
     expect(result.tags).toEqual([]);
-    expect(result.confidence).toBe(1.0);
     expect(result.source).toBeNull();
     expect(result.project).toBeNull();
     expect(result.expiresAt).toBeNull();
