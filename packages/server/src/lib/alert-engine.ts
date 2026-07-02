@@ -247,6 +247,10 @@ export class AlertEngine {
         to,
         agentId: rule.scope.agentId,
         granularity: 'hour',
+        // Alerts measure real agent activity — OTLP metric events would otherwise
+        // inflate event_count and dilute error_rate/latency (a metric-heavy agent
+        // showed 22.5k events, ~half of them metrics). Consistent with #287.
+        excludeMetrics: true,
       });
       if (analyticsCache) {
         analyticsCache.set(cacheKey, analytics);

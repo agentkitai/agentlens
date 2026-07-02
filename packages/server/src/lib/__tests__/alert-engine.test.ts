@@ -261,6 +261,33 @@ describe('AlertEngine.evaluate()', () => {
     expect(triggered).toHaveLength(1);
     expect(triggered[0]!.message).toContain('No events');
   });
+
+  it('excludes OTLP metric events from the error-rate denominator', async () => {
+    const now = new Date().toISOString();
+    await store.createAlertRule({
+      id: ulid(), name: 'Err rate (metric-diluted)', enabled: true,
+      condition: 'error_rate_exceeds', threshold: 0.1, windowMinutes: 60,
+      scope: { agentId: 'agentM' }, notifyChannels: [],
+      createdAt: now, updatedAt: now, tenantId: 'default',
+    });
+
+    const sessionId = 'sM', agentId = 'agentM';
+    const batch: AgentLensEvent[] = [];
+    let prev: string | null = null;
+    for (let i = 0; i < 8; i++) { const e = makeEvent({ sessionId, agentId }, prev); batch.push(e); prev = e.hash; }
+    for (let i = 0; i < 2; i++) {
+      const e = makeEvent({ sessionId, agentId, eventType: 'tool_error', severity: 'error', payload: { toolName: 't', callId: ulid(), error: 'x', durationMs: 1 } }, prev);
+      batch.push(e); prev = e.hash;
+    }
+    // 90 OTLP metric events: dilute the rate to 2/100 = 2% (< 10%) unless excluded.
+    for (let i = 0; i < 90; i++) { const e = makeEvent({ sessionId, agentId, metadata: { source: 'otlp_metric' } }, prev); batch.push(e); prev = e.hash; }
+    await store.insertEvents(batch);
+
+    const triggered = await engine.evaluate();
+    // Real rate 2/10 = 20% fires; metric-diluted 2% would not.
+    expect(triggered).toHaveLength(1);
+    expect(triggered[0]!.currentValue).toBeCloseTo(0.2, 5);
+  });
 });
 
 describe('AlertEngine lifecycle', () => {

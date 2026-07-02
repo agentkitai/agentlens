@@ -134,8 +134,14 @@ export class AnalyticsRepository {
     tenantId?: string;
     orgId?: string;
     projectId?: string;
+    excludeMetrics?: boolean;
   }): Promise<AnalyticsResult> {
     this.warnIfNoTenant('getAnalytics', params.tenantId);
+    // OTLP metric events aren't agent activity — let callers (e.g. the alert
+    // engine) drop them from the totals so counts/rates reflect real work.
+    const noMetrics = params.excludeMetrics
+      ? sql`AND (json_extract(metadata, '$.source') IS NULL OR json_extract(metadata, '$.source') != 'otlp_metric')`
+      : sql``;
     const formatStr =
       params.granularity === 'hour'
         ? '%Y-%m-%dT%H:00:00Z'
@@ -169,6 +175,7 @@ export class AnalyticsRepository {
             ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
           ${params.orgId ? sql`AND org_id = ${params.orgId}` : sql``}
           ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
+          ${noMetrics}
           GROUP BY bucket
           ORDER BY bucket ASC
         `,
@@ -199,6 +206,7 @@ export class AnalyticsRepository {
           ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
           ${params.orgId ? sql`AND org_id = ${params.orgId}` : sql``}
           ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
+          ${noMetrics}
       `,
     );
 
