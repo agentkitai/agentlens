@@ -8,11 +8,13 @@ import type { ContentScanner } from './base-scanner.js';
 import { PiiScanner } from './pii-scanner.js';
 import { SecretsScanner } from './secrets-scanner.js';
 import { RegexScanner } from './regex-scanner.js';
+import { ToxicityScanner } from './toxicity-scanner.js';
+import { PromptInjectionScanner } from './prompt-injection-scanner.js';
 import { createLogger } from '../../logger.js';
 
 const log = createLogger('ScannerRegistry');
 
-const UNIMPLEMENTED_TYPES = new Set(['toxicity_detection', 'prompt_injection']);
+const UNIMPLEMENTED_TYPES = new Set<string>([]);
 
 /** Pre-compiled scanner cache: ruleId → scanner instance */
 const scannerCache = new Map<string, ContentScanner>();
@@ -48,6 +50,12 @@ export function getScannerForRule(rule: GuardrailRule): ContentScanner | null {
       break;
     case 'content_regex':
       scanner = new RegexScanner();
+      break;
+    case 'toxicity_detection':
+      scanner = new ToxicityScanner();
+      break;
+    case 'prompt_injection':
+      scanner = new PromptInjectionScanner();
       break;
     default:
       throw new Error(`No scanner for condition type: ${rule.conditionType}`);
