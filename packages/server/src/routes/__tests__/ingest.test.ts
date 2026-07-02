@@ -90,6 +90,37 @@ describe('Ingest Routes (F7-S2.2)', () => {
       expect((await send('rotated-secret')).status).toBe(201); // new secret honored
     });
 
+    // Byte-faithful to what AgentGate actually emits from its Settings→Webhooks
+    // path — agentgate/packages/server/src/lib/webhook.ts deliverToWebhook():
+    //   payload   = JSON.stringify({ event, data, timestamp })   // no `source`
+    //   signature = createHmac('sha256', secret).update(payload).digest('hex')
+    //   header    = 'X-AgentGate-Signature': <hex>
+    function agentgateWire(event: string, data: Record<string, unknown>, secret: string) {
+      const body = JSON.stringify({ event, data, timestamp: 1730000000000 });
+      return {
+        body,
+        headers: { 'Content-Type': 'application/json', 'X-AgentGate-Signature': sign(body, secret) },
+      };
+    }
+
+    it('accepts a byte-faithful AgentGate webhook (X-AgentGate-Signature, no source field)', async () => {
+      const { body, headers } = agentgateWire(
+        'request.approved',
+        { requestId: 'req-1', action: 'deploy', decidedBy: 'alice@example.com', reason: 'ok' },
+        AGENTGATE_SECRET,
+      );
+      const res = await app.request('/api/events/ingest', { method: 'POST', headers, body });
+      expect(res.status).toBe(201);
+      const json = await res.json();
+      expect(json.eventType).toBe('approval_granted');
+    });
+
+    it('rejects a byte-faithful AgentGate webhook signed with the wrong secret', async () => {
+      const { body, headers } = agentgateWire('request.created', { requestId: 'r', action: 'x' }, 'wrong-secret');
+      const res = await app.request('/api/events/ingest', { method: 'POST', headers, body });
+      expect(res.status).toBe(401);
+    });
+
     it('returns 401 for invalid signature', async () => {
       const body = JSON.stringify(agentgatePayload());
       const res = await app.request('/api/events/ingest', {

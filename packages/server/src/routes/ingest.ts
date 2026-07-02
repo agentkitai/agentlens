@@ -79,6 +79,52 @@ export function verifyWebhookSignature(
   return timingSafeEqual(sigBuf, expBuf);
 }
 
+// ─── Source + signature resolution ──────────────────────────────────
+// The real AgentKit products don't send the canonical `{source,event,data}` +
+// `X-Webhook-Signature` envelope: AgentGate signs with `X-AgentGate-Signature`
+// (raw hex) and omits `source`; FormBridge signs with `X-FormBridge-Signature:
+// sha256=<hex>`. Accept those natively while keeping the canonical path working.
+
+const VALID_SOURCES: WebhookSource[] = ['agentgate', 'formbridge', 'generic'];
+
+const SIGNATURE_HEADERS: Array<{ header: string; source: WebhookSource }> = [
+  { header: 'X-Webhook-Signature', source: 'generic' },
+  { header: 'X-AgentGate-Signature', source: 'agentgate' },
+  { header: 'X-FormBridge-Signature', source: 'formbridge' },
+];
+
+type GetHeader = (name: string) => string | undefined;
+
+/** First present signature header value, with any `sha256=` prefix stripped. */
+export function resolveSignature(getHeader: GetHeader): string {
+  for (const { header } of SIGNATURE_HEADERS) {
+    const v = getHeader(header);
+    if (v) return v.startsWith('sha256=') ? v.slice('sha256='.length) : v;
+  }
+  return '';
+}
+
+/**
+ * Resolve the webhook source: explicit `body.source` wins (canonical path); else
+ * infer from which product's signature header is present; else from the
+ * event-name prefix (`request.*` → agentgate, `submission.*` → formbridge).
+ */
+export function resolveSource(
+  body: { source?: unknown; event?: unknown },
+  getHeader: GetHeader,
+): WebhookSource | null {
+  if (typeof body.source === 'string' && (VALID_SOURCES as string[]).includes(body.source)) {
+    return body.source as WebhookSource;
+  }
+  for (const { header, source } of SIGNATURE_HEADERS) {
+    if (source !== 'generic' && getHeader(header)) return source;
+  }
+  const ev = typeof body.event === 'string' ? body.event : '';
+  if (ev.startsWith('request.')) return 'agentgate';
+  if (ev.startsWith('submission.')) return 'formbridge';
+  return null;
+}
+
 // ─── AgentGate Event Mapping ────────────────────────────────────────
 
 const AGENTGATE_EVENT_MAP: Record<string, EventType> = {
@@ -267,11 +313,14 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
       return c.json({ error: 'Invalid JSON body', status: 400 }, 400);
     }
 
-    // Validate source
-    const source = body.source;
-    if (!source || !['agentgate', 'formbridge', 'generic'].includes(source)) {
+    // Resolve source — explicit body.source, or inferred from the product's
+    // signature header / event-name prefix (real webhooks omit `source`).
+    const getHeader: GetHeader = (name) => c.req.header(name);
+    const source = resolveSource(body, getHeader);
+    if (!source) {
       return c.json({
-        error: 'Invalid or missing source. Expected: agentgate, formbridge, or generic',
+        error: 'Invalid or missing source. Expected source agentgate/formbridge/generic, ' +
+          'or an X-AgentGate-Signature / X-FormBridge-Signature header.',
         status: 400,
       }, 400);
     }
@@ -286,7 +335,7 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
         }, 500);
       }
 
-      const signature = c.req.header('X-Webhook-Signature') ?? '';
+      const signature = resolveSignature(getHeader);
       if (!verifyWebhookSignature(rawBody, signature, secret)) {
         return c.json({ error: 'Invalid webhook signature', status: 401 }, 401);
       }
