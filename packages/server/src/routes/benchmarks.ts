@@ -203,10 +203,37 @@ export function benchmarkRoutes(store: IEventStore, db?: SqliteDb) {
     const filters: ListBenchmarkFilters = { status, agentId, limit, offset };
     const { benchmarks, total } = await benchmarkStore.list(tenantId, filters);
 
+    // Enrich each benchmark with totalSessions (sum of per-variant session counts),
+    // the same way the detail route counts — otherwise the list's Sessions column
+    // is always 0. The page is limited to `limit` rows so this stays bounded.
+    const tenantStore = getTenantStore(store, c);
+    const enriched = await Promise.all(
+      benchmarks.map(async (b) => {
+        const counts = await Promise.all(
+          b.variants.map(async (v) => {
+            try {
+              const { total: n } = await tenantStore.querySessions({
+                tenantId: v.tenantId,
+                agentId: v.agentId,
+                tags: [v.tag],
+                from: b.timeRange?.from,
+                to: b.timeRange?.to,
+                limit: 1,
+              });
+              return n;
+            } catch {
+              return 0;
+            }
+          }),
+        );
+        return { ...b, totalSessions: counts.reduce((s, n) => s + n, 0) };
+      }),
+    );
+
     return c.json({
-      benchmarks,
+      benchmarks: enriched,
       total,
-      hasMore: offset + benchmarks.length < total,
+      hasMore: offset + enriched.length < total,
     });
   });
 

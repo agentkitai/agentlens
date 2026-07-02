@@ -206,7 +206,7 @@ export function ConfigTab(): React.ReactElement {
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900">AgentGate URL</p>
-              <p className="text-xs text-gray-500">Webhook URL for AgentGate approval events</p>
+              <p className="text-xs text-gray-500">Base URL of your AgentGate instance (approval events arrive via the inbound webhook — see the Integrations tab)</p>
             </div>
             {editing ? (
               <input
@@ -248,7 +248,7 @@ export function ConfigTab(): React.ReactElement {
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900">FormBridge URL</p>
-              <p className="text-xs text-gray-500">Webhook URL for FormBridge form events</p>
+              <p className="text-xs text-gray-500">Base URL of your FormBridge instance (form events arrive via the inbound webhook — see the Integrations tab)</p>
             </div>
             {editing ? (
               <input

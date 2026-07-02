@@ -146,7 +146,7 @@ export function BenchmarkNew(): React.ReactElement {
           name: name.trim(),
           description: description.trim() || undefined,
           agentId: agentId || undefined,
-          minSessions,
+          minSessionsPerVariant: minSessions,
           variants: variants
             .filter((v) => v.name.trim() && v.tag.trim())
             .map((v) => ({
@@ -155,8 +155,9 @@ export function BenchmarkNew(): React.ReactElement {
               description: v.description.trim() || undefined,
             })),
           metrics: Array.from(metrics),
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
+          timeRange: startDate || endDate
+            ? { from: startDate || undefined, to: endDate || undefined }
+            : undefined,
         });
         navigate(`/benchmarks/${result.id}`);
       } catch (err) {

@@ -20,7 +20,7 @@ function formatTimestamp(ts: string): string {
 }
 
 const CONTENT_CONDITION_TYPES = new Set([
-  'pii_detection', 'secrets_detection', 'content_regex', 'toxicity', 'prompt_injection',
+  'pii_detection', 'secrets_detection', 'content_regex', 'toxicity_detection', 'prompt_injection',
 ]);
 
 function isContentRule(rule: GuardrailRuleData): boolean {
@@ -39,12 +39,14 @@ function summarizeConditions(rule: GuardrailRuleData): string {
     case 'custom_metric':
       return `${conditionConfig.metricKey ?? '?'} ${conditionConfig.operator ?? '?'} ${conditionConfig.value ?? '?'}`;
     case 'pii_detection':
-      return `PII Detection (${conditionConfig.sensitivity ?? 'medium'})`;
+      return conditionConfig.minConfidence != null
+        ? `PII Detection (min conf ${conditionConfig.minConfidence})`
+        : 'PII Detection';
     case 'secrets_detection':
       return 'Secrets Detection';
     case 'content_regex':
       return `Regex: ${conditionConfig.pattern ?? '?'}`;
-    case 'toxicity':
+    case 'toxicity_detection':
       return `Toxicity > ${conditionConfig.threshold ?? '?'}`;
     case 'prompt_injection':
       return `Prompt Injection (${conditionConfig.sensitivity ?? 'medium'})`;

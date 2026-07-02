@@ -95,8 +95,17 @@ function CircularGauge({ score, size = 80 }: { score: number; size?: number }): 
 
 // ─── Dimension Breakdown ────────────────────────────────────────────
 
-function DimensionBreakdown({ dimensions }: { dimensions: Record<string, number> }): React.ReactElement {
-  const entries = Object.entries(dimensions)
+function DimensionBreakdown({
+  dimensions,
+}: {
+  dimensions: Record<string, number> | Array<{ name: string; score: number }>;
+}): React.ReactElement {
+  // The server returns dimensions as an array of { name, score, ... } objects;
+  // normalize both that and the legacy Record<name, score> shape.
+  const rawEntries: Array<[string, number]> = Array.isArray(dimensions)
+    ? dimensions.map((d) => [d.name, d.score] as [string, number])
+    : Object.entries(dimensions);
+  const entries = rawEntries
     .filter(([, v]) => typeof v === 'number' && !isNaN(v))
     .sort((a, b) => b[1] - a[1]);
 

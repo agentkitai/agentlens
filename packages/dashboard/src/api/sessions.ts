@@ -34,10 +34,26 @@ export interface SessionReplayData {
   session: Session;
   events: AgentLensEvent[];
   chainValid: boolean;
+  totalSteps: number;
 }
 
 export async function getSessionReplay(id: string): Promise<SessionReplayData> {
-  return request<SessionReplayData>(`/api/sessions/${encodeURIComponent(id)}/replay`);
+  // The server returns a ReplayState ({ session, chainValid, totalSteps, steps[] }),
+  // where each event lives under steps[].event — it has no flat `events` array.
+  // Flatten it here so the page's `replay.events` reads work.
+  const state = await request<{
+    session: Session;
+    chainValid: boolean;
+    totalSteps?: number;
+    steps?: Array<{ event: AgentLensEvent }>;
+  }>(`/api/sessions/${encodeURIComponent(id)}/replay`);
+  const events = (state.steps ?? []).map((s) => s.event);
+  return {
+    session: state.session,
+    chainValid: state.chainValid,
+    events,
+    totalSteps: state.totalSteps ?? events.length,
+  };
 }
 
 export interface SessionTrace {

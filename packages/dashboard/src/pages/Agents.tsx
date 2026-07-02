@@ -26,9 +26,24 @@ import { BudgetStatusBadge } from '../components/BudgetStatusBadge';
 
 // ─── Helpers ────────────────────────────────────────────────
 
+/**
+ * Parse a timestamp that may be an ISO string OR an epoch-millis value —
+ * including stringified floats like "1783015898521.0" that some ingest paths
+ * (e.g. webhook events) produce. Returns NaN for anything unparseable.
+ */
+function parseTs(v: string | number | null | undefined): number {
+  if (v == null) return NaN;
+  if (typeof v === 'number') return v;
+  const s = String(v).trim();
+  if (/^\d+(\.\d+)?$/.test(s)) return Math.round(Number(s)); // epoch millis
+  return new Date(s).getTime();
+}
+
 function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const seconds = Math.floor(diff / 1000);
+  const t = parseTs(iso);
+  if (!Number.isFinite(t)) return 'unknown';
+  const seconds = Math.floor((Date.now() - t) / 1000);
+  if (seconds < 0) return 'just now';
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
@@ -38,6 +53,12 @@ function timeAgo(iso: string): string {
   if (days < 30) return `${days}d ago`;
   const months = Math.floor(days / 30);
   return `${months}mo ago`;
+}
+
+/** Human-readable date-time, or an em dash when the value is unparseable. */
+function formatDateTime(v: string): string {
+  const t = parseTs(v);
+  return Number.isFinite(t) ? new Date(t).toLocaleString() : '—';
 }
 
 function getInitials(name: string): string {
@@ -66,8 +87,9 @@ function colorForAgent(name: string): string {
 }
 
 function statusDot(lastSeen: string): { color: string; label: string } {
-  const diff = Date.now() - new Date(lastSeen).getTime();
-  const minutes = diff / 60_000;
+  const t = parseTs(lastSeen);
+  if (!Number.isFinite(t)) return { color: 'bg-gray-400', label: 'Unknown' };
+  const minutes = (Date.now() - t) / 60_000;
   if (minutes < 5) return { color: 'bg-green-500', label: 'Online' };
   if (minutes < 60) return { color: 'bg-yellow-500', label: 'Idle' };
   return { color: 'bg-gray-400', label: 'Offline' };
@@ -291,11 +313,11 @@ function LocalAgentDetail({
         </div>
         <div className="rounded-lg bg-gray-50 p-3">
           <p className="text-xs text-gray-500 mb-1">First Seen</p>
-          <p className="text-sm text-gray-900">{new Date(agent.firstSeenAt).toLocaleString()}</p>
+          <p className="text-sm text-gray-900">{formatDateTime(agent.firstSeenAt)}</p>
         </div>
         <div className="rounded-lg bg-gray-50 p-3">
           <p className="text-xs text-gray-500 mb-1">Last Seen</p>
-          <p className="text-sm text-gray-900">{new Date(agent.lastSeenAt).toLocaleString()}</p>
+          <p className="text-sm text-gray-900">{formatDateTime(agent.lastSeenAt)}</p>
         </div>
         {agent.pausedAt && (
           <div className="rounded-lg bg-red-50 p-3">

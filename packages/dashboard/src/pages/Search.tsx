@@ -150,9 +150,9 @@ export function Search(): React.ReactElement {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {typeof item.metadata?.timestamp === 'string' && (
+                {typeof item.metadata?.createdAt === 'string' && (
                   <span className="text-xs text-gray-400">
-                    {formatTimestamp(item.metadata.timestamp)}
+                    {formatTimestamp(item.metadata.createdAt as string)}
                   </span>
                 )}
               </div>

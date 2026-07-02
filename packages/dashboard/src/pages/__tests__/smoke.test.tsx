@@ -100,7 +100,7 @@ vi.mock('../../api/client', () => {
     reflect: noop,
     getCapabilities: () => Promise.resolve({ capabilities: [] }),
     getDelegations: () => Promise.resolve({ delegations: [], total: 0 }),
-    verifyAuditChain: () => Promise.resolve({ verified: true, sessionsChecked: 0, brokenChains: [] }),
+    verifyAuditChain: () => Promise.resolve({ verified: true, sessionsVerified: 0, brokenChains: [] }),
     generateComplianceReport: noop,
     getExportEventsUrl: () => '/api/compliance/export/events',
     ApiError: class ApiError extends Error { status: number; constructor(s: number, m: string) { super(m); this.status = s; this.name = 'ApiError'; } },

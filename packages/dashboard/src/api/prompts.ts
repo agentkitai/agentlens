@@ -134,7 +134,9 @@ export async function getPromptFingerprints(params?: {
   agentId?: string;
 }): Promise<PromptFingerprint[]> {
   const qs = toQueryString({ agentId: params?.agentId });
-  return request<PromptFingerprint[]>(`/api/prompts/fingerprints${qs}`);
+  // Server wraps the array as { fingerprints: [...] } — unwrap like the sibling endpoints.
+  const r = await request<{ fingerprints: PromptFingerprint[] }>(`/api/prompts/fingerprints${qs}`);
+  return r.fingerprints ?? [];
 }
 
 export async function linkFingerprintToTemplate(

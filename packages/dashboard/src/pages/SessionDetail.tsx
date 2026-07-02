@@ -479,8 +479,18 @@ export function SessionDetail(): React.ReactElement | null {
           }
         }
 
-        const totalInputTokens = costEvents.reduce((sum, ev) => sum + (ev.payload as CostTrackedPayload).inputTokens, 0);
-        const totalOutputTokens = costEvents.reduce((sum, ev) => sum + (ev.payload as CostTrackedPayload).outputTokens, 0);
+        // Token counts come from llm_response events' `usage` — OTLP cost_tracked
+        // events carry cost but hardcode tokens to 0. Fall back to cost_tracked
+        // tokens only if no llm_response usage is present.
+        const llmUsage = allEvents
+          .filter((ev) => ev.eventType === 'llm_response')
+          .map((ev) => (ev.payload as { usage?: { inputTokens?: number; outputTokens?: number } }).usage ?? {});
+        let totalInputTokens = llmUsage.reduce((sum, u) => sum + (Number(u.inputTokens) || 0), 0);
+        let totalOutputTokens = llmUsage.reduce((sum, u) => sum + (Number(u.outputTokens) || 0), 0);
+        if (totalInputTokens === 0 && totalOutputTokens === 0) {
+          totalInputTokens = costEvents.reduce((sum, ev) => sum + ((ev.payload as CostTrackedPayload).inputTokens || 0), 0);
+          totalOutputTokens = costEvents.reduce((sum, ev) => sum + ((ev.payload as CostTrackedPayload).outputTokens || 0), 0);
+        }
 
         return (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

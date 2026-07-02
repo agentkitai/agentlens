@@ -60,7 +60,9 @@ export async function discoverAgents(params?: {
     maxLatencyMs: params?.maxLatencyMs,
     limit: params?.limit,
   });
-  return request<{ results: any[] }>(`/api/mesh/discover${qs}`);
+  // The mesh /discover endpoint returns a bare array — wrap it so callers can read `.results`.
+  const results = await request<any[]>(`/api/mesh/discover${qs}`);
+  return { results: Array.isArray(results) ? results : [] };
 }
 
 // --- Capability registry (Stories 7.3) ---

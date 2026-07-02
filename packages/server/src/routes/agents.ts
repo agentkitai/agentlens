@@ -80,6 +80,7 @@ export function agentsRoutes(store: IEventStore) {
     let totalScore = 0;
     let scoreCount = 0;
     let delegationCount = 0;
+    const sessionScores = new Map<string, { total: number; count: number }>();
 
     for (const session of sessions) {
       const eventsResult = await tenantStore.queryEvents({
@@ -100,6 +101,10 @@ export function agentsRoutes(store: IEventStore) {
             if (typeof score === 'number') {
               totalScore += score;
               scoreCount++;
+              const cur = sessionScores.get(session.id) ?? { total: 0, count: 0 };
+              cur.total += score;
+              cur.count++;
+              sessionScores.set(session.id, cur);
             }
           }
           if (payload?.type === 'delegation') {
@@ -109,12 +114,19 @@ export function agentsRoutes(store: IEventStore) {
       }
     }
 
-    // Health trend: last 10 sessions with their timestamps
-    const healthTrend = sessions.slice(0, 10).map((s) => ({
-      sessionId: s.id,
-      startedAt: s.startedAt,
-      score: (s as unknown as Record<string, unknown>).healthScore as number | undefined,
-    }));
+    // Health trend: last 10 sessions that actually have a health score (derived
+    // from the health_score/health_check custom events scanned above). Sessions
+    // without a score are omitted, so the client hides the chart rather than
+    // showing meaningless all-zero bars. (Session has no `healthScore` field.)
+    const healthTrend = sessions
+      .slice(0, 10)
+      .map((s) => {
+        const sc = sessionScores.get(s.id);
+        return sc && sc.count > 0
+          ? { sessionId: s.id, startedAt: s.startedAt, score: Math.round((sc.total / sc.count) * 100) / 100 }
+          : null;
+      })
+      .filter((x): x is { sessionId: string; startedAt: string; score: number } => x !== null);
 
     return c.json({
       agent,

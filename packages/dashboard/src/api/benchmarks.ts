@@ -37,11 +37,10 @@ export interface CreateBenchmarkData {
   name: string;
   description?: string;
   agentId?: string;
-  minSessions?: number;
+  minSessionsPerVariant?: number;
   variants: { name: string; tag: string; description?: string }[];
   metrics: string[];
-  startDate?: string;
-  endDate?: string;
+  timeRange?: { from?: string; to?: string };
 }
 
 export interface BenchmarkVariantResult {
@@ -111,6 +110,51 @@ export async function updateBenchmarkStatus(
   });
 }
 
+// The server returns a variant-centric BenchmarkResults ({ variants[], comparisons[],
+// summary: string }). The UI wants a metric-centric shape ({ metrics: [...], summary:
+// object }). Pivot it here so ComparisonTable, DistributionChart and the Summary card
+// all get what they expect (previously results.metrics was undefined → crash/empty).
+function toResultsData(raw: any): BenchmarkResultsData {
+  const variants: any[] = raw?.variants ?? [];
+  const comparisons: any[] = raw?.comparisons ?? [];
+
+  const metricKeys = new Set<string>();
+  for (const v of variants) for (const k of Object.keys(v?.metrics ?? {})) metricKeys.add(k);
+
+  const metrics: BenchmarkMetricResult[] = [...metricKeys].map((metric) => {
+    const variantResults: BenchmarkVariantResult[] = variants
+      .filter((v) => v?.metrics?.[metric])
+      .map((v) => {
+        const s = v.metrics[metric];
+        const se = s.count > 0 ? s.stddev / Math.sqrt(s.count) : 0;
+        return {
+          variantId: v.variantId,
+          variantName: v.variantName,
+          mean: s.mean,
+          median: s.median,
+          stdDev: s.stddev,
+          sampleSize: s.count,
+          ci95: [s.mean - 1.96 * se, s.mean + 1.96 * se] as [number, number],
+          values: s.values,
+        };
+      });
+    const comp = comparisons.find((c) => c?.metric === metric);
+    return {
+      metric,
+      variantResults,
+      pValue: comp?.pValue,
+      significant: comp?.significant,
+      diffPercent: comp?.percentDiff,
+    };
+  });
+
+  return {
+    benchmarkId: raw?.benchmarkId,
+    metrics,
+    summary: typeof raw?.summary === 'string' ? { confidence: 0, recommendation: raw.summary } : raw?.summary,
+  };
+}
+
 export async function getBenchmarkResults(
   id: string,
   params?: { includeDistributions?: boolean },
@@ -118,7 +162,8 @@ export async function getBenchmarkResults(
   const qs = toQueryString({
     includeDistributions: params?.includeDistributions,
   });
-  return request<BenchmarkResultsData>(`/api/benchmarks/${encodeURIComponent(id)}/results${qs}`);
+  const raw = await request<any>(`/api/benchmarks/${encodeURIComponent(id)}/results${qs}`);
+  return toResultsData(raw);
 }
 
 export async function deleteBenchmark(id: string): Promise<{ id: string; deleted: boolean }> {
