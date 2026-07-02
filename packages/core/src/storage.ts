@@ -126,6 +126,8 @@ export interface IEventStore {
     /** Org/project isolation (#147) — filtered only when provided */
     orgId?: string;
     projectId?: string;
+    /** Exclude OTLP metric events from the totals (real-activity view). */
+    excludeMetrics?: boolean;
   }): Promise<AnalyticsResult>;
 
   // ─── Alert Rules ─────────────────────────────────────────

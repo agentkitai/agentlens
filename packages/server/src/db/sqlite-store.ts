@@ -174,6 +174,7 @@ export class SqliteEventStore implements IEventStore {
     agentId?: string;
     granularity: 'hour' | 'day' | 'week';
     tenantId?: string;
+    excludeMetrics?: boolean;
   }): Promise<AnalyticsResult> {
     return this.analyticsRepo.getAnalytics(params);
   }

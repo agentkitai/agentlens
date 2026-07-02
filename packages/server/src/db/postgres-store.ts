@@ -1001,8 +1001,14 @@ export class PostgresEventStore implements IEventStore {
     tenantId?: string;
     orgId?: string;
     projectId?: string;
+    excludeMetrics?: boolean;
   }): Promise<AnalyticsResult> {
     warnIfNoTenant('getAnalytics', params.tenantId);
+    // OTLP metric events aren't agent activity — drop them from the totals when
+    // asked (e.g. the alert engine) so counts/rates reflect real work.
+    const noMetrics = params.excludeMetrics
+      ? sql`AND (metadata->>'source' IS NULL OR metadata->>'source' != 'otlp_metric')`
+      : sql``;
 
     // PG: use to_char + date_trunc instead of strftime
     const truncUnit = params.granularity === 'hour' ? 'hour' : params.granularity === 'day' ? 'day' : 'week';
@@ -1038,6 +1044,7 @@ export class PostgresEventStore implements IEventStore {
           ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
           ${params.orgId ? sql`AND org_id = ${params.orgId}` : sql``}
           ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
+          ${noMetrics}
         GROUP BY bucket
         ORDER BY bucket ASC
       `,
@@ -1069,6 +1076,7 @@ export class PostgresEventStore implements IEventStore {
           ${params.tenantId ? sql`AND tenant_id = ${params.tenantId}` : sql``}
           ${params.orgId ? sql`AND org_id = ${params.orgId}` : sql``}
           ${params.projectId ? sql`AND project_id = ${params.projectId}` : sql``}
+          ${noMetrics}
       `,
     );
     const totalsRow = rowsOf<{ eventCount: number; toolCallCount: number; errorCount: number; uniqueSessions: number; uniqueAgents: number; avgLatencyMs: number; totalCostUsd: number }>(totalsResult)[0];
