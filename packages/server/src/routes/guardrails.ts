@@ -185,14 +185,16 @@ export function guardrailRoutes(guardrailStore: GuardrailStore, contentEngine?: 
     if (!contentEngine) {
       return c.json({ error: 'Content engine not available', status: 501 }, 501);
     }
-    if (!body?.content || !body?.context?.tenantId || !body?.context?.agentId) {
-      return c.json({ error: 'Missing content or context (tenantId, agentId required)', status: 400 }, 400);
+    if (!body?.content || !body?.context?.agentId) {
+      return c.json({ error: 'Missing content or context (agentId required)', status: 400 }, 400);
     }
 
     const result = await contentEngine.evaluateContentSync(
       body.content,
       {
-        tenantId: body.context.tenantId,
+        // Scope to the AUTHENTICATED caller's tenant, never a body-supplied one —
+        // a body tenantId let any caller read/trigger another tenant's rules.
+        tenantId: getTenantId(c),
         agentId: body.context.agentId,
         toolName: body.context.toolName ?? 'unknown',
         direction: body.context.direction ?? 'input',

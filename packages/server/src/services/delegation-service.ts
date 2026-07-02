@@ -353,6 +353,19 @@ export class DelegationService {
     agentId: string,
     requestId: string,
   ): Promise<{ ok: boolean; error?: string }> {
+    // Fetch the request and verify OWNERSHIP before ANY state mutation. The pool
+    // is shared cross-tenant (anon IDs are the isolation boundary), so an early
+    // reject/timeout write keyed only by requestId — before the anonId check —
+    // let a caller tamper with another tenant's inbound delegation.
+    const req = await this.transport.getDelegationRequest(requestId);
+    if (!req) {
+      return { ok: false, error: 'Delegation request not found' };
+    }
+    const anonId = this.anonIdManager.getOrRotateAnonymousId(tenantId, agentId);
+    if (req.targetAnonymousId !== anonId) {
+      return { ok: false, error: 'Delegation request is not targeted at this agent' };
+    }
+
     // Check acceptDelegations toggle
     const caps = this.getAgentCapabilities(tenantId, agentId);
     if (!caps?.acceptDelegations) {
@@ -368,12 +381,6 @@ export class DelegationService {
       return { ok: false, error: 'Inbound rate limit exceeded' };
     }
 
-    // Check the request exists and is in 'request' status
-    const req = await this.transport.getDelegationRequest(requestId);
-    if (!req) {
-      return { ok: false, error: 'Delegation request not found' };
-    }
-
     // Check accept timeout
     const createdAt = new Date(req.createdAt).getTime();
     const now = this.now().getTime();
@@ -384,12 +391,6 @@ export class DelegationService {
 
     if (req.status !== 'request') {
       return { ok: false, error: `Cannot accept delegation in status: ${req.status}` };
-    }
-
-    // Verify the target matches this agent's anonymous ID
-    const anonId = this.anonIdManager.getOrRotateAnonymousId(tenantId, agentId);
-    if (req.targetAnonymousId !== anonId) {
-      return { ok: false, error: 'Delegation request is not targeted at this agent' };
     }
 
     await this.transport.updateDelegationStatus(requestId, 'accepted');

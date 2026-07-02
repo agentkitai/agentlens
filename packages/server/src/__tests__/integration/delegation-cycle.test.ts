@@ -206,14 +206,14 @@ describe('Integration: Delegation Cycle', () => {
   it('should reject acceptance when agent does not accept delegations', async () => {
     registerCapability('no-accept-agent', { taskType: 'code-review', acceptDelegations: false });
 
-    // Manually create a delegation request targeting this agent
-    const anonId = discoveryService.discover(tenantId, { taskType: 'code-review', scope: 'internal' });
-    // Agent is not discoverable since acceptDelegations=false doesn't affect discovery
-    // But let's test the acceptance path
+    // acceptDelegations=false doesn't affect discovery, so target the agent's REAL
+    // anon id — otherwise the ownership check (which now runs first) rejects before
+    // the acceptDelegations check is reached.
+    const discovered = discoveryService.discover(tenantId, { taskType: 'code-review', scope: 'internal' });
     await transport.sendDelegationRequest({
       requestId: 'req-123',
       requesterAnonymousId: 'requester-anon',
-      targetAnonymousId: 'fake-target',
+      targetAnonymousId: discovered[0]!.anonymousAgentId,
       taskType: 'code-review',
       input: {},
       timeoutMs: 5000,
@@ -224,6 +224,29 @@ describe('Integration: Delegation Cycle', () => {
     const result = await delegationService.acceptDelegation(tenantId, 'no-accept-agent', 'req-123');
     expect(result.ok).toBe(false);
     expect(result.error).toContain('does not accept');
+  });
+
+  it('does not mutate a delegation the caller does not own (cross-tenant tamper guard)', async () => {
+    registerCapability('attacker-agent', { taskType: 'code-review', acceptDelegations: false });
+
+    // A request targeted at someone else (not attacker-agent's anon id).
+    await transport.sendDelegationRequest({
+      requestId: 'victim-req',
+      requesterAnonymousId: 'requester-anon',
+      targetAnonymousId: 'someone-elses-anon-id',
+      taskType: 'code-review',
+      input: {},
+      timeoutMs: 5000,
+      status: 'request',
+      createdAt: new Date().toISOString(),
+    });
+
+    const result = await delegationService.acceptDelegation(tenantId, 'attacker-agent', 'victim-req');
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('not targeted at this agent');
+    // The victim's request must be UNCHANGED — no force-reject before the ownership check.
+    const req = await transport.getDelegationRequest('victim-req');
+    expect(req?.status).toBe('request');
   });
 
   it('should export delegation logs as JSON', () => {
