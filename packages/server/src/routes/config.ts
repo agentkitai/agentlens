@@ -11,30 +11,10 @@
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { createHash, timingSafeEqual } from 'node:crypto';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { SqliteDb } from '../db/index.js';
 import { getConfig } from '../config.js';
 import { secretsAvailable, encryptSecret } from '../lib/secret-box.js';
-
-/**
- * Hash a secret with SHA-256 for storage.
- * Used for webhook secrets so plaintext is never persisted.
- */
-function hashSecret(secret: string): string {
-  return createHash('sha256').update(secret).digest('hex');
-}
-
-/**
- * Compare a plaintext secret against a stored hash using timing-safe comparison.
- */
-export function verifySecretHash(plaintext: string, storedHash: string): boolean {
-  const computedHash = hashSecret(plaintext);
-  const a = Buffer.from(computedHash, 'utf8');
-  const b = Buffer.from(storedHash, 'utf8');
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
 
 /** Schema for config update request */
 const configUpdateSchema = z.object({
@@ -133,8 +113,10 @@ export function configRoutes(db: SqliteDb) {
       setConfigValue(db, 'formBridgeUrl', updates.formBridgeUrl);
     }
     if (updates.formBridgeSecret !== undefined) {
-      // Store hash of secret, never plaintext
-      setConfigValue(db, 'formBridgeSecret', hashSecret(updates.formBridgeSecret));
+      // Recoverable (encrypted at rest) — HMAC verification needs the plaintext,
+      // so it can't be one-way hashed. Same as agentGateSecret above.
+      setConfigValue(db, 'formBridgeSecret',
+        secretsAvailable() ? encryptSecret(updates.formBridgeSecret) : updates.formBridgeSecret);
     }
 
     return c.json({ ok: true });

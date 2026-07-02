@@ -8,7 +8,7 @@ import {
   getStats,
   getConfig,
   updateConfig,
-  type ConfigData,
+  type ConfigUpdate,
 } from '../../api/client';
 import { useApi } from '../../hooks/useApi';
 
@@ -93,7 +93,7 @@ export function ConfigTab(): React.ReactElement {
     setSaveError(null);
     setSaveSuccess(false);
     try {
-      const payload: Partial<ConfigData> = {
+      const payload: ConfigUpdate = {
         retentionDays: parseInt(form.retentionDays, 10) || 90,
         agentGateUrl: form.agentGateUrl,
         formBridgeUrl: form.formBridgeUrl,
@@ -239,7 +239,7 @@ export function ConfigTab(): React.ReactElement {
               />
             ) : (
               <span className="rounded bg-gray-50 px-3 py-1 font-mono text-sm text-gray-700 ml-4">
-                {configData?.agentGateSecret || 'Not set'}
+                {configData?.agentGateSecretSet ? 'Configured' : 'Not set'}
               </span>
             )}
           </div>
@@ -281,7 +281,7 @@ export function ConfigTab(): React.ReactElement {
               />
             ) : (
               <span className="rounded bg-gray-50 px-3 py-1 font-mono text-sm text-gray-700 ml-4">
-                {configData?.formBridgeSecret || 'Not set'}
+                {configData?.formBridgeSecretSet ? 'Configured' : 'Not set'}
               </span>
             )}
           </div>
