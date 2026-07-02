@@ -158,8 +158,9 @@ function CostAnalysisView({ data }: { data: ReflectResultData }): React.ReactEle
 
 function PerformanceView({ data }: { data: ReflectResultData }): React.ReactElement {
   const insights = data.insights;
-  // Find summary/current insight
-  const summaryInsight = insights.find((i) => i.type === 'performance_summary' || i.type === 'current');
+  // Server emits these as `performance_current` (metrics) and `performance_assessment`.
+  const summaryInsight = insights.find((i) => i.type === 'performance_current');
+  const assessmentInsight = insights.find((i) => i.type === 'performance_assessment');
 
   return (
     <div className="space-y-6">
@@ -187,7 +188,7 @@ function PerformanceView({ data }: { data: ReflectResultData }): React.ReactElem
           <div className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="text-sm text-gray-500">Assessment</div>
             <div className="text-2xl font-bold text-gray-900">
-              {(summaryInsight.data.assessment as string) ?? '—'}
+              {(assessmentInsight?.data.assessment as string) ?? '—'}
             </div>
           </div>
         </div>

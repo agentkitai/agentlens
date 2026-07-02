@@ -202,6 +202,20 @@ export function SessionReplay(): React.ReactElement | null {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [replay, errorIndices, clampedStep, handleStepChange]);
 
+  // [F11-S1] Search-filtered event count. Must run unconditionally (before the
+  // early returns below) or the hook count changes between loading/loaded renders
+  // ("Rendered more hooks than during the previous render").
+  const searchFilteredCount = useMemo(() => {
+    const evs = replay?.events ?? [];
+    if (!searchQuery) return evs.length;
+    const q = searchQuery.toLowerCase();
+    return evs.filter(
+      (ev) =>
+        JSON.stringify(ev.payload).toLowerCase().includes(q) ||
+        ev.eventType.toLowerCase().includes(q),
+    ).length;
+  }, [replay, searchQuery]);
+
   // ── 404 ───────────────────────────────────────────────────────
 
   if (error?.includes('404') || error?.toLowerCase().includes('not found')) {
@@ -247,17 +261,6 @@ export function SessionReplay(): React.ReactElement | null {
 
   const { session, events } = replay;
   const hasTrace = hasTraceData(events);
-
-  // [F11-S1] Search-filtered events for count display
-  const searchFilteredCount = useMemo(() => {
-    if (!searchQuery) return events.length;
-    const q = searchQuery.toLowerCase();
-    return events.filter(
-      (ev) =>
-        JSON.stringify(ev.payload).toLowerCase().includes(q) ||
-        ev.eventType.toLowerCase().includes(q),
-    ).length;
-  }, [events, searchQuery]);
 
   // ── Render ────────────────────────────────────────────────────
 

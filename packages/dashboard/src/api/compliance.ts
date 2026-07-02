@@ -2,11 +2,20 @@ import { request, toQueryString } from './core';
 
 // ─── Types ──────────────────────────────────────────────────
 
+export interface BrokenChain {
+  sessionId: string;
+  failedAtIndex: number;
+  failedEventId: string;
+  reason: string;
+}
+
 export interface ChainVerification {
   verified: boolean;
-  sessionsChecked: number;
-  brokenChains: string[];
-  checkedAt?: string;
+  sessionsVerified: number;
+  brokenChains: BrokenChain[];
+  totalEvents?: number;
+  verifiedAt?: string;
+  signature?: string | null;
 }
 
 export interface ComplianceReportSummary {

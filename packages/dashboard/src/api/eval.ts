@@ -75,13 +75,15 @@ export async function addTestCase(
     scoringCriteria?: string;
   },
 ): Promise<EvalTestCase> {
-  return request<EvalTestCase>(
+  // Server expects a { testCases: [...] } array and responds with the same shape.
+  const r = await request<{ testCases: EvalTestCase[] }>(
     `/api/eval/datasets/${encodeURIComponent(datasetId)}/cases`,
     {
       method: 'POST',
-      body: JSON.stringify(testCase),
+      body: JSON.stringify({ testCases: [testCase] }),
     },
   );
+  return r.testCases[0];
 }
 
 export async function updateTestCase(

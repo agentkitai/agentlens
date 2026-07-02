@@ -92,7 +92,7 @@ export async function getBudgetStatus(id: string): Promise<CostBudgetStatusData>
 }
 
 export async function getAnomalyConfig(): Promise<CostAnomalyConfigData> {
-  return request<CostAnomalyConfigData>('/api/cost-anomaly/config');
+  return request<CostAnomalyConfigData>('/api/cost-budgets/anomaly/config');
 }
 
 export async function updateAnomalyConfig(data: {
@@ -100,7 +100,7 @@ export async function updateAnomalyConfig(data: {
   minSessions?: number;
   enabled?: boolean;
 }): Promise<CostAnomalyConfigData> {
-  return request<CostAnomalyConfigData>('/api/cost-anomaly/config', {
+  return request<CostAnomalyConfigData>('/api/cost-budgets/anomaly/config', {
     method: 'PUT',
     body: JSON.stringify(data),
   });

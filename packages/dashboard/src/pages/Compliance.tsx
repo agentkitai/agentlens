@@ -88,11 +88,11 @@ export default function Compliance() {
               {chain.verified ? 'Verified' : 'Broken'}
             </span>
             <span style={{ color: '#888', fontSize: '13px' }}>
-              ({chain.sessionsChecked} sessions checked)
+              ({chain.sessionsVerified} sessions checked)
             </span>
             {!chain.verified && chain.brokenChains.length > 0 && (
               <span style={{ color: '#ef4444', fontSize: '13px' }}>
-                Broken: {chain.brokenChains.join(', ')}
+                Broken: {chain.brokenChains.map((c) => c.reason).join('; ')}
               </span>
             )}
             <button onClick={() => chainQuery.refetch()} style={smallBtnStyle}>↻ Refresh</button>
