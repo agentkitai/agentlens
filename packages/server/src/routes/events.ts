@@ -313,6 +313,8 @@ export function eventsRoutes(
     const search = c.req.query('search');
     if (search) query.search = search;
 
+    if (c.req.query('excludeMetrics') === 'true') query.excludeMetrics = true;
+
     const limitStr = c.req.query('limit');
     query.limit = limitStr
       ? Math.max(1, Math.min(parseInt(limitStr, 10) || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE))

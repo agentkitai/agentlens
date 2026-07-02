@@ -80,6 +80,10 @@ function buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>) {
       conditions.push(eq(events.severity, query.severity));
     }
   }
+  if (query.excludeMetrics) {
+    // metadata is jsonb in Postgres.
+    conditions.push(sql`(${events.metadata}->>'source' IS NULL OR ${events.metadata}->>'source' != 'otlp_metric')`);
+  }
   if (query.from) conditions.push(gte(events.timestamp, query.from));
   if (query.to) conditions.push(lte(events.timestamp, query.to));
   if (query.search) {

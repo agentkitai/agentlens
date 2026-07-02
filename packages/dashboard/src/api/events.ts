@@ -13,6 +13,7 @@ export async function getEvents(query: EventQuery = {}): Promise<EventQueryResul
     offset: query.offset,
     order: query.order,
     search: query.search,
+    excludeMetrics: query.excludeMetrics ? 'true' : undefined,
   });
   return request<EventQueryResult>(`/api/events${qs}`);
 }
