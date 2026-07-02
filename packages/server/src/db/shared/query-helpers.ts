@@ -6,7 +6,7 @@
  * storage backends or utility code.
  */
 
-import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
+import { eq, and, or, gte, lte, inArray, sql } from 'drizzle-orm';
 import type {
   AgentLensEvent,
   EventQuery,
@@ -110,14 +110,20 @@ export function buildSessionConditions(query: SessionQuery) {
     conditions.push(eq(sessions.agentId, query.agentId));
   }
   if (query.status) {
-    if (Array.isArray(query.status)) {
-      if (query.status.length === 1) {
-        conditions.push(eq(sessions.status, query.status[0]));
-      } else if (query.status.length > 1) {
-        conditions.push(inArray(sessions.status, query.status));
-      }
-    } else {
-      conditions.push(eq(sessions.status, query.status));
+    const statuses = Array.isArray(query.status) ? query.status : [query.status];
+    if (statuses.length > 0) {
+      // 'active'/'idle' are derived from recency (stored status is 'active' for
+      // both). Translate to last-activity comparisons; other statuses are direct.
+      const thr = new Date(Date.now() - SESSION_IDLE_MS).toISOString();
+      const last = sql`coalesce(${sessions.lastEventAt}, ${sessions.startedAt})`;
+      const parts = statuses.map((st) =>
+        st === 'idle'
+          ? sql`(${sessions.status} = 'active' AND ${last} < ${thr})`
+          : st === 'active'
+            ? sql`(${sessions.status} = 'active' AND ${last} >= ${thr})`
+            : sql`${sessions.status} = ${st}`,
+      );
+      conditions.push(parts.length === 1 ? parts[0]! : or(...parts)!);
     }
   }
   if (query.from) {
