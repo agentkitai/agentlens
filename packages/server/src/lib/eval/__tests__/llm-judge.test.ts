@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import type { EvalTestCase } from '@agentkitai/agentlens-core';
-import { LlmJudgeScorer, judgeWithLlm, type JudgeProviderFactory } from '../scorers/llm-judge.js';
+import { LlmJudgeScorer, judgeWithLlm, JUDGE_SCHEMA, type JudgeProviderFactory } from '../scorers/llm-judge.js';
 import type { LLMProvider, LLMCompletionResponse } from '../../diagnostics/providers/types.js';
 
 function makeTestCase(overrides: Partial<EvalTestCase> = {}): EvalTestCase {
@@ -220,5 +220,11 @@ describe('LlmJudgeScorer', () => {
     };
     await judgeWithLlm({ makeProvider: factory, rubric: 'r', inputPrompt: 'i', actualOutput: 'a' });
     expect(seen[0]).toBe('claude-haiku-4-5');
+  });
+});
+
+describe('JUDGE_SCHEMA (OpenAI strict Structured Outputs)', () => {
+  it('sets additionalProperties:false so OpenAI accepts the json_schema (else the judge 400s → 0 score)', () => {
+    expect((JUDGE_SCHEMA as { additionalProperties?: boolean }).additionalProperties).toBe(false);
   });
 });

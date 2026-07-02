@@ -34,8 +34,11 @@ function stringify(value: unknown): string {
   }
 }
 
-const JUDGE_SCHEMA = {
+export const JUDGE_SCHEMA = {
   type: 'object',
+  // Required by OpenAI strict Structured Outputs — without it the API 400s and the
+  // judge silently degrades to a 0 score (same class as the diagnostics schema fix).
+  additionalProperties: false,
   properties: {
     score: { type: 'number', description: 'Quality score from 0.0 to 1.0' },
     reasoning: { type: 'string', description: 'Brief explanation of the score' },
