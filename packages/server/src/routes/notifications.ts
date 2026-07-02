@@ -18,6 +18,7 @@ import {
   validateChannelConfig,
 } from '@agentkitai/agentlens-core';
 import type { NotificationChannel } from '@agentkitai/agentlens-core';
+import { getTenantId } from './tenant-helper.js';
 import type { AuthVariables } from '../middleware/auth.js';
 import type { NotificationChannelRepository } from '../db/repositories/notification-channel-repository.js';
 import type { NotificationRouter } from '../lib/notifications/router.js';
@@ -62,7 +63,7 @@ export function notificationRoutes(repo: NotificationChannelRepository, router: 
     }
 
     const now = new Date().toISOString();
-    const tenantId = (c.get as any)('tenantId') ?? 'default';
+    const tenantId = getTenantId(c);
 
     const channel: NotificationChannel = {
       id: ulid(),
@@ -81,14 +82,14 @@ export function notificationRoutes(repo: NotificationChannelRepository, router: 
 
   // GET /channels — list
   app.get('/channels', async (c) => {
-    const tenantId = (c.get as any)('tenantId') ?? 'default';
+    const tenantId = getTenantId(c);
     const channels = await repo.listChannels(tenantId);
     return c.json({ channels: channels.map(redactChannel) });
   });
 
   // GET /channels/:id
   app.get('/channels/:id', async (c) => {
-    const tenantId = (c.get as any)('tenantId') ?? 'default';
+    const tenantId = getTenantId(c);
     const channel = await repo.getChannel(c.req.param('id'), tenantId);
     if (!channel) return c.json({ error: 'Not found', status: 404 }, 404);
     return c.json(redactChannel(channel));
@@ -104,7 +105,7 @@ export function notificationRoutes(repo: NotificationChannelRepository, router: 
       return c.json({ error: 'Validation failed', status: 400, details: parseResult.error.issues }, 400);
     }
 
-    const tenantId = (c.get as any)('tenantId') ?? 'default';
+    const tenantId = getTenantId(c);
     const now = new Date().toISOString();
 
     try {
@@ -119,7 +120,7 @@ export function notificationRoutes(repo: NotificationChannelRepository, router: 
 
   // DELETE /channels/:id
   app.delete('/channels/:id', async (c) => {
-    const tenantId = (c.get as any)('tenantId') ?? 'default';
+    const tenantId = getTenantId(c);
     try {
       await repo.deleteChannel(c.req.param('id'), tenantId);
       return c.json({ success: true });
@@ -131,14 +132,14 @@ export function notificationRoutes(repo: NotificationChannelRepository, router: 
 
   // POST /channels/:id/test — test send
   app.post('/channels/:id/test', async (c) => {
-    const tenantId = (c.get as any)('tenantId') ?? 'default';
+    const tenantId = getTenantId(c);
     const result = await router.testChannel(c.req.param('id'), tenantId);
     return c.json(result, result.success ? 200 : 502);
   });
 
   // GET /log — notification delivery log
   app.get('/log', async (c) => {
-    const tenantId = (c.get as any)('tenantId') ?? 'default';
+    const tenantId = getTenantId(c);
     const channelId = c.req.query('channelId');
     const ruleId = c.req.query('ruleId');
     const limit = parseInt(c.req.query('limit') ?? '50', 10);
