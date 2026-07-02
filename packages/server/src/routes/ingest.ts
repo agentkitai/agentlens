@@ -208,6 +208,50 @@ function mapFormBridgeEvent(
   return null;
 }
 
+// Real FormBridge (formbridge/src/core/webhook-manager.ts buildPayload) posts the
+// FLAT submission — no `event`/`data`/`source` envelope, just the submission with
+// its current `state`. The AgentLens event is DERIVED from that state.
+const FB_COMPLETED_STATES = new Set(['submitted', 'finalized', 'approved']);
+const FB_EXPIRED_STATES = new Set(['expired', 'cancelled', 'rejected']);
+
+interface FormBridgeSubmissionBody {
+  submissionId?: unknown;
+  intakeId?: unknown;
+  state?: unknown;
+  fields?: unknown;
+  metadata?: { createdAt?: unknown; updatedAt?: unknown; createdBy?: unknown };
+}
+
+/** True when the body looks like FormBridge's flat submission (no envelope). */
+function isFormBridgeSubmissionBody(body: { event?: unknown; submissionId?: unknown; state?: unknown }): boolean {
+  return body.event === undefined && typeof body.submissionId === 'string' && typeof body.state === 'string';
+}
+
+function mapFormBridgeSubmission(
+  body: FormBridgeSubmissionBody,
+): { eventType: EventType; payload: EventPayload; createdBy?: string } | null {
+  const submissionId = String(body.submissionId ?? '');
+  if (!submissionId) return null;
+  const formId = String(body.intakeId ?? '');
+  const state = String(body.state ?? '');
+  const createdAt = typeof body.metadata?.createdAt === 'string' ? Date.parse(body.metadata.createdAt) : NaN;
+  const updatedAt = typeof body.metadata?.updatedAt === 'string' ? Date.parse(body.metadata.updatedAt) : NaN;
+  const elapsedMs = Number.isFinite(createdAt) && Number.isFinite(updatedAt) ? Math.max(0, updatedAt - createdAt) : 0;
+  const createdBy = body.metadata?.createdBy ? String(body.metadata.createdBy) : undefined;
+
+  if (FB_COMPLETED_STATES.has(state)) {
+    const payload: FormCompletedPayload = { submissionId, formId, completedBy: createdBy ?? 'unknown', durationMs: elapsedMs };
+    return { eventType: 'form_completed', payload, createdBy };
+  }
+  if (FB_EXPIRED_STATES.has(state)) {
+    const payload: FormExpiredPayload = { submissionId, formId, expiredAfterMs: elapsedMs };
+    return { eventType: 'form_expired', payload, createdBy };
+  }
+  const fieldCount = body.fields && typeof body.fields === 'object' ? Object.keys(body.fields as object).length : 0;
+  const payload: FormSubmittedPayload = { submissionId, formId, fieldCount };
+  return { eventType: 'form_submitted', payload, createdBy };
+}
+
 // ─── Generic Event Mapping ──────────────────────────────────────────
 
 function mapGenericEvent(
@@ -341,32 +385,41 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
       }
     }
 
-    // Validate required fields
-    if (!body.event) {
-      return c.json({ error: 'Missing event field', status: 400 }, 400);
-    }
-    if (!body.data || typeof body.data !== 'object') {
-      return c.json({ error: 'Missing or invalid data field', status: 400 }, 400);
-    }
-
-    // Map webhook event to AgentLens event
+    // Map the webhook to an AgentLens event. FormBridge's real webhook is a flat
+    // submission with no event/data envelope, so map it from the submission state;
+    // everything else uses the canonical {event, data} envelope.
     let mapped: { eventType: EventType; payload: EventPayload } | null = null;
+    let fbCreatedBy: string | undefined;
 
-    switch (source) {
-      case 'agentgate':
-        mapped = mapAgentGateEvent(body.event, body.data);
-        break;
-      case 'formbridge':
-        mapped = mapFormBridgeEvent(body.event, body.data);
-        break;
-      case 'generic':
-        mapped = mapGenericEvent(body.data);
-        break;
+    if (source === 'formbridge' && isFormBridgeSubmissionBody(body as unknown as Record<string, unknown>)) {
+      const m = mapFormBridgeSubmission(body as unknown as FormBridgeSubmissionBody);
+      if (m) {
+        mapped = { eventType: m.eventType, payload: m.payload };
+        fbCreatedBy = m.createdBy;
+      }
+    } else {
+      if (!body.event) {
+        return c.json({ error: 'Missing event field', status: 400 }, 400);
+      }
+      if (!body.data || typeof body.data !== 'object') {
+        return c.json({ error: 'Missing or invalid data field', status: 400 }, 400);
+      }
+      switch (source) {
+        case 'agentgate':
+          mapped = mapAgentGateEvent(body.event, body.data);
+          break;
+        case 'formbridge':
+          mapped = mapFormBridgeEvent(body.event, body.data);
+          break;
+        case 'generic':
+          mapped = mapGenericEvent(body.data);
+          break;
+      }
     }
 
     if (!mapped) {
       return c.json({
-        error: `Unknown event type '${body.event}' for source '${source}'`,
+        error: `Unknown or unmappable event for source '${source}'`,
         status: 400,
       }, 400);
     }
@@ -375,8 +428,11 @@ export function ingestRoutes(store: IEventStore, config: IngestConfig) {
     const tenantId = getTenantIdForSource(source, config);
     const tenantStore = new TenantScopedStore(innerStore, tenantId);
 
-    // Extract session/agent correlation
-    const { sessionId, agentId } = extractCorrelation(body.context);
+    // Extract session/agent correlation. FormBridge's flat payload carries no
+    // context, so fall back to the submission's createdBy as the agent id.
+    const correlation = extractCorrelation(body.context);
+    const sessionId = correlation.sessionId;
+    const agentId = correlation.agentId === 'external' && fbCreatedBy ? fbCreatedBy : correlation.agentId;
 
     // Build the AgentLens event
     const id = nextEventId();

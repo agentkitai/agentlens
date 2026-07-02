@@ -179,6 +179,59 @@ describe('Ingest Routes (F7-S2.2)', () => {
       const json = await res.json();
       expect(json.eventType).toBe('form_submitted');
     });
+
+    // Byte-faithful to what FormBridge actually emits —
+    // formbridge/src/core/webhook-manager.ts buildPayload() + buildHeaders():
+    //   body = JSON.stringify({ submissionId, intakeId, state, fields, fieldAttribution, metadata })
+    //   signature = createHmac('sha256', secret).update(body).digest('hex')
+    //   header 'X-FormBridge-Signature': `sha256=${signature}`   // NO source/event/data
+    function formbridgeWire(submission: Record<string, unknown>, secret: string) {
+      const body = JSON.stringify(submission);
+      return {
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-FormBridge-Timestamp': '2026-07-02T00:00:00.000Z',
+          'X-FormBridge-Signature': `sha256=${sign(body, secret)}`,
+        },
+      };
+    }
+    const submission = (state: string, extra: Record<string, unknown> = {}) => ({
+      submissionId: `sub-${state}`, intakeId: 'vendor-onboarding', state,
+      fields: { company: 'ACME', email: 'a@b.com' }, fieldAttribution: {},
+      metadata: { createdAt: '2026-07-02T00:00:00.000Z', updatedAt: '2026-07-02T00:00:42.000Z', createdBy: 'agent:onboarder' },
+      ...extra,
+    });
+
+    it('accepts a byte-faithful FormBridge webhook (flat body, X-FormBridge-Signature sha256=)', async () => {
+      const { body, headers } = formbridgeWire(submission('finalized'), FORMBRIDGE_SECRET);
+      const res = await app.request('/api/events/ingest', { method: 'POST', headers, body });
+      expect(res.status).toBe(201);
+      const json = await res.json();
+      expect(json.eventType).toBe('form_completed'); // state 'finalized' → completed
+    });
+
+    it('derives the AgentLens event from the submission state', async () => {
+      const cases: Array<[string, string]> = [
+        ['in_progress', 'form_submitted'],
+        ['submitted', 'form_completed'],
+        ['finalized', 'form_completed'],
+        ['expired', 'form_expired'],
+        ['cancelled', 'form_expired'],
+      ];
+      for (const [state, expected] of cases) {
+        const { body, headers } = formbridgeWire(submission(state), FORMBRIDGE_SECRET);
+        const res = await app.request('/api/events/ingest', { method: 'POST', headers, body });
+        expect(res.status, state).toBe(201);
+        expect((await res.json()).eventType, state).toBe(expected);
+      }
+    });
+
+    it('rejects a byte-faithful FormBridge webhook signed with the wrong secret', async () => {
+      const { body, headers } = formbridgeWire(submission('submitted'), 'wrong-secret');
+      const res = await app.request('/api/events/ingest', { method: 'POST', headers, body });
+      expect(res.status).toBe(401);
+    });
   });
 
   describe('POST /api/events/ingest — Generic', () => {
