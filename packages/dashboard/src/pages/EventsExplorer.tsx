@@ -239,6 +239,7 @@ function PayloadPreview({ event }: { event: AgentLensEvent }): React.ReactElemen
 export function EventsExplorer(): React.ReactElement {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [page, setPage] = useState(0);
+  const [showMetrics, setShowMetrics] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // SSE live events prepended to the list (Story 14.4)
   const [liveEvents, setLiveEvents] = useState<AgentLensEvent[]>([]);
@@ -266,8 +267,9 @@ export function EventsExplorer(): React.ReactElement {
     if (filters.from) q.from = new Date(filters.from).toISOString();
     if (filters.to) q.to = new Date(filters.to).toISOString();
     if (debouncedSearch.trim()) q.search = debouncedSearch.trim();
+    if (!showMetrics) q.excludeMetrics = true;
     return q;
-  }, [filters.eventTypes, filters.severities, filters.agentId, filters.from, filters.to, debouncedSearch, page]);
+  }, [filters.eventTypes, filters.severities, filters.agentId, filters.from, filters.to, debouncedSearch, page, showMetrics]);
 
   const { data: result, loading, error } = useApi(
     () => getEvents(query),
@@ -394,6 +396,16 @@ export function EventsExplorer(): React.ReactElement {
             </option>
           ))}
         </select>
+
+        <label className="flex items-center gap-2 whitespace-nowrap text-sm text-gray-600 cursor-pointer select-none" title="OTLP metric events (token/cost/active_time) are already in the session totals; hidden by default.">
+          <input
+            type="checkbox"
+            checked={showMetrics}
+            onChange={(e) => { setShowMetrics(e.target.checked); setPage(0); }}
+            className="rounded border-gray-300"
+          />
+          Show metrics
+        </label>
 
         <input
           type="datetime-local"

@@ -69,6 +69,12 @@ export function buildEventConditions(query: Omit<EventQuery, 'limit' | 'offset'>
       conditions.push(eq(events.severity, query.severity));
     }
   }
+  if (query.excludeMetrics) {
+    // metadata is a JSON string in SQLite.
+    conditions.push(
+      sql`(json_extract(${events.metadata}, '$.source') IS NULL OR json_extract(${events.metadata}, '$.source') != 'otlp_metric')`,
+    );
+  }
   if (query.from) {
     conditions.push(gte(events.timestamp, query.from));
   }

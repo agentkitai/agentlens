@@ -577,6 +577,9 @@ export interface EventQuery {
   orgId?: string;
   /** Project ID for org→project isolation (#147) — filtered only when provided */
   projectId?: string;
+  /** Exclude OTLP metric events (metadata.source === 'otlp_metric') — they're
+   *  already rolled into session totals and dominate the raw feed. */
+  excludeMetrics?: boolean;
 }
 
 export interface EventQueryResult {

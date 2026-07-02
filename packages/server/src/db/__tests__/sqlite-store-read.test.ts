@@ -128,6 +128,22 @@ describe('SqliteEventStore — Read Operations (Story 3.5)', () => {
       expect(result.events.every((e) => e.eventType === 'tool_call')).toBe(true);
     });
 
+    it('should exclude OTLP metric events when excludeMetrics is set', async () => {
+      const chain = makeChain([
+        { eventType: 'session_started', payload: { tags: [] } },
+        { eventType: 'tool_call', payload: { toolName: 'search', arguments: {}, callId: 'c1' } },
+        { eventType: 'custom', payload: { type: 'otlp_metric' }, metadata: { source: 'otlp_metric', metricName: 'claude_code.token.usage' } },
+        { eventType: 'custom', payload: { type: 'otlp_metric' }, metadata: { source: 'otlp_metric', metricName: 'claude_code.cost.usage' } },
+      ]);
+      await store.insertEvents(chain);
+
+      expect((await store.queryEvents({})).events).toHaveLength(4);
+
+      const noMetrics = await store.queryEvents({ excludeMetrics: true });
+      expect(noMetrics.events).toHaveLength(2);
+      expect(noMetrics.events.every((e) => (e.metadata as { source?: string }).source !== 'otlp_metric')).toBe(true);
+    });
+
     it('should return events filtered by multiple eventTypes (array)', async () => {
       const chain = makeChain([
         { eventType: 'session_started', payload: { tags: [] } },
