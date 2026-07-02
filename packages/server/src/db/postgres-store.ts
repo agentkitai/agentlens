@@ -5,7 +5,7 @@
  * (jsonb columns, native PG functions).
  */
 
-import { eq, and, gte, lte, desc, asc, sql, inArray, count as drizzleCount } from 'drizzle-orm';
+import { eq, and, or, gte, lte, desc, asc, sql, inArray, count as drizzleCount } from 'drizzle-orm';
 import { computeEventHash, pricingVersion } from '@agentkitai/agentlens-core';
 import type {
   AgentLensEvent,
@@ -32,7 +32,7 @@ import { aggregateBatch, mergeRollup, type RollupRow } from '../lib/rollup.js';
 import { withRetry } from '../lib/db-resilience.js';
 import { metadataVerifiedAgentId } from '../lib/agent-identity.js';
 import { COST_EVENT_TYPES } from './repositories/event-repository.js';
-import { deriveSessionStatus } from './shared/query-helpers.js';
+import { deriveSessionStatus, SESSION_IDLE_MS } from './shared/query-helpers.js';
 
 const log = createLogger('PostgresEventStore');
 
@@ -103,11 +103,20 @@ function buildSessionConditions(query: SessionQuery) {
   if (query.projectId) conditions.push(eq(sessions.projectId, query.projectId));
   if (query.agentId) conditions.push(eq(sessions.agentId, query.agentId));
   if (query.status) {
-    if (Array.isArray(query.status)) {
-      if (query.status.length === 1) conditions.push(eq(sessions.status, query.status[0]));
-      else if (query.status.length > 1) conditions.push(inArray(sessions.status, query.status));
-    } else {
-      conditions.push(eq(sessions.status, query.status));
+    const statuses = Array.isArray(query.status) ? query.status : [query.status];
+    if (statuses.length > 0) {
+      // 'active'/'idle' derived from recency (both stored as 'active'); see the
+      // sqlite copy in query-helpers.ts.
+      const thr = new Date(Date.now() - SESSION_IDLE_MS).toISOString();
+      const last = sql`coalesce(${sessions.lastEventAt}, ${sessions.startedAt})`;
+      const parts = statuses.map((st) =>
+        st === 'idle'
+          ? sql`(${sessions.status} = 'active' AND ${last} < ${thr})`
+          : st === 'active'
+            ? sql`(${sessions.status} = 'active' AND ${last} >= ${thr})`
+            : sql`${sessions.status} = ${st}`,
+      );
+      conditions.push(parts.length === 1 ? parts[0]! : or(...parts)!);
     }
   }
   if (query.from) conditions.push(gte(sessions.startedAt, query.from));

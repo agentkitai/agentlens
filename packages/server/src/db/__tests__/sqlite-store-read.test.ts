@@ -434,9 +434,14 @@ describe('SqliteEventStore — Read Operations (Story 3.5)', () => {
       expect(errorSessions).toHaveLength(1);
       expect(errorSessions[0]!.id).toBe('sess_B1');
 
+      // #281: sess_A2 is stored 'active' but its last event is months old, so it
+      // derives to 'idle' — 'active' now means "recent activity".
       const { sessions: activeSessions } = await store.querySessions({ status: 'active' });
-      expect(activeSessions).toHaveLength(1);
-      expect(activeSessions[0]!.id).toBe('sess_A2');
+      expect(activeSessions).toHaveLength(0);
+
+      const { sessions: idleSessions } = await store.querySessions({ status: 'idle' });
+      expect(idleSessions).toHaveLength(1);
+      expect(idleSessions[0]!.id).toBe('sess_A2');
     });
 
     it('should filter sessions by time range', async () => {
