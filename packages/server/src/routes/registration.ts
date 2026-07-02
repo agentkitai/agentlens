@@ -132,16 +132,17 @@ export async function registerRoutes(
   app.route('/api/stream', streamRoutes(config?.apiKeyLookup, resolvedConfig.authDisabled));
 
   // ─── Webhook ingest (no API key auth — uses HMAC signature verification) ──
+  // Resolve a webhook secret per-request: prefer the Settings → Integrations value
+  // (config store, encrypted at rest), fall back to the env var. Per-request so a
+  // UI change takes effect without a restart.
+  const configWebhookSecret = (key: string, envVar: string) => () => {
+    const stored = db ? getConfigValue(db, key) : null;
+    const fromConfig = stored ? (stored.startsWith('v1:') ? decryptSecret(stored) : stored) : null;
+    return fromConfig ?? process.env[envVar] ?? undefined;
+  };
   app.route('/api/events/ingest', ingestRoutes(store, {
-    // Prefer the secret set in Settings → Integrations (config store, encrypted at
-    // rest); fall back to the env var. Resolved per-request so a UI change takes
-    // effect without restart.
-    agentgateWebhookSecret: () => {
-      const stored = db ? getConfigValue(db, 'agentGateSecret') : null;
-      const fromConfig = stored ? (stored.startsWith('v1:') ? decryptSecret(stored) : stored) : null;
-      return fromConfig ?? process.env['AGENTGATE_WEBHOOK_SECRET'] ?? undefined;
-    },
-    formbridgeWebhookSecret: process.env['FORMBRIDGE_WEBHOOK_SECRET'],
+    agentgateWebhookSecret: configWebhookSecret('agentGateSecret', 'AGENTGATE_WEBHOOK_SECRET'),
+    formbridgeWebhookSecret: configWebhookSecret('formBridgeSecret', 'FORMBRIDGE_WEBHOOK_SECRET'),
   }));
 
   // ─── OIDC Auth routes (no API key auth — handles own auth) ──
