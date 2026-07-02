@@ -17,19 +17,25 @@ Severity levels:
 /**
  * JSON schema for structured output (used with OpenAI response_format and Anthropic tool-use).
  */
+// OpenAI strict Structured Outputs requires additionalProperties:false on EVERY
+// object and rejects validation keywords (maxLength/maxItems/minimum/maximum), so
+// this schema carries neither — size/range limits are guided in the prompt and
+// clamped when parsing. Without this the API 400s and diagnostics silently fall
+// back (the feature never actually ran an LLM analysis with OpenAI).
 export const DIAGNOSTIC_JSON_SCHEMA: Record<string, unknown> = {
   type: 'object',
+  additionalProperties: false,
   properties: {
     severity: { type: 'string', enum: ['critical', 'warning', 'info', 'healthy'] },
-    summary: { type: 'string', maxLength: 500 },
+    summary: { type: 'string' },
     rootCauses: {
       type: 'array',
-      maxItems: 10,
       items: {
         type: 'object',
+        additionalProperties: false,
         properties: {
           description: { type: 'string' },
-          confidence: { type: 'number', minimum: 0, maximum: 1 },
+          confidence: { type: 'number' },
           category: {
             type: 'string',
             enum: [
@@ -41,8 +47,11 @@ export const DIAGNOSTIC_JSON_SCHEMA: Record<string, unknown> = {
             type: 'array',
             items: {
               type: 'object',
+              additionalProperties: false,
               properties: {
-                type: { type: 'string' },
+                // Must match the parser's evidence enum, else the LLM invents
+                // types (e.g. "log_entry") and every real diagnosis is rejected.
+                type: { type: 'string', enum: ['error_pattern', 'tool_sequence', 'metric', 'trend', 'event'] },
                 summary: { type: 'string' },
               },
               required: ['type', 'summary'],
@@ -54,9 +63,9 @@ export const DIAGNOSTIC_JSON_SCHEMA: Record<string, unknown> = {
     },
     recommendations: {
       type: 'array',
-      maxItems: 10,
       items: {
         type: 'object',
+        additionalProperties: false,
         properties: {
           action: { type: 'string' },
           priority: { type: 'string', enum: ['high', 'medium', 'low'] },

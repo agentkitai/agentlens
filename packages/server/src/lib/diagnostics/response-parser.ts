@@ -33,9 +33,12 @@ const RecommendationSchema = z.object({
 
 export const LLMDiagnosticResponseSchema = z.object({
   severity: z.enum(['critical', 'warning', 'info', 'healthy']),
-  summary: z.string().max(500),
-  rootCauses: z.array(RootCauseSchema).max(10),
-  recommendations: z.array(RecommendationSchema).max(10),
+  // No length/count caps: OpenAI strict Structured Outputs can't enforce them, so
+  // rejecting an otherwise-valid diagnosis over a slightly-long summary or an 11th
+  // item would just force the heuristic fallback. The prompt guides brevity.
+  summary: z.string(),
+  rootCauses: z.array(RootCauseSchema),
+  recommendations: z.array(RecommendationSchema),
 });
 
 export type LLMDiagnosticResponse = z.infer<typeof LLMDiagnosticResponseSchema>;
