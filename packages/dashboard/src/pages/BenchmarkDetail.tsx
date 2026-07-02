@@ -140,12 +140,15 @@ export function BenchmarkDetail(): React.ReactElement {
     refetch: refetchBenchmark,
   } = useApi(() => getBenchmark(id!), [id]);
 
+  // Results only exist once a benchmark is running/completed — fetching them for a
+  // draft returns a 400, which surfaced as a scary "Failed to load results" error.
+  const canFetchResults = benchmark?.status === 'running' || benchmark?.status === 'completed';
   const {
     data: results,
     loading: resultsLoading,
     error: resultsError,
     refetch: refetchResults,
-  } = useApi(() => getBenchmarkResults(id!), [id]);
+  } = useApi(() => (canFetchResults ? getBenchmarkResults(id!) : Promise.resolve(null)), [id, canFetchResults]);
 
   // ─── Distribution data (lazy-loaded) ───────────────────────────
 
@@ -516,6 +519,10 @@ export function BenchmarkDetail(): React.ReactElement {
         ) : resultsError ? (
           <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
             Failed to load results: {resultsError}
+          </div>
+        ) : !canFetchResults ? (
+          <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-sm text-gray-600">
+            No results yet — {benchmark?.status === 'cancelled' ? 'this benchmark was cancelled.' : 'start the benchmark to collect and compare variant results.'}
           </div>
         ) : (
           <ComparisonTable
