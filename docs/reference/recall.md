@@ -1,6 +1,6 @@
 # Recall API
 
-Semantic search over agent memory — find past events, sessions, and lessons by meaning.
+Semantic search over agent memory — find past events and sessions by meaning.
 
 ## GET /api/recall
 
@@ -11,7 +11,7 @@ Perform a semantic search using natural language queries. Results are ranked by 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `query` | string | *(required)* | Natural language search query |
-| `scope` | string | `all` | Search scope: `all`, `events`, `sessions`, `lessons` |
+| `scope` | string | `all` | Search scope: `all`, `events`, `sessions` |
 | `agentId` | string | — | Filter by agent ID |
 | `from` | string | — | Start of time range (ISO 8601) |
 | `to` | string | — | End of time range (ISO 8601) |
@@ -33,20 +33,10 @@ Perform a semantic search using natural language queries. Results are ranked by 
         "eventType": "tool_call",
         "agentId": "my-agent"
       }
-    },
-    {
-      "sourceType": "lesson",
-      "sourceId": "lesson_456",
-      "score": 0.87,
-      "text": "Always validate JWT tokens before processing requests",
-      "metadata": {
-        "category": "security",
-        "importance": "high"
-      }
     }
   ],
   "query": "authentication errors",
-  "totalResults": 2
+  "totalResults": 1
 }
 ```
 
@@ -55,7 +45,7 @@ Perform a semantic search using natural language queries. Results are ranked by 
 | Field | Type | Description |
 |---|---|---|
 | `results` | array | Matching results, sorted by score descending |
-| `results[].sourceType` | string | Type of source: `event`, `session`, or `lesson` |
+| `results[].sourceType` | string | Type of source: `event` or `session` |
 | `results[].sourceId` | string | ID of the source record |
 | `results[].score` | number | Cosine similarity score (0–1) |
 | `results[].text` | string | Text content of the match |

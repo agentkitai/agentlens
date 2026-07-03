@@ -5,13 +5,13 @@ AgentLens ships as an MCP server (`@agentkitai/agentlens-mcp`) that agents add t
 ## How It Works
 
 1. Your agent connects to the AgentLens MCP server via stdio transport
-2. The MCP server exposes 5 tools that the agent can call
+2. The MCP server exposes 20+ tools that the agent can call
 3. Events are sent to the AgentLens API server over HTTP
 4. Events appear in the dashboard in real time
 
 ```
 Agent  ──MCP stdio──►  @agentkitai/agentlens-mcp  ──HTTP──►  @agentkitai/agentlens-server
-                        (5 tools)                    (API + Dashboard)
+                        (20+ tools)                  (API + Dashboard)
 ```
 
 ## MCP Tools

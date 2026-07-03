@@ -22,7 +22,7 @@ You'll see:
 ```
 🔍 AgentLens server listening on http://localhost:3400
 📦 Database: ./agentlens.db (SQLite WAL mode)
-🔓 Auth: disabled (set AUTH_DISABLED=false for production)
+🔒 Auth: enabled (set AUTH_DISABLED=true for local dev)
 ```
 
 ::: tip Production Setup
