@@ -16,7 +16,12 @@ import { getAgentInsights, type AgentInsightsData } from '../api/agent-insights'
 // ─── Helpers ─────────────────────────────────────────────
 
 function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  // Tolerate epoch-ms / numeric-string timestamps (e.g. "1783015898521.0") as
+  // well as ISO strings — otherwise new Date() yields NaN ("NaNd ago").
+  const s = String(iso ?? '').trim();
+  const t = /^\d+(\.\d+)?$/.test(s) ? Math.round(Number(s)) : new Date(s).getTime();
+  if (!Number.isFinite(t)) return 'unknown';
+  const diff = Date.now() - t;
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
