@@ -27,8 +27,8 @@ LORE_API_KEY=lore_your_key           # Optional, if Lore requires auth
 
 ### 2. What happens when enabled
 
-- Dashboard shows Lessons and Community nav items (proxied to Lore)
-- `GET /api/config/features` returns `{ loreEnabled: true }`
+- Dashboard shows a single **Memories** nav item (read-only, proxied to Lore)
+- `GET /api/config/features` returns `{ lore: true, loreUrl: "..." }`
 - Proxy routes forward `/api/lore/*` to your Lore server
 
 ### 3. What happens when disabled (default)

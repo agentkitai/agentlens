@@ -1,19 +1,19 @@
 # Agent Memory — Integration Guide
 
-AgentLens provides four memory capabilities that turn stateless AI agents into self-improving systems: **Recall**, **Learn**, **Reflect**, and **Context**. This guide covers when and how to use each one.
+AgentLens provides three memory capabilities that turn stateless AI agents into self-improving systems: **Recall**, **Reflect**, and **Context**. This guide covers when and how to use each one.
+
+> **Note:** Lesson capture (the former **Learn** capability) moved to [Lore](/migration/lore-integration). Use `lore-sdk` or the Lore MCP server for saving and managing distilled insights.
 
 ## Overview
 
 | Capability | MCP Tool | API Endpoint | Purpose |
 |---|---|---|---|
-| **Recall** | `agentlens_recall` | `GET /api/recall` | Semantic search over past events, sessions, and lessons |
-| **Learn** | `agentlens_learn` | `POST/GET/PUT/DELETE /api/lessons` | Save, retrieve, update, and delete distilled insights |
+| **Recall** | — | `GET /api/recall` | Semantic search over past events and sessions |
 | **Reflect** | `agentlens_reflect` | `GET /api/reflect` | Analyze behavioral patterns (errors, costs, tool usage, performance) |
-| **Context** | — | `GET /api/context` | Retrieve cross-session context for a topic |
+| **Context** | `agentlens_context` | `GET /api/context` | Retrieve cross-session context for a topic |
 
 Together, these give agents the ability to:
 - **Remember** what happened in past sessions
-- **Learn** from mistakes and successes
 - **Analyze** their own behavioral patterns
 - **Carry context** across session boundaries
 
@@ -57,13 +57,14 @@ Recall uses vector embeddings for semantic search. Configure the embedding backe
 
 | Variable | Default | Description |
 |---|---|---|
-| `EMBEDDING_BACKEND` | `local` | Backend: `local`, `openai`, or `none` |
-| `EMBEDDING_MODEL` | varies | Model name (backend-specific) |
-| `OPENAI_API_KEY` | — | Required for `openai` backend |
+| `AGENTLENS_EMBEDDING_BACKEND` | `openai` | Embedding backend (`openai`) |
+| `AGENTLENS_EMBEDDING_MODEL` | varies | Model name override |
+| `OPENAI_API_KEY` | — | Required for the `openai` backend |
 
-- **`local`** — Uses a bundled embedding model. No external dependencies. Good for development.
-- **`openai`** — Uses OpenAI's embedding API. Better quality for production.
-- **`none`** — Disables embeddings. Recall won't work, but all other features still function.
+- **`openai`** — Uses OpenAI's embedding API. Requires `OPENAI_API_KEY`.
+
+> The former bundled `local` (ONNX) and `none` backends were removed. For local or
+> alternative embeddings, use [Lore](/migration/lore-integration) for semantic search.
 
 ## Recall — Semantic Search
 
@@ -101,66 +102,16 @@ agentlens_recall({ query: "database errors", from: "2026-02-01", to: "2026-02-08
 ### What It Returns
 
 Results are ranked by cosine similarity. Each result includes:
-- **sourceType** — `event`, `session`, or `lesson`
+- **sourceType** — `event` or `session`
 - **score** — similarity from 0 to 1
 - **text** — the matching content
 - **metadata** — source-specific context (sessionId, category, etc.)
 
-## Learn — Lesson Lifecycle
+## Learn — Moved to Lore
 
-Use `agentlens_learn` to save and manage distilled insights. Lessons are the agent's long-term knowledge base.
-
-### When to Save a Lesson
-
-- After successfully solving a difficult problem
-- After encountering (and resolving) a recurring error
-- When discovering a better approach to a task
-- After user feedback on agent behavior
-
-### Lesson Structure
-
-| Field | Required | Description |
-|---|---|---|
-| `title` | ✅ | Short, descriptive title |
-| `content` | ✅ | Full lesson content |
-| `category` | — | Grouping category (e.g., `deployment`, `security`, `debugging`) |
-| `importance` | — | `low`, `normal`, `high`, `critical` |
-
-### Actions
-
-```
-# Save a new lesson
-agentlens_learn({ action: "save", title: "...", content: "...", category: "..." })
-
-# List all lessons
-agentlens_learn({ action: "list", category: "deployment" })
-
-# Get a specific lesson
-agentlens_learn({ action: "get", id: "lesson_abc123" })
-
-# Update a lesson
-agentlens_learn({ action: "update", id: "lesson_abc123", content: "new content" })
-
-# Search lessons
-agentlens_learn({ action: "search", search: "deployment best practices" })
-
-# Archive a lesson
-agentlens_learn({ action: "delete", id: "lesson_abc123" })
-```
-
-### Categories
-
-Use consistent categories across agents for better organization. Recommended:
-
-| Category | Use for |
-|---|---|
-| `general` | Miscellaneous insights |
-| `debugging` | Error resolution strategies |
-| `deployment` | Deployment process learnings |
-| `security` | Security-related insights |
-| `performance` | Performance optimization |
-| `integration` | Third-party integration tips |
-| `user-feedback` | User preference insights |
+Lesson capture and management (the former `agentlens_learn` tool and `/api/lessons`
+endpoints) have moved to [Lore](/migration/lore-integration). Use `lore-sdk` or the
+Lore MCP server to save, list, update, and search distilled insights.
 
 ## Reflect — Pattern Analysis
 
@@ -265,7 +216,7 @@ Before starting a task, search for relevant past experience:
 2. agentlens_recall({ query: "<task description>" })
 3. Use recall results to inform approach
 4. Execute task
-5. If successful, save lesson
+5. If successful, save a lesson to Lore (lore-sdk / Lore MCP)
 ```
 
 ### Pattern 2: Error Recovery with Learning
@@ -274,10 +225,10 @@ When an error occurs, check if it's happened before:
 
 ```
 1. Error occurs
-2. agentlens_recall({ query: "<error message>", scope: "lessons" })
-3. If lesson found → apply known fix
+2. agentlens_recall({ query: "<error message>", scope: "events" })
+3. Search Lore for a matching lesson → apply known fix
 4. If no lesson → debug and solve
-5. agentlens_learn({ action: "save", title: "Fix for <error>", content: "<solution>" })
+5. Save the fix as a lesson in Lore (lore-sdk / Lore MCP)
 ```
 
 ### Pattern 3: Periodic Self-Reflection
@@ -309,7 +260,7 @@ After complex tasks, distill learnings:
 ```
 1. Complete complex multi-step task
 2. Review what worked and what didn't
-3. agentlens_learn({ action: "save", title: "...", content: "...", importance: "high" })
+3. Save a lesson to Lore (lore-sdk / Lore MCP) with `importance: "high"`
 4. Future runs start with these lessons pre-loaded
 ```
 
@@ -319,17 +270,8 @@ After complex tasks, distill learnings:
 
 | Backend | Quality | Latency | Cost | Best For |
 |---|---|---|---|---|
-| `local` | Good | Low | Free | Development, small datasets |
-| `openai` | Excellent | Medium | Per-token | Production, large datasets |
-| `none` | N/A | N/A | Free | When semantic search isn't needed |
+| `openai` | Excellent | Medium | Per-token | Semantic search over events and sessions |
 
-### Tuning Parameters
-
-| Parameter | Default | Description |
-|---|---|---|
-| `RECALL_DEFAULT_LIMIT` | `10` | Default number of recall results |
-| `RECALL_MIN_SCORE` | `0` | Default minimum similarity score |
-| `CONTEXT_DEFAULT_LIMIT` | `5` | Default number of context sessions |
-| `LESSON_MAX_PER_AGENT` | `1000` | Maximum lessons per agent |
-
-Adjust these based on your use case. Higher `minScore` values return fewer but more relevant results. Lower limits reduce token usage when results are included in prompts.
+Set the backend via `AGENTLENS_EMBEDDING_BACKEND=openai` (with `OPENAI_API_KEY`), and
+optionally override the model with `AGENTLENS_EMBEDDING_MODEL`. Higher `minScore`
+values return fewer but more relevant results.

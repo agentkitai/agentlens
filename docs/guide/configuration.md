@@ -7,7 +7,7 @@ AgentLens is configured through environment variables with sensible defaults. No
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3400` | HTTP server port |
-| `CORS_ORIGIN` | `*` | CORS allowed origins (comma-separated or `*`) |
+| `CORS_ORIGIN` | `http://localhost:3400` | CORS allowed origin. `*` is rejected at startup (FATAL) unless `AUTH_DISABLED=true`. |
 | `AUTH_DISABLED` | `false` | Disable API key authentication (dev mode only) |
 | `DB_PATH` | `./agentlens.db` | SQLite database file path |
 | `DATABASE_PATH` | `./agentlens.db` | Alias for `DB_PATH` |

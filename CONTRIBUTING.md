@@ -6,8 +6,8 @@ Thanks for your interest in contributing to AgentLens! This guide will get you f
 
 | Tool | Version | Check |
 |------|---------|-------|
-| [Node.js](https://nodejs.org/) | 22+ | `node -v` |
-| [pnpm](https://pnpm.io/) | 9+ | `pnpm -v` |
+| [Node.js](https://nodejs.org/) | 20+ | `node -v` |
+| [pnpm](https://pnpm.io/) | 10+ | `pnpm -v` |
 | [Python](https://python.org/) | 3.10+ (only for `python-sdk`) | `python3 --version` |
 
 ## Getting Started
@@ -46,8 +46,7 @@ packages/
 ├── cli/           Command-line interface (@agentkitai/agentlens-cli)
 ├── sdk/           TypeScript SDK (@agentkitai/agentlens-sdk)
 ├── python-sdk/    Python SDK + auto-instrumentation (agentlensai)
-├── mcp/           MCP tool server (@agentkitai/agentlens-mcp)
-└── pool-server/   Community pool server (@agentkitai/agentlens-pool-server)
+└── mcp/           MCP tool server (@agentkitai/agentlens-mcp)
 ```
 
 ## Development Workflow
@@ -136,7 +135,7 @@ fix(python-sdk): handle missing provider gracefully
 
 **Types:** `feat` | `fix` | `docs` | `chore` | `refactor` | `test` | `ci`
 
-**Scope** (optional): package name — `core`, `server`, `dashboard`, `cli`, `sdk`, `python-sdk`, `mcp`, `pool-server`
+**Scope** (optional): package name — `core`, `server`, `dashboard`, `cli`, `sdk`, `python-sdk`, `mcp`
 
 ## Pull Request Process
 
