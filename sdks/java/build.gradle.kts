@@ -19,7 +19,7 @@ repositories {
 
 dependencies {
     // Runtime: Jackson for JSON
-    api("com.fasterxml.jackson.core:jackson-databind:2.17.0")
+    api("com.fasterxml.jackson.core:jackson-databind:2.22.0")
     api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.0")
 
     // Test
