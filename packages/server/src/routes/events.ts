@@ -87,6 +87,8 @@ export function eventsRoutes(
     const verified = await verifyAgentTokenWithMethod(c.req.header('x-agent-token'));
     const verifiedAgentId = verified?.id ?? null;
     const verifiedAgentMethod = verified?.method ?? 'agentgate_token';
+    // For a delegated (RFC-8693) token, the principal the agent acts on behalf of.
+    const verifiedOnBehalfOf = verified?.onBehalfOf ?? null;
 
     // Group events by sessionId to handle per-session hash chains
     const bySession = new Map<string, typeof inputEvents>();
@@ -115,7 +117,12 @@ export function eventsRoutes(
       for (const { input, timestamp } of ordered) {
         const id = nextEventId();
         const severity = input.severity ?? 'info';
-        const metadata = stampVerifiedAgent(input.metadata ?? {}, verifiedAgentId, verifiedAgentMethod);
+        const metadata = stampVerifiedAgent(
+          input.metadata ?? {},
+          verifiedAgentId,
+          verifiedAgentMethod,
+          verifiedOnBehalfOf,
+        );
         // #252: offload large base64 media to media_objects, leaving media:// refs
         // (before truncate/hash, so the ref is what's hashed + stored).
         const rawPayload = mediaStore
