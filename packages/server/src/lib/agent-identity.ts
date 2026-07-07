@@ -29,9 +29,28 @@ import { verifyAccessToken, type AuthConfig } from '@agentkitai/auth';
 import { jwtVerify, createRemoteJWKSet, decodeProtectedHeader } from 'jose';
 
 /** The reserved metadata keys this module owns; always server-set, never trusted from a client. */
-export const VERIFIED_AGENT_META_KEYS = ['verifiedAgentId', 'verifiedAgentMethod'] as const;
+export const VERIFIED_AGENT_META_KEYS = [
+  'verifiedAgentId',
+  'verifiedAgentMethod',
+  'verifiedOnBehalfOf',
+] as const;
 
 const AGENT_TOKEN_TYP = 'agent';
+
+/**
+ * Read the ACTING agent (and, for a delegated RFC-8693 token, the on-behalf-of
+ * principal) from a verified payload. `sub` = principal + `act.sub` = actor for a
+ * delegated token (#43); a plain token has no `act`, so `sub` IS the actor. Mirrors
+ * AgentGate's actingAgentOf() so attribution targets the actor, never the principal.
+ */
+function readActor(payload: Record<string, unknown>): { id: string; onBehalfOf?: string } | null {
+  const sub = payload['sub'];
+  if (typeof sub !== 'string') return null;
+  const act = payload['act'];
+  const actorSub =
+    act && typeof act === 'object' ? (act as Record<string, unknown>)['sub'] : undefined;
+  return typeof actorSub === 'string' ? { id: actorSub, onBehalfOf: sub } : { id: sub };
+}
 
 /** How a verified agent id was established (stamped into `verifiedAgentMethod`). */
 export type VerifiedAgentMethod = 'agentgate_token' | 'agentgate_jwks' | 'agentgate_ingest_key';
@@ -112,7 +131,7 @@ export function agentIdentityEnabled(): boolean {
  */
 export async function verifyAgentTokenWithMethod(
   token: string | undefined | null,
-): Promise<{ id: string; method: VerifiedAgentMethod } | null> {
+): Promise<{ id: string; method: VerifiedAgentMethod; onBehalfOf?: string } | null> {
   if (!token) return null;
 
   let alg: unknown;
@@ -137,7 +156,8 @@ export async function verifyAgentTokenWithMethod(
         ...(iss ? { issuer: iss } : {}),
       });
       if ((payload as Record<string, unknown>)['typ'] !== AGENT_TOKEN_TYP) return null;
-      return typeof payload.sub === 'string' ? { id: payload.sub, method: 'agentgate_jwks' } : null;
+      const actor = readActor(payload as Record<string, unknown>);
+      return actor ? { ...actor, method: 'agentgate_jwks' } : null;
     } catch {
       return null;
     }
@@ -159,7 +179,8 @@ export async function verifyAgentTokenWithMethod(
   if (aud && !audienceMatches((claims as Record<string, unknown>)['aud'], aud)) return null;
   const iss = agentTokenIssuer();
   if (iss && (claims as Record<string, unknown>)['iss'] !== iss) return null;
-  return typeof claims.sub === 'string' ? { id: claims.sub, method: 'agentgate_token' } : null;
+  const actor = readActor(claims as Record<string, unknown>);
+  return actor ? { ...actor, method: 'agentgate_token' } : null;
 }
 
 /**
@@ -198,18 +219,22 @@ export function metadataVerifiedAgentId(metadata: Record<string, unknown> | null
 
 /**
  * Strip the reserved verified-agent keys from `metadata` (so a client can never
- * forge them) and stamp the server-verified id back in when one was resolved.
- * The result is what gets hashed + persisted.
+ * forge them) and stamp the server-verified id back in when one was resolved. For
+ * a delegated (RFC-8693) token, `onBehalfOf` records the principal the verified
+ * agent is acting for — stamped as `verifiedOnBehalfOf` (also server-set). The
+ * result is what gets hashed + persisted.
  */
 export function stampVerifiedAgent(
   metadata: Record<string, unknown>,
   verifiedAgentId: string | null,
   method: string = 'agentgate_token',
+  onBehalfOf?: string | null,
 ): Record<string, unknown> {
   const clean = stripVerifiedAgentKeys(metadata);
   if (verifiedAgentId) {
     clean['verifiedAgentId'] = verifiedAgentId;
     clean['verifiedAgentMethod'] = method;
+    if (onBehalfOf) clean['verifiedOnBehalfOf'] = onBehalfOf;
   }
   return clean;
 }
