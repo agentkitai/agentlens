@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@agentkitai/agentlens-core": "workspace:*",
-    "recharts": "^2.15.0"
+    "recharts": "^3.9.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.1",
