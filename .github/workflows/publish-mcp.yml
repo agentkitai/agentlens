@@ -21,7 +21,7 @@ jobs:
       id-token: write   # MCP Registry OIDC — no secrets
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Publish to the MCP Registry (GitHub Actions OIDC)
         working-directory: packages/mcp
