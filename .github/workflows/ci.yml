@@ -32,7 +32,7 @@ jobs:
         run: cd packages/sdk && npm pack --dry-run
       - name: Upload coverage
         if: always()
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/*/coverage/lcov.info
