@@ -35,7 +35,7 @@ jobs:
       # No registry-url here on purpose: setup-node would write an .npmrc with a
       # `${NODE_AUTH_TOKEN}` placeholder that breaks OIDC auth (404). Default
       # registry (registry.npmjs.org) is what trusted publishing targets anyway.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
