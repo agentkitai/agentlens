@@ -1,9 +1,11 @@
 name: Deploy Infrastructure
 
+# Manual-only: AWS_ROLE_ARN (OIDC role) has never been configured — no repo/env
+# vars or secrets exist — so every push-triggered run failed at the credentials
+# step (40/40 failures, never deployed). Restore the push/tags triggers when a
+# real AWS account is wired up (set vars.AWS_ROLE_ARN on the staging/prod
+# environments first).
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       environment:
