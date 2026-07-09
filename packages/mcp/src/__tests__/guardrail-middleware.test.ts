@@ -101,13 +101,42 @@ describe('guardrailWrap', () => {
     expect(result.content[0].text).toBe('Safe output');
   });
 
-  it('fails open on evaluator error', async () => {
+  it('fails CLOSED by default when the input scan errors (blocks, handler not called)', async () => {
     const evaluator: ContentGuardrailEvaluator = {
       evaluateContent: vi.fn().mockRejectedValue(new Error('timeout')),
     };
     const handler = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] });
     const wrapped = guardrailWrap(handler, {
       toolName: 'test', getAgentId: () => 'a1', getTenantId: () => 'default', evaluator,
+    });
+    const result = await wrapped({});
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('request blocked');
+  });
+
+  it('fails CLOSED by default when the output scan errors (blocks the response)', async () => {
+    const evaluator: ContentGuardrailEvaluator = {
+      evaluateContent: vi.fn()
+        .mockResolvedValueOnce(allowResult)          // input scan passes
+        .mockRejectedValueOnce(new Error('timeout')), // output scan errors
+    };
+    const handler = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'sensitive output' }] });
+    const wrapped = guardrailWrap(handler, {
+      toolName: 'test', getAgentId: () => 'a1', getTenantId: () => 'default', evaluator,
+    });
+    const result = await wrapped({ text: 'hello' });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('response blocked');
+  });
+
+  it('fails OPEN on evaluator error when failOpen is set', async () => {
+    const evaluator: ContentGuardrailEvaluator = {
+      evaluateContent: vi.fn().mockRejectedValue(new Error('timeout')),
+    };
+    const handler = vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'ok' }] });
+    const wrapped = guardrailWrap(handler, {
+      toolName: 'test', getAgentId: () => 'a1', getTenantId: () => 'default', evaluator, failOpen: true,
     });
     const result = await wrapped({});
     expect(handler).toHaveBeenCalled();

@@ -498,30 +498,29 @@ export class AgentLensTransport {
 
   /**
    * Evaluate content against guardrail rules via the server API.
-   * Fail-open: returns allow on error/timeout.
+   * THROWS on error/timeout/non-OK. The caller (guardrailWrap) owns the
+   * fail-open-vs-closed policy — this used to swallow errors and return `allow`,
+   * which made the guardrail silently fail open (a down server waved everything
+   * through). Surfacing the error lets the middleware fail closed by default.
    */
   async evaluateContent(
     content: string,
     context: { tenantId: string; agentId: string; toolName: string; direction: 'input' | 'output' },
     timeoutMs?: number,
   ): Promise<{ decision: 'allow' | 'block' | 'redact'; matches: unknown[]; blockingRuleId?: string; redactedContent?: string; evaluationMs: number; rulesEvaluated: number }> {
-    try {
-      const effectiveTimeout = timeoutMs ?? 200;
-      const url = `${this.baseUrl}/api/guardrails/evaluate`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: this.buildHeaders(),
-        body: JSON.stringify({ content, context, timeoutMs }),
-        signal: AbortSignal.timeout(effectiveTimeout + 100),
-      });
-      if (!response.ok) {
-        return { decision: 'allow', matches: [], evaluationMs: 0, rulesEvaluated: 0 };
-      }
-      return response.json() as any;
-    } catch {
-      // Fail-open
-      return { decision: 'allow', matches: [], evaluationMs: 0, rulesEvaluated: 0 };
+    const effectiveTimeout = timeoutMs ?? 200;
+    const url = `${this.baseUrl}/api/guardrails/evaluate`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify({ content, context, timeoutMs }),
+      signal: AbortSignal.timeout(effectiveTimeout + 100),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'Unknown error');
+      throw new Error(`Guardrail evaluate error ${response.status}: ${body}`);
     }
+    return response.json() as any;
   }
 
   /** Get the tenant ID from the API key or default */

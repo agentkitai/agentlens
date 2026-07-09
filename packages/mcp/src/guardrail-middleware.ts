@@ -27,6 +27,9 @@ export interface GuardrailMiddlewareOptions {
   getTenantId: () => string;
   evaluator: ContentGuardrailEvaluator;
   timeoutMs?: number;
+  /** When the evaluator errors/times out, allow the content through instead of
+   *  blocking it. Default false (fail closed). Wire from AGENTLENS_GUARDRAIL_FAIL_OPEN. */
+  failOpen?: boolean;
 }
 
 interface ToolResult {
@@ -37,7 +40,11 @@ interface ToolResult {
 type ToolHandler = (args: Record<string, unknown>) => Promise<ToolResult>;
 
 /**
- * Wrap a tool handler with content guardrail enforcement.
+ * Wrap a tool handler with content guardrail enforcement. If the evaluator
+ * errors or times out, the call FAILS CLOSED by default (input error → request
+ * blocked; output error → response blocked) so an unreachable guardrail server
+ * can't silently pass unscanned content. Set options.failOpen (from
+ * AGENTLENS_GUARDRAIL_FAIL_OPEN) to allow through instead.
  */
 export function guardrailWrap(
   handler: ToolHandler,
@@ -80,7 +87,14 @@ export function guardrailWrap(
           }
         }
       } catch {
-        // Fail-open on evaluator error
+        // Evaluator errored/timed out. Fail closed by default (block); opt into
+        // fail-open via options.failOpen for advisory-only deployments.
+        if (!options.failOpen) {
+          return {
+            content: [{ type: 'text', text: 'Guardrail policy violation: request blocked (guardrail unavailable).' }],
+            isError: true,
+          };
+        }
       }
     }
 
@@ -115,7 +129,14 @@ export function guardrailWrap(
             };
           }
         } catch {
-          // Fail-open
+          // Evaluator errored/timed out. Fail closed by default (block the
+          // response so unscanned output can't leak); opt into fail-open.
+          if (!options.failOpen) {
+            return {
+              content: [{ type: 'text', text: 'Guardrail policy violation: response blocked (guardrail unavailable).' }],
+              isError: true,
+            };
+          }
         }
       }
     }
