@@ -12,7 +12,7 @@ jobs:
       id-token: write   # PyPI Trusted Publishing (OIDC) — no PYPI_TOKEN secret needed
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Run tests before publish
