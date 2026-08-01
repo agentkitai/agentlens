@@ -408,8 +408,8 @@ export function LlmAnalytics(): React.ReactElement {
                     borderRadius: '8px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number, name: string) => [
-                    name === 'cost' ? formatCost(value) : value,
+                  formatter={(value, name) => [
+                    name === 'cost' ? formatCost(Number(value)) : value,
                     name === 'cost' ? 'Cost (USD)' : 'Calls',
                   ]}
                 />
@@ -462,9 +462,9 @@ export function LlmAnalytics(): React.ReactElement {
                     borderRadius: '8px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'Cost') return [formatCost(value), name];
-                    if (name === 'Avg Latency') return [formatLatency(value), name];
+                  formatter={(value, name) => {
+                    if (name === 'Cost') return [formatCost(Number(value)), name];
+                    if (name === 'Avg Latency') return [formatLatency(Number(value)), name];
                     return [value, name];
                   }}
                 />

@@ -314,7 +314,7 @@ function AnalyticsOverview(): React.ReactElement {
                     borderRadius: '8px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Error Rate']}
+                  formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Error Rate']}
                 />
                 <Area type="monotone" dataKey="errorRate" stroke="#ef4444" fill="#fee2e2" strokeWidth={2} name="Error Rate %" />
               </AreaChart>
@@ -408,7 +408,7 @@ function AnalyticsOverview(): React.ReactElement {
                     borderRadius: '8px',
                     fontSize: '13px',
                   }}
-                  formatter={(value: number) => [formatCost(value)]}
+                  formatter={(value) => [formatCost(Number(value))]}
                 />
                 <Legend />
                 {costAgentIds.length > 0 ? (

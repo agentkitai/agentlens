@@ -415,7 +415,7 @@ export function PromptDetail(): React.ReactElement {
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="version" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
-                      <Tooltip formatter={(v: number) => [formatCost(v), 'Cost']} />
+                      <Tooltip formatter={(v) => [formatCost(Number(v)), 'Cost']} />
                       <Bar dataKey="cost" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Cost" />
                     </BarChart>
                   </ResponsiveContainer>
