@@ -466,7 +466,9 @@ describePg('Postgres integration tests', () => {
       const scoped = new TenantScopedStore(pgStore, tid);
       const mkEvent = (over: Record<string, unknown>) => {
         const base = {
-          id: `e_${randomUUID()}`, timestamp: '2026-06-15T10:00:00Z',
+          // Recent timestamp — getVersionAnalytics defaults to a rolling 30-day
+          // window, so a hardcoded date ages out and the join silently drops rows.
+          id: `e_${randomUUID()}`, timestamp: new Date(Date.now() - 3600_000).toISOString(),
           sessionId: `s_${randomUUID().slice(0, 6)}`, agentId: 'agt-x',
           eventType: 'custom', severity: 'info', payload: {}, metadata: {}, prevHash: null,
           ...over,
