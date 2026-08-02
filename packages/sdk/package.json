@@ -62,7 +62,7 @@
     "@agentkitai/pricing": "workspace:*"
   },
   "devDependencies": {
-    "@langchain/core": "^1.2.1"
+    "@langchain/core": "^1.2.3"
   },
   "peerDependencies": {
     "@langchain/core": ">=0.1.0"
